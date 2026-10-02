@@ -1,0 +1,129 @@
+/* A signpost pinned to a world point (ui/signpost.ts). Palette from hud.css :root. */
+
+.signpost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 4;
+  display: none;
+  width: 0;
+  height: 0;
+  pointer-events: auto;
+  cursor: pointer;
+  font-family: 'Anton', Impact, sans-serif;
+}
+.signpost.on {
+  display: block;
+}
+
+/* the plate, up on its post above the point */
+.signpost-plate {
+  position: absolute;
+  bottom: 118px;
+  left: 0;
+  translate: -50% 0;
+  width: 300px;
+  padding: 12px 16px 14px;
+  text-align: center;
+  transform-origin: 50% 100%;
+  animation: signpost-up 0.45s cubic-bezier(0.2, 1.5, 0.4, 1);
+}
+@keyframes signpost-up {
+  from {
+    transform: scale(0.3) translateY(60px);
+    opacity: 0;
+  }
+}
+.signpost-title {
+  font-family: 'Creepster', 'Bangers', Impact, sans-serif;
+  font-size: 38px;
+  line-height: 1;
+  letter-spacing: 0.04em;
+}
+.signpost-meta {
+  margin-top: 4px;
+  font-size: 13px;
+  letter-spacing: 0.18em;
+  color: var(--warm);
+}
+.signpost-body {
+  margin-top: 8px;
+  font-family: 'Bangers', Impact, sans-serif;
+  font-size: 18px;
+  line-height: 1.2;
+  letter-spacing: 0.05em;
+  color: var(--bone);
+}
+.signpost-body b {
+  color: var(--slime);
+  font-weight: normal;
+}
+.signpost-next {
+  position: absolute;
+  right: 10px;
+  bottom: -11px;
+  padding: 1px 9px;
+  border: 2px solid var(--ink);
+  border-radius: 6px;
+  background: var(--slime);
+  color: var(--ink);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+}
+
+/* the post down to the point, and a ring round its foot */
+.signpost-pole {
+  position: absolute;
+  bottom: 0;
+  left: -3px;
+  width: 6px;
+  height: 120px;
+  border: 2px solid var(--ink);
+  border-bottom: none;
+  background: linear-gradient(var(--lilac), var(--purple-deep, #5b2a8c));
+  transform-origin: 50% 100%;
+  animation: signpost-grow 0.35s ease-out;
+}
+@keyframes signpost-grow {
+  from {
+    transform: scaleY(0);
+  }
+}
+.signpost-foot {
+  position: absolute;
+  left: -26px;
+  top: -10px;
+  width: 52px;
+  height: 20px;
+  border-radius: 50%;
+  border: 3px solid var(--slime);
+  animation: signpost-ring 1.2s ease-out infinite;
+}
+@keyframes signpost-ring {
+  from {
+    transform: scale(0.5);
+    opacity: 1;
+  }
+  to {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+/* phones on their side */
+@media (max-height: 540px) {
+  .signpost-plate {
+    bottom: 84px;
+    width: 230px;
+    padding: 8px 12px 11px;
+  }
+  .signpost-title {
+    font-size: 28px;
+  }
+  .signpost-body {
+    font-size: 14px;
+  }
+  .signpost-pole {
+    height: 86px;
+  }
+}

@@ -1,0 +1,333 @@
+/* Randy's burner phone and the objective line (ui/burner.ts). Palette from hud.css :root. */
+
+/* the phone: off past the left edge, panned in for a text, back to a strip at the edge after */
+.burner {
+  position: absolute;
+  left: 18px;
+  top: 120px;
+  width: 250px;
+  height: 440px;
+  padding: 11px;
+  box-sizing: border-box;
+  border-radius: 38px;
+  border: 4px solid var(--ink);
+  background: linear-gradient(160deg, #43375a, #1b1424 60%);
+  box-shadow: 0 6px 0 var(--ink), 0 18px 40px rgba(0, 0, 0, 0.55);
+  font-family: 'Anton', Impact, sans-serif;
+  transform: translateX(calc(-100% - 60px)) rotate(-10deg);
+  transition: transform 0.55s cubic-bezier(0.2, 1.25, 0.4, 1);
+  pointer-events: none;
+  /* over the touch pad, so the strip at the edge takes a tap */
+  z-index: 3;
+}
+.burner.up {
+  transform: rotate(-2deg);
+  pointer-events: auto;
+}
+.burner.peek {
+  transform: translateX(-84%) rotate(-2deg);
+  pointer-events: auto;
+  cursor: pointer;
+}
+/* a conversation takes the screen: the phone gets out of its way */
+body.dialogue-open .burner {
+  transform: translateX(calc(-100% - 60px)) rotate(-10deg);
+}
+.burner.buzz {
+  animation: burner-buzz 0.45s ease-out;
+}
+.burner.calling {
+  animation: burner-buzz 0.45s ease-out infinite;
+}
+@keyframes burner-buzz {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  15%,
+  45%,
+  75% {
+    translate: -3px 0;
+  }
+  30%,
+  60%,
+  90% {
+    translate: 3px 0;
+  }
+}
+
+.burner-screen {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border-radius: 28px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #24123a, #0e0718);
+  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.6);
+}
+.burner-notch {
+  position: absolute;
+  top: 7px;
+  left: 50%;
+  translate: -50% 0;
+  width: 78px;
+  height: 18px;
+  border-radius: 10px;
+  background: #050208;
+  z-index: 2;
+}
+.burner-status {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 9px 20px 0;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--bone);
+}
+.burner-status .bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 10px;
+}
+.burner-status .bars i {
+  width: 3px;
+  background: var(--bone);
+  border-radius: 1px;
+}
+.burner-status .bars i:nth-child(1) {
+  height: 3px;
+}
+.burner-status .bars i:nth-child(2) {
+  height: 5px;
+}
+.burner-status .bars i:nth-child(3) {
+  height: 7px;
+}
+.burner-status .bars i:nth-child(4) {
+  height: 10px;
+  opacity: 0.35;
+}
+.burner-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid rgba(205, 184, 238, 0.15);
+}
+.burner-avatar {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 2px solid var(--warm);
+  background: #3b1462 center / cover;
+}
+.burner-who .name {
+  font-size: 15px;
+  letter-spacing: 0.12em;
+  color: var(--warm);
+}
+.burner-who .sub {
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  color: var(--lilac);
+  opacity: 0.7;
+}
+
+/* the texts, newest at the bottom */
+.burner-thread {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 12px 18px;
+  overflow: hidden;
+}
+.burner-msg {
+  align-self: flex-start;
+  max-width: 88%;
+  padding: 8px 12px 9px;
+  border-radius: 16px 16px 16px 4px;
+  background: #3a3150;
+  color: var(--bone);
+  font-family: 'Bangers', Impact, sans-serif;
+  font-size: 16px;
+  line-height: 1.2;
+  letter-spacing: 0.05em;
+  transform-origin: 0 100%;
+  animation: bubble-in 0.25s ease-out;
+}
+.burner-msg.old {
+  opacity: 0.5;
+}
+.burner-msg kbd {
+  font-size: 0.7em;
+}
+/* GhASt, spelled as on its dial */
+.ghast-word small {
+  font-size: 0.62em;
+  vertical-align: -0.18em;
+}
+@keyframes bubble-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+/* "typing...": three dots, one after the other */
+.burner-msg.typing {
+  display: flex;
+  gap: 5px;
+  padding: 12px 14px;
+}
+.burner-msg.typing i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--lilac);
+  animation: typing-dot 0.9s infinite;
+}
+.burner-msg.typing i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.burner-msg.typing i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes typing-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+    translate: 0 0;
+  }
+  30% {
+    opacity: 1;
+    translate: 0 -3px;
+  }
+}
+
+/* an incoming call over the whole screen */
+.burner-call {
+  position: absolute;
+  inset: 0;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: radial-gradient(circle at 50% 36%, #3b1462, #0e0718 72%);
+}
+.burner.calling .burner-call {
+  display: flex;
+}
+.burner-call .big {
+  width: 112px;
+  height: 112px;
+  margin-bottom: 8px;
+  border-radius: 50%;
+  border: 3px solid var(--slime);
+  background: #3b1462 center / cover;
+  animation: ring-pulse 1s ease-out infinite;
+}
+@keyframes ring-pulse {
+  from {
+    box-shadow: 0 0 0 0 rgba(141, 255, 31, 0.6);
+  }
+  to {
+    box-shadow: 0 0 0 22px rgba(141, 255, 31, 0);
+  }
+}
+.burner-call .name {
+  font-size: 19px;
+  letter-spacing: 0.12em;
+  color: var(--bone);
+}
+.burner-call .state {
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  color: var(--lilac);
+}
+.burner-call .buttons {
+  display: flex;
+  gap: 52px;
+  margin-top: 40px;
+}
+.burner-call .buttons i {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 3px solid var(--ink);
+  background: #e0393e;
+}
+.burner-call .buttons i.ok {
+  background: var(--slime);
+  animation: answer 0.6s ease-in-out infinite alternate;
+}
+@keyframes answer {
+  to {
+    translate: 0 -5px;
+  }
+}
+
+/* the task right now, under the clock */
+.burner-goal {
+  position: absolute;
+  top: 98px;
+  left: 50%;
+  translate: -50% 0;
+  padding: 4px 14px 3px;
+  border-radius: 999px;
+  border: 2px solid var(--ink);
+  background: rgba(13, 7, 22, 0.78);
+  color: var(--slime);
+  font-family: 'Anton', Impact, sans-serif;
+  font-size: 15px;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.burner-goal.on {
+  opacity: 1;
+}
+.burner-goal::before {
+  content: '\25B8  ';
+  color: var(--bone);
+}
+/* a task that's a key press leads with its key cap instead */
+.burner-goal:has(kbd)::before {
+  content: none;
+}
+.burner-goal kbd {
+  margin: 0 6px 0 0;
+}
+
+/* phones on their side: smaller, tucked toward the top edge */
+@media (max-height: 540px) {
+  body.touch .burner {
+    top: 56px;
+    left: 12px;
+    scale: 0.62;
+    transform-origin: 0 0;
+  }
+  body.touch .burner-goal {
+    top: 66px;
+    scale: 0.75;
+    transform-origin: 50% 0;
+  }
+}
+
+/* the title's tutorial link: skip it the first time, replay it after */
+.title-tut {
+  margin-top: 14px;
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  color: var(--lilac);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  opacity: 0.8;
+}

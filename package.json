@@ -1,0 +1,27 @@
+{
+  "name": "30-phantom-codys",
+  "version": "0.1.0",
+  "private": true,
+  "description": "30 Phantom Codys: isometric haunted-parking-deck tech demo (three.js + TypeScript)",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview",
+    "deploy": "npm run build && deploy/deploy.sh"
+  },
+  "dependencies": {
+    "@fontsource/anton": "^5.3.0",
+    "@fontsource/bangers": "^5.3.0",
+    "@fontsource/creepster": "^5.3.0",
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/three": "^0.186.0",
+    "playwright-core": "^1.63.0",
+    "typescript": "~7.0.2",
+    "vite": "^8.3.2"
+  }
+}

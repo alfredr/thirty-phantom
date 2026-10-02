@@ -1,0 +1,16 @@
+{
+  "name": "30 Phantom Codys",
+  "short_name": "Phantom Codys",
+  "description": "A haunted parking deck: steal cars by day, become a phantom by night.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0d0716",
+  "theme_color": "#0d0716",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

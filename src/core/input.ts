@@ -1,0 +1,175 @@
+import { clamp } from './math';
+
+const BLOCKED = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'Tab']);
+const SHIFT: [string, string] = ['ShiftLeft', 'ShiftRight'];
+
+/** Every key the game reads, by action. The first code is the one the HUD shows. */
+export const KEYS = {
+  forward: ['KeyW', 'ArrowUp'],
+  back: ['KeyS', 'ArrowDown'],
+  left: ['KeyA', 'ArrowLeft'],
+  right: ['KeyD', 'ArrowRight'],
+  run: SHIFT,
+  drift: SHIFT,
+  hop: ['Space'],
+  interact: ['KeyF'],
+  pay: ['KeyG'],
+  /** Opens the item menu (ui/inventory.ts reads it straight off the keyboard). */
+  inventory: ['KeyI'],
+  summon: ['KeyX'],
+  /** Hold in the monster truck: burn GhASt for a boost. */
+  boost: ['KeyB'],
+  rotateLeft: ['KeyQ'],
+  rotateRight: ['KeyE'],
+  camera: ['KeyC'],
+  help: ['KeyH'],
+  /** Sound on and off (src/audio/ reads it straight off the keyboard). */
+  mute: ['KeyM'],
+  fastForward: ['KeyT'],
+  nextPhase: ['KeyN'],
+  start: ['Enter', 'Space'],
+  // dev: only does anything while a code change is waiting
+  reload: ['KeyR'],
+} satisfies Record<string, [string, ...string[]]>;
+
+export type Action = keyof typeof KEYS;
+
+export function isAction(name: string): name is Action {
+  return Object.hasOwn(KEYS, name);
+}
+
+/** How the HUD names an action's key: KeyF -> F, ShiftLeft -> SHIFT, Space -> SPACE. */
+export function keyName(action: Action): string {
+  return KEYS[action][0].replace(/^Key|Left$|Right$/g, '').toUpperCase();
+}
+
+/** Keyboard + wheel state with per-frame edge detection, read by action (see KEYS). */
+export class Input {
+  private readonly down = new Set<string>();
+  private readonly pressed = new Set<string>();
+  private wheel = 0;
+  private mouseX = 0;
+  private mouseY = 0;
+  private lockEl: HTMLElement | null = null;
+  private dragging = false;
+  /** A cutscene has the controls: every read comes back empty (keys, stick, mouse, wheel). */
+  muted = false;
+  /** Analog stick (touch): x to the right, y forward, each -1..1. axis() adds it to the keys. */
+  private stickX = 0;
+  private stickY = 0;
+
+  constructor() {
+    window.addEventListener('keydown', (e) => {
+      if (BLOCKED.has(e.code)) e.preventDefault();
+      if (!e.repeat) this.pressed.add(e.code);
+      this.down.add(e.code);
+    });
+    window.addEventListener('keyup', (e) => this.down.delete(e.code));
+    window.addEventListener('blur', () => {
+      this.down.clear();
+      this.dragging = false;
+    });
+    window.addEventListener(
+      'wheel',
+      (e) => {
+        this.wheel += Math.sign(e.deltaY);
+        e.preventDefault();
+      },
+      { passive: false },
+    );
+  }
+
+  isDown(action: Action): boolean {
+    return !this.muted && KEYS[action].some((c) => this.down.has(c));
+  }
+
+  wasPressed(action: Action): boolean {
+    return !this.muted && KEYS[action].some((c) => this.pressed.has(c));
+  }
+
+  axis(neg: Action, pos: Action): number {
+    if (this.muted) return 0;
+    const keys = (this.isDown(pos) ? 1 : 0) - (this.isDown(neg) ? 1 : 0);
+    return clamp(keys + this.analog(pos) - this.analog(neg), -1, 1);
+  }
+
+  /** How far the stick pushes toward a movement action, 0..1. */
+  private analog(a: Action): number {
+    if (a === 'right') return Math.max(0, this.stickX);
+    if (a === 'left') return Math.max(0, -this.stickX);
+    if (a === 'forward') return Math.max(0, this.stickY);
+    if (a === 'back') return Math.max(0, -this.stickY);
+    return 0;
+  }
+
+  /** Touch stick: x to the right, y forward, each -1..1 (0, 0 when let go). */
+  setStick(x: number, y: number): void {
+    this.stickX = x;
+    this.stickY = y;
+  }
+
+  /** Look around by this many pixels, as if the mouse moved (touch drag). */
+  look(dx: number, dy: number): void {
+    this.mouseX += dx;
+    this.mouseY += dy;
+  }
+
+  /** Zoom by wheel steps: positive zooms out (pinch). */
+  zoom(steps: number): void {
+    this.wheel += steps;
+  }
+
+  /**
+   * Mouse look on `el`. A click captures the pointer while `wantLock()` holds (Esc releases it);
+   * dragging with the left button also looks, for browsers that refuse the capture.
+   */
+  attachPointer(el: HTMLElement, wantLock: () => boolean): void {
+    this.lockEl = el;
+    el.addEventListener('mousedown', (e) => {
+      if (e.button !== 0 || !wantLock()) return;
+      this.dragging = true;
+      // older browsers return nothing here; newer ones reject if the user backs out of the capture
+      if (document.pointerLockElement !== el) void Promise.resolve(el.requestPointerLock()).catch(() => undefined);
+    });
+    window.addEventListener('mouseup', () => (this.dragging = false));
+    window.addEventListener('mousemove', (e) => {
+      if (document.pointerLockElement !== el && !this.dragging) return;
+      // Chrome can report one huge jump right after the capture starts
+      this.mouseX += clamp(e.movementX, -200, 200);
+      this.mouseY += clamp(e.movementY, -200, 200);
+    });
+  }
+
+  releasePointer(): void {
+    this.dragging = false;
+    if (this.lockEl && document.pointerLockElement === this.lockEl) document.exitPointerLock();
+  }
+
+  /** Mouse movement in pixels since the last call. */
+  consumeMouse(): [number, number] {
+    const m: [number, number] = this.muted ? [0, 0] : [this.mouseX, this.mouseY];
+    this.mouseX = 0;
+    this.mouseY = 0;
+    return m;
+  }
+
+  consumeWheel(): number {
+    const w = this.muted ? 0 : this.wheel;
+    this.wheel = 0;
+    return w;
+  }
+
+  endFrame(): void {
+    this.pressed.clear();
+  }
+
+  /** Used by automated tests and the debug console. Takes key codes ('KeyW'), not actions. */
+  press(code: string): void {
+    this.pressed.add(code);
+  }
+
+  hold(code: string, isDown: boolean): void {
+    if (isDown) this.down.add(code);
+    else this.down.delete(code);
+  }
+}

@@ -1,0 +1,49 @@
+[tools]
+node = "24"
+
+[env]
+_.path = ["{{config_root}}/node_modules/.bin"]
+
+[tasks.install]
+description = "Install npm dependencies from the lockfile"
+run = "npm ci"
+sources = ["package.json", "package-lock.json"]
+outputs = ["node_modules/.package-lock.json"]
+
+[tasks.dev]
+description = "Vite dev server on http://localhost:5173"
+depends = ["install"]
+run = "vite"
+
+[tasks.build]
+description = "Typecheck and production build into dist/"
+depends = ["install"]
+run = ["tsc --noEmit", "vite build"]
+
+[tasks.typecheck]
+description = "Run tsc without emitting"
+depends = ["install"]
+run = "tsc --noEmit"
+
+[tasks.preview]
+description = "Serve dist/ on http://localhost:4173"
+depends = ["build"]
+run = "vite preview"
+
+[tasks.shot]
+description = "Headless screenshots: mise run shot [url] [outdir] [scenario...]"
+depends = ["install"]
+run = 'CHROME="${CHROME:-/Applications/Chromium.app/Contents/MacOS/Chromium}" node tools/shot.mjs'
+
+[tasks.deploy]
+description = "Build and ship dist/ to https://thirty-phantom.com"
+depends = ["build"]
+run = "deploy/deploy.sh"
+
+[tasks."deploy:releases"]
+description = "List releases on the server (* = live)"
+run = "deploy/deploy.sh releases"
+
+[tasks."deploy:rollback"]
+description = "Make the previous release live: mise run deploy:rollback [release]"
+run = "deploy/deploy.sh rollback"

@@ -1,0 +1,14 @@
+node_modules/
+dist/
+*.blend1
+.DS_Store
+__pycache__/
+mise.local.toml
+# screenshots and probe scripts: a symlink into a temp scratch dir
+/shots
+.env
+.env.*
+*.log
+# working notes between Claude sessions, kept locally
+/TASKS.md
+/TESTING.md

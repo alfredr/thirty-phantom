@@ -1,0 +1,191 @@
+import type { CarKind, Vehicle } from '../actors/vehicle';
+import { TUNING } from '../config';
+import { KEYS, keyName } from '../core/input';
+import { clamp } from '../core/math';
+import type { Game, GameEvents } from '../game/game';
+import type { ItemKind } from '../game/inventory';
+import type { SoundOf } from './cues';
+import { soundLog } from './flags';
+import { Loops } from './loops';
+import { Mixer } from './mixer';
+
+const I = TUNING.audio.impact;
+
+/** Each kind of car's horn, calm and fed up; anger from this on gets the long one. */
+const HORNS: Readonly<Record<CarKind, readonly [calm: SoundOf<'honk'>, angry: SoundOf<'honk'>]>> = {
+  sedan: ['horn-sedan', 'horn-sedan-angry'],
+  pickup: ['horn-pickup', 'horn-pickup-angry'],
+  motorcycle: ['horn-bike', 'horn-bike-angry'],
+};
+const ANGRY = 0.6;
+/** Street furniture by PropKind.name; anything else sounds like a fence going over. */
+const PROPS: Readonly<Record<string, SoundOf<'prop'>>> = {
+  lamp: 'prop-lamp',
+  fence: 'prop-fence',
+  guardrail: 'prop-guardrail',
+  railing: 'prop-railing',
+  'gate-arm': 'prop-gate-arm',
+  bench: 'prop-bench',
+  tree: 'prop-tree',
+  hedge: 'prop-hedge',
+  shelter: 'prop-shelter',
+};
+/** What a pickup sounds like, by what it is. */
+const ITEMS: Readonly<Record<ItemKind, SoundOf<'item'>>> = {
+  tire: 'item-tire',
+  hubcap: 'item-part',
+  mirror: 'item-part',
+  bumper: 'item-part',
+  headlight: 'item-part',
+  muffler: 'item-part',
+  plate: 'item-part',
+  brisket: 'item-gift',
+  badge: 'item-gift',
+  burner: 'item-gift',
+};
+const MUTED_KEY = '30pc.muted';
+
+/** Whether the player muted the game last time. */
+function savedMuted(): boolean {
+  try {
+    return localStorage.getItem(MUTED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function saveMuted(on: boolean): void {
+  try {
+    localStorage.setItem(MUTED_KEY, on ? '1' : '0');
+  } catch {
+    // private mode and the like: it just won't be remembered
+  }
+}
+
+const SCREAMS: readonly [SoundOf<'scream'>, ...SoundOf<'scream'>[]] = ['scream-high', 'scream-mid', 'scream-low'];
+
+declare global {
+  interface Window {
+    /** The sound, for the console and headless tests. */
+    __sound?: Sound;
+  }
+}
+
+/**
+ * The game's sound, on unless ?sound=0 (main.ts only loads this then). It listens to
+ * game.events and plays cues from the cue table (cues.ts) through the mixer, and keeps the loops
+ * (engines, Randy's fire, the gate arms, ambience) in step with play every frame; with ?sound the
+ * mixer logs every sound by name to the console as it starts. Audio starts with the first key,
+ * click or tap (browsers, iOS above all, won't start it otherwise); M mutes, across reloads.
+ */
+export class Sound {
+  readonly mixer = new Mixer();
+  private readonly loops = new Loops(this.mixer);
+  /** When each vehicle last made an impact sound (game seconds). */
+  private readonly lastHit = new WeakMap<Vehicle, number>();
+  private time = 0;
+  /** Randy's calling (the burner's 'ring' till its 'hangup'). */
+  private calling = false;
+
+  constructor(private readonly game: Game) {
+    this.listen();
+    const ev = game.events;
+    ev.on('frame', (dt) => this.frame(dt));
+    ev.on('honk', (e) => this.honk(e));
+    ev.on('impact', (e) => this.impact(e));
+    ev.on('prop', ({ kind, at, how }) => this.mixer.play('prop', how === 'landed' ? 'prop-lamp-down' : (PROPS[kind.name] ?? 'prop-fence'), { at }));
+    ev.on('smashed', ({ at }) => this.mixer.play('smash', 'smash-parapet', { at }));
+    ev.on('crushed', ({ car }) => this.mixer.play('crush', 'crush-car', { at: car.pos }));
+    ev.on('stoked', ({ at }) => this.mixer.play('stoke', 'fire-whoomph', { at }));
+    ev.on('puff', ({ at }) => this.mixer.play('puff', 'puff-smoke', { at }));
+    ev.on('swallowed', ({ n, tank }) => this.mixer.play('swallow', 'ghast-slurp', { gain: Math.min(1.3, 0.8 + 0.15 * n), note: `${n} ghost${n > 1 ? 's' : ''}, tank ${Math.round(tank * 100)}%` }));
+    ev.on('boosted', () => this.mixer.play('ignite', 'boost-ignite'));
+    ev.on('money', ({ kind, amount }) => this.mixer.play('money', kind === 'wallet' ? 'coin-wallet' : kind === 'glovebox' ? 'coin-glovebox' : 'coin-cash', { note: `$${amount}` }));
+    ev.on('item', (d) => {
+      if (d.how === 'got') this.mixer.play('item', ITEMS[d.kind], { note: d.kind });
+    });
+    ev.on('phone', (what) => {
+      if (what === 'text') this.mixer.play('text', 'phone-text');
+      else this.calling = what === 'ring';
+    });
+    ev.on('nightfall', () => this.mixer.play('moonrise', 'stinger-moonrise'));
+    ev.on('sunrise', () => {
+      this.mixer.play('dawn', 'stinger-dawn');
+      // the night's trucks turning back into cars
+      for (const v of game.vehicles) if (v.role === 'transforming' && v.form === 'truck') this.mixer.play('morph', 'morph-car', { at: v.pos });
+    });
+    ev.on('outfit', (form) => this.mixer.play('outfit', form === 'night' ? 'outfit-phantom' : 'outfit-day', { at: game.player.pos }));
+    ev.on('entered', ({ v, possessed }) => {
+      if (possessed) this.mixer.play('morph', 'morph-truck', { at: v.pos });
+    });
+    ev.on('phantom', () => this.mixer.play('phantom', 'phantom-imprint'));
+    ev.on('fright', ({ at }) => this.mixer.play('scream', SCREAMS[Math.floor(Math.random() * SCREAMS.length)] ?? SCREAMS[0], { at }));
+    ev.on('crossing', ({ vehicle, kind }) => {
+      if (kind === 'logged-in' || kind === 'logged-out') this.mixer.play('badge', 'badge-beep', { at: vehicle.pos });
+      else if (kind === 'snuck-in') this.mixer.play('badge', 'badge-buzz', { at: vehicle.pos });
+    });
+    window.__sound = this;
+    soundLog(`on: audio starts with the first key, click or tap; ${keyName('mute')} mutes`);
+  }
+
+  /** Audio starts (and wakes) on a gesture, sleeps while the page is hidden; the mute key (remembered). */
+  private listen(): void {
+    this.mixer.setMuted(savedMuted());
+    const wake = (): void => this.mixer.unlock();
+    for (const type of ['pointerdown', 'keydown', 'touchend'] as const) window.addEventListener(type, wake, { capture: true });
+    document.addEventListener('visibilitychange', () => (document.hidden ? this.mixer.suspend() : this.mixer.unlock()));
+    const mute: readonly string[] = KEYS.mute;
+    window.addEventListener('keydown', (e) => {
+      if (e.repeat || !mute.includes(e.code)) return;
+      const on = !this.mixer.isMuted;
+      this.mixer.setMuted(on);
+      this.game.hud.toast(on ? 'SOUND OFF' : 'SOUND ON', '', '', 1);
+      saveMuted(on);
+      soundLog(on ? 'muted' : 'unmuted');
+    });
+  }
+
+  private frame(dt: number): void {
+    this.time += dt;
+    const g = this.game;
+    const ride = g.vehicles.find((v) => v.role === 'player') ?? null;
+    // heard from Cody (in his ride), or from what a cutscene looks at; panned with the camera on screen
+    this.mixer.ear.copy(g.cutscene?.focus ?? ride?.pos ?? g.player.pos);
+    const cam = g.gfx.chaseView ? g.chase.camera : g.iso.camera;
+    this.mixer.right.set(1, 0, 0).applyQuaternion(cam.quaternion).setY(0).normalize();
+    // he picks up when the conversation comes up (the burner keeps its call screen till it's over)
+    this.loops.ringing = this.calling && !document.body.classList.contains('dialogue-open');
+    this.loops.update(dt, {
+      cars: g.vehicles,
+      ride,
+      throttle: ride ? g.input.axis('back', 'forward') : 0,
+      burning: g.burning,
+      npcs: g.npcs.list,
+      gates: g.world.gates.list,
+      hours: g.clock.hours,
+    });
+    this.mixer.update();
+  }
+
+  /** Fed up drivers lean on it longer and harder. */
+  private honk({ car, at, anger }: GameEvents['honk']): void {
+    const [calm, angry] = HORNS[car.kind];
+    this.mixer.play('honk', anger >= ANGRY ? angry : calm, { at, gain: 0.85 + 0.3 * anger, note: `car ${car.id}, anger ${anger.toFixed(2)}` });
+  }
+
+  /** A bump, a crash or a hard landing, by how hard; each vehicle no more than every TUNING.audio.impact.again seconds. */
+  private impact({ v, at, dv, against }: GameEvents['impact']): void {
+    if (dv < (against === 'ground' ? I.land : I.bump)) return;
+    if (this.time - (this.lastHit.get(v) ?? -Infinity) < I.again) return;
+    this.lastHit.set(v, this.time);
+    const note = `${dv.toFixed(1)} m/s`;
+    if (against === 'ground') {
+      this.mixer.play('land', v.form === 'truck' ? 'land-truck' : 'land-car', { at, gain: clamp(dv / 15, 0.5, 1.2), note });
+    } else if (dv < I.crash) {
+      this.mixer.play('bump', against === 'car' ? 'bump-car' : 'bump-wall', { at, gain: 0.6 + (0.4 * (dv - I.bump)) / (I.crash - I.bump), note });
+    } else {
+      const sound = dv >= I.hard ? 'crash-hard' : against === 'car' ? 'crash-car' : 'crash-wall';
+      this.mixer.play('crash', sound, { at, gain: clamp(dv / I.hard, 0.6, 1.2), note });
+    }
+  }
+}
