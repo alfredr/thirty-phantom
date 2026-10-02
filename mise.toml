@@ -25,6 +25,11 @@ description = "Run tsc without emitting"
 depends = ["install"]
 run = "tsc --noEmit"
 
+[tasks.test]
+description = "Run game-state regression tests"
+depends = ["install"]
+run = "npm test"
+
 [tasks.preview]
 description = "Serve dist/ on http://localhost:4173"
 depends = ["build"]

@@ -9,6 +9,6 @@ mise.local.toml
 .env
 .env.*
 *.log
-# working notes between Claude sessions, kept locally
+# Local development notes
 /TASKS.md
 /TESTING.md

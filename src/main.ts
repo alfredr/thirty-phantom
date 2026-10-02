@@ -16,7 +16,7 @@ async function loadFonts(): Promise<void> {
   await Promise.all(['64px "Creepster"', '64px "Anton"', '64px "Bangers"'].map((f) => document.fonts.load(f)));
 }
 
-/** ?level=levels/foo.json loads a level exported from Blender; default is procedural. */
+/** Load a JSON level from ?level=<url>, or generate the default city. */
 async function loadLevel(): Promise<LevelData> {
   const url = urlParam('level');
   if (url) {
@@ -37,10 +37,10 @@ async function boot(): Promise<void> {
   const [, assets, level] = await Promise.all([loadFonts(), AssetRegistry.load(), loadLevel()]);
   const game = new Game(app, level, assets);
   const tutorial = new Tutorial(game, level);
-  // after the tutorial, so it knows on 'start' whether this is a new game
+  // Register after Tutorial so its start handler decides whether to restore a save.
   new SaveGame(game, () => tutorial.running);
   if (wantsTouch()) new TouchControls(game.input);
-  // sound (on unless ?sound=0): with it off the sound code isn't even fetched
+  // Load audio only when enabled (on by default; ?sound=0 disables it).
   if (SOUND_ON) void import('./audio/sound').then(({ Sound }) => new Sound(game));
   // ?manual: no RAF loop; frames are stepped externally (headless tests)
   if (!urlFlag('manual')) game.run();

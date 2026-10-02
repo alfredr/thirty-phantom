@@ -1,4 +1,4 @@
-/** Central tuning table. Everything gameplay-feel related lives here. */
+/** Shared gameplay and rendering settings; system-specific constants live in their modules. */
 
 export interface VehicleParams {
   maxSpeed: number;

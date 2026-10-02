@@ -69,8 +69,10 @@ export class Triggers {
   /** Fire every trigger that's met now. */
   check(): void {
     for (const t of [...this.live]) {
-      if (!this.met(t)) continue;
-      this.live.splice(this.live.indexOf(t), 1);
+      // An earlier callback may have cancelled this trigger or fired it in a nested check.
+      const i = this.live.indexOf(t);
+      if (i < 0 || !this.met(t)) continue;
+      this.live.splice(i, 1);
       t.fire();
     }
   }

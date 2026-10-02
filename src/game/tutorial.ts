@@ -92,15 +92,8 @@ const _toCamera = new Vector3();
 const _sign = new Vector3();
 
 /**
- * The script. 'scene' is the chat in the pickup on the roof at half past five, 'out' Cody out after
- * his badge till 7, 'gone' moonrise (Randy's vanished), 'sorry' his call, 'hangup' the wait for his
- * text, 'back' get back in, 'jump' up the kicker
- * and off the roof, 'landing' till the truck's idling, 'tell' Randy ringing about the phantom it
- * left, 'imprint' the camera back on the roof where the pickup was, a signpost on its
- * phantom imprint, 'cruise' the phantom truck's his till 10, 'call' Randy ringing, 'basement' going to meet him,
- * 'brisket' their chat there, 'outside' back out into the moonlight (and phantom Cody), then his
- * lessons: 'rules', 'spook', 'raise'. Texts walk through the rest of the loop: a phantom of his
- * own that night, the day job next morning.
+ * Tutorial states, in story order: roof conversation, first escape,
+ * basement visit, then lessons on phantom powers and the daily parking loop.
  */
 type Step =
   | 'scene'
@@ -182,14 +175,9 @@ interface Stage {
 }
 
 /**
- * The first game is a tutorial, opening at half past five on the deck's roof: Cody's stuck in his
- * pickup (the badge won't scan him out after 7) when Randy Rolsen, who sells things out of his
- * trench coat (mostly beef brisket), offers to help and throws the badge off the roof. At 7 the
- * slime and ghosts ooze in, Randy's gone in a puff of smoke (he rings to say sorry, then texts),
- * the pickup turns phantom monster truck, and it goes up the roof
- * kicker and off the building: the first phantom, Cody's to drive till Randy calls at 10 to meet
- * in the basement. There Randy gets him to try the brisket ("positively transformative"), and out
- * in the moonlight Cody's phantom Cody at last. Randy texts the rest. Getting as far as the jump, or skipping it, is remembered; the title offers a replay.
+ * Runs the first-game tutorial through dialogue, cutscenes, objectives, and
+ * phone messages. Starts on the roof at 5:30 PM. Completing the first jump
+ * or skipping the tutorial is remembered; the title screen offers a replay.
  */
 export class Tutorial {
   private readonly burner: Burner;

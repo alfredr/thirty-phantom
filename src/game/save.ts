@@ -8,7 +8,7 @@ const VERSION = 1;
 /** How often (s of play) to look for anything new to save. */
 const EVERY = 2;
 
-/** A phantom as saved: its deck spot (null: wherever the truck got out), where and which way it hangs, its number, and when (game hour, day). */
+/** A saved phantom's spot (null for an unparked escape), position, yaw, number, and creation time. */
 export interface PhantomRecord {
   spot: number | null;
   at: [number, number, number];
@@ -28,10 +28,9 @@ export interface SaveData {
 }
 
 /**
- * The saved game (localStorage), kept minimal: the day, Cody's cash and inventory, and the
- * phantoms (which spot, where, which number, and when). It's put back when play starts without
- * the tutorial; a tutorial run (a first game, or REPLAY TUTORIAL on the title) starts a new one,
- * and so does ?fresh. Written a moment after anything in it changes, and when the page is hidden.
+ * Persists the day, cash, inventory, and phantoms in localStorage.
+ * Restores on start unless the tutorial is running or ?fresh is set.
+ * Checks for changes every two seconds and saves when the page is hidden.
  */
 export class SaveGame {
   /** Every phantom so far, in order. */
@@ -74,11 +73,11 @@ export class SaveGame {
     const data: SaveData = { v: VERSION, day: g.clock.day, cash: g.money.cash, items: g.inventory.list(), phantoms: this.phantoms };
     const json = JSON.stringify(data);
     if (json === this.last) return;
-    this.last = json;
     try {
       localStorage.setItem(KEY, json);
+      this.last = json;
     } catch {
-      // storage blocked or full: this visit just won't be remembered
+      // Keep the previous snapshot so the next flush retries a failed write.
     }
   }
 

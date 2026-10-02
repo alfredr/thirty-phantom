@@ -2,12 +2,13 @@
   "name": "30-phantom-codys",
   "version": "0.1.0",
   "private": true,
-  "description": "30 Phantom Codys: isometric haunted-parking-deck tech demo (three.js + TypeScript)",
+  "description": "A haunted parking garage game built with Three.js and TypeScript",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.mjs",
     "preview": "vite preview",
     "deploy": "npm run build && deploy/deploy.sh"
   },

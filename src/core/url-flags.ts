@@ -1,6 +1,6 @@
 /**
- * Dev and test switches in the page URL (listed in the README): ?q=low|high, ?cam=chase|iso,
- * ?level=<url>, ?manual, ?nav, ?fps, ?boxes, ?touch, ?curve=0|1, ?sound=0|1, ?fresh. Read once at load; tools running under node see none.
+ * Read URL options once at startup. See README.md for supported flags.
+ * Node tools have no location and use an empty query string.
  */
 const params = new URLSearchParams(globalThis.location?.search ?? '');
 

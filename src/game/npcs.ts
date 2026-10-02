@@ -109,13 +109,9 @@ export interface Npc {
 }
 
 /**
- * The people who hang about for Cody to talk to: for now Randy Rolsen in the
- * deck's basement by the stairwell, forever roasting something on a stick
- * over a burning trash can. He shifts his weight and glances about; when
- * Cody comes close he looks over, and between roasts turns to him and swings
- * his trench coat open to show what he's selling. Conversations (the
- * tutorial) are someone else's: they find him with talkable() and hold him
- * while they talk.
+ * Randy's placement, idle animation, coat display, and thrown items.
+ * Dialogue is managed by the tutorial, which uses talkable() and holds
+ * the NPC during conversations.
  */
 export class Npcs {
   readonly list: Npc[];

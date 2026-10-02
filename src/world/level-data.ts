@@ -115,11 +115,11 @@ export interface BuildingDef {
   max: V3;
   /** Its walls' layout, as on its facade box: the ground floor's real openings follow it, so they line up with the painted ones. */
   facade: FacadeDef;
-  /** Storeys above the ground floor (not walk-in yet: the core leads up to them). */
+  /** Storeys above the ground floor. Elevator access is capped by INTERIOR.liftStoreys. */
   storeys: number;
   use: BuildingUse;
   doors: DoorDef[];
-  /** The stair or elevator core up to the floors above: its footprint (x0, z0, x1, z1). Walled off for now (upper floors aren't built). */
+  /** Core footprint (x0, z0, x1, z1). Elevators serve upper floors; stairs are closed placeholders. */
   core: { kind: 'stair' | 'elevator'; rect: [number, number, number, number] } | null;
   /** Interior paint (hex): walls of the rooms. */
   paint: string;
@@ -356,7 +356,7 @@ export function emptyLevel(name: string): LevelData {
   };
 }
 
-/** Light validation for levels loaded from JSON (Blender exports). */
+/** Check the level version and boxes array, then fill omitted fields with defaults. */
 export function parseLevel(json: unknown): LevelData {
   const d = json as Partial<LevelData>;
   if (!d || d.version !== 1 || !Array.isArray(d.boxes)) throw new Error('not a v1 level file');
