@@ -9,6 +9,7 @@ import {
   Vector3,
   type WebGLProgramParametersWithUniforms,
 } from 'three';
+import type { MatKey } from '../world/level-kinds';
 import type { LampColor } from '../world/level-data';
 import { CURVE_ON, curveVertex, markCurved } from './curvature';
 import { withFacade } from './facade';
@@ -20,6 +21,8 @@ import {
   hazardTexture,
   sidewalkTexture,
 } from './textures';
+
+export { MAT_KEYS, type MatKey } from '../world/level-kinds';
 
 /**
  * Occlusion cutaway shared by every world material.
@@ -149,14 +152,7 @@ export type EmissiveChannel = 'neon' | 'windows' | 'lamps' | 'signs' | 'slime' |
 /** The facade material's emissive strength at full night (the 'windows' channel scales it). */
 export const FACADE_GLOW = 1.5;
 
-/** Every shared world material, by name (level data refers to these). */
-export const MAT_KEYS = [
-  'invisible', 'concrete', 'concreteDark', 'concreteLight', 'asphalt', 'sidewalk', 'roof', 'facadeA', 'facadeB',
-  'facadeC', 'metal', 'metalLight', 'stone', 'grass', 'wood', 'slime', 'slimePool', 'neonGreen', 'neonPurple',
-  'lampGreen', 'lampPurple', 'lampWarm', 'linePurple', 'lineGreen', 'marking', 'hazard', 'glass', 'doorGlow',
-] as const;
 
-export type MatKey = (typeof MAT_KEYS)[number];
 
 interface GlowSpec {
   color: string;

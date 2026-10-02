@@ -8,33 +8,17 @@ import { Game } from './game/game';
 import { SaveGame } from './game/save';
 import { Tutorial } from './game/tutorial';
 import { TouchControls, wantsTouch } from './ui/touch-controls';
-import { generateLevel } from './world/generate-level';
-import { parseLevel, type LevelData } from './world/level-data';
+import { loadLevel } from './world/load-level';
 
 /** Fonts must be ready before sign/livery canvases are drawn. */
 async function loadFonts(): Promise<void> {
   await Promise.all(['64px "Creepster"', '64px "Anton"', '64px "Bangers"'].map((f) => document.fonts.load(f)));
 }
 
-/** Load a JSON level from ?level=<url>, or generate the default city. */
-async function loadLevel(): Promise<LevelData> {
-  const url = urlParam('level');
-  if (url) {
-    try {
-      const r = await fetch(url);
-      if (r.ok) return parseLevel(await r.json());
-      console.warn(`[level] ${url}: HTTP ${r.status}, using procedural level`);
-    } catch (err) {
-      console.warn(`[level] ${url} failed, using procedural level`, err);
-    }
-  }
-  return generateLevel();
-}
-
 async function boot(): Promise<void> {
   const app = document.getElementById('app');
   if (!app) throw new Error('#app missing');
-  const [, assets, level] = await Promise.all([loadFonts(), AssetRegistry.load(), loadLevel()]);
+  const [, assets, level] = await Promise.all([loadFonts(), AssetRegistry.load(), loadLevel(urlParam('level'))]);
   const game = new Game(app, level, assets);
   const tutorial = new Tutorial(game, level);
   // Register after Tutorial so its start handler decides whether to restore a save.

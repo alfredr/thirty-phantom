@@ -2,7 +2,10 @@ import { box, cone, cylinder, type MatSpec, type Model, model, NO_CAST, type Par
 import type { V3 } from '../render/geometry';
 import { BARK, FOLIAGE, METAL, NEEDLES, PETALS } from '../render/materials';
 import { PALETTE } from '../render/palette';
+import type { DecorKind } from './level-kinds';
 import { restTilt } from './props';
+
+export { DECOR_KINDS, type DecorKind } from './level-kinds';
 
 /**
  * Landscaping and street furniture models, base at the origin, facing +z.
@@ -11,9 +14,6 @@ import { restTilt } from './props';
  * piece as plain solid boxes, except for pieces vehicles break (`hit`: benches,
  * street trees, hedges, bus shelters), which are props with their own solids.
  */
-
-export const DECOR_KINDS = ['tree', 'pine', 'cypress', 'bush', 'hedge', 'flowersSlime', 'flowersPurple', 'fountain', 'gazebo', 'shelter', 'bench'] as const;
-export type DecorKind = (typeof DECOR_KINDS)[number];
 
 /**
  * Painted stone (the fountain), garden timber (gazebo, benches), the gazebo's roof, and the

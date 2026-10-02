@@ -47,6 +47,8 @@ import { Elevators } from '../world/elevators';
 import { NAV, NavGrid, NavPlanner, type NavProfile, type NavQuery } from '../world/nav-grid';
 import { BloodSim } from '../world/blood';
 import { Casualties } from './casualties';
+import { CameraController, type CamMode } from './camera-controller';
+import { createGameDebug } from './debug';
 import { Skeletons } from './skeletons';
 import { carContacts } from './collisions';
 import { Crowd } from './crowd';
@@ -70,6 +72,8 @@ import { ValetTalk } from './talk';
 import { Refuge } from './refuge';
 import { type ValetFrame, ValetService } from './valet';
 import { Visitors } from './visitors';
+
+export type { CamMode, CamView } from './camera-controller';
 
 const CONCRETE = new Color('#8f889c');
 const METAL = new Color('#5a5266');
@@ -144,34 +148,6 @@ const NPC_ROOM = 0.4;
 const FIRE_ROOM = 0.45;
 
 type Mode = 'title' | 'play';
-/**
- * The camera the player picks with C: the iso view, the chase camera, or 'auto' (iso on foot,
- * chase while driving). Touch screens skip 'auto': they always drive in the chase view anyway.
- */
-export type CamMode = 'iso' | 'chase' | 'auto';
-/** What the camera is showing right now. */
-export type CamView = 'iso' | 'chase';
-
-const CAM_KEY = '30pc.camera';
-const CAM_MODES: readonly CamMode[] = ['iso', 'chase', 'auto'];
-const TOUCH_CAM_MODES: readonly CamMode[] = ['iso', 'chase'];
-
-/** The player's last pick with C, if they've ever made one. */
-function savedCamMode(): CamMode | null {
-  try {
-    const v = localStorage.getItem(CAM_KEY);
-    return CAM_MODES.find((m) => m === v) ?? null;
-  } catch {
-    return null;
-  }
-}
-
-/** ?cam= wins, then the last pick with C, else auto. */
-function initialCamMode(touch: boolean): CamMode {
-  const m = urlChoice('cam', CAM_MODES) ?? savedCamMode() ?? 'auto';
-  return touch && m === 'auto' ? 'iso' : m;
-}
-
 /** What happens in play, for the tutorial (and anything else that follows along). */
 export type GameEvents = {
   start: null;
@@ -339,12 +315,14 @@ export class Game {
   private readonly deckCenter: Vector3;
 
   private mode: Mode = 'title';
-  private readonly touch = wantsTouch();
-  private camMode: CamMode = initialCamMode(this.touch);
-  /** The view on screen, caught up with the mode at the start of each frame (see syncView). */
-  private camView: CamView = 'iso';
-  /** A player who has never picked a camera gets the C key shown the first time the chase view comes up. */
-  private camHinted = savedCamMode() !== null;
+  private readonly cameras = new CameraController({
+    snapBehind: (yaw) => this.chase.snapBehind(yaw),
+    releasePointer: () => this.input.releasePointer(),
+    setView: (view) => this.hud.setCamera(view),
+    showMode: (mode, hint) => this.hud.showCamera(mode, hint),
+    changed: (mode) => this.events.emit('camera', mode),
+  }, wantsTouch());
+  readonly debug: ReturnType<typeof createGameDebug>;
   private driving: Vehicle | null = null;
   private transform: TransformSequence | null = null;
   private time = 0;
@@ -554,7 +532,7 @@ export class Game {
       if (isItemKind(kind) && isItemAction(action)) this.useItem(kind, action);
     };
     this.hud.onBuy = (slot, n) => this.buy(slot, n);
-    this.hud.setCamera(this.camView);
+    this.hud.setCamera(this.cameras.view);
     this.elevatorPanel = new ElevatorPanel(this.hud, this.elevators);
     this.talk = new ValetTalk(this.hud, this.garage, this.valet, this.rng, {
       me: () => (this.driving ?? this.player).pos,
@@ -581,6 +559,14 @@ export class Game {
     this.player.setForm('night');
     this.iso.zoom = this.iso.zoomTarget = 74;
     this.iso.snapTo(new Vector3(this.deckCenter.x, 6, this.deckCenter.z));
+    this.debug = createGameDebug(this, {
+      driving: () => this.driving,
+      mode: () => this.mode,
+      render: (on) => { this.rendering = on; },
+      navDebug: this.navDebug,
+      skeletons: this.skeletons,
+      refuge: this.refuge,
+    });
     (window as unknown as { __game: Game }).__game = this;
   }
 
@@ -596,13 +582,7 @@ export class Game {
 
   /** The chase camera is on screen this frame. */
   private get chaseActive(): boolean {
-    return this.camView === 'chase';
-  }
-
-  /** What the mode calls for now: only in play (the title's attract orbit is iso), never under a cutscene. */
-  private get wantsChase(): boolean {
-    if (this.mode !== 'play' || this.cutscene) return false;
-    return this.camMode === 'chase' || (this.ride !== null && (this.camMode === 'auto' || this.touch));
+    return this.cameras.view === 'chase';
   }
 
   private get view(): IsoCamera | ChaseCamera {
@@ -614,48 +594,24 @@ export class Game {
     return this.driving ?? this.transform?.vehicle ?? null;
   }
 
-  /** Put the camera in mode `m` (scripted scenes). The player's own pick is cycleCamera's, and only that is remembered. */
-  setCamera(m: CamMode): void {
-    this.camMode = this.touch && m === 'auto' ? 'iso' : m;
+  /** Scripted camera changes leave the player's saved preference intact. */
+  setCamera(mode: CamMode): void {
+    this.cameras.set(mode);
     this.syncView();
   }
 
-  /** C: the next camera mode, remembered for the next game and named on screen. */
   private cycleCamera(): void {
-    const modes = this.touch ? TOUCH_CAM_MODES : CAM_MODES;
-    this.camMode = modes[(modes.indexOf(this.camMode) + 1) % modes.length] ?? 'iso';
-    try {
-      localStorage.setItem(CAM_KEY, this.camMode);
-    } catch {
-      // storage blocked: the pick lasts for this session
-    }
-    this.camHinted = true;
-    this.hud.showCamera(this.camMode, false);
-    this.events.emit('camera', this.camMode);
+    this.cameras.cycle();
     this.syncView();
   }
 
-  /**
-   * Bring the view in line with the mode: the chase camera starts straight behind Cody or his ride,
-   * and the iso view lets the pointer go. Runs at the start of a frame, so a change made mid-frame
-   * (getting in, a cutscene starting) shows from the next one rather than from a stale camera.
-   */
+  /** Synchronize at frame start so mid-frame changes use a freshly positioned camera. */
   private syncView(): void {
-    const view: CamView = this.wantsChase ? 'chase' : 'iso';
-    if (view === this.camView) return;
-    this.camView = view;
-    if (view === 'chase') this.chase.snapBehind((this.ride ?? this.player).yaw);
-    else this.input.releasePointer();
-    this.hud.setCamera(view);
-    // a player who's never switched: show them C the first time they're put in the chase view (touch has its CAM button)
-    if (view === 'chase' && !this.camHinted && !this.touch) {
-      this.camHinted = true;
-      this.hud.showCamera(this.camMode, true);
-    }
+    this.cameras.sync(this.mode === 'play', this.cutscene !== null, this.ride, this.player.yaw);
   }
 
   get cameraMode(): CamMode {
-    return this.camMode;
+    return this.cameras.mode;
   }
 
   /** Cody gets in `v` as if he'd walked up to it and pressed F (scripted scenes). */
@@ -1640,100 +1596,4 @@ export class Game {
     this.flash = Math.max(this.flash, a);
     this.flashColor.set(color);
   }
-
-  // ---------------------------------------------------------------- debug
-
-  /** Console/test helpers: __game.debug.night(), __game.debug.teleport(x,y,z) ... */
-  readonly debug = {
-    setHours: (h: number): void => {
-      this.clock.hours = h;
-    },
-    night: (): void => {
-      this.clock.hours = TUNING.clock.nightfall - 0.01;
-    },
-    teleport: (x: number, y: number, z: number): void => {
-      const target = this.driving;
-      if (target) {
-        target.pos.set(x, y, z);
-        target.vel.set(0, 0, 0);
-        target.insideDeck = this.garage.inFootprint(target.pos);
-      } else this.player.place(new Vector3(x, y, z), this.player.yaw);
-      this.iso.snapTo(new Vector3(x, y, z));
-      this.chase.snapBehind(this.chase.yaw);
-    },
-    camera: (m: CamMode): void => this.setCamera(m),
-    /** Turn drawing off for fast headless simulation (tests), and back on for screenshots. */
-    render: (on: boolean): void => {
-      this.rendering = on;
-    },
-    /** The built-in route profiles (a probe can pass a variation of one to navPath). */
-    profiles: NAV,
-    /** Plan a route (and draw it with ?nav): __game.debug.navPath([x,y,z], [x,y,z], 'car'), or a drive with headings. */
-    navPath: (a: V3, b: V3, kind: keyof typeof NAV | NavProfile = 'car', drive?: NavQuery['drive']) => {
-      const profile = typeof kind === 'string' ? NAV[kind] : kind;
-      const job = this.planner.finish(this.planner.request(new Vector3(...a), new Vector3(...b), profile, { drive }));
-      const path = job.path;
-      if (path) this.navDebug?.show(path, typeof kind === 'string' ? kind : 'car');
-      return {
-        found: !!path,
-        legs: job.legs?.map((l) => `${l.reverse ? 'REV' : 'fwd'} ${l.path.total.toFixed(1)}m`) ?? [],
-        cusps: job.legs?.slice(1).map((l) => l.path.points[0]?.toArray().map((n) => Math.round(n * 10) / 10)) ?? [],
-        length: path?.total ?? 0,
-        points: path?.points.map((p) => p.toArray().map((n) => Math.round(n * 100) / 100)) ?? [],
-        ms: job.ms,
-        expanded: job.expanded,
-        drivable: job.drivable,
-        layout: job.layout,
-      };
-    },
-    /** Spawn a parked car in a deck spot (counts as badged in); taken spots are left alone. */
-    parkCar: (spotId: number): void => {
-      const s = this.garage.spots[spotId];
-      if (!s || !this.garage.isFree(s)) return;
-      this.garage.checkIn(s, this.fleet.spawnCar('parked', s.center.clone(), s.def.yaw));
-    },
-    phantom: (spotId: number): void => {
-      const s = this.garage.spots[spotId];
-      if (s) this.garage.addPhantom(s.center, s.def.yaw, s);
-    },
-    /** Phantom Cody calls up skeletons where he stands (night only); returns how many rose. */
-    summon: (): number => (this.clock.isDay ? 0 : this.skeletons.summon(this.player.pos, this.player.yaw)),
-    /** Frighten the traffic car nearest Cody into running for the deck (any time of day); its id, or -1 if it won't go (too far, no spot, enough on their way). */
-    divert: (): number => {
-      let best: Vehicle | null = null;
-      let bd = Infinity;
-      for (const v of this.vehicles) {
-        const d = v.pos.distanceTo(this.player.pos);
-        if (v.role === 'traffic' && d < bd) {
-          bd = d;
-          best = v;
-        }
-      }
-      return best && this.refuge.take(best, this.player.pos) ? best.id : -1;
-    },
-    enterNearest: (): void => {
-      let best: Vehicle | null = null;
-      let bd = Infinity;
-      for (const v of this.vehicles) {
-        if (v.role !== 'parked' && v.role !== 'traffic') continue;
-        const d = v.pos.distanceTo(this.player.pos);
-        if (d < bd) {
-          bd = d;
-          best = v;
-        }
-      }
-      if (best) this.enter(best);
-    },
-    state: () => ({
-      mode: this.mode,
-      hours: this.clock.hours,
-      phase: this.clock.phase,
-      driving: this.driving ? { form: this.driving.form, pos: this.driving.pos.toArray(), inside: this.driving.insideDeck } : null,
-      player: this.player.pos.toArray(),
-      logged: this.garage.logged,
-      actual: this.garage.actual(this.vehicles),
-      phantoms: this.garage.phantoms,
-      vehicles: this.vehicles.length,
-    }),
-  };
 }

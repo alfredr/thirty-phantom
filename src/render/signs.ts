@@ -1,11 +1,12 @@
 import { type CanvasTexture, MeshStandardMaterial } from 'three';
 import { TAU } from '../core/math';
 import { Rng } from '../core/rng';
+import type { SignStyle } from '../world/level-kinds';
 import { withCutaway } from './materials';
 import { addNoise, makeCanvas, toTexture, type Ctx } from './textures';
 import { PALETTE } from './palette';
 
-export type SignStyle = 'banner' | 'level' | 'checker' | 'neon' | 'neonPurple' | 'foxy' | 'billboard' | 'scanner' | 'dial';
+export { SIGN_STYLES, type SignStyle } from '../world/level-kinds';
 
 export interface SignTextures {
   map: CanvasTexture;

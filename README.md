@@ -14,7 +14,7 @@ Use Node.js 24.
 ```bash
 npm ci
 npm run dev          # http://localhost:5173
-npm test             # save and item-trigger regression checks
+npm test             # game-state, camera, and level-loading checks
 npm run build        # typecheck and build into dist/
 npm run preview      # serve dist/ at http://localhost:4173
 ```
@@ -61,11 +61,21 @@ Append flags to the game URL; combine them with `&`, for example `?fresh&cam=iso
 | `?cam=chase` / `?cam=iso` / `?cam=auto` | Set the starting camera |
 | `?curve=0` / `?curve=1` | Disable / enable world curvature in top-down view |
 | `?boxes` | Use procedural models instead of GLB assets |
-| `?level=<url>` | Load a JSON level; see `src/world/level-data.ts` for its format |
+| `?level=<url>` | Load a JSON level; see the [v1 schema](src/world/schema/level-v1.ts) |
 | `?fps` | Show frame rate |
 | `?nav` | Show planned routes |
 | `?touch` | Force touch controls |
 | `?manual` | Disable the animation loop for scripted frame stepping |
+
+Custom levels require `version: 1`, `boxes`, `playerSpawn`, and `deck`. Other collections
+default to empty arrays; `name` defaults to `custom`. Invalid fields, unknown properties,
+and unsupported versions are reported in the console, and the game loads the generated
+city instead.
+
+TypeBox defines the format and its TypeScript types. The Vite plugin compiles it with
+Ajv at build time and dev-server startup. The generated validator loads only for custom
+levels; TypeBox and Ajv stay in the build tools. Format versions are independent of the
+app version. A breaking format change needs a new schema and an explicit loader branch.
 
 The browser console exposes `__game.debug.night()`, `.parkCar(spotId)`,
 `.teleport(x, y, z)`, and `.state()`. Spot IDs start at zero. With `?manual`,
@@ -84,8 +94,8 @@ src/
   audio/        synthesis, recorded engine cycles, mixing
   ui/           HUD, dialogue, inventory, touch controls
   fx/           particles and visual effects
-tests/          game-state regression tests
-tools/          screenshots, audio preparation, dev reload prompt
+tests/          game-state, camera, and level-loading tests
+tools/          level validator compilation, screenshots, audio, dev reload prompt
 deploy/         Caddy configuration and deployment scripts
 public/         models, audio, icons
 ```

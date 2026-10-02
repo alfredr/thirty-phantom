@@ -1,25 +1,10 @@
 import assert from 'node:assert/strict';
-import { after, before, test } from 'node:test';
-import { createServer } from 'vite';
+import { test } from 'node:test';
+import { loadModules } from './modules.mjs';
 
-let server;
-let Triggers;
-let SaveGame;
-let Emitter;
-
-before(async () => {
-  // Use Vite's TypeScript loader without opening HTTP or WebSocket listeners.
-  server = await createServer({
-    configFile: false,
-    server: { middlewareMode: true, ws: false, watch: null },
-    appType: 'custom',
-  });
-  ({ Triggers } = await server.ssrLoadModule('/src/game/triggers.ts'));
-  ({ SaveGame } = await server.ssrLoadModule('/src/game/save.ts'));
-  ({ Emitter } = await server.ssrLoadModule('/src/core/events.ts'));
-});
-
-after(async () => { await server?.close(); });
+const [{ Triggers }, { SaveGame }, { Emitter }] = await loadModules(
+  '/src/game/triggers.ts', '/src/game/save.ts', '/src/core/events.ts',
+);
 
 test('nested trigger checks fire each callback once and preserve pending triggers', () => {
   const triggers = new Triggers({ count: () => 0 });
