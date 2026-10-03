@@ -733,7 +733,7 @@ export class Tutorial {
  * his fire's clear of the car and the window's in sight; the badge lands on the street past the
  * deck edge nearest him. `ground` is the street's height.
  */
-function stageOn(level: LevelData, garage: Garage, ground: (x: number, z: number) => number): Stage | null {
+export function stageOn(level: LevelData, garage: Garage, ground: (x: number, z: number) => number): Stage | null {
   const exit = level.gates.find((g) => g.kind === 'exit');
   const { min, max } = level.deck;
   const ex = exit ? exit.hinge[0] : max[0];
@@ -782,11 +782,12 @@ function stageOn(level: LevelData, garage: Garage, ground: (x: number, z: number
   const truck = spot.center.clone();
   const fx = Math.sin(yaw);
   const fz = Math.cos(yaw);
-  // the driver's side, as Game.exit has it; the other way's his right
+  // the side Cody gets out on, as Game.exit has it
   const sx = -Math.cos(yaw);
   const sz = Math.sin(yaw);
   const launch = ax === 0 ? [k.dir, 0] : [0, k.dir];
-  const turn = -sx * (launch[0] as number) - sz * (launch[1] as number) > 0 ? 'RIGHT' : 'LEFT';
+  // Vehicle.drive turns right toward (-cos(yaw), sin(yaw)), the same vector as (sx, sz).
+  const turn = sx * (launch[0] as number) + sz * (launch[1] as number) > 0 ? 'RIGHT' : 'LEFT';
   const ahead = Math.max(...spot.def.size) / 2 + RANDY_AHEAD;
   const randy = new Vector3(truck.x + fx * ahead + sx * RANDY_SIDE, truck.y, truck.z + fz * ahead + sz * RANDY_SIDE);
   // facing out along the aisle, a little back toward the car: the fire's in the aisle, the window's over his shoulder
