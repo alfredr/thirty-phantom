@@ -301,7 +301,8 @@ if (CURVE_ON) {
   Sprite.prototype.intersectsFrustum = function (this: Sprite, f: Frustum): boolean {
     if (!cull.camera || !isMain(f)) return flatSprite.call(this, f);
     _s.center.set(0, 0, 0);
-    _s.radius = 0.7071067811865476 + _spriteCentre.distanceTo(this.center);
+    // A unit sprite's bounding radius is half its diagonal.
+    _s.radius = Math.SQRT1_2 + _spriteCentre.distanceTo(this.center);
     _s.applyMatrix4(this.matrixWorld);
     return bentVisible();
   };
