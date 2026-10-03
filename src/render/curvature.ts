@@ -210,6 +210,8 @@ const cull = {
   frustum: new Frustum(),
   /** Unit vector toward the camera. */
   toCam: new Vector3(),
+  cutCenter: new Vector3(),
+  cutRadius: 0,
 };
 const _m = new Matrix4();
 const _s = new Sphere();
@@ -217,12 +219,14 @@ const _c = new Vector3();
 const _spriteCentre = new Vector2(0.5, 0.5);
 
 /**
- * Arms the frame's planet (curveFrame) for `camera`'s render: the shaders bend, and objects are
- * culled where they're drawn. null disarms it, flat again for anything else drawn.
+ * Arms the frame's planet (curveFrame) for `camera`'s render. The optional cutaway opening
+ * uses bent world coordinates. null disarms it, flat again for anything else drawn.
  */
-export function curveCull(camera: OrthographicCamera | null): void {
+export function curveCull(camera: OrthographicCamera | null, cutCenter?: Vector3, cutRadius = 0): void {
   const u = curveUniforms;
   cull.camera = camera && curveFrame.planet.w > 0 ? camera : null;
+  cull.cutRadius = cutCenter ? cutRadius : 0;
+  if (cutCenter) cull.cutCenter.copy(cutCenter);
   if (!cull.camera || !camera) {
     u.uCurve.value.w = 0;
     return;
@@ -257,6 +261,14 @@ function bentVisible(): boolean {
   curvePoint(_s.center);
   _s.radius *= stretch;
   if (!cull.frustum.intersectsSphere(_s)) return false;
+  // The ground has an opening here. Let depth testing decide what is visible through it,
+  // including basement actors that would otherwise be hidden inside the street's sphere.
+  if (cull.cutRadius > 0.01) {
+    _c.subVectors(_s.center, cull.cutCenter);
+    const along = _c.dot(cull.toCam);
+    const radius = cull.cutRadius + _s.radius;
+    if (_c.lengthSq() - along * along <= radius * radius) return true;
+  }
   // behind the street's sphere (Cody's, dropped to the street), seen along the view: hidden by the ground on its near side
   _c.set(_s.center.x - c.x, _s.center.y + R, _s.center.z - c.z);
   const along = _c.dot(cull.toCam);

@@ -147,7 +147,7 @@ export class GameRenderer {
     const cut = cutUniforms.uCutCenter.value;
     this.cutFlat.copy(cut);
     curvePoint(cut);
-    curveCull(this.iso.camera);
+    curveCull(this.iso.camera, cut, cutUniforms.uCutRadius.value);
     this.composer.render();
     curveCull(null);
     cut.copy(this.cutFlat);
