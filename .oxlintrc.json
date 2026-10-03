@@ -1,0 +1,21 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["import"],
+  "categories": { "correctness": "off" },
+  "rules": {
+    "import/first": ["error", "absolute-first"],
+    "import/no-duplicates": "error",
+    "import/extensions": ["error", "ignorePackages", {
+      "checkTypeImports": true,
+      "ts": "never", "js": "never", "mjs": "never", "css": "always"
+    }]
+  },
+  "overrides": [
+    {
+      "files": ["tools/**/*.{ts,mjs}", "tests/**/*.mjs", "vite.config.ts", "src/world/schema/**/*.ts"],
+      "rules": {
+        "import/extensions": ["error", "always", { "ignorePackages": true, "checkTypeImports": true }]
+      }
+    }
+  ]
+}

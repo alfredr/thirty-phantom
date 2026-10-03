@@ -26,9 +26,14 @@ depends = ["install"]
 run = "tsc --noEmit"
 
 [tasks.test]
-description = "Run game-state regression tests"
+description = "Run regression tests"
 depends = ["install"]
 run = "npm test"
+
+[tasks.check]
+description = "Check imports, types, and regression tests"
+depends = ["install"]
+run = "npm run check"
 
 [tasks.preview]
 description = "Serve dist/ on http://localhost:4173"

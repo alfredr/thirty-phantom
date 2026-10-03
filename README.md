@@ -15,6 +15,7 @@ Use Node.js 24.
 npm ci
 npm run dev          # http://localhost:5173
 npm test             # game-state, camera, and level-loading checks
+npm run check        # import rules, typecheck, and all tests
 npm run build        # typecheck and build into dist/
 npm run preview      # serve dist/ at http://localhost:4173
 ```
@@ -22,6 +23,11 @@ npm run preview      # serve dist/ at http://localhost:4173
 [mise](https://mise.jdx.dev) pins Node 24 and provides the same tasks (`mise tasks` lists
 them). In development, code changes show a reload prompt; press `R` to apply them.
 CSS updates apply immediately.
+
+`npm ci` installs the Husky pre-commit hook, which runs `npm run check`. CI runs the
+same checks. Oxlint keeps imports at the top, packages before local modules, and rejects
+duplicate imports. Local game imports omit `.ts`; Node-run tools, tests, and schemas
+use explicit extensions. Package subpaths and CSS imports keep their extensions.
 
 ## Controls
 
