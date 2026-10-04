@@ -1,5 +1,5 @@
 import { Color, Vector3 } from 'three';
-import { bodyOffsets, steerScale, TUNING, type VehicleParams } from '../config';
+import { steerScale, TUNING, type VehicleParams } from '../config';
 import { clamp, damp, lerp, TAU } from '../core/math';
 import { Rng } from '../core/rng';
 import type { V3 } from '../render/geometry';
@@ -7,10 +7,9 @@ import type { CircleHit, CollisionWorld, Solid } from '../world/collision';
 import { CrashBody, vehicleMass } from './crash-body';
 import type { BikeRider, VehicleRig } from './models/rig';
 import { VALET_OUTFIT } from './models/valet';
+import { type CarKind, VEHICLE_BREEDS, type VehicleBreed, type VehicleBuild } from './vehicle-breeds';
 
 export type VehicleForm = 'car' | 'truck';
-/** What a civilian car (form 'car') is: the model it's built from and the handling it gets. */
-export type CarKind = 'sedan' | 'pickup' | 'motorcycle';
 /**
  * traffic: on a lane loop. parked: sitting still. player: being driven. valet: a valet is driving it.
  * visitor: someone from town driving in to park, or back out to the traffic.
@@ -37,16 +36,6 @@ export interface DriveEvents {
 
 export const NO_INPUT: Readonly<DriveInput> = { throttle: 0, steer: 0, hop: false, drift: false };
 
-/** Handling and size: a civilian car's by its kind, or the monster truck's. */
-type Build = CarKind | 'truck';
-const PARAMS: Readonly<Record<Build, VehicleParams>> = { sedan: TUNING.car, pickup: TUNING.pickup, motorcycle: TUNING.motorcycle, truck: TUNING.truck };
-/** Collision circle offsets along the body (see bodyOffsets). */
-const BODY: Readonly<Record<Build, readonly number[]>> = {
-  sedan: bodyOffsets(TUNING.car),
-  pickup: bodyOffsets(TUNING.pickup),
-  motorcycle: bodyOffsets(TUNING.motorcycle),
-  truck: bodyOffsets(TUNING.truck),
-};
 /** A bike rider's jacket when the rider is a valet in uniform. */
 const VALET_JACKET = new Color(VALET_OUTFIT.top);
 
@@ -63,8 +52,6 @@ const WALL_BOUNCE = 1.25;
 const WALL_KEEP = 0.92;
 /** Ground further below than this is a ledge to fall off, not a slope to follow down. */
 const STEP_DOWN = 0.45;
-/** Into a wall faster than this (m/s along its normal) and the car crashes: it tumbles as a rigid body. */
-const CRASH_IMPACT: Readonly<Record<VehicleForm, number>> = { car: 12, truck: 15 };
 /** Stuck on its side or roof, a hop rocks it over: spin (rad/s) and lift (m/s). */
 const FLIP_SPIN = 5;
 const FLIP_LIFT = 4.5;
@@ -154,12 +141,17 @@ export class Vehicle {
     this.kind = kind;
   }
 
-  private get build(): Build {
+  /** Its breed: its civilian kind's, or the monster truck's while it's one. */
+  get breed(): VehicleBreed {
+    return VEHICLE_BREEDS[this.build];
+  }
+
+  private get build(): VehicleBuild {
     return this.form === 'truck' ? 'truck' : this.kind;
   }
 
   get params(): VehicleParams {
-    return PARAMS[this.build];
+    return this.breed.params;
   }
 
   setForm(form: VehicleForm, rig: VehicleRig): void {
@@ -319,7 +311,7 @@ export class Vehicle {
     this.pos.z += this.vel.z * dt;
 
     // smash breakables (and knock over lamps), then resolve walls with three circles
-    const offs = BODY[this.build];
+    const offs = this.breed.body;
     this.smash(ev, world, Math.abs(fwd), fx, fz);
     let dx = 0;
     let dz = 0;
@@ -365,7 +357,7 @@ export class Vehicle {
         ev.impact = Math.max(ev.impact, -vn);
       }
     }
-    if (worst > CRASH_IMPACT[this.form]) {
+    if (worst > this.breed.crashAt) {
       this.crashInto(vx0, vz0, wx, wz);
       this.syncRig();
       return ev;
@@ -416,7 +408,7 @@ export class Vehicle {
     const knocks = speed >= TUNING.knockdown.speed;
     const smashes = speed >= P.smashSpeed;
     if (!smashes && !knocks) return;
-    for (const o of BODY[this.build]) {
+    for (const o of this.breed.body) {
       const cx = this.pos.x + fx * o;
       const cz = this.pos.z + fz * o;
       const r = P.radius + SMASH_REACH;
@@ -441,7 +433,7 @@ export class Vehicle {
     const fz = Math.cos(this.yaw);
     // the circle facing the wall: the nose or tail, or the middle for a side-on hit
     const along = -(fx * nx + fz * nz);
-    const o = Math.abs(along) < 0.3 ? 0 : Math.sign(along) * (BODY[this.build][2] ?? 0);
+    const o = Math.abs(along) < 0.3 ? 0 : Math.sign(along) * (this.breed.body[2] ?? 0);
     c.contact(this.vel, this.pos.x + fx * o - nx * P.radius, this.pos.y + c.comY * 0.8, this.pos.z + fz * o - nz * P.radius, nx, 0, nz, 0.3, 0.5);
   }
 
@@ -578,7 +570,7 @@ export class Vehicle {
   /** The engine running: a small, quick shake on the springs, most at a standstill (TUNING.vehicle.idleShake). */
   private buzz(r: VehicleRig): void {
     const S = TUNING.vehicle.idleShake;
-    const [size, pace] = S.kinds[this.build];
+    const [size, pace] = this.breed.shake;
     const k = size * lerp(1, S.moving, Math.min(1, Math.abs(this.speed) / S.fade));
     // two close frequencies per axis, so it reads as a buzz rather than a bob (no multiple far above hz, which a low frame rate would alias into a wobble)
     const t = now * TAU * S.hz * pace * (1 + (this.quirk - 0.5) * 2 * S.spread) + this.quirk * 100;

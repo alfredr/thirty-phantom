@@ -269,8 +269,8 @@ export const TUNING = {
      * Idle shake: with someone at the wheel, the body buzzes on its springs,
      * `lift` (m) up and down, `roll` and `pitch` (rad), at about `hz`. On the
      * move it fades to `moving` of that by `fade` (m/s). Each car's pace is
-     * its own, within `spread` of the rest. `kinds` scales each build's
-     * [size, pace]: bikes buzz quicker, the monster truck rumbles.
+     * its own, within `spread` of the rest. Each breed scales it by its own
+     * [size, pace] (VehicleBreed.shake).
      */
     idleShake: {
       lift: 0.01,
@@ -280,7 +280,6 @@ export const TUNING = {
       spread: 0.15,
       moving: 0.35,
       fade: 8,
-      kinds: { sedan: [1, 1], pickup: [1.15, 0.9], motorcycle: [0.8, 1.4], truck: [2.4, 0.6] },
     },
     /**
      * Tailpipe smoke: `share` of cars (not the monster truck, which has its
@@ -473,13 +472,13 @@ export const TUNING = {
     /**
      * Engines: Cody's ride, and the `traffic` nearest running cars within `reach` (m), let go
      * past `leave`. Their state (src/audio/engine-state.ts): the revs (0 idle, 1 redline) go up
-     * with road speed through `gears` (car, truck, bike), shifting up at `shift` of the redline
+     * with road speed through the breed's gears (VehicleBreed.gears), shifting up at `shift` of the redline
      * and down once the speed's `downshift` (a share) under the gear below's top. Pulling away
      * the clutch lets them rise to `launch` times the throttle. They move at most `rise` and
      * `fall` a second (a shift drops them in a blink), and the load follows the throttle `lag`
      * seconds behind.
      */
-    engines: { traffic: 3, reach: 26, leave: 34, gears: { car: 4, truck: 3, bike: 5 }, shift: 0.88, downshift: 0.12, launch: 0.3, rise: 3, fall: 6, lag: 0.08 },
+    engines: { traffic: 3, reach: 26, leave: 34, shift: 0.88, downshift: 0.12, launch: 0.3, rise: 3, fall: 6, lag: 0.08 },
     /**
      * Hits by how hard (m/s of speed changed): a bump from `bump`, a crash from `crash`, a hard
      * one from `hard`; landing from the air at `land` or more. A vehicle sounds off again no

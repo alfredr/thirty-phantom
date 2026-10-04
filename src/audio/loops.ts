@@ -1,4 +1,4 @@
-import type { CarKind, Vehicle } from '../actors/vehicle';
+import type { Vehicle } from '../actors/vehicle';
 import { TUNING } from '../config';
 import { clamp, smoothstep } from '../core/math';
 import type { Npc } from '../game/randy/npcs';
@@ -9,8 +9,6 @@ import type { Loop, Mixer } from './mixer';
 
 const A = TUNING.audio;
 const E = A.engines;
-/** Each build's engine. */
-const ENGINES: Readonly<Record<CarKind | 'truck', SoundOf<'engine'>>> = { sedan: 'engine-sedan', pickup: 'engine-pickup', motorcycle: 'engine-bike', truck: 'engine-truck' };
 /** A gate's arm moving faster than this (its opening, 0..1, a second) runs its motor, and stops it below `still`. */
 const ARM = { moving: 0.15, still: 0.05 };
 /** A running traffic engine ranks as if this much nearer, so two cars about as far off don't keep trading places. */
@@ -72,8 +70,7 @@ class Engines {
   }
 
   private run(v: Vehicle, dt: number, throttle: number, boost: boolean, mine: boolean): void {
-    const truck = v.form === 'truck';
-    const sound = ENGINES[truck ? 'truck' : v.kind];
+    const { engine: sound, gears } = v.breed;
     let r = this.on.get(v);
     // turned into the monster truck, or back
     if (r && r.sound !== sound) {
@@ -84,7 +81,6 @@ class Engines {
     if (!r) {
       const loop = this.mixer.loop('engine', sound, v.pos, 1, mine ? 'Cody' : `car ${v.id}`);
       if (!loop) return;
-      const gears = truck ? E.gears.truck : v.kind === 'motorcycle' ? E.gears.bike : E.gears.car;
       r = { loop, sound, state: new EngineState(gears), speed: Math.abs(v.speed), accel: 0 };
       this.on.set(v, r);
     }

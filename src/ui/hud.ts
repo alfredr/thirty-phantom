@@ -1,5 +1,5 @@
 import type { Camera, Vector3 } from 'three';
-import type { CarKind, VehicleForm } from '../actors/vehicle';
+import type { VehicleForm } from '../actors/vehicle';
 import { type Action, type Focus, isAction, keyName } from '../core/input';
 import { SOUND_ON } from '../audio/flags';
 import { Bindings } from '../engine/ui/binding';
@@ -129,12 +129,10 @@ export interface HudStatus {
 export interface DashState {
   speed: number;
   form: VehicleForm;
-  /** Which civilian car it is (form 'car'). */
-  kind?: CarKind;
+  /** What it's called (VehicleBreed.label). */
+  label: string;
   airborne: boolean;
 }
-
-const STOLEN: Readonly<Record<CarKind, string>> = { sedan: 'STOLEN SEDAN', pickup: 'STOLEN PICKUP', motorcycle: 'STOLEN MOTORCYCLE' };
 
 /** Per-frame setters only touch the DOM when what they show changes; this is what they last showed. */
 type Shown = 'prompt' | 'bubble' | 'form' | 'air' | 'ghast';
@@ -265,7 +263,7 @@ export class Hud {
     });
     v.add({
       read: () => s.dash(),
-      same: (a, b) => a === b || (!!a && !!b && Math.round(a.speed * 2.6) === Math.round(b.speed * 2.6) && a.form === b.form && a.kind === b.kind && a.airborne === b.airborne),
+      same: (a, b) => a === b || (!!a && !!b && Math.round(a.speed * 2.6) === Math.round(b.speed * 2.6) && a.form === b.form && a.label === b.label && a.airborne === b.airborne),
       draw: (d) => d && this.drawDash(d),
     });
     v.add({
@@ -412,10 +410,9 @@ export class Hud {
 
   private drawDash(d: DashState): void {
     this.gauge.set(Math.round(Math.abs(d.speed) * 2.6));
-    const label = d.form === 'truck' ? 'PHANTOM MONSTER TRUCK' : STOLEN[d.kind ?? 'sedan'];
-    if (this.changed('form', label)) {
+    if (this.changed('form', d.label)) {
       this.dash.dataset.form = d.form;
-      this.dashForm.textContent = label;
+      this.dashForm.textContent = d.label;
     }
     if (this.changed('air', d.airborne)) this.gauge.root.classList.toggle('air', d.airborne);
   }

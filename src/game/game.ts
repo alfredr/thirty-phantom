@@ -10,7 +10,8 @@ import type { Obstacle } from '../actors/autopilot';
 import { Avoidance, parkedBlocks, PERSON_RADIUS } from '../actors/avoidance';
 import { Player } from '../actors/player';
 import { Traffic } from '../actors/traffic';
-import { type CarKind, type DriveInput, Vehicle, type VehicleForm } from '../actors/vehicle';
+import { type DriveInput, Vehicle } from '../actors/vehicle';
+import { type CarKind, VEHICLE_BREEDS } from '../actors/vehicle-breeds';
 import { TUNING } from '../config';
 import { type Action as Control, Input } from '../core/input';
 import { Emitter } from '../core/events';
@@ -133,13 +134,10 @@ const _met = new Vector3();
 const _tint = new Color();
 const NONE: readonly Vector3[] = [];
 
-/** Cody can get into a car or truck this close (m), and at most this far above or below it. */
-const ENTER_REACH: Readonly<Record<VehicleForm, number>> = { car: 3.4, truck: 4.4 };
+/** Cody can get into a car or truck at most this far above or below it (how near: VehicleBreed.enterReach). */
 const ENTER_HEIGHT = 1.8;
 /** Cody steps out this far past the side of the car (m). */
 const DOOR_GAP = 1;
-/** Knocking a lamp or panel over keeps this share of the vehicle's speed (a prop kind can say otherwise: PropKind.keep). */
-const KNOCK_KEEP: Readonly<Record<VehicleForm, number>> = { car: 0.75, truck: 0.92 };
 /**
  * A prop smashed to bits (a hedge, a bus shelter): pieces of its debris per cubic metre it filled,
  * within `count`, their size, life (s), and how fast they fly out and up (m/s); the hit's shake.
@@ -468,7 +466,7 @@ export class Game {
       },
     });
 
-    this.garage = new Garage(level.spots, level.deck, this.world.gates, () => assets.truckRig());
+    this.garage = new Garage(level.spots, level.deck, this.world.gates, () => VEHICLE_BREEDS.truck.model(assets, ''));
     this.scene.add(this.garage.root);
     this.traffic = new Traffic(level.paths);
     this.fleet = new Fleet(this.scene, assets, this.garage, this.traffic, this.rng);
@@ -632,8 +630,8 @@ export class Game {
       // tumbling in a crash isn't flying: no AIRBORNE badge for it
       dash: () => {
         const v = this.driving;
-        if (v) return { speed: v.speed, form: v.form, kind: v.kind, airborne: !v.grounded && !v.crashing };
-        return this.transform ? { speed: 0, form: 'truck', airborne: false } : null;
+        if (v) return { speed: v.speed, form: v.form, label: v.breed.label, airborne: !v.grounded && !v.crashing };
+        return this.transform ? { speed: 0, form: 'truck', label: VEHICLE_BREEDS.truck.label, airborne: false } : null;
       },
       // the GhASt dial (and the touch BOOST button) while he's driving the monster truck
       ghast: () => (this.driving?.form === 'truck' ? { fill: this.ghast, burning: this.boosting } : null),
@@ -1182,7 +1180,7 @@ export class Game {
   /** Vehicles Cody could get into from `p`, nearest first. */
   private vehiclesInReach(p: Vector3): Vehicle[] {
     const near = this.vehicles.filter(
-      (v) => (v.role === 'traffic' || v.role === 'parked' || v.role === 'valet' || v.role === 'visitor') && Math.abs(v.pos.y - p.y) < ENTER_HEIGHT && v.pos.distanceTo(p) < ENTER_REACH[v.form],
+      (v) => (v.role === 'traffic' || v.role === 'parked' || v.role === 'valet' || v.role === 'visitor') && Math.abs(v.pos.y - p.y) < ENTER_HEIGHT && v.pos.distanceTo(p) < v.breed.enterReach,
     );
     return near.sort((a, b) => a.pos.distanceTo(p) - b.pos.distanceTo(p));
   }
@@ -1260,7 +1258,7 @@ export class Game {
     }
     // phantom Cody possesses a car in the deck (and the tutorial's Cody, after moonrise, his own): it turns into the truck
     if (this.possessable(v)) {
-      this.transform = new TransformSequence(v, 'truck', () => this.assets.truckRig(), this.fx);
+      this.transform = new TransformSequence(v, 'truck', () => VEHICLE_BREEDS.truck.model(this.assets, v.color), this.fx);
       this.hud.toast('PHANTOM CODY!', 'GET IT OUT. NOT THROUGH THE GATE.', '', 2.6);
       this.events.emit('entered', { v, possessed: true });
       return;
@@ -1522,7 +1520,7 @@ export class Game {
     const kick = (side === 0 ? (Math.random() < 0.5 ? -1 : 1) : Math.sign(side)) * Math.hypot(v.vel.x, v.vel.z) * 0.8;
     const kind = this.world.props.knock(s.id, v.vel.x - fz * kick, v.vel.z + fx * kick);
     if (!kind) return;
-    const k = kind.keep ?? KNOCK_KEEP[v.form];
+    const k = kind.keep ?? v.breed.knockKeep;
     v.vel.x *= k;
     v.vel.z *= k;
     if (kind.shatter) {
@@ -1558,7 +1556,7 @@ export class Game {
     const v = this.driving;
     if (v && v.form === 'car' && !this.transform) {
       this.driving = null;
-      this.transform = new TransformSequence(v, 'truck', () => this.assets.truckRig(), this.fx);
+      this.transform = new TransformSequence(v, 'truck', () => VEHICLE_BREEDS.truck.model(this.assets, v.color), this.fx);
       this.events.emit('entered', { v, possessed: true });
     }
     this.events.emit('nightfall', null);
@@ -1581,7 +1579,7 @@ export class Game {
     for (const v of this.vehicles) {
       if (v.form !== 'truck' || v.role === 'vanishing' || v.role === 'transforming') continue;
       if (v === this.driving) this.exit();
-      this.morphs.push(new TransformSequence(v, 'car', () => this.assets.civilianRig(v.kind, v.color), this.fx));
+      this.morphs.push(new TransformSequence(v, 'car', () => VEHICLE_BREEDS[v.kind].model(this.assets, v.color), this.fx));
     }
     // last, so listeners see the repaired deck (and can switch off what isn't built yet)
     this.events.emit('sunrise', null);

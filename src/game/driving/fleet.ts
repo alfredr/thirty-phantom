@@ -1,6 +1,7 @@
 import { type Scene, Vector3 } from 'three';
 import { Traffic } from '../../actors/traffic';
-import { type CarKind, Vehicle } from '../../actors/vehicle';
+import { Vehicle } from '../../actors/vehicle';
+import { CAR_KINDS, type CarKind, VEHICLE_BREEDS } from '../../actors/vehicle-breeds';
 import type { AssetRegistry } from '../../assets/asset-registry';
 import { TUNING } from '../../config';
 import { lerp, TAU } from '../../core/math';
@@ -15,12 +16,6 @@ const DROP_DIST = 60;
 /** A honk flashes the headlights twice over FLASH_TIME (s), FLASH_GLOW brighter than they were. */
 const FLASH_TIME = 0.5;
 const FLASH_GLOW = 4;
-/** What spawns, parked and in traffic, as shares of the whole. */
-const KIND_MIX: readonly (readonly [CarKind, number])[] = [
-  ['sedan', 0.62],
-  ['pickup', 0.26],
-  ['motorcycle', 0.12],
-];
 
 /** Every vehicle in the world: spawning, traffic upkeep, lights, and wrecks leaving the scene. */
 export class Fleet {
@@ -43,7 +38,7 @@ export class Fleet {
   spawnCar(role: 'parked' | 'traffic' | 'visitor', pos: Vector3, yaw: number, kind?: CarKind): Vehicle {
     const color = this.rng.pick(CAR_COLORS);
     kind ??= this.pickKind();
-    const v = new Vehicle('car', this.assets.civilianRig(kind, color), color, role, kind);
+    const v = new Vehicle('car', VEHICLE_BREEDS[kind].model(this.assets, color), color, role, kind);
     v.place(pos.x, pos.y, pos.z, yaw, 0, 0, null);
     v.markRest();
     v.insideDeck = this.garage.inFootprint(pos);
@@ -52,9 +47,10 @@ export class Fleet {
     return v;
   }
 
+  /** A kind by the breeds' shares of what spawns. */
   private pickKind(): CarKind {
     let x = this.rng.next();
-    for (const [kind, share] of KIND_MIX) if ((x -= share) < 0) return kind;
+    for (const kind of CAR_KINDS) if ((x -= VEHICLE_BREEDS[kind].share) < 0) return kind;
     return 'sedan';
   }
 

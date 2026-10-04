@@ -8,7 +8,7 @@ import { smoothstep, wrapAngle } from '../../core/math';
 import { Action, done, type Fail, fail, type Result, running } from '../../engine/sim/action';
 import type { Claims } from '../../engine/sim/claims';
 import type { ZoneDef } from '../../world/level-data';
-import { NAV, type NavGrid, type NavJob, type NavPlanner, type RouteLeg } from '../../world/nav-grid';
+import type { NavGrid, NavJob, NavPlanner, RouteLeg } from '../../world/nav-grid';
 import { Polyline, type RouteCursor } from '../../world/polyline';
 import type { ClaimKind } from '../rules/claim-kinds';
 import { type Garage, type SpotRuntime, spotZone } from '../deck/garage';
@@ -193,7 +193,7 @@ export class DriveTo extends Action<DriveWorld, DriveWorld> {
   }
 
   private drive(w: DriveWorld, legs: readonly [RouteLeg, ...RouteLeg[]]): Autopilot {
-    return new Autopilot(legs, { inDeck: (p) => w.garage.inFootprint(p), nav: w.nav, profile: NAV.car }, this.p.car.params);
+    return new Autopilot(legs, { inDeck: (p) => w.garage.inFootprint(p), nav: w.nav, profile: this.p.car.breed.nav }, this.p.car.params);
   }
 
   /** The rest of the road to the turn-off, run on into the planned way on, and how far along the first leg the turn-off is. */
@@ -230,7 +230,7 @@ export class DriveTo extends Action<DriveWorld, DriveWorld> {
       lead.sample(lead.total, from, dir);
       yaw = Math.atan2(dir.x, dir.z);
     }
-    return w.planner.request(from, to, NAV.car, { blocks, allow, drive: { yaw, endYaw, eitherWay } });
+    return w.planner.request(from, to, car.breed.nav, { blocks, allow, drive: { yaw, endYaw, eitherWay } });
   }
 }
 

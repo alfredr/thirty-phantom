@@ -7,7 +7,7 @@ import { TUNING } from '../../config';
 import { lerp, mod } from '../../core/math';
 import type { CollisionWorld } from '../../world/collision';
 import type { ZoneDef } from '../../world/level-data';
-import { NAV, type NavGrid, type NavJob, type NavPlanner } from '../../world/nav-grid';
+import type { NavGrid, NavJob, NavPlanner } from '../../world/nav-grid';
 import type { Polyline } from '../../world/polyline';
 import type { Fleet } from './fleet';
 
@@ -196,7 +196,7 @@ export class Detours {
         // no way round, or only the long way (round the block): not worth it
         const legs = job.legs;
         if (!legs || !job.path || job.path.total > I.detour * car.pos.distanceTo(d.goal)) return this.giveUp(d);
-        d.pilot = new Autopilot(legs, { inDeck: () => false, nav: this.nav, profile: NAV.car }, car.params);
+        d.pilot = new Autopilot(legs, { inDeck: () => false, nav: this.nav, profile: car.breed.nav }, car.params);
         d.phase = 'gap';
         d.t = 0;
         return true;
@@ -249,7 +249,7 @@ export class Detours {
       const r = pad + PERSON_EXTRA;
       blocks.push({ min: [a.x - r, a.y - BELOW, a.z - r], max: [a.x + r, a.y + ABOVE, a.z + r] });
     }
-    d.job = this.planner.request(car.pos, d.goal, NAV.car, { blocks, drive: { yaw: car.yaw, endYaw: d.goalYaw } });
+    d.job = this.planner.request(car.pos, d.goal, car.breed.nav, { blocks, drive: { yaw: car.yaw, endYaw: d.goalYaw } });
     d.phase = 'planning';
     d.t = 0;
   }

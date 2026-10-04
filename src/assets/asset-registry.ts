@@ -13,12 +13,9 @@ import {
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { atSedanScale, buildCarRig, SEDAN, SEDAN_SCALE } from '../actors/models/car';
-import { buildMotorcycleRig } from '../actors/models/motorcycle';
-import { buildPickupRig } from '../actors/models/pickup';
 import { type CharacterModel, GltfCharacter, ProceduralCharacter } from '../actors/models/character';
 import { isFrontWheel, type VehicleRig, WHEELS, type WheelRig } from '../actors/models/rig';
 import { addUnderglow, buildTruckRig } from '../actors/models/truck';
-import type { CarKind } from '../actors/vehicle';
 import { urlFlag } from '../core/url-flags';
 import { truckLivery } from '../render/livery';
 import { softInk, withCutaway } from '../render/materials';
@@ -117,13 +114,6 @@ export class AssetRegistry {
     });
     addUnderglow(rig);
     return rig;
-  }
-
-  /** A civilian vehicle of `kind`: the sedan from its GLB when there is one; pickups and bikes are built from parts. */
-  civilianRig(kind: CarKind, color: string): VehicleRig {
-    if (kind === 'pickup') return buildPickupRig(color);
-    if (kind === 'motorcycle') return buildMotorcycleRig(color);
-    return this.carRig(color);
   }
 
   carRig(color: string): VehicleRig {

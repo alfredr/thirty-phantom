@@ -1,4 +1,4 @@
-import type { CarKind, Vehicle } from '../actors/vehicle';
+import type { Vehicle } from '../actors/vehicle';
 import { TUNING } from '../config';
 import { KEYS, keyName } from '../core/input';
 import { clamp } from '../core/math';
@@ -11,12 +11,7 @@ import { Mixer } from './mixer';
 
 const I = TUNING.audio.impact;
 
-/** Each kind of car's horn, calm and fed up; anger from this on gets the long one. */
-const HORNS: Readonly<Record<CarKind, readonly [calm: SoundOf<'honk'>, angry: SoundOf<'honk'>]>> = {
-  sedan: ['horn-sedan', 'horn-sedan-angry'],
-  pickup: ['horn-pickup', 'horn-pickup-angry'],
-  motorcycle: ['horn-bike', 'horn-bike-angry'],
-};
+/** Anger from this on gets a car's fed-up horn (VehicleBreed.horn). */
 const ANGRY = 0.6;
 /** Street furniture by PropKind.name; anything else sounds like a fence going over. */
 const PROPS: Readonly<Record<string, SoundOf<'prop'>>> = {
@@ -169,7 +164,9 @@ export class Sound {
 
   /** Fed up drivers lean on it longer and harder. */
   private honk({ car, at, anger }: GameEvents['honk']): void {
-    const [calm, angry] = HORNS[car.kind];
+    const horn = car.breed.horn;
+    if (!horn) return;
+    const [calm, angry] = horn;
     this.mixer.play('honk', anger >= ANGRY ? angry : calm, { at, gain: 0.85 + 0.3 * anger, note: `car ${car.id}, anger ${anger.toFixed(2)}` });
   }
 
