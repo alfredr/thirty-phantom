@@ -72,7 +72,7 @@ export class ValetTalk {
   /** Interact next to a valet: he stops, turns to Cody and asks what he can do. */
   start(valet: Valet): void {
     const V = TUNING.valet;
-    valet.held = true;
+    valet.hear({ type: 'talk', who: () => this.hooks.me() });
     const bribe = valet.state === 'returning';
     if (!bribe && this.tip === null) this.tip = this.handed > 0 && this.rng.chance(V.tipChance) ? V.tipBase * V.tipGrowth ** this.asked++ : 0;
     const line = bribe ? `I'M ON A BREAK. $${V.bribe} SAYS I'M NOT.` : this.handed === 0 ? 'WELCOME TO THE FOXY.' : (this.tip ?? 0) > 0 ? `TOP FLOOR? THAT'LL BE $${this.tip}.` : 'WELCOME BACK.';
@@ -89,13 +89,12 @@ export class ValetTalk {
     }
     const w = talk.valet.walker;
     const me = this.hooks.me();
-    w.face(me);
     talk.t += dt;
     // walk or drive off, wait too long, or let him finish his line: the conversation ends
     const V = TUNING.valet;
     const gone = w.pos.distanceTo(me) > V.talkBreak || talk.t > V.talkTimeout || (talk.closing >= 0 && (talk.closing -= dt) < 0) || !day;
     if (gone) {
-      talk.valet.held = false;
+      talk.valet.hear({ type: 'talkEnded' });
       this.talk = null;
       this.hud.setBubble(null);
       return;

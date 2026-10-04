@@ -6,30 +6,15 @@ import { buildValet } from '../../actors/models/valet';
 import type { Vehicle } from '../../actors/vehicle';
 import { Walker } from '../../actors/walker';
 import { done, type Result, running } from '../../engine/sim/action';
+import { type EventOf, Mind } from '../../engine/sim/mind';
 import type { ValetDef, ZoneDef } from '../../world/level-data';
 import { NAV, type NavGrid, type NavJob, type NavPlanner } from '../../world/nav-grid';
 import { type Garage, type SpotRuntime, spotZone } from '../deck/garage';
 import { type DriveAction, DriverJob, DriveTo, type DriveWorld, halt, Park, spotBerth } from '../driving/drive-actions';
 import type { Drivers } from '../driving/drivers';
+import { type Attention, type Job, VALET_ATTENTION, VALET_JOB, type ValetEvents } from './valet-mind';
 
-export type ValetState = 'idle' | 'toCar' | 'boarding' | 'driving' | 'returning' | 'off';
-
-export interface Valet {
-  readonly walker: Walker;
-  readonly home: Vector3;
-  readonly homeYaw: number;
-  state: ValetState;
-  car: Vehicle | null;
-  spot: SpotRuntime | null;
-  /** The car crossed the entry gate with him at the wheel. */
-  badged: boolean;
-  walkJob: NavJob | null;
-  /** At the wheel: the drive to the spot. */
-  drive: ValetDrive | null;
-  /** Held in a conversation: stands still and faces Cody. */
-  held: boolean;
-  t: number;
-}
+export type ValetState = keyof Job;
 
 /** What the game gives the valets each frame. */
 export interface ValetFrame {
@@ -43,8 +28,6 @@ export interface ValetFrame {
 const T = TUNING.valet;
 /** Skin tones across the crew. */
 const SKINS = ['#d9a07a', '#8a5a3c', '#f0c8a8', '#c48a64'];
-/** Back home once within this of the podium spot. */
-const HOME_EPS = 0.5;
 /** Idle at the podium: rocking on his heels (rate, height), and an occasional wave (how often, how much of the time, arm lift, flap rate and size). */
 const ROCK_RATE = 2.2;
 const ROCK_HEIGHT = 0.03;
@@ -55,6 +38,53 @@ const WAVE_FLAP = 9;
 const WAVE_FLAP_SIZE = 0.25;
 
 const _v = new Vector3();
+
+/** One of Foxy's valets: his body, where his stand is, and his two minds (the job, and whether he's paying someone attention). See valet-mind.ts. */
+export class Valet {
+  readonly job: Mind<Valet, Job, ValetEvents>;
+  readonly attention: Mind<Valet, Attention, ValetEvents>;
+  /** The car crossed the entry gate with him at the wheel. */
+  badged = false;
+  /** His own clock, for the idle rocking and waving. */
+  t = Math.random() * 6;
+
+  constructor(
+    readonly crew: ValetService,
+    readonly walker: Walker,
+    readonly home: Vector3,
+    readonly homeYaw: number,
+  ) {
+    this.job = new Mind<Valet, Job, ValetEvents>(VALET_JOB, this, { at: 'idle' });
+    this.attention = new Mind<Valet, Attention, ValetEvents>(VALET_ATTENTION, this, { at: 'free' });
+  }
+
+  /** What he's doing. */
+  get state(): ValetState {
+    return this.job.state.at;
+  }
+
+  /** The car he's been handed, while he has it. */
+  get car(): Vehicle | null {
+    const s = this.job.state;
+    return s.at === 'toCar' || s.at === 'boarding' || s.at === 'driving' ? s.car : null;
+  }
+
+  /** Both his minds hear `event`. True if either moved. */
+  hear(event: EventOf<ValetEvents>): boolean {
+    const job = this.job.hear(event);
+    const attention = this.attention.hear(event);
+    return job || attention;
+  }
+
+  /** Rocks on his heels with the odd wave at the street. */
+  idleAnim(): void {
+    const rig = this.walker.rig;
+    rig.body.position.y = Math.max(0, Math.sin(this.t * ROCK_RATE)) * ROCK_HEIGHT;
+    const wave = Math.max(0, Math.sin(this.t * WAVE_RATE) - WAVE_SHARE) / (1 - WAVE_SHARE);
+    rig.armR.rotation.z = wave * WAVE_LIFT;
+    rig.armR.rotation.x = -Math.sin(this.t * WAVE_FLAP) * WAVE_FLAP_SIZE * wave;
+  }
+}
 
 /**
  * A valet at the wheel: drives the car to its spot in the deck, in through the entry gate, and
@@ -128,20 +158,23 @@ export class ValetDrive extends DriverJob {
  * Foxy's valet crew. Hand one your keys and he walks to the car, drives it
  * over to the deck along a planned route (badging in at the entry gate, up the
  * ramps), eases it into the highest free spot, then walks back down the
- * stairwell to the podium. Everything moves through the shared planner, the
- * real vehicle physics and the same route followers as everyone else; at the
- * wheel he's one of the game's drivers (ValetDrive).
+ * stairwell to the podium. What each valet does is his minds' (valet-mind.ts);
+ * this is the crew's stand and what their minds call on. Everything moves
+ * through the shared planner, the real vehicle physics and the same route
+ * followers as everyone else; at the wheel he's one of the game's drivers
+ * (ValetDrive).
  */
 export class ValetService {
   readonly root = new Group();
   readonly crew: Valet[] = [];
   /** Regions walking routes keep out of (parked cars); the game sets it. */
   walkBlocks: () => ZoneDef[] = () => [];
+  private frame: ValetFrame = { day: true, avoid: null, parked: () => {} };
 
   constructor(
     defs: readonly ValetDef[],
     private readonly planner: NavPlanner,
-    private readonly nav: NavGrid,
+    readonly nav: NavGrid,
     private readonly garage: Garage,
     private readonly drivers: Drivers,
   ) {
@@ -152,30 +185,28 @@ export class ValetService {
         const home = new Vector3(def.pos[0] - i * T.spacing, def.pos[1], def.pos[2]);
         walker.place(home, def.yaw);
         this.root.add(walker.rig.root);
-        this.crew.push({
-          walker,
-          home,
-          homeYaw: def.yaw,
-          state: 'idle',
-          car: null,
-          spot: null,
-          badged: false,
-          walkJob: null,
-          drive: null,
-          held: false,
-          t: Math.random() * 6,
-        });
+        this.crew.push(new Valet(this, walker, home, def.yaw));
       }
     }
   }
 
-  /** Nearest valet Cody can talk to within reach of p (idle at the podium by day). */
+  /** Whether the stand's open this frame. */
+  get day(): boolean {
+    return this.frame.day;
+  }
+
+  /** Who valets on foot steer round this frame. */
+  get avoid(): Avoidance | null {
+    return this.frame.avoid;
+  }
+
+  /** Nearest valet Cody can talk to within reach of p: by day, at the stand or on his way back to it. */
   talkable(p: Vector3, reach: number, day: boolean): Valet | null {
     let best: Valet | null = null;
     let bd = reach;
     for (const v of this.crew) {
       // waiting at the stand, or on his way back to it (a bribe turns him round)
-      if (!day || (v.state !== 'idle' && v.state !== 'returning')) continue;
+      if (!day || (!v.job.in('idle') && !v.job.in('returning'))) continue;
       const d = Math.hypot(v.walker.pos.x - p.x, v.walker.pos.z - p.z);
       if (d < bd && Math.abs(v.walker.pos.y - p.y) < 2.5) {
         bd = d;
@@ -190,25 +221,20 @@ export class ValetService {
     for (const v of this.crew) if (v.walker.rig.root.visible && v.walker.speed > 0.2) out.push(v.walker.pos);
   }
 
-  /** The valet driving (or about to drive) this car. */
+  /** The valet who has this car, if one does. */
   driverOf(car: Vehicle): Valet | null {
     return this.crew.find((v) => v.car === car) ?? null;
   }
 
-  /** Hand `car` to `valet` to park in `spot`. */
-  take(valet: Valet, car: Vehicle, spot: SpotRuntime): void {
-    // bribed on his way back: that walk's off
-    valet.walkJob?.cancel();
+  /** Hand `car` to `valet` to park in `spot`. False if he's busy with another. */
+  take(valet: Valet, car: Vehicle, spot: SpotRuntime): boolean {
+    if (!valet.hear({ type: 'handedCar', car, spot })) return false;
     this.garage.occupy(spot, car);
     car.role = 'valet';
     car.vel.set(0, 0, 0);
     car.speed = 0;
-    valet.car = car;
-    valet.spot = spot;
     valet.badged = false;
-    valet.held = false;
-    valet.state = 'toCar';
-    valet.walkJob = this.planner.request(valet.walker.pos, this.doorOf(car, _v), NAV.person, { blocks: this.walkBlocks(), elevators: true });
+    return true;
   }
 
   /** Cody stole the car out from under him: the job is off and he walks back. */
@@ -216,131 +242,53 @@ export class ValetService {
     const v = this.driverOf(car);
     if (!v) return null;
     this.garage.release(car);
-    if (v.state === 'boarding' || v.state === 'driving') {
-      const door = this.doorOf(car, new Vector3());
-      v.walker.place(door, car.yaw + Math.PI / 2);
-      v.walker.rig.root.visible = true;
-    }
-    this.goHome(v);
+    v.hear({ type: 'carjacked' });
     return v;
   }
 
   update(dt: number, f: ValetFrame): void {
+    this.frame = f;
     for (const v of this.crew) {
       v.t += dt;
-      const w = v.walker;
-      switch (v.state) {
-        case 'off':
-          if (f.day) {
-            w.place(v.home, v.homeYaw);
-            w.rig.root.visible = true;
-            v.state = 'idle';
-          }
-          break;
-        case 'idle':
-          if (!f.day && !v.held) {
-            // closing time: the crew goes inside
-            w.rig.root.visible = false;
-            v.state = 'off';
-            break;
-          }
-          w.update(dt, this.nav);
-          if (!v.held) this.idleAnim(v);
-          break;
-        case 'toCar': {
-          const car = v.car as Vehicle;
-          if (v.walkJob?.settled) {
-            if (v.walkJob.path) w.follow(v.walkJob.path, T.walkPace);
-            else w.place(this.doorOf(car, _v), car.yaw);
-            v.walkJob = null;
-          }
-          if (w.update(dt, this.nav, f.avoid) || (!v.walkJob && !w.walking)) {
-            w.face(car.pos);
-            v.state = 'boarding';
-            v.t = 0;
-          }
-          break;
-        }
-        case 'boarding': {
-          w.update(dt, this.nav);
-          if (v.t <= T.boardTime) break;
-          w.rig.root.visible = false;
-          const car = v.car as Vehicle;
-          const spot = v.spot as SpotRuntime;
-          v.drive = new ValetDrive({ car, spot });
-          v.state = 'driving';
-          if (!this.drivers.start(v.drive)) this.carjacked(car);
-          break;
-        }
-        case 'driving': {
-          const job = v.drive;
-          if (!job || this.drivers.running(job)) break;
-          // over: in its spot, or the car's gone from under him
-          v.badged = job.badged;
-          if (job.parked) this.finishParking(v, f);
-          else this.carjacked(job.car);
-          break;
-        }
-        case 'returning':
-          if (v.walkJob?.settled) {
-            if (v.walkJob.path) w.follow(v.walkJob.path, T.jogPace);
-            else w.place(v.home, v.homeYaw);
-            v.walkJob = null;
-          }
-          if (v.held) {
-            w.stop();
-            w.update(dt, this.nav);
-            break;
-          }
-          if (w.update(dt, this.nav, f.avoid) || (!v.walkJob && !w.walking && w.pos.distanceTo(v.home) < HOME_EPS)) {
-            w.face(_v.copy(v.home).add(new Vector3(Math.sin(v.homeYaw), 0, Math.cos(v.homeYaw))));
-            v.state = 'idle';
-          } else if (!v.walkJob && !w.walking) {
-            // stopped short (a conversation, a replan): head home again
-            v.walkJob = this.planner.request(w.pos, v.home, NAV.person, { blocks: this.walkBlocks(), elevators: true });
-          }
-          break;
-      }
+      v.job.tick(dt);
+      v.attention.tick(dt);
     }
   }
 
   /** Where the driver gets in or out: beside the car on its left. */
-  doorOf(car: Vehicle, out: Vector3): Vector3 {
+  doorOf(car: Vehicle, out = new Vector3()): Vector3 {
     driverDoor(car, T.doorGap, out);
     out.y = this.nav.heightAt(out.x, out.y, out.z) ?? car.pos.y;
     return out;
   }
 
-  private finishParking(v: Valet, f: ValetFrame): void {
-    const car = v.car as Vehicle;
-    const s = v.spot as SpotRuntime;
+  /** A walking route for `v` from where he is to `to`, round parked cars, by stairs or the lift. */
+  walkTo(v: Valet, to: Vector3): NavJob {
+    return this.planner.request(v.walker.pos, to, NAV.person, { blocks: this.walkBlocks(), elevators: true });
+  }
+
+  /** Puts a valet at the wheel of `car`, to park it in `spot`. Null if he couldn't take the seat. */
+  startDrive(car: Vehicle, spot: SpotRuntime): ValetDrive | null {
+    const drive = new ValetDrive({ car, spot });
+    return this.drivers.start(drive) ? drive : null;
+  }
+
+  /** Whether `drive` is still going. */
+  driving(drive: ValetDrive): boolean {
+    return this.drivers.running(drive);
+  }
+
+  /** `v` parked `car` in `spot`: it's a parked car in the deck, and the game hears of it. */
+  parked(v: Valet, car: Vehicle, spot: SpotRuntime): void {
     car.role = 'parked';
     car.insideDeck = true;
-    car.restPos.copy(car.pos);
-    car.restYaw = car.yaw;
-    f.parked(car, s, v);
-    v.walker.place(this.doorOf(car, _v), car.yaw + Math.PI / 2);
-    v.walker.rig.root.visible = true;
-    this.goHome(v);
+    car.markRest();
+    this.frame.parked(car, spot, v);
   }
 
-  private goHome(v: Valet): void {
-    v.car = null;
-    v.spot = null;
-    v.drive = null;
-    v.walkJob?.cancel();
-    v.walkJob = this.planner.request(v.walker.pos, v.home, NAV.person, { blocks: this.walkBlocks(), elevators: true });
-    v.held = false;
-    v.state = 'returning';
-  }
-
-  private idleAnim(v: Valet): void {
-    // rocks on his heels with the odd wave at the street
-    const rig = v.walker.rig;
-    rig.body.position.y = Math.max(0, Math.sin(v.t * ROCK_RATE)) * ROCK_HEIGHT;
-    const wave = Math.max(0, Math.sin(v.t * WAVE_RATE) - WAVE_SHARE) / (1 - WAVE_SHARE);
-    rig.armR.rotation.z = wave * WAVE_LIFT;
-    rig.armR.rotation.x = -Math.sin(v.t * WAVE_FLAP) * WAVE_FLAP_SIZE * wave;
+  /** The job's off and the car never got to its spot: its spot's free again, and if nobody else has it, it's left parked where it is. */
+  drop(car: Vehicle): void {
+    this.garage.release(car);
+    if (car.role === 'valet') car.role = 'parked';
   }
 }
-

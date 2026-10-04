@@ -201,22 +201,36 @@ test('the space finds what is near, never across levels, in all three query shap
   assert.deepEqual(space.near(_, _, 3), [], 'the rebuild dropped the old answers');
 });
 
-test('a mind decides in think, moves on go, and follows events', () => {
+test('a mind decides in think, moves on what its state lists, and holds its own data', () => {
+  const log = [];
   const VALET = mind({
-    atStand: { think: (v) => v.job && { do: 'park', go: 'fetching' } },
-    fetching: { on: { performed: 'returning', failed: 'returning' } },
-    returning: { on: { performed: 'atStand' } },
+    atStand: {
+      think: (v) => v.job && { do: 'park', go: { at: 'fetching', car: v.job } },
+      on: { handed: (_v, _s, e) => ({ at: 'fetching', car: e.car }) },
+    },
+    fetching: {
+      enter: (_v, s) => log.push(['enter', s.car]),
+      exit: (_v, s) => log.push(['exit', s.car]),
+      tick: (_v, s, dt) => ((s.t = (s.t ?? 0) + dt) >= 1 ? { at: 'returning' } : null),
+      on: { failed: () => ({ at: 'returning' }) },
+    },
+    returning: { on: { handed: (_v, _s, e) => ({ at: 'fetching', car: e.car }) } },
   });
   const valet = { job: null };
-  const m = new Mind(VALET, valet, 'atStand');
+  const m = new Mind(VALET, valet, { at: 'atStand' });
   assert.equal(m.think({}), null);
-  valet.job = { car: 1 };
+  valet.job = 'red';
   const decision = m.think({});
-  assert.deepEqual(decision, { do: 'park', go: 'fetching' });
-  assert.equal(m.state, 'atStand', 'thinking changes nothing');
+  assert.deepEqual(decision, { do: 'park', go: { at: 'fetching', car: 'red' } });
+  assert.equal(m.state.at, 'atStand', 'thinking changes nothing');
   m.go(decision.go);
-  m.hear('lost');
-  assert.equal(m.state, 'fetching', 'no transition for that event');
-  m.hear('failed');
-  assert.equal(m.state, 'returning');
+  assert.equal(m.in('fetching')?.car, 'red', 'the state holds its own data');
+  assert.equal(m.hear({ type: 'handed', car: 'blue' }), false, 'busy fetching: an event it does not list leaves it as it is');
+  assert.equal(m.state.car, 'red');
+  assert.equal(m.tick(0.5), false);
+  assert.equal(m.tick(0.5), true, 'tick returned the next state');
+  assert.equal(m.state.at, 'returning');
+  assert.equal(m.hear({ type: 'handed', car: 'blue' }), true, 'on the way back, a hand-over turns it round');
+  assert.equal(m.in('fetching')?.car, 'blue');
+  assert.deepEqual(log, [['enter', 'red'], ['exit', 'red'], ['enter', 'blue']]);
 });
