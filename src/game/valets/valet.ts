@@ -1,6 +1,6 @@
 import { Group, Vector3 } from 'three';
 import { TUNING } from '../../config';
-import type { Avoidance } from '../../actors/avoidance';
+import { type Avoidance, PERSON_RADIUS } from '../../actors/avoidance';
 import { driverDoor } from '../../actors/doors';
 import { buildValet } from '../../actors/models/valet';
 import type { Vehicle } from '../../actors/vehicle';
@@ -12,6 +12,7 @@ import { NAV, type NavGrid, type NavJob, type NavPlanner } from '../../world/nav
 import { type Garage, type SpotRuntime, spotZone } from '../deck/garage';
 import { type DriveAction, DriverJob, DriveTo, type DriveWorld, halt, Park, spotBerth } from '../driving/drive-actions';
 import type { Drivers } from '../driving/drivers';
+import type { Bodies } from '../rules/bodies';
 import { type Attention, type Job, VALET_ATTENTION, VALET_JOB, type ValetEvents } from './valet-mind';
 
 export type ValetState = keyof Job;
@@ -26,6 +27,8 @@ export interface ValetFrame {
 }
 
 const T = TUNING.valet;
+/** A valet walking faster than this (m/s) is under way: traffic and drivers brake for him. */
+const MOVING = 0.2;
 /** Skin tones across the crew. */
 const SKINS = ['#d9a07a', '#8a5a3c', '#f0c8a8', '#c48a64'];
 /** Idle at the podium: rocking on his heels (rate, height), and an occasional wave (how often, how much of the time, arm lift, flap rate and size). */
@@ -217,8 +220,11 @@ export class ValetService {
   }
 
   /** Valets walking around: people for traffic and autopilots to brake for. */
-  pedestrians(out: Vector3[]): void {
-    for (const v of this.crew) if (v.walker.rig.root.visible && v.walker.speed > 0.2) out.push(v.walker.pos);
+  addBodies(bodies: Bodies): void {
+    for (const v of this.crew) {
+      const w = v.walker;
+      if (w.rig.root.visible) bodies.add({ kind: 'person', pos: w.pos, vel: w.vel, r: PERSON_RADIUS, moving: w.speed > MOVING, dodges: w.walking, owner: w });
+    }
   }
 
   /** The valet who has this car, if one does. */

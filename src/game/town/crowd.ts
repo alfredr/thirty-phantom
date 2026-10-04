@@ -1,5 +1,5 @@
 import { type Scene, Vector3 } from 'three';
-import { type Avoidance, inZones, parkedBlocks } from '../../actors/avoidance';
+import { type Avoidance, inZones, parkedBlocks, PERSON_RADIUS } from '../../actors/avoidance';
 import { driverDoor } from '../../actors/doors';
 import type { LootKind } from '../../actors/models/loot';
 import { buildPerson, randomOutfit } from '../../actors/models/person';
@@ -12,6 +12,7 @@ import { Polyline } from '../../world/polyline';
 import { Casualties, type Casualty, type Harm } from './casualties';
 import type { Prey } from './skeletons';
 import type { Visitors } from '../driving/visitors';
+import type { Bodies } from '../rules/bodies';
 
 const C = TUNING.crowd;
 
@@ -190,18 +191,11 @@ export class Crowd implements Prey {
   }
 
   /** People on the move, and people lying in the road, for traffic and autopilots to brake for. */
-  obstacles(out: Vector3[]): void {
+  addBodies(bodies: Bodies): void {
     for (const p of this.people) {
-      if (p.hurt) out.push(p.hurt.at);
-      else if (p.walker.speed > MOVING) out.push(p.walker.pos);
-    }
-  }
-
-  /** Everyone for walkers to steer around: people on their feet, and where the fallen lie. */
-  addTo(avoid: Avoidance): void {
-    for (const p of this.people) {
-      if (p.hurt) avoid.still(p.hurt.at, LYING);
-      else avoid.person(p.walker.pos, p.walker.vel, p.walker.walking, p.walker);
+      const w = p.walker;
+      if (p.hurt) bodies.add({ kind: 'down', pos: p.hurt.at, r: LYING });
+      else bodies.add({ kind: 'person', pos: w.pos, vel: w.vel, r: PERSON_RADIUS, moving: w.speed > MOVING, dodges: w.walking, owner: w });
     }
   }
 

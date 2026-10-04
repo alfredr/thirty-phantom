@@ -6,7 +6,7 @@ import {
   Vector3,
 } from 'three';
 import type { AssetRegistry } from '../assets/asset-registry';
-import { Avoidance, parkedBlocks } from '../actors/avoidance';
+import { Avoidance, parkedBlocks, PERSON_RADIUS } from '../actors/avoidance';
 import { Player } from '../actors/player';
 import { Traffic } from '../actors/traffic';
 import { type CarKind, type DriveInput, Vehicle, type VehicleForm } from '../actors/vehicle';
@@ -87,6 +87,7 @@ import { ValetTalk } from './valets/talk';
 import type { DriveWorld } from './driving/drive-actions';
 import { Drivers } from './driving/drivers';
 import { Refuge } from './driving/refuge';
+import { Bodies } from './rules/bodies';
 import { type ValetFrame, ValetService } from './valets/valet';
 import { Visitors } from './driving/visitors';
 
@@ -410,6 +411,8 @@ export class Game {
   private readonly exitBlocks: ZoneDef[];
   private readonly entryQuery: NavQuery;
   // per-frame lists, refilled in place rather than reallocated
+  /** Everyone and everything taking up room this frame (filled in sense()), and where those in traffic's way and in the AI drivers' way are. */
+  private readonly bodies = new Bodies();
   private readonly trafficObstacles: Vector3[] = [];
   private readonly valetObstacles: Vector3[] = [];
   private readonly movers: Vector3[] = [];
@@ -856,6 +859,23 @@ export class Game {
       if (driven && !vehicle.crashing) things.push({ kind: 'driver', pos: vehicle.pos, vehicle });
     }
     this.space.rebuild(things);
+    this.senseBodies();
+  }
+
+  /** Who and what takes up room this frame, each system adding its own. */
+  private senseBodies(): void {
+    const b = this.bodies;
+    b.clear();
+    this.crowd.addBodies(b);
+    this.valet.addBodies(b);
+    for (const n of this.npcs.list) {
+      b.add({ kind: 'still', pos: n.pos, r: NPC_ROOM });
+      if (n.fire) b.add({ kind: 'still', pos: n.fire.root.position, r: FIRE_ROOM });
+    }
+    // walkers steer round skeletons (cars don't brake for them: knocking them flying is the point)
+    for (const pos of this.skeletons.threats) b.add({ kind: 'skeleton', pos, r: PERSON_RADIUS });
+    if (this.onFoot && this.player.visible) b.add({ kind: 'cody', pos: this.player.pos, vel: this.player.vel, r: TUNING.player.radius });
+    for (const v of this.vehicles) if (!v.gone) b.add({ kind: 'car', pos: v.pos, vel: v.vel, r: v.params.radius, vehicle: v });
   }
 
   /** A driver sees phantom Cody or the phantom truck at `from` this frame: one doing a job at the wheel, one pulling round, or one in traffic. */
@@ -916,11 +936,8 @@ export class Game {
     const seen = this.cody.presence(this.driving, !!this.transform);
     const ghost = seen && FRIGHTENING.has(seen.kind) ? seen.at : null;
     react(this.perception, this.reactions);
-    const obstacles = this.trafficObstacles;
-    obstacles.length = 0;
-    if (this.onFoot) obstacles.push(this.player.pos);
-    this.valet.pedestrians(obstacles);
-    this.crowd.obstacles(obstacles);
+    // traffic brakes for Cody and for people under way or down in the road
+    const obstacles = this.bodies.points((b) => b.kind === 'cody' || b.kind === 'down' || (b.kind === 'person' && b.moving), this.trafficObstacles);
     this.traffic.update(dt, this.vehicles, obstacles);
     for (const v of this.traffic.abandoned.splice(0)) {
       this.crowd.bail(v, ghost ?? v.pos);
@@ -983,21 +1000,16 @@ export class Game {
     this.events.emit('frame', dt);
   }
 
-  /** Who's where for people on foot to steer around: each other, Cody, Randy and his fire, the fallen, every vehicle. */
+  /** Who's where for people on foot to steer around: the bodies, each as walkers dodge it. */
   private fillAvoidance(): void {
     const a = this.avoid;
     a.clear();
-    this.crowd.addTo(a);
-    for (const v of this.valet.crew) {
-      const w = v.walker;
-      if (w.rig.root.visible) a.person(w.pos, w.vel, w.walking, w);
-    }
-    for (const n of this.npcs.list) {
-      a.still(n.pos, NPC_ROOM);
-      if (n.fire) a.still(n.fire.root.position, FIRE_ROOM);
-    }
-    if (!this.driving && !this.transform && this.player.visible) a.mover(this.player.pos, this.player.vel, TUNING.player.radius);
-    for (const v of this.vehicles) if (!v.gone) a.vehicle(v);
+    this.bodies.each((b) => {
+      if (b.kind === 'person') a.person(b.pos, b.vel, b.dodges, b.owner);
+      else if (b.kind === 'cody') a.mover(b.pos, b.vel, b.r);
+      else if (b.kind === 'car' && b.vehicle) a.vehicle(b.vehicle);
+      else a.still(b.pos, b.r);
+    });
   }
 
   /** Money Cody walks or drives over is his; car parts he walks over go in his inventory. */
@@ -1611,12 +1623,8 @@ export class Game {
     const nightness = this.dayNight.nightness;
     this.planner.update();
     if (this.mode === 'play') {
-      const obstacles = this.valetObstacles;
-      obstacles.length = 0;
-      for (const v of this.vehicles) if (!v.gone) obstacles.push(v.pos);
-      if (this.onFoot) obstacles.push(this.player.pos);
-      this.valet.pedestrians(obstacles);
-      this.crowd.obstacles(obstacles);
+      // the AI drivers keep clear of the cars as well
+      const obstacles = this.bodies.points((b) => b.kind === 'car' || b.kind === 'cody' || b.kind === 'down' || (b.kind === 'person' && b.moving), this.valetObstacles);
       this.valetFrame.day = this.conditions.valetsOnShift();
       this.valet.update(dt, this.valetFrame);
       this.visitors.update(dt, this.view.target);
