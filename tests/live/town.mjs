@@ -31,3 +31,27 @@ export function knockedDownGetsUpAndRuns() {
   const up = sim.until(() => p.mind.state.at !== 'down', 30, []);
   return { ok: down && up.ok && p.mind.state.at === 'flee' && p.limp < 1, down, upAfter: up.seconds, then: p.mind.state.at, limp: p.limp };
 }
+
+/** Nine skeletons raised next to one person with nobody else about: no more than three go after them. */
+export function atMostThreeSkeletonsOnOnePerson() {
+  const g = window.__game;
+  const sim = window.__sim;
+  g.start();
+  sim.run(600);
+  g.debug.night();
+  sim.until(() => g.player.form === 'night', 20, []);
+  const me = g.player.pos;
+  const [victim, ...rest] = g.crowd.living();
+  if (!victim) return { ok: false, why: 'nobody about' };
+  // everyone else far off, the one left a few metres away
+  for (const p of rest) p.walker.place(me.clone().add({ x: 400, y: 0, z: 400 }), 0);
+  victim.walker.place(me.clone().add({ x: 5, y: 0, z: 0 }), 0);
+  let raised = 0;
+  for (let k = 0; k < 3; k++) {
+    raised += g.summon();
+    sim.run(130);
+  }
+  const hunters = g.skeletons.list.filter((s) => s.target === victim).length;
+  const claims = g.claims.holders('quarry', victim).length;
+  return { ok: raised === 9 && hunters > 0 && hunters <= 3 && claims === hunters, raised, hunters, claims };
+}

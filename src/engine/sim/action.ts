@@ -55,38 +55,6 @@ export function resolveFully<S, W extends S>(w: S, action: Action<S, W>): Action
   return fail('NOTHING HAPPENS');
 }
 
-/** Steps in order, as one job. The steps' claims last until the whole job ends. */
-export class Sequence<S, W extends S> extends Action<S, W> {
-  private readonly steps: Action<S, W>[];
-  private at = 0;
-
-  constructor(steps: readonly Action<S, W>[]) {
-    super();
-    this.steps = [...steps];
-    for (const step of this.steps) step.parent = this;
-  }
-
-  perform(w: W, dt: number): Result<Action<S, W>> {
-    const step = this.steps[this.at];
-    if (!step) return done;
-    const result = step.perform(w, dt);
-    if ('instead' in result) {
-      result.instead.parent = this;
-      this.steps[this.at] = result.instead;
-      return running;
-    }
-    if ('done' in result) {
-      step.stop();
-      return ++this.at < this.steps.length ? running : done;
-    }
-    return result;
-  }
-
-  stop(): void {
-    this.steps[this.at]?.stop();
-  }
-}
-
 /** What the runner needs from the world: the claim checks, and somewhere to report outcomes. */
 export interface DoingHooks<S, W extends S> {
   /** Whether `owner` lost a claim earlier this frame. A running action that did stops with `lost`. */
@@ -136,8 +104,7 @@ export class Doing<S, W extends S> {
     const keep = (a: Action<S, W>): boolean => a.owner !== owner;
     for (const action of [...this.running, ...this.started]) {
       if (keep(action)) continue;
-      action.stop();
-      this.hooks.end(action.owner);
+      this.finish(action);
       this.hooks.failed?.(action, reason);
     }
     this.running = this.running.filter(keep);
@@ -153,23 +120,29 @@ export class Doing<S, W extends S> {
     let current = action;
     let result: Result<Action<S, W>> = this.hooks.lost(current.owner) ? fail('lost') : current.perform(w, dt);
     for (let hop = 0; 'instead' in result; hop++) {
-      // A hand-off found while doing it: the old action stops and its claims end, and the new one starts.
-      current.stop();
-      this.hooks.end(current.owner);
-      const next = hop < MAX_HOPS ? resolveFully(w, result.instead) : fail('NOTHING HAPPENS');
+      // A hand-off found while doing it: the old action ends, and the new one starts if it can.
+      this.finish(current);
+      const wanted = result.instead;
+      const next = hop < MAX_HOPS ? resolveFully(w, wanted) : fail('NOTHING HAPPENS');
       if ('fail' in next) {
-        result = next;
-        break;
+        // the old one's over already: it's the one asked for instead that couldn't happen
+        this.hooks.failed?.(wanted, next.fail);
+        return { result: next, current: wanted };
       }
       current = next;
       result = current.perform(w, dt);
     }
     if (!('running' in result)) {
-      current.stop();
-      this.hooks.end(current.owner);
+      this.finish(current);
       if ('done' in result) this.hooks.performed?.(current);
       else if ('fail' in result) this.hooks.failed?.(current, result.fail);
     }
     return { result, current };
+  }
+
+  /** An action is over: it stops, and whatever it held ends with it. Once each. */
+  private finish(action: Action<S, W>): void {
+    action.stop();
+    this.hooks.end(action.owner);
   }
 }

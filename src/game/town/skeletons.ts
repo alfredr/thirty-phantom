@@ -5,15 +5,18 @@ import { buildSkeleton } from '../../actors/models/skeleton';
 import { clamp, damp, dampAngle, TAU, type V3 } from '../../engine/core/math';
 import { RouteCursor } from '../../engine/nav/polyline';
 import type { CollisionWorld } from '../../engine/physics/collision';
+import type { Claims } from '../../engine/sim/claims';
+import { Mind, mind } from '../../engine/sim/mind';
 import { NAV, type NavGrid, type NavJob, type NavPlanner } from '../../world/nav-grid';
+import type { ClaimKind } from '../rules/claim-kinds';
 
 /**
  * Whom skeletons hunt: the crowd's people, through opaque handles. A handle
  * stays valid until victimAt() says they're gone.
  */
 export interface Prey {
-  /** The nearest person within `reach` (m) of `at` and within `sameLevel` (m) of its height, not dead yet; or null. */
-  victimNear(at: Vector3, reach: number, sameLevel: number): object | null;
+  /** The nearest person within `reach` (m) of `at` and within `sameLevel` (m) of its height, not dead yet, that `may` allow; or null. */
+  victimNear(at: Vector3, reach: number, sameLevel: number, may: (v: object) => boolean): object | null;
   /** Where `v` is now (standing, or lying), into `out`; false once they're dead or gone. */
   victimAt(v: object, out: Vector3): boolean;
   /** A skeleton's blow from `from`: they run off hurt, go down, or die. */
@@ -79,27 +82,72 @@ const AMBLE = 1.1;
 /** Pushes weaker than this are left alone (so they settle rather than fidget). */
 const SETTLED = 0.02;
 
-type State = 'rising' | 'hunting' | 'staggered';
+/** What a skeleton's doing. */
+type Undead = {
+  /** Climbing out of the ground, `t` seconds in (each starts a moment after the others, below 0). */
+  rising: { t: number };
+  /** After someone, or keeping near Cody with nobody to hunt. */
+  hunting: object;
+  /** Knocked back by a car, for `t` more seconds. */
+  staggered: { t: number };
+};
 
-interface Skeleton {
-  rig: CharacterRig;
-  gait: Gait;
-  pos: Vector3;
-  yaw: number;
-  speed: number;
-  hp: number;
-  state: State;
-  /** Seconds into rising, or left staggered. */
-  t: number;
-  target: object | null;
-  retarget: number;
-  swing: number;
+/** What can happen to a skeleton. */
+type UndeadEvents = {
+  /** A car ploughed into it and didn't finish it: staggered this long (s). */
+  struck: { t: number };
+};
+
+const stagger = (_s: Skeleton, _st: unknown, { t }: UndeadEvents['struck']): { at: 'staggered'; t: number } => ({ at: 'staggered', t });
+
+/** A skeleton's mind: it climbs out, then hunts; a car that doesn't finish it staggers it a moment. */
+const SKELETON_MIND = mind<Skeleton, Undead, UndeadEvents>({
+  rising: {
+    tick: (s, st, dt) => (s.pack.rise(s, st, dt) ? { at: 'hunting' } : null),
+  },
+  hunting: {
+    tick: (s, _st, dt) => {
+      s.pack.hunt(s, dt);
+      return null;
+    },
+    on: { struck: stagger },
+  },
+  staggered: {
+    tick: (s, st, dt) => {
+      st.t -= dt;
+      s.speed = damp(s.speed, 0, 6, dt);
+      return st.t <= 0 ? { at: 'hunting' } : null;
+    },
+    on: { struck: stagger },
+  },
+});
+
+/** One of phantom Cody's skeletons. */
+class Skeleton {
+  readonly mind: Mind<Skeleton, Undead, UndeadEvents>;
+  readonly gait = new Gait();
+  speed = 0;
+  hp = HEALTH;
+  /** Who it's after (held through a 'quarry' claim), and when it looks again. */
+  target: object | null = null;
+  retarget = 0;
+  /** Seconds left of its current claw swipe. */
+  swing = 0;
   /** Coming back to the summoner (see HEEL). */
-  heeling: boolean;
+  heeling = false;
   /** A planned way around walls to whatever it's after, and when to plan again. */
-  job: NavJob | null;
-  route: RouteCursor | null;
-  replan: number;
+  job: NavJob | null = null;
+  route: RouteCursor | null = null;
+  replan = 0;
+
+  constructor(
+    readonly pack: Skeletons,
+    readonly rig: CharacterRig,
+    readonly pos: Vector3,
+    public yaw: number,
+  ) {
+    this.mind = new Mind<Skeleton, Undead, UndeadEvents>(SKELETON_MIND, this, { at: 'rising', t: -Math.random() * 0.35 });
+  }
 }
 
 const _goal = new Vector3();
@@ -132,12 +180,16 @@ export class Skeletons {
 
   private readonly list: Skeleton[] = [];
   private cooldown = 0;
+  /** Phantom Cody, whom they keep near with nobody to hunt, this frame (null: they just stand about). */
+  private master: Vector3 | null = null;
 
   constructor(
     private readonly world: CollisionWorld,
     private readonly nav: NavGrid,
     private readonly planner: NavPlanner,
     private readonly prey: Prey | null,
+    /** Who's after whom ('quarry'); without them, any number gang up on one. */
+    private readonly claims: Claims<ClaimKind> | null = null,
   ) {}
 
   get count(): number {
@@ -177,32 +229,28 @@ export class Skeletons {
    */
   update(dt: number, master: Vector3 | null, cars: readonly SkeletonCrusher[]): void {
     this.cooldown = Math.max(0, this.cooldown - dt);
+    this.master = master;
     this.threats.length = 0;
     for (let i = this.list.length - 1; i >= 0; i--) {
-      const s = this.list[i] as Skeleton;
+      const s = this.list[i];
+      if (!s) continue;
       if (master && s.pos.distanceTo(master) > STRAY) {
         this.crumble(i);
         continue;
       }
-      if (s.state === 'rising') {
-        this.rise(s, dt);
-        this.threats.push(s.pos);
-        continue;
+      // out of the ground, cars can hit it
+      if (!s.mind.in('rising')) {
+        this.runOver(s, cars);
+        if (s.hp <= 0) {
+          this.crumble(i);
+          continue;
+        }
       }
-      this.runOver(s, cars);
-      if (s.hp <= 0) {
-        this.crumble(i);
-        continue;
-      }
-      if (s.state === 'staggered') {
-        s.t -= dt;
-        s.speed = damp(s.speed, 0, 6, dt);
-        if (s.t <= 0) s.state = 'hunting';
-      } else this.hunt(s, dt, master);
+      s.mind.tick(dt);
       this.threats.push(s.pos);
     }
     this.unstack();
-    for (const s of this.list) if (s.state !== 'rising') this.pose(s, dt);
+    for (const s of this.list) if (!s.mind.in('rising')) this.pose(s, dt);
   }
 
   private add(pos: Vector3, yaw: number): void {
@@ -210,23 +258,7 @@ export class Skeletons {
     rig.root.position.set(pos.x, pos.y - BURIED, pos.z);
     rig.root.rotation.y = yaw;
     this.root.add(rig.root);
-    this.list.push({
-      rig,
-      gait: new Gait(),
-      pos,
-      yaw,
-      speed: 0,
-      hp: HEALTH,
-      state: 'rising',
-      t: -Math.random() * 0.35,
-      target: null,
-      retarget: 0,
-      swing: 0,
-      heeling: false,
-      job: null,
-      route: null,
-      replan: 0,
-    });
+    this.list.push(new Skeleton(this, rig, pos, yaw));
   }
 
   /** Is (x, y, z) too close to one already up (or coming up) to rise there? */
@@ -239,42 +271,54 @@ export class Skeletons {
     return false;
   }
 
-  /** Climbing out: up through the ground, shaking, dirt flying as it breaks the surface. */
-  private rise(s: Skeleton, dt: number): void {
-    const was = s.t;
-    s.t += dt;
-    if (was < 0 && s.t >= 0) this.onRise?.(s.pos);
-    const k = clamp(s.t / RISE, 0, 1);
+  /** Climbing out: up through the ground, shaking, dirt flying as it breaks the surface. True once it's out. */
+  rise(s: Skeleton, st: { t: number }, dt: number): boolean {
+    const was = st.t;
+    st.t += dt;
+    if (was < 0 && st.t >= 0) this.onRise?.(s.pos);
+    const k = clamp(st.t / RISE, 0, 1);
     const ease = 1 - (1 - k) * (1 - k);
     const r = s.rig;
-    r.root.position.set(s.pos.x + Math.sin(s.t * 40) * 0.03 * (1 - k), s.pos.y - BURIED * (1 - ease), s.pos.z);
+    r.root.position.set(s.pos.x + Math.sin(st.t * 40) * 0.03 * (1 - k), s.pos.y - BURIED * (1 - ease), s.pos.z);
     r.root.rotation.y = s.yaw;
     // clawing its way up
-    r.armL.rotation.x = -2.6 + Math.sin(s.t * 12) * 0.5 * (1 - k);
-    r.armR.rotation.x = -2.6 + Math.cos(s.t * 12) * 0.5 * (1 - k);
-    if (k >= 1) {
-      s.state = 'hunting';
-      r.armL.rotation.x = 0;
-      r.armR.rotation.x = 0;
-    }
+    r.armL.rotation.x = -2.6 + Math.sin(st.t * 12) * 0.5 * (1 - k);
+    r.armR.rotation.x = -2.6 + Math.cos(st.t * 12) * 0.5 * (1 - k);
+    if (k < 1) return false;
+    r.armL.rotation.x = 0;
+    r.armR.rotation.x = 0;
+    return true;
   }
 
-  /** After the nearest prey (or back toward the master), and clawing at them once in reach. */
-  private hunt(s: Skeleton, dt: number, master: Vector3 | null): void {
+  /** It can go after `v`: there's room among those already after them. */
+  private canHunt(s: Skeleton, v: object): boolean {
+    return v === s.target || !this.claims || this.claims.free('quarry', v);
+  }
+
+  /** It gives up on whoever it was after. */
+  private letGo(s: Skeleton): void {
+    if (s.target) this.claims?.drop('quarry', s, s.target);
+    s.target = null;
+    this.drop(s);
+  }
+
+  /** After the nearest prey it has room to go after (or back toward the master), and clawing at them once in reach. */
+  hunt(s: Skeleton, dt: number): void {
+    const master = this.master;
     s.retarget -= dt;
     s.swing = Math.max(0, s.swing - dt);
     if (this.prey && (s.retarget <= 0 || !s.target)) {
       s.retarget = RETARGET;
-      const v = this.prey.victimNear(s.pos, HUNT, SAME_LEVEL);
-      if (v !== s.target) this.drop(s);
-      s.target = v;
+      const v = this.prey.victimNear(s.pos, HUNT, SAME_LEVEL, (o) => this.canHunt(s, o));
+      if (v !== s.target) {
+        this.letGo(s);
+        if (v) this.claims?.take('quarry', s, v, { owner: s });
+        s.target = v;
+      }
     }
     let goal: Vector3 | null = null;
     if (s.target && this.prey?.victimAt(s.target, _goal)) goal = _goal;
-    else if (s.target) {
-      this.drop(s);
-      s.target = null;
-    }
+    else if (s.target) this.letGo(s);
     if (goal && s.target && this.prey) {
       const d = Math.hypot(goal.x - s.pos.x, goal.z - s.pos.z);
       if (d < REACH) {
@@ -285,8 +329,7 @@ export class Skeletons {
           const hurt = this.prey.maul(s.target, s.pos, DAMAGE[0] + Math.random() * (DAMAGE[1] - DAMAGE[0]));
           if (hurt === 'killed') {
             this.onKill?.(goal);
-            s.target = null;
-            this.drop(s);
+            this.letGo(s);
           }
         }
         return;
@@ -362,8 +405,8 @@ export class Skeletons {
     let x = 0;
     let z = 0;
     for (let j = 0; j < this.list.length; j++) {
-      const o = this.list[j] as Skeleton;
-      if (o === s || Math.abs(o.pos.y - s.pos.y) > SAME_LEVEL) continue;
+      const o = this.list[j];
+      if (!o || o === s || Math.abs(o.pos.y - s.pos.y) > SAME_LEVEL) continue;
       const r = s.target && o.target === s.target ? CROWD : SPREAD;
       const dx = s.pos.x - o.pos.x;
       const dz = s.pos.z - o.pos.z;
@@ -387,10 +430,11 @@ export class Skeletons {
   private unstack(): void {
     const n = this.list.length;
     for (let i = 0; i < n; i++) {
-      const a = this.list[i] as Skeleton;
+      const a = this.list[i];
+      if (!a) continue;
       for (let j = i + 1; j < n; j++) {
-        const b = this.list[j] as Skeleton;
-        if (Math.abs(a.pos.y - b.pos.y) > SAME_LEVEL) continue;
+        const b = this.list[j];
+        if (!b || Math.abs(a.pos.y - b.pos.y) > SAME_LEVEL) continue;
         const dx = b.pos.x - a.pos.x;
         const dz = b.pos.z - a.pos.z;
         const d2 = dx * dx + dz * dz;
@@ -399,8 +443,8 @@ export class Skeletons {
         const d = Math.sqrt(d2);
         const nx = d > 1e-4 ? dx / d : 1;
         const nz = d > 1e-4 ? dz / d : 0;
-        const fixedA = a.state === 'rising';
-        const fixedB = b.state === 'rising';
+        const fixedA = !!a.mind.in('rising');
+        const fixedB = !!b.mind.in('rising');
         if (fixedA && fixedB) continue;
         const gap = r - d;
         const ka = fixedA ? 0 : fixedB ? 1 : 0.5;
@@ -445,8 +489,7 @@ export class Skeletons {
         s.hp -= impact * CAR_DAMAGE;
         s.pos.x += (dx / d) * KNOCK;
         s.pos.z += (dz / d) * KNOCK;
-        s.state = 'staggered';
-        s.t = STAGGER;
+        s.mind.send({ type: 'struck', t: STAGGER });
         return;
       }
     }
@@ -463,13 +506,15 @@ export class Skeletons {
       const k = 1 - s.swing / SWING_EVERY;
       r.armR.rotation.x = k < 0.35 ? -2.4 * (k / 0.35) : -2.4 + 2.9 * Math.min(1, (k - 0.35) / 0.2);
     }
-    if (s.state === 'staggered') r.body.rotation.z = Math.sin(s.t * TAU * 2) * 0.25;
-    else r.body.rotation.z = 0;
+    const staggered = s.mind.in('staggered');
+    r.body.rotation.z = staggered ? Math.sin(staggered.t * TAU * 2) * 0.25 : 0;
   }
 
   private crumble(i: number): void {
-    const s = this.list[i] as Skeleton;
+    const s = this.list[i];
+    if (!s) return;
     this.drop(s);
+    this.claims?.release(s);
     this.root.remove(s.rig.root);
     this.list.splice(i, 1);
     this.onCrumble?.(s.pos);

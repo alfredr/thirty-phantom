@@ -553,7 +553,7 @@ export class Game {
     this.reactions = gameReactions({ crowd: this.crowd, drivers: { frighten: (v, from) => this.frightenDriver(v, from) } });
     this.crowd.onFright = (at) => this.events.emit('fright', { at: at.clone() });
     // skeletons: dirt as they climb out, bones as they fall apart, a ghost from everyone they kill
-    this.skeletons = new Skeletons(this.world.collision, this.nav, this.planner, this.crowd);
+    this.skeletons = new Skeletons(this.world.collision, this.nav, this.planner, this.crowd, this.claims);
     this.scene.add(this.skeletons.root);
     this.skeletons.onRise = (at) => {
       this.debris.burst(_at.copy(at).setY(at.y + 0.2), 14, 5, [0.1, 0.25], [0.8, 1.5], DIRT, 0.9, at.y);
@@ -1286,6 +1286,8 @@ export class Game {
       this.crowd.bail(v, this.player.pos);
       if (this.conditions.parking()) this.hud.toast('STOLEN!', 'GET IT TO THE HAUNTED DECK');
     }
+    // his from here on, turning into the truck round him or not: nothing else drives it
+    v.role = 'player';
     // phantom Cody possesses a car in the deck (and the tutorial's Cody, after moonrise, his own): it turns into the truck
     if (this.possessable(v)) {
       this.transform = new TransformSequence(v, 'truck', () => VEHICLE_BREEDS.truck.model(this.assets, v.color), this.fx);
@@ -1295,7 +1297,6 @@ export class Game {
     }
     const found = this.money.glovebox(v);
     if (found) this.events.emit('money', { kind: 'glovebox', amount: found });
-    v.role = 'player';
     this.driving = v;
     // on a bike he's out in the open: Cody himself rides it
     if (v.rig.rider) this.player.mount(v.rig.rider.saddle);

@@ -21,3 +21,14 @@ test('a hop is reported only when the vehicle leaves its wheels, not when hop is
   assert.equal(v.drive(1 / 60, hop, world).hopped, false);
   assert.equal(v.drive(1 / 60, { ...hop, hop: false }, world).hopped, false);
 });
+
+test('a vehicle that took its step this frame says so until the next frame starts', () => {
+  const v = truck();
+  const world = new CollisionWorld();
+  Vehicle.advance(1 / 60);
+  assert.equal(v.steppedThisFrame, false);
+  v.drive(1 / 60, null, world);
+  assert.equal(v.steppedThisFrame, true, 'a wreck pass this frame leaves it alone');
+  Vehicle.advance(1 / 60);
+  assert.equal(v.steppedThisFrame, false);
+});

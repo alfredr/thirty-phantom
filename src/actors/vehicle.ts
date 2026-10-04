@@ -273,6 +273,7 @@ export class Vehicle {
     const P = this.params;
     const inp = input ?? NO_INPUT;
     const ev: DriveEvents = { impact: 0, landed: 0, smashed: [], hopped: false };
+    this.steppedAt = frame;
     if (this.crashing) return this.tumble(dt, inp, world, ev);
     let fx = Math.sin(this.yaw);
     let fz = Math.cos(this.yaw);

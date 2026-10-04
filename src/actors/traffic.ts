@@ -204,7 +204,8 @@ export class Traffic {
   update(dt: number, vehicles: Vehicle[], obstacles: readonly Vector3[]): void {
     const T = TUNING.traffic;
     for (const v of vehicles) {
-      if (v.role !== 'traffic' || v.crashing) {
+      // crashing, or something happening to the car itself (changing form, crushed): off the lane
+      if (v.role !== 'traffic' || v.crashing || v.status) {
         this.merging.delete(v);
         continue;
       }

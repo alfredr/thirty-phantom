@@ -10,7 +10,7 @@ const [{ EventQueue }, { Relation }, { Claims }, action, { Space, _ }, { Mind, m
   '/src/engine/sim/space.ts',
   '/src/engine/sim/mind.ts',
 );
-const { Action, Doing, Sequence, done, running, fail, instead } = action;
+const { Action, Doing, done, running, fail, instead } = action;
 
 test('events wait for flush, arrive in order, and stay readable for one frame', () => {
   const q = new EventQueue();
@@ -157,17 +157,13 @@ test('the runner resolves, hands off, keeps running actions going, and ends thei
   assert.deepEqual(outcomes.pop(), ['done', 'PARK 13']);
 });
 
-test('an action that loses its claim stops before acting, and a sequence holds claims for the whole job', () => {
+test('an action that loses its claim stops before acting', () => {
   const { w, claims, doing, outcomes } = world();
   const seat = {};
   const valet = {};
-  const job = new Sequence([
-    new Wait({ label: 'BOARD', claim: { kind: 'spot', holder: valet, target: seat } }),
-    new Wait({ label: 'DRIVE', frames: 5 }),
-  ]);
-  doing.do(w, job);
+  doing.do(w, new Wait({ label: 'DRIVE', frames: 5, claim: { kind: 'spot', holder: valet, target: seat } }));
   doing.update(w, 1 / 30);
-  assert.equal(claims.holder('spot', seat), valet, "the board step's claim belongs to the whole job");
+  assert.equal(claims.holder('spot', seat), valet);
 
   // a carjack: someone else takes the seat with preempt
   claims.take('spot', {}, seat, { owner: {}, preempt: true });
@@ -175,6 +171,22 @@ test('an action that loses its claim stops before acting, and a sequence holds c
   doing.update(w, 1 / 30);
   assert.equal(w.log.length, before, 'it did nothing with what it no longer holds');
   assert.equal(outcomes.pop()[2], 'lost');
+  assert.equal(doing.isRunning(() => true), false);
+});
+
+test('a hand-off to something impossible ends the old action once, and says why the new one failed', () => {
+  const { w, doing, outcomes } = world();
+  let stops = 0;
+  const ends = [];
+  const runner = new Doing({ lost: () => false, end: (owner) => ends.push(owner), failed: (a, reason) => outcomes.push(['fail', a.label(w), reason]) });
+  const refused = new Wait({ label: 'GET IN', resolveTo: () => fail('SEAT TAKEN') });
+  const old = new Wait({ label: 'WALK' });
+  old.perform = () => instead(refused);
+  old.stop = () => stops++;
+  runner.do(w, old);
+  assert.equal(stops, 1, 'stopped once');
+  assert.deepEqual(ends, [old.owner], 'its claims ended once');
+  assert.deepEqual(outcomes.pop(), ['fail', 'GET IN', 'SEAT TAKEN']);
   assert.equal(doing.isRunning(() => true), false);
 });
 

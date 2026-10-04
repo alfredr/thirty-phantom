@@ -96,13 +96,13 @@ export class Crowd implements Prey, Town {
     return this.people.length;
   }
 
-  /** Skeletons' prey (skeletons.ts): the nearest person within `reach` of `at`, on its level, not dead yet. */
-  victimNear(at: Vector3, reach: number, sameLevel: number): object | null {
+  /** Skeletons' prey (skeletons.ts): the nearest person within `reach` of `at`, on its level, not dead yet, that `may` allow. */
+  victimNear(at: Vector3, reach: number, sameLevel: number, may: (v: object) => boolean): object | null {
     let best: Townsperson | null = null;
     let bd = reach * reach;
     for (const p of this.people) {
       const hurt = p.hurt;
-      if (hurt?.harm === 'dead') continue;
+      if (hurt?.harm === 'dead' || !may(p)) continue;
       const q = hurt ? hurt.at : p.walker.pos;
       if (Math.abs(q.y - at.y) > sameLevel) continue;
       const dx = q.x - at.x;
