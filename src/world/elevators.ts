@@ -641,8 +641,10 @@ export class Elevators {
         e.call(from);
         if (this.walkTo(w, _v.fromArray(landingPoint(e.def, from, _p)), dt)) {
           w.face(_w.fromArray(doorPoint(e.def, from, 0, _p)));
-          if (e.openAt(from)) {
-            r.slot = this.freeSlot(e);
+          // a full cab goes without them: they wait for the next
+          const slot = e.openAt(from) ? this.freeSlot(e) : null;
+          if (slot !== null) {
+            r.slot = slot;
             r.phase = 'in';
           }
         }
@@ -688,14 +690,14 @@ export class Elevators {
     return null;
   }
 
-  /** The first place in e's cab nobody else riding it has taken. */
-  private freeSlot(e: Elevator): number {
+  /** The first place in e's cab nobody else riding it has taken; null when it's full. */
+  private freeSlot(e: Elevator): number | null {
     for (let k = 0; k < SLOTS.length; k++) {
       let taken = false;
       for (const r of this.rides.values()) taken ||= this.list[r.hop.lift] === e && r.phase !== 'call' && r.slot === k;
       if (!taken) return k;
     }
-    return 0;
+    return null;
   }
 
   /** Where slot k is in e's cab, turned to face stop i's door, at the cab's floor. */

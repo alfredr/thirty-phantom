@@ -387,11 +387,16 @@ export class Crowd implements Prey {
     this.run(p, p.threat);
   }
 
-  /** Frightened by something at `from`: run (again, if already running) and maybe drop money. */
+  /**
+   * Frightened by something at `from`: run, and maybe drop money. Already running, they keep at it,
+   * and turn to run from this instead only when it's off to a new side (more than a right angle
+   * from what they ran from), so a fright that heads them off sends them another way.
+   */
   private scare(p: Person, from: Vector3): void {
-    p.threat.copy(from);
-    p.timer = C.calm;
-    if (p.mood !== 'flee') this.run(p, from);
+    const w = p.walker;
+    const fresh = p.mood !== 'flee' || (w.pos.x - p.threat.x) * (w.pos.x - from.x) + (w.pos.z - p.threat.z) * (w.pos.z - from.z) < 0;
+    if (fresh) this.run(p, from);
+    else p.timer = C.calm;
   }
 
   /** Bolt away from `from` at once, with a proper route to a spot well away planned meanwhile. */

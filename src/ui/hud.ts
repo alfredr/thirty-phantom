@@ -115,6 +115,8 @@ export interface Bubble {
 export interface HudStatus {
   /** 'title' till play starts; then 'drive' at the wheel (or turning into the truck), else 'foot'. */
   mode(): HudMode;
+  /** Cody could raise the dead now (his form allows it, and he's on foot): the touch button for it shows. */
+  summon(): boolean;
   hours(): number;
   phase(): Phase;
   day(): number;
@@ -242,6 +244,7 @@ export class Hud {
   bind(s: HudStatus): void {
     const v = this.views;
     v.add({ read: () => s.mode(), draw: (m) => this.drawMode(m) });
+    v.add({ read: () => s.summon(), draw: (on) => (this.root.dataset.summon = on ? 'on' : '') });
     // the dial's hand moves on every frame the clock runs; the digits only when the minute does
     v.add({ read: () => s.hours(), draw: (h) => this.clock.set(h) });
     v.add({

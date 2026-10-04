@@ -79,3 +79,21 @@ export function carjackedMidDrive() {
     backSeconds: back.seconds,
   };
 }
+
+/** Cody sits at the wheel in the top free spot without getting out: it isn't free, so no valet is sent there. */
+export function codysSpotIsntFree() {
+  const g = window.__game;
+  const sim = window.__sim;
+  g.start();
+  sim.run(30);
+  const spot = g.garage.topFree();
+  const car = g.vehicles.find((v) => v.role === 'parked' && !v.insideDeck && v.form === 'car');
+  if (!spot || !car) return { ok: false, why: 'no free spot or no car' };
+  g.board(car);
+  car.place(spot.center.x, spot.center.y, spot.center.z, spot.def.yaw, 0, 0, null);
+  car.vel.set(0, 0, 0);
+  car.speed = 0;
+  sim.run(2);
+  const next = g.garage.topFree();
+  return { ok: next !== null && next !== spot && g.garage.isFree(spot, car), sitting: spot.def.id, next: next?.def.id ?? null };
+}

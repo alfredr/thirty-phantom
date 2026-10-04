@@ -597,7 +597,7 @@ export class Tutorial {
     // parked in his spot, badged in this morning like any car he brought in
     const truck = g.park(st.truck, st.yaw, 'pickup');
     g.garage.checkIn(st.spot, truck);
-    g.board(truck);
+    g.board(truck, true);
     this.truck = truck;
     g.npcs.place(r, st.randy, st.randyYaw);
     r.rig.phone.visible = false;
@@ -720,6 +720,8 @@ export class Tutorial {
   private boardedBeforeJump(from: Step, e: { v: Vehicle; possessed: boolean }): { at: 'jump' } | null {
     if (!e.possessed) return null;
     const g = this.game;
+    // the truck he jumps is whichever car he got into, his pickup or another in the deck
+    this.truck = e.v;
     // (sat in the pickup through 7: it turned round him before the moonrise news, same as getting back in)
     if (from === 'out') this.moonrise();
     // got in while Randy's still ringing: he can save it (a call he's on finishes, then hangs up)
@@ -807,8 +809,6 @@ export class Tutorial {
     g.cutscene = null;
     g.clock.paused = false;
     g.alight();
-    // (no "PARKED" toast for a car that never moved)
-    g.hud.clearToasts();
     return { at: 'out' };
   }
 

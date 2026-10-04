@@ -53,6 +53,11 @@ export class Money {
     private readonly rng: Rng,
   ) {}
 
+  /** `car`'s glovebox has nothing in it for Cody (his own car). */
+  empty(car: object): void {
+    this.searched.add(car);
+  }
+
   /** Cody gets into `car`: the first time, there may be cash in the glovebox. Returns how much he found (0: none). */
   glovebox(car: object): number {
     if (this.searched.has(car)) return 0;

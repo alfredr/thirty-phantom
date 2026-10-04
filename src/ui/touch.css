@@ -160,7 +160,7 @@ body.dialogue-open .touch-buttons {
 .touch-btn.phone b {
   font-size: 22px;
 }
-/* phantom Cody's skeletons: on foot only */
+/* phantom Cody's skeletons: while he can raise them (on foot) */
 .touch-btn.summon {
   right: 106px;
   bottom: 74px;
@@ -168,7 +168,7 @@ body.dialogue-open .touch-buttons {
 .touch-btn.summon b {
   font-size: 22px;
 }
-.touch[data-mode='drive'] .touch-btn.summon {
+.touch:not([data-summon='on']) .touch-btn.summon {
   display: none;
 }
 /* burning GhASt (hold): in the same place, while the GhASt dial shows (hud.setGhast) */

@@ -71,7 +71,7 @@ import { Crowd } from './town/crowd';
 import { Detours } from './driving/detours';
 import { GameClock, type Phase } from './game-clock';
 import { Fleet } from './driving/fleet';
-import { type Crossing, Garage, spotLabel, type SpotRuntime } from './deck/garage';
+import { type Crossing, Garage, inSpot, spotLabel, type SpotRuntime } from './deck/garage';
 import { Inventory, type ItemActionId } from './items/inventory';
 import { ITEM_BREEDS, type ItemKind, isItemKind } from './items/item-breeds';
 import { Junk } from './items/junk';
@@ -147,6 +147,8 @@ const SHATTER = { perM3: 3, count: [12, 36] as [number, number], size: [0.1, 0.3
 const CRUSH_SPEED = 4;
 /** A driver pulling round only knocks another driven car loose (its driver out) with a bump this hard (m/s); softer is a shove. */
 const NUDGE_LOOSEN = 2.5;
+/** A car slower than this (m/s) in a deck spot is standing in it: the spot isn't free. */
+const STANDING = 0.5;
 const CRUSH_KICK = 2.5;
 /** An escaped truck rolls on this long (s) before it dissolves. */
 const ESCAPE_ROLL = 2.5;
@@ -323,6 +325,8 @@ export class Game {
   readonly wares = new Wares();
   /** A scene (the tutorial's coat flash) has his wares up, Cody near or not. */
   waresShown = false;
+  /** Cody's at Randy's open coat (the shop encounter): only then can he buy. */
+  private shopOpen = false;
   /** Randy takes tires for his fire and pays in brisket (the tutorial can run it, or switch it off). */
   readonly tires: TireTrade;
   private readonly shop: Shop;
@@ -569,6 +573,8 @@ export class Game {
     const gate = level.gates.find((g) => g.kind === 'entry');
     const entry = gate ? new Vector3((gate.min[0] + gate.max[0]) / 2, gate.min[1], (gate.min[2] + gate.max[2]) / 2) : this.deckCenter.clone();
     this.garage.bookedBy = (s) => this.claims.holder('spot', s);
+    // a car standing still in a spot holds it too, parked or not (Cody sitting in it at the wheel)
+    this.garage.standingIn = (spot) => this.vehicles.find((v) => !v.gone && Math.abs(v.speed) < STANDING && inSpot(spot, v.pos)) ?? null;
     this.refuge = new Refuge(this.drivers, this.driveWorld, entry);
     this.detours = new Detours(this.planner, this.nav, this.world.collision, this.fleet, this.traffic, (car, ev) => this.drove(car, ev, NUDGE_LOOSEN));
     this.ghosts = new Ghosts(level.ghostZones, 28);
@@ -637,6 +643,7 @@ export class Game {
     // what the status displays show, read each frame
     this.hud.bind({
       mode: () => (this.mode === 'title' ? 'title' : this.driving || this.transform ? 'drive' : 'foot'),
+      summon: () => this.mode === 'play' && this.onFoot && this.cody.can('summon'),
       hours: () => this.clock.hours,
       phase: () => this.clock.phase,
       day: () => this.clock.day,
@@ -753,8 +760,14 @@ export class Game {
     return this.cameras.mode;
   }
 
-  /** Cody gets in `v` as if he'd walked up to it and pressed F (scripted scenes). */
-  board(v: Vehicle): void {
+  /**
+   * Cody gets in `v` as if he'd walked up to it and pressed F (scripted scenes), out of whatever
+   * he was driving first. `own`: it's his own car, with nothing in the glovebox for him to find.
+   */
+  board(v: Vehicle, own = false): void {
+    if (this.driving === v) return;
+    if (this.driving) this.exit(true);
+    if (own) this.money.empty(v);
     this.enter(v);
   }
 
@@ -763,9 +776,9 @@ export class Game {
     return this.fleet.spawnCar('parked', pos, yaw, kind);
   }
 
-  /** Cody gets out of whatever he's driving, if anything. */
+  /** Cody gets out of whatever he's driving, if anything (scripted: quietly, no PARKED toast). */
   alight(): void {
-    if (this.driving) this.exit();
+    if (this.driving) this.exit(true);
   }
 
   /** Cody's outfit change, now, to suit the time of day. */
@@ -1059,10 +1072,10 @@ export class Game {
 
   /** Cody at Randy's wares (the shop encounter), or a scene showing them: the wares menu is up. */
   private updateShop(cody: Vector3 | null): void {
-    const open = this.shop.update(cody);
-    // a scene showing his wares (the tutorial's coat flash) shows them whatever else is going on
-    const show = open !== null || this.waresShown;
-    this.hud.setWares(show ? { title: "RANDY'S WARES", slots: this.wares.view(this.money.cash) } : null);
+    this.shopOpen = this.shop.update(cody) !== null;
+    // a scene showing his wares (the tutorial's coat flash) shows them whatever else is going on, but only the shop sells
+    const show = this.shopOpen || this.waresShown;
+    this.hud.setWares(show ? { title: "RANDY'S WARES", slots: this.wares.view(this.money.cash, this.shopOpen) } : null);
   }
 
   /** Randy hands Cody one `kind` out of his coat for nothing (the burner, in the tutorial): out of his wares, into the inventory. False if he has none. */
@@ -1083,7 +1096,7 @@ export class Game {
 
   /** Cody buys `n` from a slot of Randy's wares: as many as there are, and as he can pay for. */
   private buy(slot: string, n: number): void {
-    const one = this.wares.slots.find((s) => s.id === slot);
+    const one = this.shopOpen ? this.wares.slots.find((s) => s.id === slot) : undefined;
     if (!one) return;
     const price = this.wares.price(one.kind);
     // Free items such as the burner are always affordable. Dividing by a zero price would make cash NaN.
@@ -1276,7 +1289,7 @@ export class Game {
     // phantom Cody possesses a car in the deck (and the tutorial's Cody, after moonrise, his own): it turns into the truck
     if (this.possessable(v)) {
       this.transform = new TransformSequence(v, 'truck', () => VEHICLE_BREEDS.truck.model(this.assets, v.color), this.fx);
-      this.hud.toast('PHANTOM CODY!', 'GET IT OUT. NOT THROUGH THE GATE.', '', 2.6);
+      this.hud.toast(this.cody.phantom ? 'PHANTOM CODY!' : 'POSSESSED!', 'GET IT OUT. NOT THROUGH THE GATE.', '', 2.6);
       this.events.emit('entered', { v, possessed: true });
       return;
     }
@@ -1419,7 +1432,8 @@ export class Game {
     if (!(v.crashing && v.resting)) this.vehicleContacts(v, loosen);
   }
 
-  private exit(): void {
+  /** Cody gets out; `quiet` (a scene got him out) skips the PARKED toast. */
+  private exit(quiet = false): void {
     const v = this.driving as Vehicle;
     this.driving = null;
     this.claims.release(this.codySeat);
@@ -1438,7 +1452,7 @@ export class Game {
         const flip = Math.cos(v.yaw - s.def.yaw) < 0;
         v.place(s.center.x, s.center.y, s.center.z, s.def.yaw + (flip ? Math.PI : 0), 0, 0, null);
         this.garage.occupy(s, v);
-        this.hud.toast('PARKED', spotLabel(s), 'purple', 1.6);
+        if (!quiet) this.hud.toast('PARKED', spotLabel(s), 'purple', 1.6);
         parkedIn = s;
       } else {
         this.garage.release(v);
@@ -1562,6 +1576,11 @@ export class Game {
     const v = this.driving;
     if (v && v.form === 'car' && !this.transform) {
       this.driving = null;
+      // off the bike's saddle (its rig is about to go), and inside the truck, out of sight
+      if (v.rig.rider) {
+        this.player.dismount(this.scene);
+        this.player.visible = false;
+      }
       this.transform = new TransformSequence(v, 'truck', () => VEHICLE_BREEDS.truck.model(this.assets, v.color), this.fx);
       this.events.emit('entered', { v, possessed: true });
     }
@@ -1573,7 +1592,7 @@ export class Game {
     // the souls slip away at dawn
     this.ghast = 0;
     this.money.scatter();
-    this.codyFx = 0;
+    if (!this.cody.holdForm) this.codyFx = 0;
     for (const b of this.world.breakables) {
       b.broken = false;
       b.solid.enabled = true;

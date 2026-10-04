@@ -45,9 +45,9 @@ export class Wares {
     return this.slots.find((s) => s.kind === kind && s.count > 0) ?? null;
   }
 
-  /** The slots for the menu, given what Cody has to spend. */
-  view(cash: number): WareView[] {
-    return this.slots.map((s) => ({ id: s.id, kind: s.kind, name: ITEM_BREEDS[s.kind].name, icon: ITEM_BREEDS[s.kind].icon, count: s.count, price: this.price(s.kind), can: s.count > 0 && cash >= this.price(s.kind) }));
+  /** The slots for the menu, given what Cody has to spend, and whether Randy's selling (the shop's open) or only showing them. */
+  view(cash: number, selling: boolean): WareView[] {
+    return this.slots.map((s) => ({ id: s.id, kind: s.kind, name: ITEM_BREEDS[s.kind].name, icon: ITEM_BREEDS[s.kind].icon, count: s.count, price: this.price(s.kind), can: selling && s.count > 0 && cash >= this.price(s.kind) }));
   }
 
   /** Take up to `n` from slot `id`, no more than `afford` of them; returns what was taken (null if nothing). */

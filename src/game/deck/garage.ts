@@ -30,6 +30,12 @@ export interface SpotRuntime {
   glowMat: MeshBasicMaterial;
 }
 
+/** Whether `p` is within spot `s`'s painted bay, on its floor. */
+export function inSpot(s: SpotRuntime, p: Vector3): boolean {
+  const [w, d] = s.def.size;
+  return Math.abs(p.x - s.center.x) < w / 2 && Math.abs(p.z - s.center.z) < d / 2 && Math.abs(p.y - s.center.y) < 1.2;
+}
+
 /** "SPOT 7, LEVEL 2": how toasts name a spot (ids and levels count from 1 on screen). */
 export function spotLabel(s: SpotRuntime): string {
   return `SPOT ${s.def.id + 1}, LEVEL ${s.def.level + 1}`;
@@ -116,19 +122,19 @@ export class Garage {
   }
 
   spotAt(p: Vector3): SpotRuntime | null {
-    for (const s of this.spots) {
-      const [w, d] = s.def.size;
-      if (Math.abs(p.x - s.center.x) < w / 2 && Math.abs(p.z - s.center.z) < d / 2 && Math.abs(p.y - s.center.y) < 1.2) return s;
-    }
-    return null;
+    return this.spots.find((s) => inSpot(s, p)) ?? null;
   }
 
   /** Who has booked spot `s` on their way to it, if anyone. The game wires this to its claims. */
   bookedBy: (s: SpotRuntime) => object | null = () => null;
+  /** A car standing in spot `s` right now, if any (Cody's, say, sitting there without getting out). The game wires this to its vehicles. */
+  standingIn: (s: SpotRuntime) => Vehicle | null = () => null;
 
+  /** No phantom in it, nobody parked in it or on their way to it, and no car standing in it; `except` may be any of them. */
   isFree(s: SpotRuntime, except?: Vehicle): boolean {
     const booked = this.bookedBy(s);
-    return !s.phantom && (!s.occupant || s.occupant === except) && (!booked || booked === except);
+    const there = this.standingIn(s);
+    return !s.phantom && (!s.occupant || s.occupant === except) && (!booked || booked === except) && (!there || there === except);
   }
 
   /** Nearest free spot, only on `floor` if one is given. */

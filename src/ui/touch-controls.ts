@@ -228,15 +228,16 @@ export class TouchControls {
 
   /**
    * Mirror the HUD's mode (title / foot / drive): the controls hide on the title screen, and the
-   * buttons for one mode only (summon on foot, boost in the truck) follow it.
+   * buttons for one mode only (boost in the truck) follow it; summon shows while Cody can summon.
    */
   private followMode(): void {
     const hud = document.getElementById('hud');
     if (!hud) return;
     const sync = (): void => {
       this.root.dataset.mode = hud.dataset.mode ?? '';
+      this.root.dataset.summon = hud.dataset.summon ?? '';
     };
-    new MutationObserver(sync).observe(hud, { attributes: true, attributeFilter: ['data-mode'] });
+    new MutationObserver(sync).observe(hud, { attributes: true, attributeFilter: ['data-mode', 'data-summon'] });
     sync();
   }
 

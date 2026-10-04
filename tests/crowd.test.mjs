@@ -24,3 +24,15 @@ test('a person the reactions table frightens runs once, and keeps running while 
   crowd.frighten(person, new Vector3(3, 0, 0));
   assert.equal(frights(), 1, 'a renewed fright is not a new one');
 });
+
+test('a running person turns to run from a fright that heads them off, but not from one on the same side', () => {
+  const { crowd } = onePerson();
+  const [person] = crowd.living();
+  assert.ok(person);
+  const at = person.walker.pos.clone();
+  crowd.frighten(person, at.clone().add(new Vector3(3, 0, 0)));
+  crowd.frighten(person, at.clone().add(new Vector3(-3, 0, 0)));
+  assert.deepEqual(person.threat.toArray(), at.clone().add(new Vector3(-3, 0, 0)).toArray(), 'headed off: they run from the new side');
+  crowd.frighten(person, at.clone().add(new Vector3(-3, 0, 1)));
+  assert.deepEqual(person.threat.toArray(), at.clone().add(new Vector3(-3, 0, 0)).toArray(), 'from the same side: they keep running as they were');
+});
