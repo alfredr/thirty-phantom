@@ -803,14 +803,16 @@ export class Game {
     for (const pos of this.skeletons.threats) things.push({ kind: 'skeleton', pos });
     for (const person of this.crowd.living()) things.push({ kind: 'townsperson', pos: person.walker.pos, person });
     for (const vehicle of this.vehicles) {
-      if ((vehicle.role === 'traffic' || this.refuge.has(vehicle)) && !vehicle.crashing) things.push({ kind: 'driver', pos: vehicle.pos, vehicle });
+      const driven = vehicle.role === 'traffic' || this.refuge.has(vehicle) || this.detours.has(vehicle);
+      if (driven && !vehicle.crashing) things.push({ kind: 'driver', pos: vehicle.pos, vehicle });
     }
     this.space.rebuild(things);
   }
 
-  /** A driver sees phantom Cody or the phantom truck at `from` this frame: one on their way into the deck, or one in traffic. */
+  /** A driver sees phantom Cody or the phantom truck at `from` this frame: one on their way into the deck, one pulling round, or one in traffic. */
   private frightenDriver(v: Vehicle, from: Vector3): void {
     if (this.refuge.has(v)) this.refuge.frighten(v, from);
+    else if (this.detours.has(v)) this.detours.frighten(v, from);
     else this.traffic.frighten(v, from);
   }
 

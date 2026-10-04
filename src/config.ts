@@ -191,10 +191,11 @@ export const TUNING = {
     /**
      * Ghost Cody within `panicReach` (m) frightens a driver: for `panicTime`
      * seconds they push on at `panicBoost` times their cruise, or brake if
-     * their road would carry them within `panicReach` of him; held below
+     * their way on would pass closer to him than `berth` (m); held below
      * `stuckSpeed` (m/s) for `stuckTime` seconds, they leave the car and run.
      */
     panicReach: 8,
+    berth: 3.5,
     panicTime: 5,
     panicBoost: 1.8,
     stuckSpeed: 1,

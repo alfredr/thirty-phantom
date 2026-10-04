@@ -19,6 +19,7 @@ test('staying on the road is out when it would carry the driver toward the frigh
 test('a driver turns off for the deck only where their road passes its entry just ahead, with room to make the turn', () => {
   assert.equal(turnOff(road, at(16, 5), 4, 12, 8), 3, 'the road passes the entry 16 m on: the turn starts 8 m before, 8 m on');
   assert.equal(turnOff(road, at(16, 20), 4, 12, 8), -1, 'the entry is too far off the road');
-  assert.equal(turnOff(road, at(10, 5), 4, 12, 8), -1, 'the entry is 10 m on: the turn would start 2 m on, no room to make it');
+  assert.equal(turnOff(road, at(10, 5), 4, 12, 8), 1, 'the entry is 10 m on: the turn starts as early as there is room for, 4 m on');
+  assert.equal(turnOff(road, at(1, 5), 4, 12, 8), -1, 'the entry is right here: no room to make the turn');
   assert.equal(turnOff(road, at(-6, 5), 4, 12, 8), -1, 'the entry is behind');
 });

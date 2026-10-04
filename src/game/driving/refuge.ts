@@ -8,13 +8,13 @@ import type { SpotRuntime } from '../deck/garage';
 
 /** Roads are looked along in steps of this (m). */
 const ROAD_STEP = 2;
-/** The turn for the deck starts this far (m) before the road's closest approach to its entry, room to swing in without backing up. */
+/** The turn for the deck starts up to this far (m) before the road's closest approach to its entry, room to swing in without backing up. */
 const TURN_LEAD = 8;
 
 /**
  * Where a road turns off for the deck: the index in `ahead` (points `step` apart, from the car on)
- * where the turn starts, `lead` before the road's closest approach to `entry`. Only if that
- * approach comes within `gate` of it, and the turn starts at least `room` on. -1 if there's
+ * where the turn starts, up to `lead` before the road's closest approach to `entry` but at least
+ * `room` on. Only if that approach comes within `gate` of it, at least `room` on. -1 if there's
  * nowhere to turn off.
  */
 export function turnOff(ahead: readonly Vector3[], entry: Vector3, room: number, gate: number, lead = TURN_LEAD, step = ROAD_STEP): number {
@@ -27,8 +27,10 @@ export function turnOff(ahead: readonly Vector3[], entry: Vector3, room: number,
       best = i;
     }
   });
-  const at = best - Math.round(lead / step);
-  return best >= 0 && bd <= gate && (at + 1) * step >= room ? at : -1;
+  // The first point at least `room` on.
+  const first = Math.ceil(room / step) - 1;
+  if (best < first || bd > gate) return -1;
+  return Math.max(first, best - Math.round(lead / step));
 }
 
 /**

@@ -15,11 +15,10 @@ import type { Fleet } from './fleet';
 import type { Garage, SpotRuntime } from '../deck/garage';
 import { spotZone } from '../valets/valet';
 
-/** A frightened driver looks this far ahead (m): twice spooking distance, since anywhere within it of what they saw is within this of them. */
-const LOOK = 2 * TUNING.traffic.panicReach;
-/** Phantom Cody is in the way if the way ahead passes this close to him (m); a route round him keeps AVOID_PAD off. */
-const IN_THE_WAY = 3;
-const AVOID_PAD = 4;
+/** A frightened driver looks this far ahead (m): they see phantom Cody within panicReach, so anywhere within a berth of him is within this of them. */
+const LOOK = TUNING.traffic.panicReach + TUNING.traffic.berth;
+/** A route round phantom Cody keeps this much further off him than a frightened driver's berth (m). */
+const AVOID_MARGIN = 1;
 /** Braking: throttle per m/s of speed, so full brakes above 1/BRAKE_GAIN m/s. */
 const BRAKE_GAIN = 0.5;
 /** Other spots' cars block their spot shrunk by this much (m), so a neighbour's edge stays drivable. */
@@ -163,7 +162,10 @@ export class DriveTo extends Action<DriveWorld, DriveWorld> {
     for (const o of w.fleet.vehicles) {
       if (o !== car && o.role === 'parked' && !o.gone && !inSpots.has(o)) blocks.push(footprint(o, CAR_PAD));
     }
-    if (avoid) blocks.push({ min: [avoid.x - AVOID_PAD, avoid.y - 1, avoid.z - AVOID_PAD], max: [avoid.x + AVOID_PAD, avoid.y + 2.5, avoid.z + AVOID_PAD] });
+    if (avoid) {
+      const pad = TUNING.traffic.berth + AVOID_MARGIN;
+      blocks.push({ min: [avoid.x - pad, avoid.y - 1, avoid.z - pad], max: [avoid.x + pad, avoid.y + 2.5, avoid.z + pad] });
+    }
     const from = car.pos.clone();
     let yaw = car.yaw;
     if (lead) {
@@ -332,14 +334,14 @@ export class Divert extends Action<DriveWorld, DriveWorld> {
   /** The spook rules, for a driver who sees phantom Cody at `at` this frame. Returns how the job ends, or null to carry on. */
   private flee(w: DriveWorld, at: Vector3): Result<DriveAction> | null {
     const { car } = this.p;
-    const { panicReach } = TUNING.traffic;
-    if (w.onRoad(car) && !roadLeadsToward(car.pos, w.roadAhead(car, LOOK), at, panicReach)) return instead(new Rejoin({ car, from: at }));
+    const { berth } = TUNING.traffic;
+    if (w.onRoad(car) && !roadLeadsToward(car.pos, w.roadAhead(car, LOOK), at, berth)) return instead(new Rejoin({ car, from: at }));
     if (!(this.stage instanceof DriveTo)) {
       this.giveUp(w);
       return fail('SPOOKED');
     }
     const up = car.insideDeck && this.spot.def.level <= w.garage.floorOf(car.pos.y) ? this.above(w) : null;
-    if (!up && !roadLeadsToward(car.pos, this.stage.ahead(LOOK), at, IN_THE_WAY)) return null;
+    if (!up && !roadLeadsToward(car.pos, this.stage.ahead(LOOK), at, berth)) return null;
     const spot = up ?? this.spot;
     if (spot !== this.spot) {
       w.claims.drop('spot', car, this.spot);

@@ -193,5 +193,95 @@ export function stopsWhenCarjacked() {
   };
 }
 
+/**
+ * Phantom Cody (the player, on foot) stands at `at` for `seconds`, and the drivers around him
+ * react through the reactions table, as in play. Returns what they did.
+ */
+const watch = (at, seconds) => {
+  const g = window.__game;
+  g.player.place(new g.player.pos.constructor(at.x, at.y, at.z), 0);
+  const spooked = new Set();
+  g.events.on('spooked', ({ car }) => spooked.add(car.id));
+  const turnedIn = new Set();
+  const pulledRound = new Set();
+  const bailed = new Set();
+  const was = new Map();
+  let closestMoving = Infinity;
+  let maxJump = 0;
+  const last = new Map();
+  for (let i = 0; i < seconds * 30; i++) {
+    g.frame(1 / 30);
+    for (const v of g.vehicles) {
+      if (g.refuge.has(v)) turnedIn.add(v.id);
+      if (g.detours.has(v)) pulledRound.add(v.id);
+      if (was.get(v) === 'traffic' && v.role === 'parked' && !v.insideDeck) bailed.add(v.id);
+      was.set(v, v.role);
+      if (Math.abs(v.speed) > 2) closestMoving = Math.min(closestMoving, Math.hypot(v.pos.x - at.x, v.pos.z - at.z));
+      const p = last.get(v);
+      if (p) maxJump = Math.max(maxJump, v.pos.distanceTo(p));
+      last.set(v, v.pos.clone());
+    }
+  }
+  return {
+    phantom: g.player.form === 'night',
+    spooked: spooked.size,
+    turnedIn: turnedIn.size,
+    pulledRound: pulledRound.size,
+    bailed: bailed.size,
+    closestMoving: Math.round(closestMoving * 10) / 10,
+    maxJump: Math.round(maxJump * 100) / 100,
+  };
+};
+
+/** The lane that runs closest by the deck's entry, and how far along it that is. */
+const gateLane = () => {
+  const g = window.__game;
+  const e = g.refuge.entry;
+  let best = null;
+  for (const line of g.traffic.paths) {
+    const s = line.project(e);
+    const p = line.sample(s, e.clone());
+    const d = Math.hypot(p.x - e.x, p.z - e.z);
+    if (!best || d < best.d) best = { line, s, d };
+  }
+  return best;
+};
+
+/** Phantom Cody stands in the lane just past the deck's entry: drivers coming at him duck into the deck or stop and get out, and nobody drives into him. */
+export function playerJustPastTheGate() {
+  const g = window.__game;
+  const sim = window.__sim;
+  sim.nightTraffic();
+  const { line, s } = sim.gateLane();
+  const at = line.sample(s + 3, g.player.pos.clone());
+  const r = sim.watch(at, 45);
+  return { ok: r.phantom && r.turnedIn >= 1 && r.closestMoving > 1.5, ...r };
+}
+
+/**
+ * Phantom Cody stands in the lane ahead of two cars close together, away from the deck. The first
+ * stops short of him and its driver gets out; the one behind, held up, may pull round the stopped
+ * car, but nobody drives into him.
+ */
+export function playerInTheRoadAwayFromTheDeck() {
+  const g = window.__game;
+  const sim = window.__sim;
+  sim.nightTraffic();
+  const e = g.refuge.entry;
+  let pair = null;
+  sim.until(() => {
+    const cars = g.vehicles.filter((v) => v.role === 'traffic' && Math.abs(v.speed) > 3 && v.pos.distanceTo(e) > 50);
+    for (const a of cars) {
+      const b = cars.find((o) => o !== a && o.pathIndex === a.pathIndex && o.pathS < a.pathS && a.pathS - o.pathS < 20);
+      if (b) pair = { a, b };
+    }
+    return !!pair;
+  }, 120, []);
+  if (!pair) return { ok: false, why: 'no two cars close together' };
+  const at = g.traffic.roadAt(pair.a, 22);
+  const r = sim.watch(at, 45);
+  return { ok: r.phantom && r.spooked >= 2 && r.turnedIn === 0 && r.closestMoving > 1.5, ...r };
+}
+
 /** Steps shared by this set's cases, installed on window.__sim before each one. */
-export const steps = { nightTraffic, turnIn, behind };
+export const steps = { nightTraffic, turnIn, behind, watch, gateLane };

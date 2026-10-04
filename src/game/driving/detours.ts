@@ -105,6 +105,22 @@ export class Detours {
     return this.detours.length;
   }
 
+  /** Whether `car`'s driver is pulling round something. */
+  has(car: Vehicle): boolean {
+    return this.detours.some((d) => d.car === car);
+  }
+
+  /** A driver pulling round sees phantom Cody at `from` this frame: the pull-round is off, and they're frightened traffic on their lane again, from wherever they've got to. */
+  frighten(car: Vehicle, from: Vector3): void {
+    const i = this.detours.findIndex((d) => d.car === car);
+    const d = this.detours[i];
+    if (!d) return;
+    d.job?.cancel();
+    this.detours.splice(i, 1);
+    this.backInLane(d, d.line.project(car.pos));
+    this.traffic.frighten(car, from);
+  }
+
   /**
    * A driver's had enough of `jam`: if there's room on the lane past what's in
    * the way and not too many are already at it, they pull round. True if they

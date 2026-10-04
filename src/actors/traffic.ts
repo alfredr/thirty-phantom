@@ -80,7 +80,7 @@ interface Fright {
 
 /**
  * Whether staying on the road would carry a driver toward what frightened them: somewhere along
- * `ahead` comes closer to `from` than the driver is now, and within spooking distance.
+ * `ahead` comes closer to `from` than the driver is now, and within `within` of it.
  */
 export function roadLeadsToward(at: Vector3, ahead: readonly Vector3[], from: Vector3, within: number): boolean {
   const now = Math.hypot(at.x - from.x, at.z - from.z);
@@ -156,11 +156,11 @@ export class Traffic {
     this.cornered.push({ car: v, from: from.clone() });
   }
 
-  /** Whether staying on its lane would carry `v` toward `from`, within spooking distance of it. */
+  /** Whether staying on its lane would carry `v` toward `from`, closer than a frightened driver's berth. */
   leadsToward(v: Vehicle, from: Vector3): boolean {
-    // Anywhere within spooking distance of `from` is within twice that of a driver who sees it.
-    const { panicReach } = TUNING.traffic;
-    return roadLeadsToward(v.pos, this.roadAhead(v, 2 * panicReach), from, panicReach);
+    // A driver sees `from` within panicReach, so anywhere within a berth of it is within this of them.
+    const { panicReach, berth } = TUNING.traffic;
+    return roadLeadsToward(v.pos, this.roadAhead(v, panicReach + berth), from, berth);
   }
 
   /** The point `meters` along `v`'s lane from it (negative is behind it), or null if it isn't on a lane. */
