@@ -7,16 +7,14 @@ import { NAV, type NavProfile, type NavQuery } from '../world/nav-grid';
 import type { CamMode } from './camera-controller';
 import type { Game } from './game';
 import type { Refuge } from './refuge';
-import type { Skeletons } from './skeletons';
 
-type DebugGame = Pick<Game, 'clock' | 'garage' | 'player' | 'iso' | 'chase' | 'vehicles' | 'planner' | 'setCamera' | 'park' | 'board'>;
+type DebugGame = Pick<Game, 'clock' | 'garage' | 'player' | 'iso' | 'chase' | 'vehicles' | 'planner' | 'setCamera' | 'park' | 'board' | 'summon'>;
 
 interface DebugControls {
   driving(): Vehicle | null;
   mode(): 'title' | 'play';
   render(on: boolean): void;
   navDebug: NavDebug | null;
-  skeletons: Pick<Skeletons, 'summon'>;
   refuge: Pick<Refuge, 'take'>;
 }
 
@@ -66,7 +64,8 @@ export function createGameDebug(game: DebugGame, controls: DebugControls) {
       const spot = game.garage.spots[spotId];
       if (spot) game.garage.addPhantom(spot.center, spot.def.yaw, spot);
     },
-    summon: (): number => (game.clock.isDay ? 0 : controls.skeletons.summon(game.player.pos, game.player.yaw)),
+    /** Summon skeletons using the same rules as the X key; return the number raised. */
+    summon: (): number => game.summon(),
     /** Divert the nearest traffic car into the deck; return its ID, or -1 if it refuses. */
     divert: (): number => {
       const car = nearest(game, (v) => v.role === 'traffic');

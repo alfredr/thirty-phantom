@@ -269,6 +269,10 @@ export class Tutorial {
       this.text('HA! SOUL POWER.');
       this.burner.objective(this.cruiseGoal());
     });
+    // Advance only after a successful summon. A key press may fail while driving or on cooldown.
+    ev.on('summoned', () => {
+      if (this.step === 'raise') this.go('possess');
+    });
     ev.on('camera', (mode) => {
       // his pick: the ride's chase cam doesn't get put back over it
       this.cam = null;
@@ -348,7 +352,8 @@ export class Tutorial {
     g.hud.clearToasts();
     g.hud.showLedger(false);
     g.haunt(false);
-    g.holdCody = true;
+    // Keep Cody in his daytime form until the brisket scene, but allow possession and truck driving.
+    g.cody.hold('truck', 'possess');
     g.sleepAfterEating = false;
     g.clock.hours = START_HOUR;
     g.clock.paused = true;
@@ -474,15 +479,13 @@ export class Tutorial {
       this.meet();
     } else if (this.step === 'outside' && g.player.visible && !g.garage.inFootprint(g.player.pos) && g.player.pos.y > -1) {
       // out under the moon: bam
-      g.holdCody = false;
+      g.cody.release();
       g.transformCody();
       g.hud.toast('BAM.', 'PHANTOM CODY', '', 2.6);
       this.dialogue.setPortrait('right', g.portraits.codyNight);
       this.go('rules');
     } else if ((this.step === 'rules' && this.t > LESSON) || (this.step === 'spook' && this.t > SPOOK_WAIT)) {
       this.go(this.step === 'rules' ? 'spook' : 'raise');
-    } else if (this.step === 'raise' && g.input.wasPressed('summon')) {
-      this.go('possess');
     } else if (this.step === 'done' && this.t > DONE_WAIT) {
       this.burner.close();
       this.active = false;
@@ -669,8 +672,8 @@ export class Tutorial {
   /** The night's over (however far he got): back to the game's own rules. */
   private wake(): void {
     const g = this.game;
-    if (g.holdCody) {
-      g.holdCody = false;
+    if (g.cody.holdForm) {
+      g.cody.release();
       g.transformCody();
     }
     g.keepEscaped = false;

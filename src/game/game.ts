@@ -48,6 +48,7 @@ import { NAV, NavGrid, NavPlanner, type NavProfile, type NavQuery } from '../wor
 import { BloodSim } from '../world/blood';
 import { Casualties } from './casualties';
 import { CameraController, type CamMode } from './camera-controller';
+import { CodyState, FRIGHTENING } from './cody-state';
 import { createGameDebug } from './debug';
 import { Skeletons } from './skeletons';
 import { carContacts } from './collisions';
@@ -167,6 +168,8 @@ export type GameEvents = {
   swallowed: { n: number; tank: number };
   /** Cody started burning GhASt. */
   boosted: null;
+  /** Emitted after a successful summon, with the number of skeletons raised. */
+  summoned: { n: number };
   /** A truck got out unseen and left its phantom imprint: where it hangs and which way it faces (its spot, if it went back to one), which number it is, and when. */
   phantom: { at: Vector3; yaw: number; spot: SpotRuntime | null; n: number; hours: number; day: number };
   /**
@@ -296,13 +299,13 @@ export class Game {
   /** Cody calling a cab and picking floors. */
   private readonly elevatorPanel: ElevatorPanel;
   /** Who the cabs carry: Cody, while he's on foot (a list kept, so the per-frame call doesn't allocate). */
-  private readonly cody: readonly Vector3[];
+  private readonly riders: readonly Vector3[];
   readonly events = new Emitter<GameEvents>();
   /** While set, the camera is the cutscene's and the controls are muted. */
   cutscene: Cutscene | null = null;
   private portraitSet: Portraits | null = null;
-  /** Leave Cody as he is at moonrise (the tutorial changes him itself, with transformCody). */
-  holdCody = false;
+  /** Cody's form, abilities, and presence. Scripts can hold his form and grant extra abilities here. */
+  readonly cody: CodyState;
   /** An escaped truck stays Cody's to drive (the tutorial's first ride) instead of rolling to a stop and vanishing. */
   keepEscaped = false;
   /** Trucks already counted as phantoms: a kept one going out again isn't another. */
@@ -407,7 +410,8 @@ export class Game {
     this.player = new Player(assets.character());
     this.scene.add(this.player.root);
     this.player.place(new Vector3(...level.playerSpawn), Math.PI);
-    this.cody = [this.player.pos];
+    this.riders = [this.player.pos];
+    this.cody = new CodyState(this.player);
 
     this.slime = new CubeParticles(softInk(withCutaway(new MeshBasicMaterial({ toneMapped: false }))), 600);
     this.debris = new CubeParticles(withCutaway(new MeshStandardMaterial({ roughness: 0.9 })), 300, 34);
@@ -564,7 +568,6 @@ export class Game {
       mode: () => this.mode,
       render: (on) => { this.rendering = on; },
       navDebug: this.navDebug,
-      skeletons: this.skeletons,
       refuge: this.refuge,
     });
     (window as unknown as { __game: Game }).__game = this;
@@ -734,7 +737,7 @@ export class Game {
     const [mx, my] = inp.consumeMouse();
 
     // the cabs move first, carrying Cody if he's standing in one
-    this.elevators.update(dt, this.driving || this.transform ? NONE : this.cody);
+    this.elevators.update(dt, this.driving || this.transform ? NONE : this.riders);
     if (this.transform) {
       this.transform.update(dt);
       if (this.transform.done) {
@@ -752,9 +755,10 @@ export class Game {
 
     this.updateMorphs(dt);
     this.updateCodyFx(dt);
-    // ghost Cody on foot, or the phantom monster truck: people run, drivers floor it (and bail out if they're boxed in)
-    const truck = this.driving?.form === 'truck' ? this.driving : null;
-    const ghost = this.clock.isDay || this.transform ? null : truck ? truck.pos : this.driving ? null : this.player.pos;
+    // Phantom Cody and the phantom truck frighten pedestrians and drivers.
+    // Pedestrians flee; drivers accelerate or abandon their cars if blocked.
+    const seen = this.cody.presence(this.driving, !!this.transform);
+    const ghost = seen && FRIGHTENING.has(seen.kind) ? seen.at : null;
     const obstacles = this.trafficObstacles;
     obstacles.length = 0;
     if (!this.driving) obstacles.push(this.player.pos);
@@ -959,14 +963,10 @@ export class Game {
       this.hud.setPrompt(null);
       return;
     }
-    // what Cody can do goes by which Cody he is, not the clock: phantom Cody raises the dead, possesses
-    // cars in the deck and drives his truck; Cody steals cars. The tutorial lets Cody into the truck too.
-    const phantom = this.player.form === 'night';
-    const truckOk = phantom || this.holdCody;
+    // Abilities depend on Cody's current form; see game/cody-state.ts.
+    const cody = this.cody;
     // phantom Cody calls skeletons up out of the ground
-    if (phantom && this.input.wasPressed('summon')) {
-      if (this.skeletons.summon(this.player.pos, this.player.yaw) > 0) this.shake(0.15);
-    }
+    if (cody.can('summon') && this.input.wasPressed('summon')) this.summon();
     const valet = this.valet.talkable(this.player.pos, TUNING.valet.talkReach.foot, !night);
     if (valet) {
       this.hud.setPrompt('TALK TO VALET');
@@ -978,9 +978,8 @@ export class Game {
     let bd = Infinity;
     for (const v of this.vehicles) {
       if (v.role !== 'traffic' && v.role !== 'parked' && v.role !== 'valet' && v.role !== 'visitor') continue;
-      // phantom Cody can only possess a car in the deck; the truck he can always get back into, Cody only in the tutorial
-      if (phantom && v.form === 'car' && !v.insideDeck) continue;
-      if (v.form === 'truck' && !truckOk) continue;
+      // Skip vehicles Cody cannot steal, possess, or drive.
+      if (v.form === 'truck' ? !cody.can('truck') : !cody.can('steal') && !this.possessable(v)) continue;
       const d = v.pos.distanceTo(this.player.pos);
       if (d < ENTER_REACH[v.form] && Math.abs(v.pos.y - this.player.pos.y) < ENTER_HEIGHT && d < bd) {
         best = v;
@@ -988,13 +987,33 @@ export class Game {
       }
     }
     if (best) {
-      const possess = phantom && best.form === 'car';
-      const verb = possess ? 'POSSESS' : best.form === 'truck' ? 'GET IN' : best.role === 'traffic' ? 'STEAL' : best.insideDeck ? 'GET IN' : 'STEAL';
+      const possess = this.possessable(best);
+      // During the tutorial, the deck transforms the car while Cody remains in his daytime form.
+      const verb = possess ? (cody.phantom ? 'POSSESS' : 'GET IN') : best.form === 'truck' ? 'GET IN' : best.role === 'traffic' ? 'STEAL' : best.insideDeck ? 'GET IN' : 'STEAL';
       this.hud.setPrompt(`${verb}${possess ? ' &nbsp;☾' : ''}`);
       if (this.input.wasPressed('interact')) this.enter(best);
     } else {
       this.hud.setPrompt(null);
     }
+  }
+
+  /**
+   * Whether entering this car will possess it. Requires the possession ability and a car
+   * inside the deck at night. Shared by the interaction prompt and enter().
+   */
+  private possessable(v: Vehicle): boolean {
+    return v.form === 'car' && v.insideDeck && !this.clock.isDay && this.cody.can('possess');
+  }
+
+  /** Summon skeletons at Cody's position and return the number raised. */
+  summon(): number {
+    if (!this.cody.can('summon') || this.driving || this.transform) return 0;
+    const n = this.skeletons.summon(this.player.pos, this.player.yaw);
+    if (n > 0) {
+      this.shake(0.15);
+      this.events.emit('summoned', { n });
+    }
+    return n;
   }
 
   private enter(v: Vehicle): void {
@@ -1013,7 +1032,7 @@ export class Game {
       if (!night) this.hud.toast('STOLEN!', 'GET IT TO THE HAUNTED DECK');
     }
     // phantom Cody possesses a car in the deck (and the tutorial's Cody, after moonrise, his own): it turns into the truck
-    if (night && v.insideDeck && v.form === 'car' && (this.player.form === 'night' || this.holdCody)) {
+    if (this.possessable(v)) {
       this.transform = new TransformSequence(v, 'truck', () => this.assets.truckRig(), this.fx);
       this.hud.toast('PHANTOM CODY!', 'GET IT OUT. NOT THROUGH THE GATE.', '', 2.6);
       this.hud.setMode('drive');
@@ -1326,10 +1345,10 @@ export class Game {
   // ---------------------------------------------------------------- phases
 
   private onNightfall(): void {
-    this.hud.toast('THE MOON IS UP', this.holdCody ? 'THE DECK WAKES UP' : 'PHANTOM CODY RISES', '', 3.2);
+    this.hud.toast('THE MOON IS UP', this.cody.holdForm ? 'THE DECK WAKES UP' : 'PHANTOM CODY RISES', '', 3.2);
     this.doFlash(0.6, '#b46bff');
     this.shake(0.3);
-    if (!this.holdCody) this.codyFx = 0;
+    if (!this.cody.holdForm) this.codyFx = 0;
     // driving at moonrise: the car turns into the monster truck round him (in the tutorial, Cody himself stays Cody)
     const v = this.driving;
     if (v && v.form === 'car' && !this.transform) {

@@ -17,12 +17,12 @@ function fixture() {
     vehicles: [],
     garage: { inFootprint: (pos) => pos.x >= 0, actual: () => 1, logged: 3, phantoms: 2 },
     board: (car) => { boarded = car; },
+    summon: () => 0,
   };
   const debug = createGameDebug(game, {
     driving: () => driving,
     mode: () => 'play',
     refuge: { take: (car) => { diverted = car; return true; } },
-    skeletons: { summon: () => 3 },
   });
   return { game, debug, drive: (car) => { driving = car; }, boarded: () => boarded, diverted: () => diverted };
 }
@@ -61,7 +61,8 @@ test('debug boarding and diversion choose the nearest eligible vehicle', () => {
   assert.equal(diverted(), traffic);
   game.vehicles.length = 0;
   assert.equal(debug.divert(), -1);
+  // The debug command delegates to the same summon method as the X key.
   assert.equal(debug.summon(), 0);
-  game.clock.isDay = false;
+  game.summon = () => 3;
   assert.equal(debug.summon(), 3);
 });
