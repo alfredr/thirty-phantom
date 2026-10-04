@@ -31,6 +31,8 @@ export interface DriveEvents {
   impact: number;
   landed: number;
   smashed: Solid[];
+  /** Whether it hopped this step: off its wheels, or rocked over from its side or roof. */
+  hopped: boolean;
 }
 
 export const NO_INPUT: Readonly<DriveInput> = { throttle: 0, steer: 0, hop: false, drift: false };
@@ -258,7 +260,7 @@ export class Vehicle {
   drive(dt: number, input: DriveInput | null, world: CollisionWorld): DriveEvents {
     const P = this.params;
     const inp = input ?? NO_INPUT;
-    const ev: DriveEvents = { impact: 0, landed: 0, smashed: [] };
+    const ev: DriveEvents = { impact: 0, landed: 0, smashed: [], hopped: false };
     if (this.crashing) return this.tumble(dt, inp, world, ev);
     let fx = Math.sin(this.yaw);
     let fz = Math.cos(this.yaw);
@@ -296,6 +298,7 @@ export class Vehicle {
       if (inp.hop) {
         this.vel.y = P.hop;
         this.grounded = false;
+        ev.hopped = true;
       }
     } else {
       this.steer = damp(this.steer, inp.steer * P.maxSteer, 6, dt);
@@ -464,6 +467,7 @@ export class Vehicle {
       c.spin.copy(_f.normalize()).multiplyScalar(FLIP_SPIN);
       this.vel.y = FLIP_LIFT;
       c.rest = 0;
+      ev.hopped = true;
     }
     if (!c.settled) ev.impact = c.step(dt, this.vel, world);
     c.feet(this.pos);

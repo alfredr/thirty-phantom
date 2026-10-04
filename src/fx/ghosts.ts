@@ -21,6 +21,8 @@ const SUCK_SPEED = 3;
 const SUCK_ACCEL = 14;
 const SWALLOW = 0.8;
 const RESPAWN = 25;
+/** A ghost no longer pulled sheds this many seconds of pull per second as it eases back into shape. */
+const RELAX = 2;
 
 interface Ghost {
   s: Sprite;
@@ -34,6 +36,8 @@ interface Ghost {
   age?: number;
   /** Seconds it's been pulled toward an intake this time (0: free). */
   pulled: number;
+  /** Whether suck() pulled it since the last update(). */
+  held: boolean;
   /** Swallowed: seconds until it drifts back (ambient), or gone for good (risen: Infinity). */
   gone: number;
 }
@@ -60,7 +64,7 @@ export class Ghosts {
       const s = new Sprite(withCurve(new SpriteMaterial({ map: rng.pick(tex), transparent: true, depthWrite: false, opacity: 0, toneMapped: false })));
       s.layers.set(FX_LAYER);
       s.renderOrder = 4;
-      const g: Ghost = { s, zone, target: new Vector3(), vel: new Vector3(), phase: rng.range(0, 10), size: rng.range(1.8, 3.2), flip: 1, pulled: 0, gone: 0 };
+      const g: Ghost = { s, zone, target: new Vector3(), vel: new Vector3(), phase: rng.range(0, 10), size: rng.range(1.8, 3.2), flip: 1, pulled: 0, held: false, gone: 0 };
       this.pick(g);
       s.position.copy(g.target);
       this.pick(g);
@@ -89,7 +93,7 @@ export class Ghosts {
       const s = new Sprite(withCurve(new SpriteMaterial({ map: rng.pick(this.tex), transparent: true, depthWrite: false, opacity: 0, toneMapped: false })));
       s.layers.set(FX_LAYER);
       s.renderOrder = 4;
-      g = { s, zone: { min: [0, 0, 0], max: [0, 0, 0] }, target: new Vector3(), vel: new Vector3(), phase: rng.range(0, 10), size: rng.range(1.6, 2.6), flip: 1, pulled: 0, gone: 0 };
+      g = { s, zone: { min: [0, 0, 0], max: [0, 0, 0] }, target: new Vector3(), vel: new Vector3(), phase: rng.range(0, 10), size: rng.range(1.6, 2.6), flip: 1, pulled: 0, held: false, gone: 0 };
       this.list.push(g);
       this.root.add(g.s);
     }
@@ -118,7 +122,7 @@ export class Ghosts {
       if (g.gone > 0) continue;
       const p = g.s.position;
       const d = p.distanceTo(at);
-      if (d > reach && g.pulled === 0) continue;
+      if (d > reach) continue;
       g.pulled += dt;
       const step = (SUCK_SPEED + SUCK_ACCEL * g.pulled) * dt;
       if (d - step <= SWALLOW) {
@@ -126,6 +130,7 @@ export class Ghosts {
         this.swallow(g);
         continue;
       }
+      g.held = true;
       _to.subVectors(at, p).multiplyScalar(step / d);
       p.add(_to);
       g.vel.copy(_to).divideScalar(Math.max(dt, 1e-4));
@@ -169,6 +174,12 @@ export class Ghosts {
         g.s.visible = true;
       }
       const p = g.s.position;
+      if (g.pulled > 0 && !g.held) {
+        // A ghost no longer pulled eases back into shape where it is, then drifts on from rest.
+        g.pulled = Math.max(0, g.pulled - RELAX * dt);
+        g.vel.set(0, 0, 0);
+      }
+      g.held = false;
       if (g.pulled > 0) {
         // being sucked in: thinning toward the intake (suck() moves it)
         const k = Math.max(0.15, 1 - g.pulled * 1.5);

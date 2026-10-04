@@ -914,9 +914,10 @@ export class Game {
     }
     this.tires.update(dt, this.mode === 'play' ? onFoot : null);
     this.updateShop(onFoot && this.mode === 'play' && !this.cutscene ? onFoot : null);
-    // the HUD's item list: redrawn when what he carries changes, or someone he could give it to comes or goes
+    // The HUD's item list redraws when Cody's items change, a taker comes or goes, or eating becomes available or unavailable.
     const taker = onFoot && this.mode === 'play' ? this.tires.taker(onFoot) : null;
-    const shown = `${this.inventory.version}:${taker?.def.id ?? ''}`;
+    const eat = this.canEat;
+    const shown = `${this.inventory.version}:${taker?.def.id ?? ''}:${eat}`;
     if (shown !== this.shownInventory) {
       this.shownInventory = shown;
       this.hud.setInventory(
@@ -925,7 +926,7 @@ export class Game {
           name: ITEM_NAMES[kind],
           count,
           note: ITEM_NOTES[kind],
-          actions: [...(ITEM_ACTIONS[kind] ?? []), ...(kind === 'tire' && taker ? [{ id: 'give', label: `GIVE TO ${NPC_NAMES[taker.def.id]}` }] : [])],
+          actions: [...(ITEM_ACTIONS[kind] ?? []).filter((a) => a.id !== 'eat' || eat), ...(kind === 'tire' && taker ? [{ id: 'give', label: `GIVE TO ${NPC_NAMES[taker.def.id]}` }] : [])],
         })),
       );
     }
@@ -1109,7 +1110,7 @@ export class Game {
     this.ghastIntake(v, di, dt);
     const prev = _prev.copy(v.pos);
     const ev = v.drive(dt, di, this.world.collision);
-    if (di.hop && !v.grounded) this.slime.burst(v.pos, 10, 4, [0.12, 0.25], [0.6, 1], SLIME, 0.6, v.pos.y);
+    if (ev.hopped) this.slime.burst(v.pos, 10, 4, [0.12, 0.25], [0.6, 1], SLIME, 0.6, v.pos.y);
 
     for (const s of ev.smashed) {
       if (s.knockdown) this.knockProp(s, v);
@@ -1219,7 +1220,7 @@ export class Game {
   /** A monster truck at speed flattens a car outside the deck instead of bumping it. */
   private crushes(v: Vehicle, o: Vehicle): boolean {
     if (v.form !== 'truck' || o.form !== 'car' || o.insideDeck || Math.abs(v.speed) <= CRUSH_SPEED) return false;
-    this.crush(o);
+    this.crush(o, v);
     return true;
   }
 
@@ -1251,6 +1252,8 @@ export class Game {
   private exit(): void {
     const v = this.driving as Vehicle;
     this.driving = null;
+    // An escaped vehicle's roll ends with the drive, so the next vehicle Cody takes is not affected.
+    this.escapedTimer = -1;
     this.hud.setMode('foot');
     this.iso.zoomTarget = Math.min(this.iso.zoomTarget, TUNING.camera.zoom);
     this.hud.setPrompt(null);
@@ -1320,7 +1323,6 @@ export class Game {
 
   private vanish(v: Vehicle): void {
     // the escaped truck dissolves into the night and Cody is left on foot
-    this.escapedTimer = -1;
     const at = _at.copy(v.pos).setY(v.pos.y + 1.5);
     this.slime.burst(at, 50, 9, [0.15, 0.45], [1, 2], SLIME, 1, v.pos.y);
     this.sprites.spray(at, 8, 5, [3, 6], WHITE, 1.5, 3, 1.6, 'ghost', 0.9);
@@ -1373,7 +1375,7 @@ export class Game {
     this.events.emit('prop', { kind, at: _v.clone(), how: 'knocked' });
   }
 
-  private crush(o: Vehicle): void {
+  private crush(o: Vehicle, by: Vehicle): void {
     o.role = 'crushed';
     o.timer = 0;
     this.events.emit('crushed', { car: o });
@@ -1381,7 +1383,7 @@ export class Game {
     this.slime.burst(o.pos, 30, 8, [0.15, 0.35], [1, 2], SLIME, 0.7, o.pos.y);
     this.debris.burst(_at.copy(o.pos).setY(o.pos.y + 0.8), 10, 6, [0.15, 0.3], [1, 2], _tint.set(o.color), 0.6, o.pos.y);
     this.shake(0.35);
-    if (this.driving) this.driving.kick(-CRUSH_KICK);
+    by.kick(-CRUSH_KICK);
   }
 
   // ---------------------------------------------------------------- phases
@@ -1624,6 +1626,11 @@ export class Game {
     this.events.emit('puff', { at: at.clone() });
   }
 
+  /** Cody can eat only on foot, outside cutscenes, and when he is not already dozing. */
+  private get canEat(): boolean {
+    return !this.driving && !this.transform && !this.cutscene && this.doze < 0;
+  }
+
   /** Cody uses something he's carrying (the HUD's item menu). True if it did anything. */
   useItem(kind: ItemKind, action: ItemActionId): boolean {
     if (action === 'give') {
@@ -1631,7 +1638,7 @@ export class Game {
       const taker = kind === 'tire' && !this.driving ? this.tires.taker(this.player.pos) : null;
       return taker !== null && this.tires.give(taker, this.player.pos) > 0;
     }
-    if (kind !== 'brisket' || !this.inventory.take('brisket', 1)) return false;
+    if (kind !== 'brisket' || !this.canEat || !this.inventory.take('brisket', 1)) return false;
     this.deed({ how: 'used', kind, action });
     if (this.sleepAfterEating && this.doze < 0) {
       this.hud.toast('BRISKET', 'YOU ATE SO MUCH YOU FELT SLEEPY...', 'purple', DOZE.toast);
