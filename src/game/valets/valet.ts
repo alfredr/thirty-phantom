@@ -1,18 +1,18 @@
 import { Group, Vector3 } from 'three';
 import { TUNING } from '../../config';
-import { smoothstep, wrapAngle } from '../../core/math';
-import { Autopilot } from '../../actors/autopilot';
 import type { Avoidance } from '../../actors/avoidance';
 import { driverDoor } from '../../actors/doors';
 import { buildValet } from '../../actors/models/valet';
 import type { Vehicle } from '../../actors/vehicle';
 import { Walker } from '../../actors/walker';
-import type { CollisionWorld } from '../../world/collision';
+import { done, type Result, running } from '../../engine/sim/action';
 import type { ValetDef, ZoneDef } from '../../world/level-data';
 import { NAV, type NavGrid, type NavJob, type NavPlanner } from '../../world/nav-grid';
-import type { Garage, SpotRuntime } from '../deck/garage';
+import { type Garage, type SpotRuntime, spotZone } from '../deck/garage';
+import { type DriveAction, DriverJob, DriveTo, type DriveWorld, halt, Park, spotBerth } from '../driving/drive-actions';
+import type { Drivers } from '../driving/drivers';
 
-export type ValetState = 'idle' | 'toCar' | 'boarding' | 'driving' | 'parking' | 'returning' | 'off';
+export type ValetState = 'idle' | 'toCar' | 'boarding' | 'driving' | 'returning' | 'off';
 
 export interface Valet {
   readonly walker: Walker;
@@ -24,28 +24,18 @@ export interface Valet {
   /** The car crossed the entry gate with him at the wheel. */
   badged: boolean;
   walkJob: NavJob | null;
-  driveJob: NavJob | null;
-  pilot: Autopilot | null;
-  /** Easing the car into its spot. */
-  settle: { t: number; from: Vector3; fromYaw: number; toYaw: number } | null;
+  /** At the wheel: the drive to the spot. */
+  drive: ValetDrive | null;
   /** Held in a conversation: stands still and faces Cody. */
   held: boolean;
   t: number;
-  replanned: boolean;
-  /** Seconds his car has been crashing, and of that, lying still on its side or roof. */
-  wreck: number;
-  upended: number;
 }
 
 /** What the game gives the valets each frame. */
 export interface ValetFrame {
   day: boolean;
-  /** Positions to brake for: other vehicles, people. */
-  obstacles: readonly Vector3[];
   /** Everyone and everything a valet on foot steers around, or null to walk routes blind. */
   avoid: Avoidance | null;
-  /** A car crossed the deck footprint (the badge log); returns true if it logged an entry. */
-  track: (v: Vehicle, prev: Vector3) => boolean;
   /** The car is in its spot (valet.badged: whether it went through the entry gate on the way). */
   parked: (v: Vehicle, spot: SpotRuntime, valet: Valet) => void;
 }
@@ -55,11 +45,6 @@ const T = TUNING.valet;
 const SKINS = ['#d9a07a', '#8a5a3c', '#f0c8a8', '#c48a64'];
 /** Back home once within this of the podium spot. */
 const HOME_EPS = 0.5;
-/** Parked cars block their spot shrunk by this much (so a neighbour's spot edge stays drivable). */
-const SPOT_INSET = 0.3;
-/** A spot's region runs from just under its floor to above car height. */
-const SPOT_BELOW = 0.3;
-const SPOT_ABOVE = 2;
 /** Idle at the podium: rocking on his heels (rate, height), and an occasional wave (how often, how much of the time, arm lift, flap rate and size). */
 const ROCK_RATE = 2.2;
 const ROCK_HEIGHT = 0.03;
@@ -72,11 +57,80 @@ const WAVE_FLAP_SIZE = 0.25;
 const _v = new Vector3();
 
 /**
+ * A valet at the wheel: drives the car to its spot in the deck, in through the entry gate, and
+ * eases it in. Spooked by phantom Cody, he steers clear of him like anyone. Knocked into a crash,
+ * he waits it out, rights the car if it lands on its side or roof, and sets off again from
+ * wherever it came to rest. No route, or wedged twice, and the car turns up in its spot in a
+ * puff: he "knows a shortcut".
+ */
+export class ValetDrive extends DriverJob {
+  /** The car's in its spot. */
+  parked = false;
+  /** It went through the entry gate on the way. */
+  badged = false;
+  /** Seconds the car has been crashing, and of that, lying still on its side or roof. */
+  private wreck = 0;
+  private upended = 0;
+
+  constructor(readonly p: { car: Vehicle; spot: SpotRuntime }) {
+    super(p.car, 'valet');
+    this.next(this.toSpot());
+  }
+
+  protected drive(w: DriveWorld, dt: number, seen: Vector3 | null): Result<DriveAction> {
+    const { car, spot } = this.p;
+    if (this.wreck > 0) {
+      // the crash is over: a fresh route from wherever it came to rest
+      this.wreck = 0;
+      this.upended = 0;
+      this.next(this.toSpot());
+    }
+    if (seen) this.steerClear(seen);
+    const stage = this.stage;
+    if (!stage) return done;
+    const result = stage.perform(w, dt);
+    if (stage instanceof DriveTo && stage.badged) this.badged = true;
+    if ('fail' in result) {
+      // the shortcut
+      w.place(car, spot.center, spot.def.yaw, 0);
+      halt(car);
+      this.parked = true;
+      return done;
+    }
+    if (!('done' in result)) return running;
+    if (stage instanceof DriveTo) {
+      this.next(new Park({ car, berth: spotBerth(spot) }));
+      return running;
+    }
+    this.parked = true;
+    return done;
+  }
+
+  /** Hands off while it tumbles (the game steps it); righted if it ends up on its side or roof. */
+  protected crashed(w: DriveWorld, dt: number): Result<DriveAction> {
+    const { car } = this.p;
+    this.wreck += dt;
+    this.upended = car.resting ? this.upended + dt : 0;
+    if (this.upended > T.rightAfter) {
+      // ends the crash: back on its wheels where it lies
+      w.place(car, _v.set(car.pos.x, w.nav.heightAt(car.pos.x, car.pos.y, car.pos.z, NAV.car) ?? car.pos.y, car.pos.z), car.yaw, 0);
+    }
+    return running;
+  }
+
+  private toSpot(): DriveTo {
+    const { car, spot } = this.p;
+    return new DriveTo({ car, to: spot.center, yaw: spot.def.yaw, eitherWay: true, allow: spotZone(spot, 0), badgeIn: true });
+  }
+}
+
+/**
  * Foxy's valet crew. Hand one your keys and he walks to the car, drives it
  * over to the deck along a planned route (badging in at the entry gate, up the
  * ramps), eases it into the highest free spot, then walks back down the
  * stairwell to the podium. Everything moves through the shared planner, the
- * real vehicle physics and the same route followers as everyone else.
+ * real vehicle physics and the same route followers as everyone else; at the
+ * wheel he's one of the game's drivers (ValetDrive).
  */
 export class ValetService {
   readonly root = new Group();
@@ -88,10 +142,8 @@ export class ValetService {
     defs: readonly ValetDef[],
     private readonly planner: NavPlanner,
     private readonly nav: NavGrid,
-    private readonly collision: CollisionWorld,
     private readonly garage: Garage,
-    /** Exit-lane blocks, so valets badge in through the entry gate. */
-    private readonly entryOnly: readonly ZoneDef[],
+    private readonly drivers: Drivers,
   ) {
     let n = 0;
     for (const def of defs) {
@@ -109,14 +161,9 @@ export class ValetService {
           spot: null,
           badged: false,
           walkJob: null,
-          driveJob: null,
-          pilot: null,
-          settle: null,
+          drive: null,
           held: false,
           t: Math.random() * 6,
-          replanned: false,
-          wreck: 0,
-          upended: 0,
         });
       }
     }
@@ -160,10 +207,8 @@ export class ValetService {
     valet.spot = spot;
     valet.badged = false;
     valet.held = false;
-    valet.replanned = false;
     valet.state = 'toCar';
     valet.walkJob = this.planner.request(valet.walker.pos, this.doorOf(car, _v), NAV.person, { blocks: this.walkBlocks(), elevators: true });
-    valet.driveJob = this.planDrive(car, spot);
   }
 
   /** Cody stole the car out from under him: the job is off and he walks back. */
@@ -171,7 +216,7 @@ export class ValetService {
     const v = this.driverOf(car);
     if (!v) return null;
     this.garage.release(car);
-    if (v.state === 'boarding' || v.state === 'driving' || v.state === 'parking') {
+    if (v.state === 'boarding' || v.state === 'driving') {
       const door = this.doorOf(car, new Vector3());
       v.walker.place(door, car.yaw + Math.PI / 2);
       v.walker.rig.root.visible = true;
@@ -184,7 +229,6 @@ export class ValetService {
     for (const v of this.crew) {
       v.t += dt;
       const w = v.walker;
-      if (this.wrecked(v, dt)) continue;
       switch (v.state) {
         case 'off':
           if (f.day) {
@@ -219,58 +263,22 @@ export class ValetService {
         }
         case 'boarding': {
           w.update(dt, this.nav);
-          if (v.t > T.boardTime) w.rig.root.visible = false;
-          if (v.t > T.boardTime && v.driveJob?.settled) {
-            const legs = v.driveJob.legs;
-            v.driveJob = null;
-            if (legs) {
-              const car = v.car as Vehicle;
-              v.pilot = new Autopilot(legs, { inDeck: (p) => this.garage.inFootprint(p), nav: this.nav, profile: NAV.car }, car.params);
-              v.state = 'driving';
-            } else {
-              this.teleportPark(v, f);
-            }
-          }
+          if (v.t <= T.boardTime) break;
+          w.rig.root.visible = false;
+          const car = v.car as Vehicle;
+          const spot = v.spot as SpotRuntime;
+          v.drive = new ValetDrive({ car, spot });
+          v.state = 'driving';
+          if (!this.drivers.start(v.drive)) this.carjacked(car);
           break;
         }
         case 'driving': {
-          const car = v.car as Vehicle;
-          const pilot = v.pilot as Autopilot;
-          const obstacles = f.obstacles.filter((o) => o !== car.pos);
-          const input = pilot.update(dt, car, obstacles);
-          const prev = car.pos.clone();
-          car.drive(dt, input, this.collision);
-          if (f.track(car, prev)) v.badged = true;
-          if (pilot.state === 'arrived') {
-            const s = v.spot as SpotRuntime;
-            const flip = Math.cos(car.yaw - s.def.yaw) < 0;
-            v.settle = { t: 0, from: car.pos.clone(), fromYaw: car.yaw, toYaw: s.def.yaw + (flip ? Math.PI : 0) };
-            v.state = 'parking';
-          } else if (pilot.state === 'stuck') {
-            if (!v.replanned) {
-              // one fresh route from wherever he wedged himself, then give up gracefully
-              v.replanned = true;
-              v.driveJob = this.planDrive(car, v.spot as SpotRuntime);
-              v.pilot = null;
-              v.state = 'boarding';
-              v.t = T.boardTime;
-            } else {
-              this.teleportPark(v, f);
-            }
-          }
-          break;
-        }
-        case 'parking': {
-          const car = v.car as Vehicle;
-          const s = v.spot as SpotRuntime;
-          const st = v.settle as NonNullable<Valet['settle']>;
-          st.t += dt;
-          const k = Math.min(1, st.t / T.settleTime);
-          const e = smoothstep(0, 1, k);
-          const dy = wrapAngle(st.toYaw - st.fromYaw);
-          _v.lerpVectors(st.from, s.center, e);
-          car.place(_v.x, _v.y, _v.z, st.fromYaw + dy * e, 0, dt, this.collision);
-          if (k >= 1) this.finishParking(v, f);
+          const job = v.drive;
+          if (!job || this.drivers.running(job)) break;
+          // over: in its spot, or the car's gone from under him
+          v.badged = job.badged;
+          if (job.parked) this.finishParking(v, f);
+          else this.carjacked(job.car);
           break;
         }
         case 'returning':
@@ -296,50 +304,11 @@ export class ValetService {
     }
   }
 
-  /**
-   * His car got knocked into a crash: hands off while it tumbles (the game
-   * steps it), right it if it ends up on its side or roof, then a fresh route
-   * from wherever it came to rest. True while that's going on.
-   */
-  private wrecked(v: Valet, dt: number): boolean {
-    const car = v.car;
-    if (!car || (v.state !== 'driving' && v.state !== 'parking')) return false;
-    if (car.crashing) {
-      v.wreck += dt;
-      v.settle = null;
-      v.upended = car.resting ? v.upended + dt : 0;
-      if (v.upended > T.rightAfter) {
-        // ends the crash: back on its wheels where it lies
-        car.place(car.pos.x, this.nav.heightAt(car.pos.x, car.pos.y, car.pos.z, NAV.car) ?? car.pos.y, car.pos.z, car.yaw, 0, 0, this.collision);
-      }
-      return true;
-    }
-    if (v.wreck === 0) return false;
-    v.wreck = 0;
-    v.upended = 0;
-    v.pilot = null;
-    v.driveJob?.cancel();
-    v.driveJob = this.planDrive(car, v.spot as SpotRuntime);
-    v.replanned = false;
-    v.state = 'boarding';
-    v.t = T.boardTime;
-    return true;
-  }
-
   /** Where the driver gets in or out: beside the car on its left. */
   doorOf(car: Vehicle, out: Vector3): Vector3 {
     driverDoor(car, T.doorGap, out);
     out.y = this.nav.heightAt(out.x, out.y, out.z) ?? car.pos.y;
     return out;
-  }
-
-  private planDrive(car: Vehicle, spot: SpotRuntime): NavJob {
-    // parked cars are in the way, on their own floor; his own spot isn't
-    const blocks: ZoneDef[] = car.insideDeck ? [] : [...this.entryOnly];
-    for (const s of this.garage.spots) {
-      if (s !== spot && s.occupant && s.occupant !== car) blocks.push(spotZone(s, -SPOT_INSET));
-    }
-    return this.planner.request(car.pos, spot.center, NAV.car, { blocks, allow: spotZone(spot, 0), drive: { yaw: car.yaw, endYaw: spot.def.yaw, eitherWay: true } });
   }
 
   private finishParking(v: Valet, f: ValetFrame): void {
@@ -355,21 +324,10 @@ export class ValetService {
     this.goHome(v);
   }
 
-  /** No route, or wedged twice: the car turns up in its spot in a puff (the valet "knows a shortcut"). */
-  private teleportPark(v: Valet, f: ValetFrame): void {
-    const car = v.car as Vehicle;
-    const s = v.spot as SpotRuntime;
-    car.place(s.center.x, s.center.y, s.center.z, s.def.yaw, 0, 0, null);
-    this.finishParking(v, f);
-  }
-
   private goHome(v: Valet): void {
     v.car = null;
     v.spot = null;
-    v.pilot = null;
-    v.settle = null;
-    v.driveJob?.cancel();
-    v.driveJob = null;
+    v.drive = null;
     v.walkJob?.cancel();
     v.walkJob = this.planner.request(v.walker.pos, v.home, NAV.person, { blocks: this.walkBlocks(), elevators: true });
     v.held = false;
@@ -386,9 +344,3 @@ export class ValetService {
   }
 }
 
-/** A spot's region: its painted rectangle (grown or shrunk by `pad`) from the floor to car height. */
-export function spotZone(s: SpotRuntime, pad: number): ZoneDef {
-  const [w, d] = s.def.size;
-  const c = s.center;
-  return { min: [c.x - w / 2 - pad, c.y - SPOT_BELOW, c.z - d / 2 - pad], max: [c.x + w / 2 + pad, c.y + SPOT_ABOVE, c.z + d / 2 + pad] };
-}

@@ -15,7 +15,7 @@ import { FX_LAYER, GHOST_LAYER } from '../../render/layers';
 import { withCutaway } from '../../render/materials';
 import { radialGlowTexture } from '../../render/textures';
 import type { Gates } from '../../world/gates';
-import type { DeckNav, SpotDef } from '../../world/level-data';
+import type { DeckNav, SpotDef, ZoneDef } from '../../world/level-data';
 
 /** Spot glow: purple for an empty or taken spot, slime green under a phantom. */
 const SPOT_GLOW = new Color('#9b3cf0');
@@ -33,6 +33,17 @@ export interface SpotRuntime {
 /** "SPOT 7 • LEVEL 2": how toasts name a spot (ids and levels count from 1 on screen). */
 export function spotLabel(s: SpotRuntime): string {
   return `SPOT ${s.def.id + 1} • LEVEL ${s.def.level + 1}`;
+}
+
+/** A spot's region runs from just under its floor to above car height. */
+const SPOT_BELOW = 0.3;
+const SPOT_ABOVE = 2;
+
+/** A spot's region: its painted rectangle (grown or shrunk by `pad`) from the floor to car height. */
+export function spotZone(s: SpotRuntime, pad: number): ZoneDef {
+  const [w, d] = s.def.size;
+  const c = s.center;
+  return { min: [c.x - w / 2 - pad, c.y - SPOT_BELOW, c.z - d / 2 - pad], max: [c.x + w / 2 + pad, c.y + SPOT_ABOVE, c.z + d / 2 + pad] };
 }
 
 export type CrossingKind = 'logged-in' | 'logged-out' | 'escaped' | 'snuck-in';
