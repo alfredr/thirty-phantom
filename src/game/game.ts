@@ -871,9 +871,10 @@ export class Game {
     }
     this.tires.update(dt, this.mode === 'play' ? onFoot : null);
     this.updateShop(onFoot && this.mode === 'play' && !this.cutscene ? onFoot : null);
-    // the HUD's item list: redrawn when what he carries changes, or someone he could give it to comes or goes
+    // The HUD's item list redraws when Cody's items change, a taker comes or goes, or eating becomes available or unavailable.
     const taker = onFoot && this.mode === 'play' ? this.tires.taker(onFoot) : null;
-    const shown = `${this.inventory.version}:${taker?.def.id ?? ''}`;
+    const eat = this.canEat;
+    const shown = `${this.inventory.version}:${taker?.def.id ?? ''}:${eat}`;
     if (shown !== this.shownInventory) {
       this.shownInventory = shown;
       this.hud.setInventory(
@@ -882,7 +883,7 @@ export class Game {
           name: ITEM_NAMES[kind],
           count,
           note: ITEM_NOTES[kind],
-          actions: [...(ITEM_ACTIONS[kind] ?? []), ...(kind === 'tire' && taker ? [{ id: 'give', label: `GIVE TO ${NPC_NAMES[taker.def.id]}` }] : [])],
+          actions: [...(ITEM_ACTIONS[kind] ?? []).filter((a) => a.id !== 'eat' || eat), ...(kind === 'tire' && taker ? [{ id: 'give', label: `GIVE TO ${NPC_NAMES[taker.def.id]}` }] : [])],
         })),
       );
     }
@@ -1585,6 +1586,11 @@ export class Game {
     this.events.emit('puff', { at: at.clone() });
   }
 
+  /** Cody can eat only on foot, outside cutscenes, and when he is not already dozing. */
+  private get canEat(): boolean {
+    return !this.driving && !this.transform && !this.cutscene && this.doze < 0;
+  }
+
   /** Cody uses something he's carrying (the HUD's item menu). True if it did anything. */
   useItem(kind: ItemKind, action: ItemActionId): boolean {
     if (action === 'give') {
@@ -1592,7 +1598,7 @@ export class Game {
       const taker = kind === 'tire' && !this.driving ? this.tires.taker(this.player.pos) : null;
       return taker !== null && this.tires.give(taker, this.player.pos) > 0;
     }
-    if (kind !== 'brisket' || !this.inventory.take('brisket', 1)) return false;
+    if (kind !== 'brisket' || !this.canEat || !this.inventory.take('brisket', 1)) return false;
     this.deed({ how: 'used', kind, action });
     if (this.sleepAfterEating && this.doze < 0) {
       this.hud.toast('BRISKET', 'YOU ATE SO MUCH YOU FELT SLEEPY...', 'purple', DOZE.toast);
