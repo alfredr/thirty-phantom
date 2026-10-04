@@ -51,9 +51,10 @@ At an elevator, `F` calls the cab. Inside, `F` selects a floor up and `G` a floo
 Auto camera uses top-down on foot and chase while driving. Phones have touch controls
 and always use chase view while driving.
 
-The game saves the day, cash, inventory, and phantoms in browser storage. Starting with
-`?fresh` or replaying the tutorial replaces that save. The player's position and ordinary
-vehicles reset on reload.
+The game saves the day, cash, inventory, phantoms, quest progress (a won game stays won),
+Randy's stock and the cash still lying about town in browser storage. Starting with `?fresh`
+ignores that save; replaying the tutorial replaces it once the tutorial is over (nothing is
+saved while it runs). The player's position and ordinary vehicles reset on reload.
 
 ## URL flags
 
@@ -94,14 +95,15 @@ advance the game with `__game.frame(1 / 60)`.
 src/
   main.ts       startup and asset loading
   config.ts     shared gameplay and rendering settings
-  game/         rules, tutorial, garage ledger, inventory, saves
-  world/        city generation, collision, pathfinding, buildings, props
+  engine/       the reusable core: math, input, minds, actions, claims, collision, route search
+  game/         rules, minds, quests, tutorial, garage ledger, inventory, saves
+  world/        city generation, navigation grid, buildings, props
   actors/       characters, vehicles, traffic, models
   render/       cameras, materials, lighting, post-processing
   audio/        synthesis, recorded engine cycles, mixing
   ui/           HUD, dialogue, inventory, touch controls
   fx/           particles and visual effects
-tests/          game-state, camera, and level-loading tests
+tests/          unit tests; tests/live/ has the live engine tests (tools/scenarios.mjs)
 tools/          level validator compilation, screenshots, audio, dev reload prompt
 deploy/         Caddy configuration and deployment scripts
 public/         models, audio, icons
