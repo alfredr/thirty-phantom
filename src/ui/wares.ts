@@ -1,12 +1,13 @@
 import type { Action, Focus } from '../core/input';
 import { el } from './dom';
-import { itemIcon } from './item-icons';
 
 /** One slot of Randy's stock: a stack of `count` (0 leaves the slot showing, empty), `price` each. */
 export interface WareSlot {
   id: string;
   kind: string;
   name: string;
+  /** Its icon (inline SVG), if it has one; else its initial. */
+  icon?: string;
   count: number;
   price: number;
   /** Cody can buy one right now: he can afford it and the slot isn't empty. */
@@ -126,7 +127,7 @@ export class WaresPanel {
       slot.dataset.id = s.id;
       if (keys && i < SLOT_KEYS.length) el('i', 'ware-key', slot, String(i + 1));
       if (empty) return;
-      slot.insertAdjacentHTML('beforeend', itemIcon(s.kind) ?? `<span class="ware-initial">${s.name.charAt(0)}</span>`);
+      slot.insertAdjacentHTML('beforeend', s.icon ?? `<span class="ware-initial">${s.name.charAt(0)}</span>`);
       el('b', 'ware-count', slot, String(s.count));
     });
     const info = el('div', 'wares-info');

@@ -1,15 +1,14 @@
-import { type ItemKind, ITEM_NAMES } from '../items/inventory';
+import { ITEM_BREEDS, type ItemKind } from '../items/item-breeds';
 
 /**
  * What Randy carries in his coat, slot by slot: the burner phone he gives
- * Cody, then a lot of brisket (five stacks of 128). What each costs (dollars;
- * the phone's on the house).
+ * Cody, then a lot of brisket (five stacks of 128). What each costs is its
+ * breed's price.
  */
 export const RANDY_STOCK: readonly { kind: ItemKind; count: number }[] = [
   { kind: 'burner', count: 1 },
   ...Array.from({ length: 5 }, () => ({ kind: 'brisket' as ItemKind, count: 128 })),
 ];
-export const WARE_PRICES: Readonly<Partial<Record<ItemKind, number>>> = { brisket: 10, burner: 0 };
 
 export interface WareSlot {
   readonly id: string;
@@ -22,6 +21,7 @@ export interface WareView {
   id: string;
   kind: ItemKind;
   name: string;
+  icon?: string;
   count: number;
   price: number;
   /** Cody can buy one now: it isn't empty and he can pay. */
@@ -37,7 +37,7 @@ export class Wares {
   }
 
   price(kind: ItemKind): number {
-    return WARE_PRICES[kind] ?? 0;
+    return ITEM_BREEDS[kind].price ?? 0;
   }
 
   /** The first slot holding `kind`, if any is left. */
@@ -47,7 +47,7 @@ export class Wares {
 
   /** The slots for the menu, given what Cody has to spend. */
   view(cash: number): WareView[] {
-    return this.slots.map((s) => ({ id: s.id, kind: s.kind, name: ITEM_NAMES[s.kind], count: s.count, price: this.price(s.kind), can: s.count > 0 && cash >= this.price(s.kind) }));
+    return this.slots.map((s) => ({ id: s.id, kind: s.kind, name: ITEM_BREEDS[s.kind].name, icon: ITEM_BREEDS[s.kind].icon, count: s.count, price: this.price(s.kind), can: s.count > 0 && cash >= this.price(s.kind) }));
   }
 
   /** Take up to `n` from slot `id`, no more than `afford` of them; returns what was taken (null if nothing). */

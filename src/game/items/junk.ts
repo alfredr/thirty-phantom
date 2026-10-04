@@ -5,7 +5,7 @@ import type { Vehicle } from '../../actors/vehicle';
 import { TUNING } from '../../config';
 import type { Rng } from '../../core/rng';
 import type { NavGrid } from '../../world/nav-grid';
-import type { ItemKind } from './inventory';
+import type { ItemKind } from './item-breeds';
 
 const J = TUNING.junk;
 

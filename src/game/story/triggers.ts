@@ -1,5 +1,6 @@
 import type { NpcDef } from '../../world/level-data';
-import type { Inventory, ItemActionId, ItemKind } from '../items/inventory';
+import type { Inventory, ItemActionId } from '../items/inventory';
+import type { ItemKind } from '../items/item-breeds';
 
 /** Something Cody did with an item: picked it up (or was handed it), used it, gave it to someone. */
 export type ItemDeed =

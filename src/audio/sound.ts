@@ -3,7 +3,7 @@ import { TUNING } from '../config';
 import { KEYS, keyName } from '../core/input';
 import { clamp } from '../core/math';
 import type { Game, GameEvents } from '../game/game';
-import type { ItemKind } from '../game/items/inventory';
+import { ITEM_BREEDS } from '../game/items/item-breeds';
 import type { SoundOf } from './cues';
 import { soundLog } from './flags';
 import { Loops } from './loops';
@@ -24,19 +24,6 @@ const PROPS: Readonly<Record<string, SoundOf<'prop'>>> = {
   tree: 'prop-tree',
   hedge: 'prop-hedge',
   shelter: 'prop-shelter',
-};
-/** What a pickup sounds like, by what it is. */
-const ITEMS: Readonly<Record<ItemKind, SoundOf<'item'>>> = {
-  tire: 'item-tire',
-  hubcap: 'item-part',
-  mirror: 'item-part',
-  bumper: 'item-part',
-  headlight: 'item-part',
-  muffler: 'item-part',
-  plate: 'item-part',
-  brisket: 'item-gift',
-  badge: 'item-gift',
-  burner: 'item-gift',
 };
 const MUTED_KEY = '30pc.muted';
 
@@ -97,7 +84,7 @@ export class Sound {
     ev.on('boosted', () => this.mixer.play('ignite', 'boost-ignite'));
     ev.on('money', ({ kind, amount }) => this.mixer.play('money', kind === 'wallet' ? 'coin-wallet' : kind === 'glovebox' ? 'coin-glovebox' : 'coin-cash', { note: `$${amount}` }));
     ev.on('item', (d) => {
-      if (d.how === 'got') this.mixer.play('item', ITEMS[d.kind], { note: d.kind });
+      if (d.how === 'got') this.mixer.play('item', ITEM_BREEDS[d.kind].sound, { note: d.kind });
     });
     ev.on('phone', (what) => {
       if (what === 'text') this.mixer.play('text', 'phone-text');

@@ -1,41 +1,10 @@
-import type { PartKind } from '../../actors/models/junk';
-
-/** What Cody can carry: car parts picked up after smashes, Randy's brisket, what's left of his badge, and the burner phone Randy gives him. */
-export type ItemKind = PartKind | 'brisket' | 'badge' | 'burner';
-
-/** What each is called on the HUD. */
-export const ITEM_NAMES: Readonly<Record<ItemKind, string>> = {
-  tire: 'TIRE',
-  hubcap: 'HUBCAP',
-  mirror: 'SIDE MIRROR',
-  bumper: 'BUMPER',
-  headlight: 'HEADLIGHT',
-  muffler: 'MUFFLER',
-  plate: 'LICENSE PLATE',
-  brisket: 'BRISKET',
-  badge: 'UNREADABLE BADGE',
-  burner: 'BURNER PHONE',
-};
-
-/** Whether a name (from the HUD, say) is one of the items. */
-export function isItemKind(k: string): k is ItemKind {
-  return Object.hasOwn(ITEM_NAMES, k);
-}
+import type { ItemKind } from './item-breeds';
 
 /** What Cody can do with a thing he's carrying (the HUD offers these on its tag); `give` only when there's someone by who wants it. */
 export type ItemActionId = 'eat' | 'give';
 export function isItemAction(a: string): a is ItemActionId {
   return a === 'eat' || a === 'give';
 }
-export const ITEM_ACTIONS: Readonly<Partial<Record<ItemKind, readonly { id: ItemActionId; label: string }[]>>> = {
-  brisket: [{ id: 'eat', label: 'EAT' }],
-};
-
-/** A line about it, for the ones that have one (shown when he picks it up). */
-export const ITEM_NOTES: Readonly<Partial<Record<ItemKind, string>>> = {
-  badge: 'COVERED IN BBQ SAUCE',
-  burner: "RANDY'S NUMBER'S THE ONLY ONE IN IT",
-};
 
 /** Cody's pockets (and arms): how many of each thing he has, in the order he first got them. */
 export class Inventory {

@@ -72,7 +72,8 @@ import { Detours } from './driving/detours';
 import { GameClock, type Phase } from './game-clock';
 import { Fleet } from './driving/fleet';
 import { type Crossing, Garage, spotLabel, type SpotRuntime } from './deck/garage';
-import { Inventory, type ItemActionId, type ItemKind, ITEM_NAMES, ITEM_NOTES, isItemKind } from './items/inventory';
+import { Inventory, type ItemActionId } from './items/inventory';
+import { ITEM_BREEDS, type ItemKind, isItemKind } from './items/item-breeds';
 import { Junk } from './items/junk';
 import { Money } from './items/money';
 import { NPC_NAMES, Npcs } from './randy/npcs';
@@ -1024,8 +1025,7 @@ export class Game {
     const onFoot = this.driving || this.transform ? null : this.player.pos;
     for (const kind of this.junk.update(dt, onFoot)) {
       this.gain(kind, 1);
-      const note = ITEM_NOTES[kind];
-      this.hud.toast(`+ ${ITEM_NAMES[kind]}`, note ?? '', '', note ? TRADE_TOAST : MONEY_TOAST);
+      this.gotToast(kind);
     }
     this.updateShop(onFoot && this.mode === 'play' && !this.cutscene ? onFoot : null);
     // The HUD's item list shows what Cody could do with each item now, and redraws when that or his items change.
@@ -1036,9 +1036,10 @@ export class Game {
       this.hud.setInventory(
         items.map(({ kind, count, offers }) => ({
           kind,
-          name: ITEM_NAMES[kind],
+          name: ITEM_BREEDS[kind].name,
+          icon: ITEM_BREEDS[kind].icon,
           count,
-          note: ITEM_NOTES[kind],
+          note: ITEM_BREEDS[kind].note,
           actions: offers.map(({ id, label }) => ({ id, label })),
         })),
       );
@@ -1059,9 +1060,14 @@ export class Game {
     if (!s) return false;
     s.count--;
     this.gain(kind, 1);
-    const note = ITEM_NOTES[kind];
-    this.hud.toast(`+ ${ITEM_NAMES[kind]}`, note ?? '', '', note ? TRADE_TOAST : MONEY_TOAST);
+    this.gotToast(kind);
     return true;
+  }
+
+  /** The toast for one `kind` come by: its name, and its line if it has one. */
+  private gotToast(kind: ItemKind): void {
+    const { name, note } = ITEM_BREEDS[kind];
+    this.hud.toast(`+ ${name}`, note ?? '', '', note ? TRADE_TOAST : MONEY_TOAST);
   }
 
   /** Cody buys `n` from a slot of Randy's wares: as many as there are, and as he can pay for. */
@@ -1074,7 +1080,7 @@ export class Game {
     const got = this.wares.take(slot, n, afford);
     if (!got || !this.money.spend(got.cost)) return;
     this.gain(got.kind, got.n);
-    this.hud.toast(`+${got.n} ${ITEM_NAMES[got.kind]}`, `-$${got.cost}`, '', MONEY_TOAST);
+    this.hud.toast(`+${got.n} ${ITEM_BREEDS[got.kind].name}`, `-$${got.cost}`, '', MONEY_TOAST);
   }
 
   /** Cody comes by `n` of an item (picked up, or handed it). */

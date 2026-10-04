@@ -1,12 +1,13 @@
 import { type Action, type Focus, keyName } from '../core/input';
 import { el } from './dom';
-import { itemIcon } from './item-icons';
 
 /** Something Cody carries, as the HUD shows it. */
 export interface InvItem {
   /** The game's id for the item, handed back with an action. */
   kind: string;
   name: string;
+  /** Its icon (inline SVG), if it has one. */
+  icon?: string;
   count: number;
   /** A line shown with the item's actions. */
   note?: string;
@@ -112,7 +113,7 @@ export class InventoryStrip {
   private render(): void {
     const tags = this.items.map((it, i) => {
       const cls = `inv-item plate${it.actions.length ? ' usable' : ''}${i === this.sel ? ' on' : ''}`;
-      const tag = el('div', cls, undefined, `${itemIcon(it.kind) ?? ''}${it.name}${it.count > 1 ? ` <b>${it.count}</b>` : ''}`);
+      const tag = el('div', cls, undefined, `${it.icon ?? ''}${it.name}${it.count > 1 ? ` <b>${it.count}</b>` : ''}`);
       tag.dataset.i = String(i);
       if (i === this.sel && (it.note || it.actions.length)) {
         const menu = el('div', 'inv-menu plate', tag);
