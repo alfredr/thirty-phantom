@@ -11,8 +11,8 @@ export const LAMP = {
 };
 
 /**
- * Street lamp, base at the origin: a pole with the head on top under a wider cap. The head comes twice, 'lit' and
- * 'dead' (knocked over, it goes dark), and only one is shown.
+ * Build a street lamp with its base at the origin. Include named lit and dead head variants for the caller to select
+ * according to the lamp's state.
  */
 export function streetLamp(color: LampColor, p = LAMP): Model<'iron' | 'lit' | 'dead'> {
   const pole = box(...p.pole).on(0);
@@ -46,10 +46,7 @@ export const FENCE = {
   rails: [0.5, 1.5],
 };
 
-/**
- * One panel of iron fence, centered on the origin along +X: a post with a finial at its start, two rails across. The
- * last panel of a run also closes it with a post at its far end.
- */
+/** Build an iron fence panel centred along local X with its base at Y=0. Add the far-end post when `end` is true. */
 export function fencePanel(end: boolean, p = FENCE): Model<'iron'> {
   const post = box(...p.post).on(0);
   const finial = box(p.finial, p.finial, p.finial).on(post);
@@ -74,9 +71,8 @@ export const GUARDRAIL = {
 };
 
 /**
- * One panel of ramp guardrail, centered on the origin along +X: a post at its start and a steel beam across on the side
- * facing -Z, the lane. Standing on a ramp, its copy is sheared to the slope so the posts stay upright. The last panel
- * of a run closes it with a second post.
+ * Build a guardrail panel centred along local X, with the beam facing the lane at -Z. Add a far-end post when `end` is
+ * true. Callers shear ramp instances to follow the slope while keeping posts upright.
  */
 export function guardrailPanel(end: boolean, p = GUARDRAIL): Model<'iron' | 'steel'> {
   const post = box(...p.post).on(0);
@@ -96,10 +92,7 @@ export const RAILING = {
   rails: [0.42, 0.84],
 };
 
-/**
- * One panel of the railing along a wall top, centered on the origin along +X: a post at its start and two rails across,
- * the top one capping the posts.
- */
+/** Build a wall-top railing panel centred along local X with two rails. Add a far-end post when `end` is true. */
 export function railingPanel(end: boolean, p = RAILING): Model<'iron'> {
   const post = box(...p.post).on(0);
   const posts = end ? [-p.span / 2, p.span / 2] : [-p.span / 2];
@@ -119,10 +112,7 @@ export const GATE_ARM = {
   colors: ['#9b3cf0', '#2a1040'] as const,
 };
 
-/**
- * A badge gate's barrier arm as a prop: a striped bar standing up from its hinge at the origin (the gate tips it down
- * to horizontal), `length` long.
- */
+/** Build a striped barrier arm of the given length along +Y, hinged at the origin. The gate rotates it into place. */
 export function gateArm(length: number, p = GATE_ARM): Model<'a' | 'b'> {
   const n = Math.max(1, Math.round(length / p.stripe));
   const seg = length / n;

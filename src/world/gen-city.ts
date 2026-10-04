@@ -8,7 +8,7 @@ import { elevatorShaft, stairShaft } from './gen-deck';
 import type { Facing, V3 } from './level-data';
 import type { LevelWriter } from './level-writer';
 
-/** City grid: road centerlines every PITCH units, 3x3 blocks. */
+/** City-grid dimensions in meters, with road centrelines separated by `pitch`. */
 export const CITY = {
   pitch: 60,
   road: 12,
@@ -37,8 +37,8 @@ const NEON = ['neon', 'neonPurple'] as const;
 const SHOP_SIGNS = [['OPEN', 'LATE'], ['GHOUL', 'GAS'], ['ROADIE'], ['BONE', 'DRY'], ['SLIME', 'DONUTS'], ['24 HRS']];
 
 /**
- * The Foxy: lobby podium and tower with orange neon, and a canopied drop-off lane off the front street (facing the
- * camera) where the valet takes cars.
+ * Append the Foxy Hotel with a podium, tower, neon signs, and canopied valet drop-off lane connected to the front
+ * street.
  */
 function foxyHotel(w: LevelWriter, x0: number, z0: number, x1: number, z1: number): void {
   const SW = CITY.sidewalk;
@@ -65,8 +65,7 @@ function foxyHotel(w: LevelWriter, x0: number, z0: number, x1: number, z1: numbe
   w.box([x1 - 16, SW, front + 10], [x1 - 8, SW + 0.02, z1], 'asphalt');
   // raised planter between the driveways, taller than a car can climb
   w.box([x0 + 16, SW, front + 10.5], [x1 - 16, SW + 0.8, z1 - 1.5], 'stone', { top: 'grass' });
-  // shallow cantilevered awning over the curb: deep enough to read as a porte-cochere,
-  // shallow enough that the iso camera still sees the valet under it
+  // Keep the canopy shallow enough to leave the valet visible in the isometric view.
   w.box([cx - 14, SW + 4.6, front], [cx + 14, SW + 5.2, front + 4], 'metal', { drip: 'bottom' });
   w.sign([cx, SW + 4.9, front + 4.04], [12, 0.55], 'z+', 'neonPurple', ['VALET PARKING']);
 
@@ -83,8 +82,8 @@ function foxyHotel(w: LevelWriter, x0: number, z0: number, x1: number, z1: numbe
 }
 
 /**
- * The sides of a footprint that face a road: a road's centreline within this of the wall (a lot's 2 to 2.5 m setback,
- * the sidewalk and half the road).
+ * Maximum wall-to-road-centre distance in meters for a street-facing facade, including road half-width, sidewalk, and
+ * building setback.
  */
 const STREET_REACH = 10;
 
@@ -126,10 +125,9 @@ function building(w: LevelWriter, rng: Rng, x0: number, z0: number, x1: number, 
   const tint = rng.range(0.85, 1.1);
   const parapet = rng.chance(0.7);
   const top = base + h;
-  // walls laid out by storey and bay, then ledges, shop fronts, balconies, a cornice and maybe a setback (gen-building.ts);
-  // the cornice carries the slime, unless a parapet would cover its edge (as it covers a bare wall's)
+  // Place slime on exposed cornices; parapets cover their edges.
   const look = buildingLook(x0, z0, x1, z1, top, streetSides(x0, z0, x1, z1));
-  // a building with a street front is walk-in: its shell and rooms collide (world/interior-layout.ts), not the facade box
+  // Walk-in buildings receive collision from their interior shell and fittings.
   const walk = walkIn(w, mat, look, x0, z0, x1, z1, 0, top);
   w.box([x0, 0, z0], [x1, top, z1], mat, {
     top: 'roof',
@@ -191,7 +189,7 @@ function building(w: LevelWriter, rng: Rng, x0: number, z0: number, x1: number, 
     }
   }
 
-  // the odd rooftop neon
+  // Occasionally add a rooftop neon sign.
   if (rng.chance(0.3) && x1 - x0 > 8) {
     const facing: Facing = rng.chance(0.5) ? 'z+' : 'x+';
     const lines = rng.pick(SHOP_SIGNS);
@@ -302,7 +300,7 @@ export function generateCity(w: LevelWriter, seed: number): void {
     }
   }
 
-  // outer ring: tall behind (low x/z), low in front so it never hides the action
+  // Use taller buildings at low X/Z and shorter buildings in front to reduce foreground occlusion.
   const ring = (x0: number, z0: number, x1: number, z1: number, tall: boolean): void => {
     w.box([x0, 0, z0], [x1, SW, z1], 'sidewalk');
     const alongX = x1 - x0 > z1 - z0;
@@ -332,7 +330,7 @@ export function generateCity(w: LevelWriter, seed: number): void {
       const kind = BLOCK_LAYOUT[bx]?.[bz] ?? 'towers';
       const [x0, z0, x1, z1] = blockRect(bx, bz);
       if (kind === 'deck') {
-        // the deck stands behind this 6 m sidewalk (generate-level puts it at z0 + 6); its stair and elevator shafts go down through it
+        // Leave stair and elevator openings in the six-meter sidewalk before the deck at z0 + 6.
         const holes = [stairShaft([x0, 0, z0 + 6]), elevatorShaft([x0, 0, z0 + 6])].map(([u0, v0, u1, v1]) => ({
           u0,
           u1,
@@ -418,7 +416,7 @@ export function generateCity(w: LevelWriter, seed: number): void {
             const wdt = Math.min(ix1 - x, rng.range(9, 14));
             const h = rng.range(6, 10);
             const z0s = iz1 - 14;
-            // its street front (shop windows, a door, an awning) comes with the building
+            // The building generator supplies storefront windows, doors, and awnings.
             building(w, rng, x, z0s, x + wdt - 1, iz1, h);
             w.sign(
               [x + (wdt - 1) / 2, SW + h - 1.6, iz1 + 0.12],

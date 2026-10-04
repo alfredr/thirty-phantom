@@ -6,14 +6,9 @@ export const MOON_X = 0.715;
 export const MOON_Y = 0.915;
 
 /**
- * Screen-space sky band: the top of the isometric view dissolves through a horizon haze into a skyline silhouette,
- * clouds, stars, the sun by day and the moon from 7pm. Runs before bloom so the moon and windows glow.
- *
- * With the chase camera (isPersp) the same sky is laid out in azimuth/elevation radians around the camera instead, so
- * it stays fixed in the world, and the world fades into the haze with distance.
- *
- * With the iso view's world curvature on (`horizon`), there is no band: the sky fills whatever the curved world leaves
- * uncovered, rising from its horizon.
+ * Composite a procedural sky before bloom. Flat isometric views fade distant geometry into a screen-space sky band.
+ * Perspective views use world-oriented angular coordinates and distance fog. Curved isometric views fill uncovered
+ * pixels with sky and add haze near the planet horizon. DayNight controls celestial visibility.
  */
 export const SkyShader = {
   name: 'SkyShader',
@@ -38,10 +33,9 @@ export const SkyShader = {
     /** How much of the distant skyline silhouette shows, 0..1 (the renderer can drop it in a view). */
     skylineAmount: { value: 1 },
     /**
-     * Iso on the curved world (render/curvature.ts), else w = 0: the sky fills whatever the bent world leaves empty,
-     * rising from the planet's outline, the circle y = y0 + sqrt(r^2 - ((x - 0.5) * sx)^2) in uv, packed as (r, y0, sx,
-     * 1). `planet` is its centre and radius, `toCam` the unit vector toward the camera, and the ground hazes as it
-     * turns away from the view, from where it faces the camera `hazeFrom` (0 is edge on) to the horizon.
+     * Projected planet outline packed as (radius, centreY, aspectScale, enabled), with distances in UV units. The upper
+     * edge is y0 + sqrt(r^2 - ((x - 0.5) * sx)^2). `planet` stores the world-space centre and radius; `toCam` and
+     * `hazeFrom` control haze as the ground normal turns away from the camera.
      */
     horizon: { value: new Vector4() },
     planet: { value: new Vector4() },
@@ -100,13 +94,13 @@ export const SkyShader = {
     }
     float fbm(vec2 p) { float a = 0.5, s = 0.0; for (int i = 0; i < 5; i++) { s += a * noise(p); p *= 2.03; a *= 0.5; } return s; }
 
-    // building silhouette height for a skyline layer
+    // Return a deterministic building height and its cell coordinates for one skyline layer.
     float skyline(float x, float seed, float baseH, float varH, float width, out float cell, out float cx) {
       float xi = x / width;
       cell = floor(xi);
       cx = fract(xi);
       float h = baseH + varH * hash11(cell * 1.7 + seed);
-      if (hash11(cell + seed * 3.1) > 0.82) h += varH * 0.8; // spire
+      if (hash11(cell + seed * 3.1) > 0.82) h += varH * 0.8; // Raise selected buildings above the base height range.
       return h;
     }
 
@@ -122,8 +116,8 @@ export const SkyShader = {
       vec4 wp = invViewProj * vec4(vUv * 2.0 - 1.0, dz * 2.0 - 1.0, 1.0);
       wp /= wp.w;
 
-      // sky coordinates. Iso: screen space, with the band from bandStart (0) to the top (1).
-      // Chase: azimuth and bandStart + elevation in radians, so one unit is a radian either way
+      // Use aspect-corrected screen coordinates in isometric views.
+      // In perspective, use azimuth and bandStart plus elevation, both measured in radians.
       vec2 p;
       float by;
       vec3 ray = vec3(0.0, 0.0, 1.0);
@@ -137,7 +131,7 @@ export const SkyShader = {
         by = el / bandH;
       } else {
         p = vec2(vUv.x * aspect, y);
-        // curved, the sky rises from the planet's outline (level with its widest point past its sides)
+        // Start the sky at the projected planet outline, holding the baseline level beyond its sides.
         float hx = (vUv.x - 0.5) * horizon.z;
         float foot = horizon.w > 0.5 ? horizon.y + sqrt(max(horizon.x * horizon.x - hx * hx, 0.0)) : bandStart;
         by = (y - foot) / bandH;
@@ -145,21 +139,21 @@ export const SkyShader = {
 
       vec3 sky = mix(skyHorizon, skyTop, smoothstep(0.0, 1.0, persp ? by * bandH / 0.55 : by));
 
-      // stars
+      // Fade sparse, twinkling stars toward the horizon.
       vec2 sg = floor(p * vec2(220.0, 220.0));
       float st = hash21(sg);
       float twinkle = 0.6 + 0.4 * sin(time * 3.0 + st * 40.0);
       sky += vec3(0.9, 0.85, 1.0) * step(0.996, st) * twinkle * stars * smoothstep(0.1, 0.6, by);
 
-      // sun
+      // Combine the solar disc with a broader glow.
       float sunR = persp ? acos(clamp(dot(ray, sunDirW), -1.0, 1.0)) : length(p - vec2(sunPos.x * aspect, sunPos.y));
       sky += sunColor * sunAlpha * (smoothstep(0.055, 0.05, sunR) * 2.5 + exp(-sunR * 9.0) * 0.6);
 
-      // moon: craters, rim light, halo
+      // Shade the moon with procedural craters, directional rim light and a halo.
       vec2 md;
       float moonAng;
       if (persp) {
-        // tangent-plane coordinates around the moon's direction, screen-right and screen-up
+        // Project rays onto a tangent frame centered on the moon and aligned with world up.
         vec3 mx = normalize(cross(moonDirW, vec3(0.0, 1.0, 0.0)));
         vec3 my = cross(mx, moonDirW);
         float facing = dot(ray, moonDirW);
@@ -177,8 +171,8 @@ export const SkyShader = {
       sky += vec3(0.45, 0.35, 0.75) * exp(-max(mr - 1.0, 0.0) * 3.0) * 0.35 * moonAlpha;
       sky = mix(sky, moonCol * 0.82, disc * moonAlpha);
 
-      // clouds drifting across, lit near the moon
-      // the chase sky wraps all the way round: crossfade the noise into its own start at the seam
+      // Drift cloud noise horizontally and brighten clouds near the moon.
+      // Crossfade perspective cloud noise across the azimuth seam to keep the sky continuous.
       float cl = persp
         ? mix(cloudAt(p), cloudAt(p - vec2(TAU, 0.0)), smoothstep(TAU - 0.6, TAU, p.x))
         : fbm(vec2(p.x * 2.2 + time * 0.012 + scroll * 0.3, p.y * 5.0));
@@ -187,9 +181,9 @@ export const SkyShader = {
       vec3 cc = mix(cloudColor, cloudLight, clamp(lit + (cl - 0.6) * 1.2, 0.0, 1.0));
       sky = mix(sky, cc, cmask * 0.9);
 
-      // two skyline layers with parallax. Around the chase sky the building widths divide
-      // the full circle evenly, so no building is split at the seam
-      // (none at all with skylineAmount 0: even at zero height, the band under the horizon would read as a flat one)
+      // Offset two skyline layers for isometric parallax; perspective layers remain fixed in azimuth.
+      // Make perspective building widths divide the full circle so cells meet at the seam.
+      // Skip both layers when skylineAmount is zero to avoid a solid band below the horizon.
       float cell, cx;
       float sc = persp ? 0.0 : scroll;
       float xf = p.x * 1.0 + sc * 0.5;
@@ -199,7 +193,7 @@ export const SkyShader = {
       float hn = skyline(xn, 2.0, 0.06, 0.2, persp ? TAU / 90.0 : 0.07, cell, cx) * skylineAmount;
       if (skylineAmount > 0.0 && by < hn) {
         sky = skylineColor;
-        // windows
+        // Light selected window cells while keeping the building edges dark.
         vec2 wg = vec2(cx * 5.0, by * 60.0);
         vec2 wi = floor(wg);
         float lit2 = step(0.62, hash21(wi + cell * 13.0));
@@ -209,7 +203,7 @@ export const SkyShader = {
       }
 
       if (persp) {
-        // below the horizon there is only haze, which the fogged ground runs into
+        // Blend the lower sky into the same haze color used for distance fog on scene geometry.
         sky = mix(sky, haze, smoothstep(0.0, -0.12, by));
         float hz = smoothstep(fogNear, fogFar, length(wp.xyz - camPos));
         vec3 world = mix(col.rgb, haze, hz);
@@ -217,7 +211,7 @@ export const SkyShader = {
         return;
       }
 
-      // curved: the world bends away by itself, sky behind it, the ground hazing as it turns away
+      // For curved views, haze surfaces as they turn away from the camera and show sky at background pixels.
       if (horizon.w > 0.5) {
         float facing = dot(normalize(wp.xyz - planet.xyz), toCam);
         vec3 world = mix(col.rgb, haze, hazeAmount * (1.0 - smoothstep(0.0, hazeFrom, facing)));
@@ -225,14 +219,14 @@ export const SkyShader = {
         return;
       }
 
-      // Depth-aware horizon: reconstruct each pixel's world position and fade
-      // only what lies far "up-screen" from the focus. Nearer geometry (towers,
-      // the deck) stays in front of the skyline instead of being painted over.
+      // In flat isometric views, fade by reconstructed ground-plane distance from the focus.
+      // Only distant geometry transitions into the skyline; nearby towers and deck surfaces
+      // remain in front regardless of their screen height.
       float dist = dot(wp.xz - focus.xz, upDir);
       float far = dz >= 0.99999 ? 1.0 : smoothstep(fade0 + (fade1 - fade0) * 0.55, fade1, dist);
       float hz = smoothstep(fade0, fade1, dist) * hazeAmount;
       vec3 world = mix(col.rgb, haze, hz);
-      // below the band there is no sky to show, only haze
+      // Fade distant pixels below the sky band into haze.
       float skyK = far * smoothstep(bandStart - 0.12, bandStart + 0.02, y);
       vec3 under = mix(world, haze, far);
       gl_FragColor = vec4(mix(under, sky, skyK), 1.0);
@@ -247,18 +241,15 @@ export const GradeShader = {
     resolution: { value: new Vector2(1, 1) },
     time: { value: 0 },
     exposure: { value: 1 },
-    /**
-     * Contrast about mid grey (gamma space). A night frame sits mostly below mid grey, so more than this crushes it
-     * toward black.
-     */
+    /** Contrast about mid-grey in gamma space. Keep the increase small to preserve detail in night shadows. */
     contrast: { value: 1.06 },
-    /** Saturation boost: enough for the neon to pop without the slime green going acid. */
+    /** Saturation multiplier in gamma space. */
     saturation: { value: 1.14 },
-    /** How much darker the corners get (gamma space): frames the view without blacking out the edges at night. */
+    /** Maximum fractional darkening at the corners in gamma space. */
     vignette: { value: 0.25 },
-    /** Film grain amplitude, redrawn every frame: kept low, as it shimmers over dark flat areas. */
+    /** Peak-to-peak film-grain amplitude in gamma space, randomized each frame. */
     grain: { value: 0.012 },
-    /** Chromatic aberration at the corners (uv offset): a slight colour fringe on the ink lines. */
+    /** Scale of radial red and blue channel offsets in UV coordinates. */
     aberration: { value: 0.0012 },
     flash: { value: 0 },
     flashColor: { value: new Color('#9dff3a') },
@@ -272,8 +263,8 @@ export const GradeShader = {
     uniform vec3 flashColor, shadowTint;
     varying vec2 vUv;
     float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
-    // per-channel extended Reinhard: highlights roll off per channel, so saturated
-    // neon stays saturated instead of drifting to white
+    // Apply extended Reinhard tone mapping independently to each color channel.
+    // Independent channel compression preserves more color in bright neon.
     vec3 tonemap(vec3 c) {
       const float W = 3.2;
       return c * (1.0 + c / (W * W)) / (1.0 + c);
@@ -288,7 +279,7 @@ export const GradeShader = {
       col.b = texture2D(tDiffuse, vUv - off).b;
       col += flashColor * flash;
       col = tonemap(col * exposure * 1.35);
-      // grade in a perceptual-ish space
+      // Apply grading in approximate gamma space, then return to linear color.
       vec3 g = pow(max(col, 0.0), vec3(1.0 / 2.2));
       float lum = dot(g, vec3(0.2126, 0.7152, 0.0722));
       g = mix(vec3(lum), g, saturation);

@@ -66,7 +66,7 @@ test('claims hold per target and per holder, preempt with a lost mark, and hand 
   assert.equal(claims.lostBy(valetJob), true);
   assert.equal(lost[0].holder, valet);
 
-  // one seat per driver: taking another car leaves the first
+  // Taking another car releases the driver’s previous seat.
   assert.equal(claims.take('driverSeat', cody, car2, { owner: codyJob, preempt: true }), true);
   assert.equal(claims.holder('driverSeat', car), null);
 
@@ -86,7 +86,7 @@ test('claims hold per target and per holder, preempt with a lost mark, and hand 
   assert.equal(claims.holder('driverSeat', car2), cody, 'the claim outlived the job that took it');
 });
 
-/** A test action: waits `frames` frames, optionally holding a claim, then finishes. */
+/** Wait for the requested number of frames, optionally holding a claim, then finish. */
 class Wait extends Action {
   constructor(p) {
     super();
@@ -131,11 +131,11 @@ test('the runner resolves, hands off, keeps running actions going, and ends thei
   const spot13 = {};
   const car = {};
 
-  // resolve hands off before anything happens
+  // Resolution replaces the candidate before perform() runs.
   doing.do(w, new Wait({ label: 'INTERACT', resolveTo: () => new Wait({ label: 'POSSESS' }) }));
   assert.deepEqual(outcomes.pop(), ['done', 'POSSESS']);
 
-  // a running action holds its claim across frames, and gives it up when it finishes
+  // The running action retains its claim across frames and releases it when finished.
   doing.do(w, new Wait({ label: 'PARK', frames: 2, claim: { kind: 'spot', holder: car, target: spot12 } }));
   assert.equal(claims.holder('spot', spot12), car);
   doing.update(w, 1 / 30);
@@ -143,7 +143,7 @@ test('the runner resolves, hands off, keeps running actions going, and ends thei
   assert.deepEqual(outcomes.pop(), ['done', 'PARK']);
   assert.equal(claims.holder('spot', spot12), null, 'the claim ended with the action');
 
-  // a taken spot hands off to another one while performing
+  // A failed claim can replace the running action with a different destination.
   claims.take('spot', {}, spot12, { owner: {} });
   doing.do(
     w,
@@ -164,7 +164,7 @@ test('an action that loses its claim stops before acting', () => {
   doing.update(w, 1 / 30);
   assert.equal(claims.holder('spot', seat), valet);
 
-  // a carjack: someone else takes the seat with preempt
+  // Preempt the claim to simulate another actor taking ownership.
   claims.take('spot', {}, seat, { owner: {}, preempt: true });
   const before = w.log.length;
   doing.update(w, 1 / 30);

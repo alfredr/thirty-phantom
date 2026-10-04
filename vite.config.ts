@@ -9,7 +9,7 @@ export default defineConfig({
   base: './',
   build: { target: 'es2022', chunkSizeWarningLimit: 2000 },
   server: { host: true },
-  // '@/x' is src/x: imports across folders are rooted there (same-folder ones stay './')
+  // Resolve application imports from src/; same-folder imports use './'.
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   plugins: [levelValidator(), reloadPrompt()],
 });

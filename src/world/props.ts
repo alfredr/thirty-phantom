@@ -7,7 +7,7 @@ import { Rng } from '@/engine/core/rng';
 import type { CollisionWorld, Solid } from '@/engine/physics/collision';
 import { bodyHalf } from '@/engine/physics/vehicle-params';
 
-/** Something that shoves loose props around: a vehicle, by its three body circles. */
+/** Vehicle state used to push loose props with three body circles. */
 export interface Pusher {
   readonly pos: Vector3;
   readonly vel: Vector3;
@@ -15,34 +15,33 @@ export interface Pusher {
   readonly params: { readonly radius: number; readonly length: number };
 }
 
-/** How one kind of prop is drawn, falls and lies. */
-/** PropKind.down for a prop whose widest part reaches `half` out from its base: the tilt where that part touches down. */
+/** Return the resting tilt in radians where a prop's widest part, `half` from its axis at `height`, touches the ground. */
 export function restTilt(half: number, height: number): number {
   return Math.PI / 2 - Math.atan2(half, height);
 }
 
 export interface PropKind {
-  /** What it is ('lamp', 'fence', 'bench', 'tree' ...), for whatever goes by kind (its sound). */
+  /** Prop identifier used by effects such as impact sounds. */
   name: string;
   /**
-   * Its copies, instanced. With `baked`, they're drawn only while knocked down (standing, the baked copy shows instead,
-   * and with none down the instances cost no draw call at all). Null for a kind that only shatters.
+   * Instanced geometry, or null for shatter-only props. If `baked` is present, instances render only after a prop is
+   * knocked down.
    */
   draw: Instanced<string> | null;
-  /** Its copies in a static bake (decor), by slot: each hidden while it's down or broken. */
+  /** Visibility controls for standing geometry in the static decor batch, indexed by slot. */
   baked?: { show(slot: number, on: boolean): void };
   height: number;
-  /** Lying, half its footprint across its old up axis (before any stretch). */
+  /** Half-width of the lying footprint across the original vertical axis, before scaling and stretching. */
   wide: number;
-  /** Tilt it comes to rest at: just short of flat, where its widest part touches down. */
+  /** Resting tilt in radians, measured from upright. */
   down: number;
-  /** Goes over square to its facing (a fence panel) rather than whichever way it was hit (a lamp). */
+  /** Restrict falling to the front or back of the prop's local orientation. */
   square: boolean;
-  /** Breaks up instead of tipping over (a hedge, a bus shelter): gone in a burst of debris (onBroken) till sunrise. */
+  /** Remove on impact and emit onBroken instead of toppling. Remain broken until repair(). */
   shatter?: boolean;
-  /** What it breaks into, for the game's debris: a burst is split between these colors. */
+  /** Debris colors supplied to the game's break effect. */
   debris?: readonly Color[];
-  /** Share of its speed a vehicle keeps going through one (unset: the game's default for the vehicle). */
+  /** Fraction of vehicle speed retained after impact; undefined selects the game's vehicle default. */
   keep?: number;
 }
 
@@ -61,28 +60,27 @@ export interface PropSpec {
   /** Uniform size (default 1): a smaller street tree. */
   scale?: number;
   solid: Solid;
-  /** More solids that stand and go with it (a bus shelter's walls and roof): hitting any of them is hitting it. */
+  /** Additional collision boxes belonging to the same prop. Hitting any box affects the whole prop. */
   parts?: Solid[];
-  /** Sightline blockers in world.sight that go with it (a tree's crown). */
+  /** Visual occluders disabled with the prop, such as tree crowns. */
   sight?: Solid[];
-  /** What it stands on, if that can break (a railing's parapet): when it goes, so does the prop. */
+  /** Optional breakable support. Disable or topple the prop when this solid is removed. */
   support?: Solid;
-  /** Which way it goes over when nothing pushed it (off the edge it guards); random if unset. */
+  /** Fallback horizontal fall direction when no impact direction is available; randomized if omitted. */
   fall?: [number, number];
   /**
-   * Posed by its owner while it stands (a gate's arm, which the gate lifts): tipped toward `heading`, starting at
-   * `tilt`, then set with hold(), and broken off with release(). Its solid isn't in the collision world, so it never
-   * falls over on its own.
+   * Owner-controlled pose while standing, used by gate arms. hold() changes tilt and release() detaches the prop. Held
+   * props do not topple automatically when their synthetic solid is disabled.
    */
   held?: { heading: number; tilt: number };
-  /** A lamp: its light, and the first of its four ground-glow vertices, to switch off when it goes dark. */
+  /** Lamp emitter and first vertex of its four-vertex glow decal, disabled when the lamp lands. */
   light?: { emitter: { strength: number }; glow: number; color: Color };
 }
 
 const UP = 0;
 const FALLING = 1;
 const LYING = 2;
-/** Shattered: gone till sunrise. */
+/** Hide shattered props until repair restores them. */
 const BROKEN = 3;
 
 /** Sliding friction (m/s^2) and spin friction (rad/s^2) on the ground. */
@@ -93,17 +91,14 @@ const RESTITUTION = 0.2;
 const RECOIL = 0.04;
 /** Props slide up a curb this high, not a wall. */
 const STEP = 0.3;
-/**
- * A shove moves a prop at most this far in a step (m): one a truck stops on top of (a felled tree) slides out from
- * under it rather than jumping.
- */
+/** Maximum positional separation per contact in meters, limiting sudden movement when a vehicle overlaps a loose prop. */
 const SHOVE_MAX = 0.5;
 /** A lamp's ground glow: 4 vertices of rgb in the glow decal's color buffer. */
 const GLOW_FLOATS = 12;
 
 const _a = new Matrix4();
 const _b = new Matrix4();
-/** An instance drawn as nothing. */
+/** Zero-scale transform for hidden instances. */
 const HIDDEN = new Matrix4().makeScale(0, 0, 0);
 const _v = new Vector3();
 const _p: V3 = [0, 0, 0];
@@ -111,10 +106,9 @@ const _q0: V3 = [0, 0, 0];
 const _q1: V3 = [0, 0, 0];
 
 /**
- * A prop that goes over the way it was hit (a lamp, a tree) and would come down through a wall tries these turns off
- * that way instead, nearest first (radians); if none is clear it goes the way it was hit. Its way down is checked this
- * high off its base, over this share of its height, along its middle and out to this share of its lying half-width each
- * side (so a tree's crown doesn't go through a doorway).
+ * Alternative fall-heading offsets in radians, tested nearest to the impact direction first. If all are obstructed,
+ * retain the impact direction. FALL_PROBE defines three horizontal clearance segments above the base, sized by prop
+ * height and lying half-width.
  */
 const FALL_TURNS = [
   0,
@@ -128,7 +122,7 @@ const FALL_TURNS = [
 ];
 const FALL_PROBE = { y: 1, reach: 0.9, side: 0.5, lanes: [-1, 0, 1] };
 
-/** Every one of the prop's extra solids still standing. */
+/** Return whether all additional collision boxes remain enabled. */
 function partsUp(p: PropSpec): boolean {
   const parts = p.parts;
   if (!parts) {
@@ -145,13 +139,10 @@ function partsUp(p: PropSpec): boolean {
 }
 
 /**
- * Street furniture vehicles knock over. Standing, a prop is a static solid. Hit at TUNING.knockdown.speed (a heavy one:
- * by the monster truck at its smash speed), or when what it stands on breaks, it tips over about its base (a lamp the
- * way it was hit, a fence panel flat), and lying it's a loose body: it drops onto whatever is below, vehicles shove and
- * spin it, it slides with friction, stops at walls and settles. A lamp flickers on the way down and goes dark when it
- * lands. Kinds that shatter (a hedge, a bus shelter) are simply gone instead. Sunrise stands them all back up.
- *
- * Per-prop state lives in typed arrays and instance matrices are written in place, so a frame allocates nothing.
+ * Manage standing, falling, loose, and shattered props. Collision events or lost support trigger toppling; fallen props
+ * interact with vehicles and terrain using friction, impacts, and gravity. Lamps flicker while falling and extinguish
+ * on landing. repair() restores initial poses, collision, and lights. State uses typed arrays and shared transform
+ * scratch space.
  */
 export class Props {
   readonly root = new Group();
@@ -170,7 +161,7 @@ export class Props {
 
   private readonly bySolid = new Map<number, number>();
   private readonly kinds: PropKind[] = [];
-  /** Each prop's place in `kinds`, and how many of each kind are off their feet. */
+  /** Kind index per prop and count of non-standing props per kind. */
   private readonly kindOf: Uint16Array;
   private readonly downs: Uint32Array;
   private readonly state: Uint8Array;
@@ -194,7 +185,7 @@ export class Props {
   /** Lying footprint half-extents: along its old up axis, and across. */
   private readonly long: Float32Array;
   private readonly wide: Float32Array;
-  /** Which way it goes over when something hits it without saying how (a valet's car). */
+  /** Fallback horizontal impact direction for unreported collisions or lost support. */
   private readonly fallX: Float32Array;
   private readonly fallZ: Float32Array;
   private readonly strength: Float32Array;
@@ -238,7 +229,7 @@ export class Props {
           this.root.add(p.kind.draw.root);
         }
 
-        // baked while standing: nothing to draw till one goes down
+        // Hide dynamic instances while every copy is represented by static geometry.
         if (p.kind.draw && p.kind.baked) {
           p.kind.draw.root.visible = false;
         }
@@ -263,7 +254,7 @@ export class Props {
     this.repair();
   }
 
-  /** The ground-glow decals' color attribute, so a dead lamp's glow can go out. */
+  /** Attach the shared glow color buffer and cache each lamp's original colors for restoration. */
   attachGlow(color: BufferAttribute): void {
     this.glowColor = color;
     const a = color.array;
@@ -292,8 +283,8 @@ export class Props {
   }
 
   /**
-   * Snap a standing prop loose, moving (vx, vy, vz): it drops flat and lies there to be shoved about. Its kind, or null
-   * if it wasn't standing.
+   * Detach a standing prop into the loose state with the supplied velocity in meters per second. Return its kind, or
+   * null if the index is invalid or the prop is not standing.
    */
   release(i: number, vx: number, vy: number, vz: number): PropKind | null {
     const p = this.props[i];
@@ -319,8 +310,8 @@ export class Props {
   }
 
   /**
-   * `by`, going (vx, vz), hit the prop solid `solidId`: the kind it knocked over (or broke), or null if that's not a
-   * standing prop.
+   * Topple or shatter the standing prop associated with `solidId`, using the supplied impact velocity and source.
+   * Return its kind, or null if no standing prop matches.
    */
   knock(solidId: number, vx: number, vz: number, by: object | null = null): PropKind | null {
     const i = this.bySolid.get(solidId);
@@ -336,7 +327,7 @@ export class Props {
     for (let i = 0; i < this.props.length; i++) {
       const st = this.state[i] as number;
       if (st === UP) {
-        // driven through by someone who didn't report it, or what it stood on is gone
+        // Handle externally disabled collision boxes and lost support.
         const p = this.props[i] as PropSpec;
         if (!p.held && (!p.solid.enabled || !partsUp(p) || (p.support && !p.support.enabled))) {
           this.topple(
@@ -384,7 +375,7 @@ export class Props {
     }
   }
 
-  /** Prop i back standing where it belongs, its solid on, a lamp lit. */
+  /** Restore prop i's initial pose, collision, static geometry, and lamp state. */
   private stand(i: number): void {
     {
       const p = this.props[i] as PropSpec;
@@ -433,7 +424,7 @@ export class Props {
     }
   }
 
-  /** Prop i leaves its feet: its solids go, and its baked copy (if it has one) gives way to its instance. */
+  /** Disable prop i's collision and visual occluders, hide its static geometry, and enable instances for its kind. */
   private unstand(i: number): void {
     const p = this.props[i] as PropSpec;
     p.solid.enabled = false;
@@ -455,7 +446,7 @@ export class Props {
     }
   }
 
-  /** Prop i breaks up where it stands: gone till sunrise, the box its solids filled left for the debris (onBroken). */
+  /** Mark prop i as shattered and publish its kind, impact source, and combined collision bounds through onBroken. */
   private shatter(i: number, by: object | null): void {
     const p = this.props[i] as PropSpec;
     this.unstand(i);
@@ -485,17 +476,17 @@ export class Props {
     let dx = speed > 0.1 ? vx / speed : (this.fallX[i] as number);
     let dz = speed > 0.1 ? vz / speed : (this.fallZ[i] as number);
     this.unstand(i);
-    // dragged along a little by the hit
+    // Transfer part of the impact velocity into horizontal drift.
     let drag = p.kind.square ? 0.6 : 0.3;
     if (p.kind.square) {
-      // flat over, front or back, whichever side it was hit from
+      // Choose the local front or back normal nearest the impact direction.
       const nx = Math.sin(p.yaw);
       const nz = Math.cos(p.yaw);
       const s = dx * nx + dz * nz < 0 ? -1 : 1;
       dx = nx * s;
       dz = nz * s;
     } else {
-      // not through a wall (a street tree with a shop front behind it): the nearest clear way round
+      // Prefer a nearby unobstructed fall heading to avoid falling through walls.
       const h0 = Math.atan2(dx, dz);
       for (const turn of FALL_TURNS) {
         const h = h0 + turn;
@@ -506,7 +497,7 @@ export class Props {
         dx = Math.sin(h);
         dz = Math.cos(h);
 
-        // the way it was hit is blocked: it snaps where it stood
+        // Keep the base stationary when redirecting a blocked fall.
         if (turn !== 0) {
           drag = 0;
         }
@@ -523,10 +514,7 @@ export class Props {
     this.vz[i] = vz * drag;
   }
 
-  /**
-   * Prop i could come down toward heading h without going through a wall: its middle and both sides, low over the
-   * ground.
-   */
+  /** Test three horizontal clearance segments for a fall toward heading h. Return false if any intersects the world. */
   private clearFall(i: number, h: number): boolean {
     const p = this.props[i] as PropSpec;
     const reach = 2 * (this.long[i] as number) * FALL_PROBE.reach;
@@ -534,7 +522,7 @@ export class Props {
     const fz = Math.cos(h);
     const side = (this.wide[i] as number) * FALL_PROBE.side;
     for (const o of FALL_PROBE.lanes) {
-      // across the way down: (fz, -fx)
+      // Offset across the fall direction by the prop half-width.
       const ox = fz * side * o;
       const oz = -fx * side * o;
       _q0[0] = p.x + ox;
@@ -552,7 +540,7 @@ export class Props {
     return true;
   }
 
-  /** Tipping over about its base, sliding with whatever the hit gave it. */
+  /** Integrate falling tilt and horizontal drift, then bounce or transition to the loose state at the resting angle. */
   private fall(i: number, dt: number): void {
     const p = this.props[i] as PropSpec;
     const down = p.kind.down;
@@ -575,8 +563,7 @@ export class Props {
         this.land(i);
       }
 
-      // a bounce if it came down hard (judged before this step's pull, which alone tops that for a
-      // short prop), then it lies there loose
+      // Test pre-step angular speed for bouncing so gravity on short props cannot sustain repeated bounces.
       if (was > 1.2) {
         w = -w * 0.28;
       } else {
@@ -626,8 +613,8 @@ export class Props {
   }
 
   /**
-   * A lying prop shoved hard against a thin wall (a truck pinning a tree to a shop front) can be pushed through it in
-   * one step: if its middle went through a solid from (ox, oz), it goes back.
+   * Reject horizontal movement when the prop centre crosses a solid between (ox, oz) and its new position. Reset
+   * horizontal velocity and restore the previous position.
    */
   private keepOut(i: number, ox: number, oz: number, world: CollisionWorld): void {
     const x = this.cx[i] as number;
@@ -658,12 +645,12 @@ export class Props {
     this.place(i);
   }
 
-  /** Vehicles push a lying prop out of their way: a light box against their body circles. */
+  /** Separate a loose prop from vehicle body circles and apply linear and angular impulses to both participants. */
   private shove(i: number, pushers: readonly Pusher[]): void {
     const L = this.long[i] as number;
     const W = this.wide[i] as number;
     const h = this.heading[i] as number;
-    // footprint axes: d along its old up axis, e across
+    // Use d along the former vertical axis and e across the resting footprint.
     const dx = Math.sin(h);
     const dz = Math.cos(h);
     const ex = dz;
@@ -688,7 +675,7 @@ export class Props {
       }
 
       for (let c = -1; c <= 1; c++) {
-        // circle center relative to the footprint, in its own axes
+        // Express the vehicle circle center in the footprint frame.
         const rx = ox + fx * half * c;
         const rz = oz + fz * half * c;
         const u = rx * dx + rz * dz;
@@ -719,7 +706,7 @@ export class Props {
           pen = r + W - Math.abs(s);
         }
 
-        // m: from the circle into the prop
+        // Orient the contact normal from the vehicle circle into the prop.
         const mx = -(dx * nu + ex * ns);
         const mz = -(dz * nu + ez * ns);
         if (pen > SHOVE_MAX) {
@@ -728,7 +715,7 @@ export class Props {
 
         this.cx[i] = (this.cx[i] as number) + mx * pen;
         this.cz[i] = (this.cz[i] as number) + mz * pen;
-        // contact point relative to the prop's center, and how fast it's closing
+        // Include angular velocity when measuring contact closing speed.
         const px = dx * qu + ex * qs;
         const pz = dz * qu + ez * qs;
         const w = this.spin[i] as number;
@@ -751,7 +738,10 @@ export class Props {
     }
   }
 
-  /** A lying prop drops onto what's below, slides and spins down to rest, kept out of walls, riding up curbs. */
+  /**
+   * Integrate loose-prop motion with friction, terrain collision, curb stepping, and gravity. Sleep the prop once all
+   * movement stops on the ground.
+   */
   private slide(i: number, dt: number, world: CollisionWorld): void {
     this.friction(i, dt);
     let w = this.spin[i] as number;
@@ -760,7 +750,7 @@ export class Props {
     let h = (this.heading[i] as number) + w * dt;
     let cx = (this.cx[i] as number) + (this.vx[i] as number) * dt;
     let cz = (this.cz[i] as number) + (this.vz[i] as number) * dt;
-    // three circles along it against the world
+    // Approximate the resting footprint with three collision circles.
     const L = this.long[i] as number;
     const W = Math.min(this.wide[i] as number, L);
     const y = this.by[i] as number;
@@ -781,7 +771,7 @@ export class Props {
       const ddz = _p[2] - z0;
       mx += ddx / 3;
       mz += ddz / 3;
-      // a push at one end turns it
+      // Off-center corrections also rotate the prop.
       w += ((Math.cos(h) * off * ddx - Math.sin(h) * off * ddz) / (L * L)) * 2;
     }
 
@@ -800,7 +790,7 @@ export class Props {
     this.cz[i] = cz;
     this.spin[i] = w;
     this.heading[i] = h;
-    // off a wall top or a ramp edge: fall until something's under it
+    // Apply gravity when the prop moves beyond its supporting surface.
     const g = world.groundAt(cx, cz, y, STEP);
     let vy = this.vy[i] as number;
     let ny = g;
@@ -817,7 +807,7 @@ export class Props {
 
     this.by[i] = ny;
     this.vy[i] = vy;
-    // base from the center, for drawing
+    // Recover the original base point from the resting footprint center.
     const r = L * Math.sin(this.tilt[i] as number);
     this.bx[i] = cx - Math.sin(h) * r;
     this.bz[i] = cz - Math.cos(h) * r;
@@ -838,7 +828,10 @@ export class Props {
     this.vz[i] = vz * k;
   }
 
-  /** Copy i's matrix: about its base, tipped `tilt` toward `heading`, its own yaw `sigma` (and slope) on top. */
+  /**
+   * Update prop i's instance transform from scale, shear, relative yaw, tilt, heading, and base position. Hide broken
+   * props and standing props represented by static geometry.
+   */
   private place(i: number): void {
     const p = this.props[i] as PropSpec;
     const draw = p.kind.draw;
@@ -847,7 +840,7 @@ export class Props {
     }
 
     const st = this.state[i];
-    // broken, or standing while its baked copy shows
+    // Hide dynamic instances for broken props and props still represented by static geometry.
     if (st === BROKEN || (st === UP && p.kind.baked)) {
       draw.place(p.slot, HIDDEN);
       return;

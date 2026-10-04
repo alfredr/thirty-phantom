@@ -1,15 +1,17 @@
 # Sound credits
 
-These recordings come from Freesound previews released under CC0 1.0. They were trimmed,
-converted to mono, normalized, and encoded as MP3. Other sounds are synthesized in
+The recordings below are Freesound previews released under CC0 1.0. The game uses
+trimmed, mono MP3 versions. Additional effects and ambience are synthesized by
 [`src/audio/synth.ts`](../../src/audio/synth.ts).
 
-[`tools/engine-grains.py`](../../tools/engine-grains.py) extracts engine cycles from idle and
-acceleration recordings. The `engine-*.json` files store cycle timing, rate, load, and level;
-[`src/audio/grains.ts`](../../src/audio/grains.ts) uses them to match playback to the vehicle.
+[`tools/engine-grains.py`](../../tools/engine-grains.py) extracts and normalizes cycles
+from engine recordings. Each `engine-*.json` file stores cycle timing, firing rate,
+load class, and level. [`src/audio/grains.ts`](../../src/audio/grains.ts) selects and
+schedules these cycles to follow the vehicle's RPM and load.
 
-Audio is on by default. Recordings load after the first key press, click, or tap.
-Use `?sound=0` to disable audio or `?sound` to log sound cues in the console.
+Audio is enabled by default. Recordings start loading after a keyboard, pointer, or
+touch gesture activates the audio context. Use `?sound=0` to disable audio or `?sound`
+to enable audio with cue logging in the browser console.
 
 | File | Cue | Original | Author | License |
 | --- | --- | --- | --- | --- |

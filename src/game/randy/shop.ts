@@ -14,13 +14,13 @@ export interface Transfer {
   cost: number;
 }
 
-/** Cody on foot this close to Randy (m, on his level) while he's pitching is at his wares. */
+/** Horizontal browsing range and maximum vertical separation, in meters. */
 const SHOP_REACH = 2.8;
 const SHOP_LEVEL = 2;
 
 /** Owns browsing and complete transfers from Randy's stock to Cody. */
 export class Shop {
-  /** Whose wares Cody's at, if anyone's. */
+  /** NPC whose stock Cody is browsing, if any. */
   private at: Npc | null = null;
 
   constructor(
@@ -78,11 +78,11 @@ export class Shop {
     return { kind: slot.kind, n, cost };
   }
 
-  /** `cody`: where Cody is on foot, or null. Returns whose wares he's at now, if anyone's. */
+  /** Update browsing from Cody’s on-foot position; null ends browsing. Return the active shop NPC, if any. */
   update(cody: Vector3 | null): Npc | null {
     const at = this.at;
     if (at && !(cody && within(at, cody) && at.pitch.in('browsing'))) {
-      // he's walked off: Randy can shut his coat (a scene that took Randy has seen to that already)
+      // Release browsing when Cody leaves or a scene takes control of Randy.
       at.send({ type: 'browseEnded' });
       this.at = null;
     }

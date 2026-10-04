@@ -1,6 +1,6 @@
 // Drivers who see phantom Cody. Each case runs in the page (see tools/scenarios.mjs).
 
-/** Night falls with traffic about. */
+/** Start traffic and advance through the transition to night. */
 const nightTraffic = () => {
   const g = window.__game;
   const sim = window.__sim;
@@ -11,8 +11,8 @@ const nightTraffic = () => {
 };
 
 /**
- * Cody appears in the road just ahead of the traffic car nearest the deck's entry, frame after frame, until a driver
- * turns off for the deck. Returns that car, or null.
+ * Repeatedly frighten traffic near the deck entry. Return the first car that starts a refuge route, or null after 900
+ * frames.
  */
 const turnIn = () => {
   const g = window.__game;
@@ -29,17 +29,14 @@ const turnIn = () => {
   return null;
 };
 
-/** Where Cody would stand `meters` behind a car, on its line. */
+/** Return a point the requested number of meters behind the car along its heading. */
 const behind = (car, meters) => ({
   x: car.pos.x - Math.sin(car.yaw) * meters,
   y: car.pos.y,
   z: car.pos.z - Math.cos(car.yaw) * meters,
 });
 
-/**
- * A driver whose road leads toward Cody, with the deck's entry just ahead, turns off without stopping, parks, sits a
- * moment, then gets out and runs.
- */
+/** Verify that a frightened driver enters the deck without stopping, parks in a spot, and joins the pedestrian crowd. */
 export function turnsIntoDeck() {
   const g = window.__game;
   const sim = window.__sim;
@@ -76,7 +73,7 @@ export function turnsIntoDeck() {
   };
 }
 
-/** With Cody behind them the road is the way out: the driver floors it along it. */
+/** Verify that a driver accelerates along the road when Cody remains behind the car. */
 export function speedsAwayWhenCodyIsBehind() {
   const g = window.__game;
   const sim = window.__sim;
@@ -101,7 +98,7 @@ export function speedsAwayWhenCodyIsBehind() {
   };
 }
 
-/** Far from the deck, with Cody standing in the road ahead, a driver stops short of him, gets out and runs. */
+/** Verify that a driver far from the deck stops short of Cody and joins the pedestrian crowd. */
 export function stopsAndRunsWhenCornered() {
   const g = window.__game;
   const sim = window.__sim;
@@ -140,10 +137,7 @@ export function stopsAndRunsWhenCornered() {
   };
 }
 
-/**
- * Cody moves behind a driver on their way to the turn-off: the road is the way out again, so they take it and give up
- * the deck.
- */
+/** Verify that moving Cody behind a driver cancels the refuge route, releases its spot, and restores traffic driving. */
 export function backToTheRoadWhenCodyMoves() {
   const g = window.__game;
   const sim = window.__sim;
@@ -173,10 +167,7 @@ export function backToTheRoadWhenCodyMoves() {
   };
 }
 
-/**
- * Cody steps into the way in, between a driver and the deck: they don't drive at him. They find a way round, or get out
- * and run.
- */
+/** Verify that a refuge route resolves while keeping the car clear of Cody when he blocks the approach. */
 export function givesWayWhenCodyIsInTheWayIn() {
   const g = window.__game;
   const sim = window.__sim;
@@ -216,10 +207,7 @@ export function givesWayWhenCodyIsInTheWayIn() {
   };
 }
 
-/**
- * Inside the deck with Cody following in sight, a driver heads up a level; once he's out of sight they park and, after
- * a moment, get out.
- */
+/** Verify that repeated scares inside the deck send the driver upstairs, where it eventually parks. */
 export function climbsWhileCodyIsInSight() {
   const g = window.__game;
   const sim = window.__sim;
@@ -255,7 +243,7 @@ export function climbsWhileCodyIsInSight() {
   };
 }
 
-/** Cody takes a car while its frightened driver is running it for the deck: the run stops, and its spot is free again. */
+/** Verify that boarding a fleeing driver’s car cancels the refuge route and frees its reserved spot. */
 export function stopsWhenCarjacked() {
   const g = window.__game;
   const sim = window.__sim;
@@ -267,7 +255,7 @@ export function stopsWhenCarjacked() {
 
   sim.run(90);
   const spot = g.garage.spots.find((s) => g.claims.holder('spot', s) === car);
-  // board() is the scripted way in, past Cody's abilities: at night phantom Cody couldn't steal it out on the street.
+  // Call board() directly to bypass the ability rules that prevent phantom Cody from stealing a street car.
   g.board(car);
   sim.run(3);
   const peopleAfter = g.crowd.living().length;
@@ -286,8 +274,8 @@ export function stopsWhenCarjacked() {
 }
 
 /**
- * Phantom Cody (the player, on foot) stands at `at` for `seconds`, and the drivers around him react through the
- * reactions table, as in play. Returns what they did.
+ * Place Cody at `at` for `seconds` and record vehicle reactions, minimum moving-car distance, and maximum frame
+ * displacement.
  */
 const watch = (at, seconds) => {
   const g = window.__game;
@@ -343,7 +331,7 @@ const watch = (at, seconds) => {
   };
 };
 
-/** The lane that runs closest by the deck's entry, and how far along it that is. */
+/** Find the traffic path nearest the deck entry and the distance along that path to its closest point. */
 const gateLane = () => {
   const g = window.__game;
   const e = g.refuge.entry;
@@ -360,10 +348,7 @@ const gateLane = () => {
   return best;
 };
 
-/**
- * Phantom Cody stands in the lane just past the deck's entry: drivers coming at him duck into the deck or stop and get
- * out, and nobody drives into him.
- */
+/** Verify that Cody standing just beyond the entry sends at least one driver into the deck and keeps moving cars clear. */
 export function playerJustPastTheGate() {
   const g = window.__game;
   const sim = window.__sim;
@@ -375,8 +360,8 @@ export function playerJustPastTheGate() {
 }
 
 /**
- * Phantom Cody stands in the lane ahead of two cars close together, away from the deck. The first stops short of him
- * and its driver gets out; the one behind, held up, may pull round the stopped car, but nobody drives into him.
+ * Place Cody ahead of two nearby cars away from the deck. Verify that both react and moving cars keep clear without
+ * entering the deck.
  */
 export function playerInTheRoadAwayFromTheDeck() {
   const g = window.__game;
@@ -411,5 +396,5 @@ export function playerInTheRoadAwayFromTheDeck() {
   return { ok: r.phantom && r.spooked >= 2 && r.turnedIn === 0 && r.closestMoving > 1.5, ...r };
 }
 
-/** Steps shared by this set's cases, installed on window.__sim before each one. */
+/** Shared browser scenario helpers installed on window.__sim before each case. */
 export const steps = { nightTraffic, turnIn, behind, watch, gateLane };

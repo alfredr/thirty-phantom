@@ -6,14 +6,14 @@ import { keyText } from '@/ui/hud';
 import { ICONS } from './icons';
 import type { PhoneApp } from './phone';
 
-/** What the Tasks app reads: the task right now, the standing aim, and the markers out in the world. */
+/** State readers for the current task, overall objective, and world markers. */
 export interface TaskList {
   goal(): string | null;
   aim(): string;
   marks(): readonly { label: string; kind: ObjectiveKind }[];
 }
 
-/** The task right now (the line under the clock), the standing aim, and what's marked out in the world. */
+/** Display the current task, marked objectives, and overall goal. */
 export class Tasks implements PhoneApp {
   readonly id = 'tasks';
   readonly name = 'TASKS';
@@ -52,10 +52,7 @@ export class Tasks implements PhoneApp {
   }
 }
 
-/**
- * What the Phantoms app reads: the board's phantom count (the badge log less the cars really there) of how many spots,
- * all the escapes, the badge log, cars really in the deck, and the spots their imprints haunt.
- */
+/** Occupancy, escape, and ledger counters plus phantom location labels consumed by the Phantoms app. */
 export interface PhantomReport {
   onBoard: number;
   spots: number;
@@ -65,7 +62,7 @@ export interface PhantomReport {
   where: readonly string[];
 }
 
-/** How the haunting's going: phantoms in spots against the deck's spots, the badge log, and where each phantom hangs. */
+/** Display phantom occupancy, escape totals, ledger counts, and phantom locations. */
 export class Phantoms implements PhoneApp {
   readonly id = 'phantoms';
   readonly name = 'PHANTOMS';
@@ -100,7 +97,7 @@ export class Phantoms implements PhoneApp {
   }
 }
 
-/** The city map. While it's up and Cody's on foot, the HUD's map docks in here. */
+/** Provide a container for the HUD’s phone map, available while walking or driving. */
 export class MapApp implements PhoneApp {
   readonly id = 'map';
   readonly name = 'MAP';
@@ -111,13 +108,13 @@ export class MapApp implements PhoneApp {
   }
 }
 
-/** A photo on the phone, and what it says under it. */
+/** Image source and caption for the phone’s photo gallery. */
 export interface Photo {
   src: string;
   caption: string;
 }
 
-/** The phone's photos. None yet. */
+/** Static photo gallery entries. */
 export const PHOTOS: readonly Photo[] = [];
 
 /** The phone's camera roll. */
@@ -139,7 +136,7 @@ export class Photos implements PhoneApp {
   }
 }
 
-/** Every key, and what it does: drawn when it comes up, so the caps match the device in use. */
+/** Rebuild the control reference when selected so labels match the current input device. */
 export class Help implements PhoneApp {
   readonly id = 'help';
   readonly name = 'HELP';

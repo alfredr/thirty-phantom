@@ -18,39 +18,39 @@ import { landingPoint } from './elevator-shaft';
 import type { Elevators } from './elevators';
 import type { ElevatorDef, LevelData, V3, ZoneDef } from './level-data';
 
-/** Who is moving: how much room they need and what ground they like. */
+/** Clearance requirements and movement costs used to plan routes for an actor. */
 export interface NavProfile {
   readonly name: string;
-  /** Clearance kept from walls and drop-offs. */
+  /** Minimum horizontal clearance from walls and drop-offs, in meters. */
   readonly radius: number;
-  /** Headroom needed above a surface. */
+  /** Required headroom above a surface, in meters. */
   readonly height: number;
-  /** Biggest height change between neighbouring cells (kerbs, stairs, ramps). */
+  /** Maximum height change between neighboring cells, in meters. */
   readonly stepUp: number;
-  /** Cars: everything that isn't road costs this much more. */
+  /** Movement cost multiplier outside roads, asphalt overlays, decks and ramps. */
   readonly offRoad: number;
-  /** People: street-level road costs this much more (they stay on sidewalks). */
+  /** Street-level movement cost multiplier, used when offRoad is 1. */
   readonly onStreet: number;
-  /** Follow traffic lane directions (cheap with the flow, expensive against it). */
+  /** Apply directional cost multipliers from the traffic lane field. */
   readonly lanes: boolean;
-  /** Clearance it likes to keep: closer than this to a wall or drop costs more, so routes run down the middle. */
+  /** Preferred clearance in meters. Walls and drops closer than this increase movement cost. */
   readonly roomy: number;
-  /** Extra cost at the minimum clearance (fades to none at `roomy`). */
+  /** Maximum wall cost multiplier added at minimum clearance; it falls to zero at roomy. */
   readonly wallCost: number;
-  /** Vehicles: the physics parameters routes are shaped for (turning circle, body length). */
+  /** Vehicle dimensions and steering limits used to shape the route. */
   readonly vehicle?: VehicleParams;
 }
 
-/** Extra room kept beyond the collision radius, so a planned line isn't a scrape. */
+/** Additional clearance beyond the collision radius and height, in meters. */
 const MARGIN = 0.1;
-/** Slack added to a vehicle's tightest circle, so a follower has steering left to correct with. */
+/** Additional turning radius in meters, leaving steering range for route corrections. */
 const TURN_SLACK = 1.2;
 
 const bodies = new Map<string, NavProfile>();
 
 /**
- * The profile without its clearance margin, just the body: what a vehicle needs near the ends of a route (pulling away
- * from a kerb, nosing into a spot) and what a moving one checks its next few metres against.
+ * Return a cached vehicle profile with its radius reduced to the collision radius. Keep all other constraints,
+ * including headroom. Return nonvehicle profiles unchanged.
  */
 export function bodyOf(p: NavProfile): NavProfile {
   const v = p.vehicle;
@@ -66,16 +66,13 @@ export function bodyOf(p: NavProfile): NavProfile {
   return b;
 }
 
-/** The circle corners are rounded to for a vehicle profile; 0 for people (corners stay sharp). */
+/** Return the vehicle turning radius plus steering slack, in meters, or zero for pedestrians. */
 export function turnRadius(p: NavProfile): number {
   const v = p.vehicle;
   return v ? v.wheelBase / Math.tan(v.maxSteer) + TURN_SLACK : 0;
 }
 
-/**
- * Profiles come straight from the physics tuning, so a planned route only uses steps, gaps and headroom the actor can
- * actually take.
- */
+/** Derive clearance and step limits from physics tuning, with separate route preferences for each actor. */
 export const NAV = {
   car: {
     name: 'car',
@@ -115,29 +112,29 @@ export const NAV = {
 } as const satisfies Record<string, NavProfile>;
 
 /**
- * Per-plan exclusions, as the level's own region primitive (an AABB zone): only surfaces inside a zone's height range
- * are closed, so a car parked on one floor doesn't block the same spot on the floors above and below.
+ * Options for a route request. Exclusion zones apply only to surfaces within their vertical range, so blocking one
+ * floor leaves other floors available.
  */
 export interface NavQuery {
-  /** Regions a plan must not use (parked cars, the exit lane). */
+  /** Exclude surfaces inside these zones. */
   blocks?: readonly ZoneDef[];
-  /** Kept open even where a block covers it (the target spot). */
+  /** Allow surfaces in this zone even when a block overlaps it. */
   allow?: ZoneDef;
   /**
-   * Vehicles: shape the route for the car to drive it, starting at heading `yaw` and ending at `endYaw` (or its
-   * reverse, with `eitherWay`): turns within its turning circle, reversing where it has to.
+   * Request vehicle pose searches from yaw to endYaw, in radians. With eitherWay, also accept the opposite destination
+   * heading. Failed searches leave a fallback segment and set the job's drivable flag to false.
    */
   drive?: { yaw: number; endYaw: number; eitherWay?: boolean };
   /**
-   * People: may ride elevators, coming back as a NavRoute with its rides in `hops`. Only for a Walker to follow: it
-   * knows how to ride (the elevators take it over at a ride).
+   * Allow pedestrian routes to use elevators. Routes containing rides are NavRoute instances whose hops require a
+   * Walker capable of handing control to the elevators.
    */
   elevators?: boolean;
 }
 
 /**
- * An elevator ride on a route: which elevator (its index in level.elevators), from stop to stop, and where along the
- * route it gets on and off (arc length).
+ * Identify an elevator ride by its index in level.elevators, departure and arrival stop indices, and route arc lengths
+ * s0 and s1 in meters.
  */
 export interface NavHop {
   lift: number;
@@ -147,10 +144,7 @@ export interface NavHop {
   s1: number;
 }
 
-/**
- * A planned walk that rides elevators on the way: from each hop's s0 to its s1 the route goes straight up or down the
- * shaft.
- */
+/** A pedestrian route with elevator rides marked by arc-length intervals between landing points. */
 export class NavRoute extends Polyline {
   constructor(
     points: readonly Vector3[],
@@ -168,89 +162,80 @@ export interface RouteLeg {
 
 // grid
 const CELL = 0.5;
-/** Surfaces kept per cell (ground plus slabs, ramps and stair treads above it). */
+/** Maximum number of standing surfaces retained per cell, starting with the lowest. */
 const LAYERS = 6;
 const NONE = -1;
-/** Margin around the level's solids. */
+/** Grid margin around the level's solids, in meters. */
 const GRID_PAD = 6;
-/** Side of the collision-query tiles the grid is filled in. */
+/** Side length of collision-query tiles, in meters. */
 const TILE = 8;
-/** A surface counts if at least this much room is above it (the profiles then ask for their own height). */
+/** Minimum headroom for retaining a surface, in meters. Profiles may require more. */
 const MIN_ROOM = 1.2;
-/** Heights this close are the same surface. */
+/** Surface height tolerance in meters. */
 const EPS = 0.02;
-/** Surfaces within this of y=0 are the street itself (or below it, a pit's floor or stairs). */
+/** Tolerance around y = 0 used to classify street-level surfaces, in meters. */
 const STREET_Y = 0.05;
-/** Tolerances for snapping an arbitrary height to a surface, and for ground tilting across a body (ramps). */
+/** Additional height tolerances for endpoint snapping and clearance across slopes, in meters. */
 const SNAP_TOL = 0.6;
 const TILT_TOL = 0.15;
-/** Wall distances are cached in steps of 1/WALL_RES metres. */
+/** Wall distances are cached in steps of 1/WALL_RES meters. */
 const WALL_RES = 10;
 /**
- * A solid thinner than a cell (a guardrail panel, a post) can slip between cell centers. One taller than this, so not a
- * stair tread, blocks every cell it overlaps.
+ * Rasterize tall, narrow solids across every overlapping cell so walls cannot fall between cell centers. This height
+ * threshold, in meters, excludes stair treads.
  */
 const THIN_WALL = 0.6;
-/** Random picks spotNear makes before giving up; `anywhere` looks this far (m) round each random point it tries. */
+/** Maximum sampling attempts per random-position query. */
 const SPOT_TRIES = 24;
 const ANYWHERE_REACH = 6;
-/** Cells searched (in rings) for the nearest usable node to a point. */
+/** Maximum cell-ring radius when snapping a point to a surface node. */
 const NEAR_SEARCH = 6;
 
 // lanes
-/**
- * A lane's direction holds this far either side of its line: out to the middle of a two-lane street, where the nearest
- * lane wins.
- */
+/** Maximum distance from a traffic lane segment for assigning its direction to a cell, in meters. */
 const LANE_REACH = 3;
 const LANE_WITH = 0.7;
 const LANE_AGAINST = 4;
-/** Moves this aligned (cosine) with a lane count as with or against it. */
+/** Minimum direction cosine for applying the with-lane or against-lane cost. */
 const LANE_DOT = 0.5;
-/**
- * Lanes of different loops whose directions are neither this parallel nor this opposed (|cosine|) cross: an
- * intersection, no preference.
- */
+/** Clear lane preferences where different traffic loops overlap with an absolute direction cosine below this threshold. */
 const LANE_CONFLICT = 0.7;
 
 // ramps
-/** Straight run-up vehicles take before and after a ramp mouth. */
+/** Axis-aligned vehicle approach distance beyond each ramp end, in meters. */
 const RUN_UP = 3;
-/** Height matches for run-up floors and ramp surfaces. */
+/** Height tolerances for identifying ramp approaches and ramp surfaces, in meters. */
 const RUN_UP_TOL = 0.3;
 const RAMP_TOL = 0.1;
-/** How far off a ramp's axis a vehicle may point inside its lane: the planner's rule, and a tracking car's. */
+/** Maximum perpendicular heading components allowed on ramps during planning and route following. */
 const ALIGN_SLACK = Math.sin(0.45);
 const LOOSE_SLACK = Math.sin(0.7);
 const enum Align {
   X = 1,
   Z = 2,
-  /** On the ramp itself (not just its run-up): straight lines must follow the axis here too. */
+  /** Mark the ramp surface so segment shaping also enforces its axis. */
   Ramp = 4,
 }
 const enum Cell {
   Asphalt = 1,
   Deck = 2,
-  /** Inside a walk-in building (level.buildings): somewhere to go, not somewhere townsfolk turn up. */
+  /** Building footprint excluded from sidewalk spawn queries. */
   Indoors = 4,
 }
 
 // search
-/** Weighted A*: a slightly greedy heuristic keeps long cross-town plans fast; smoothing tidies the result. */
+/** Heuristic multiplier for weighted A*, trading route optimality for fewer expansions. */
 const GREED = 1.6;
-/** Search box: both ends plus this margin, and a bit more per metre between them. */
+/** Base search margin in meters, increased in proportion to endpoint distance. */
 const SEARCH_MARGIN = 45;
 const SEARCH_MARGIN_PER_M = 0.3;
-/**
- * Within this much beyond the profile's radius of either end, the body without its margin only has to fit (leaving a
- * kerb, entering a spot).
- */
+/** Additional endpoint relaxation distance beyond the profile radius, in meters. Within it, use body clearance. */
 const RELAX_EXTRA = 1.2;
 /** Expansions between deadline checks. */
 const TIME_CHECK_EVERY = 256;
-/** Search ids are kept below this, then the marks are cleared. */
+/** Clear node marks before search IDs reach this limit. */
 const SID_LIMIT = 0x3ffffffe;
-/** Node marks per search id: open and closed. */
+/** Encode open and closed states within each search ID. */
 const enum Mark {
   Open = 0,
   Closed = 1,
@@ -258,80 +243,73 @@ const enum Mark {
 }
 
 // shaping the route
-/** Longest straight segment a shortcut may make. */
+/** Maximum shortcut length in meters. */
 const MAX_SEGMENT = 24;
-/** Shortcuts are sampled this finely (fraction of a cell). */
+/** Distance between shortcut clearance samples, in meters. */
 const SEGMENT_STEP = CELL * 0.5;
-/** A shortcut may cost this much more than the stretch it replaces (proportion, plus a flat allowance). */
+/** Allowed shortcut cost relative to the replaced route: a multiplier plus an additive allowance. */
 const SHORTCUT_SLACK = 1.03;
 const SHORTCUT_GRACE = 0.25;
-/** Merging: bends gentler than this (radians), or legs shorter than this, get dropped. */
+/** Remove bends below MERGE_ANGLE radians or legs below STUB_LEG meters when a direct segment is valid. */
 const MERGE_ANGLE = 0.25;
 const STUB_LEG = 1;
-/** Two same-way corners joined by a stub shorter than this many turning radii fold into one. */
+/** Maximum separation, in turning radii, for merging two corners that turn in the same direction. */
 const STUB_FOLD = 1.5;
 const FOLD_PASSES = 8;
-/** Corners gentler than this (radians) stay as they are. */
+/** Minimum turn angle for rounding a corner, in radians. */
 const MIN_TURN = 0.12;
-/** An arc may use up to this share of each leg, and must come out within RADIUS_TOL of the radius asked for. */
+/** Maximum fraction of either leg used by an arc, with RADIUS_TOL setting the minimum accepted radius ratio. */
 const LEG_SHARE = 0.48;
 const RADIUS_TOL = 0.95;
-/**
- * Radii tried for a corner arc, as fractions of the turning radius; then tighter ones, shrinking by ARC_SHRINK down to
- * ARC_MIN.
- */
+/** Initial arc radii as fractions of the turning radius. Without failure reporting, retry smaller radii down to ARC_MIN. */
 const ARC_TRIES = [1, 0.85];
 const ARC_SHRINK = 0.7;
 const ARC_MIN = 0.4;
-/** Spacing of the points along arcs. */
+/** Target spacing between arc samples, in meters. */
 const ARC_SPACING = 1.2;
 
 // drives
-/** A drive search window reaches this many turning radii back before trouble, and on past it. */
+/** Search window distances before and after an invalid route section, in turning radii. */
 const WINDOW_BACK = 2;
 const WINDOW_AHEAD = 0.8;
-/** Windows closer than this many turning radii merge (the stretch between is too short to bother with). */
+/** Merge search windows separated by at most this many turning radii. */
 const WINDOW_GAP = 1;
-/** A window's guide covers the route through it (sampled every BOX_STEP) plus this margin (metres). */
+/** Margin around sampled route sections for the drive-search guide, in meters. */
 const WINDOW_MARGIN = 12;
 const BOX_STEP = 1;
-/** Window ends move this far at a time until the car fits there, and stay this far off the route's corners (metres). */
+/** Window endpoint adjustment step and minimum entry distance from corners, in meters. */
 const WINDOW_NUDGE = 0.5;
 const CORNER_CLEAR = 0.3;
-/** A car pointing further than this (radians) from the way out starts with a window. */
+/** Heading difference in radians that requires a drive-search window at the start. */
 const START_SLACK = 0.35;
 /**
- * A window may end up to REJOIN_REACH turning radii along the straight after it (tried every REJOIN_STEP), short of the
- * next turn by REJOIN_SPARE metres.
+ * Try rejoining the following straight at REJOIN_STEP turning-radius intervals, up to REJOIN_REACH radii ahead. Leave
+ * REJOIN_SPARE meters before the next turn.
  */
 const REJOIN_REACH = 3;
 const REJOIN_STEP = 0.5;
 const REJOIN_SPARE = 0.5;
-/** Rounds of checking the plain stretches and opening windows on trouble. */
+/** Maximum passes that validate ordinary route sections and add drive-search windows. */
 const LAYOUT_PASSES = 6;
-/** Plain stretches are checked every this many metres. */
+/** Distance between vehicle fit checks along ordinary route sections, in meters. */
 const CHECK_STEP = 0.5;
 
 const PLAN_BUDGET_MS = 3;
 
 // elevators
-/**
- * A ride costs as much as walking this far (waiting for the cab, the doors), plus this much per metre it goes up or
- * down.
- */
+/** Elevator cost expressed as equivalent walking distance: a fixed waiting cost plus a cost per vertical meter. */
 const LIFT_WAIT = 12;
 const LIFT_PER_M = 0.4;
-/** A landing's node is the surface within this of its floor where riders wait. */
+/** Maximum height difference between a stop and its landing node, in meters. */
 const LIFT_TOL = 0.1;
 
 const _f = new Vector3();
 const _g = new Vector3();
 
 /**
- * Layered 2.5D walkability grid built from the collision world: every cell holds the surfaces something could stand on
- * (ground, slab tops, ramp tops, stair treads) with the headroom above each. A* runs over (cell, surface) nodes;
- * neighbours connect when their heights differ by at most the profile's step, so kerbs, ramps and stairs link up and
- * walls and drops don't.
+ * Build a layered navigation grid from collision surfaces and their headroom. Search nodes identify a surface within a
+ * cell; neighboring nodes connect within the profile's step limit. Clearance, terrain costs and optional elevator links
+ * determine usable routes.
  */
 export class NavGrid {
   readonly x0: number;
@@ -342,7 +320,7 @@ export class NavGrid {
   private readonly h: Float32Array;
   private readonly room: Float32Array;
   private readonly ramp: Uint8Array;
-  /** Vehicles may only move along this axis here: ramp lanes and their run-ups (Align, 0 = free). */
+  /** Axis restrictions for vehicle movement on ramps and approaches; zero permits either axis. */
   private readonly align: Uint8Array;
   private readonly cellFlags: Uint8Array;
   private readonly laneX: Float32Array;
@@ -352,27 +330,21 @@ export class NavGrid {
   private readonly wallDists = new Map<string, Uint8Array>();
   private readonly rings = new Map<string, Int32Array>();
   private readonly disks = new Map<string, Int32Array>();
-  // search scratch, reused between plans
+  // Reuse search buffers across jobs.
   private readonly g: Float32Array;
   private readonly parent: Int32Array;
   private readonly mark: Uint32Array;
   private readonly blockMark: Uint32Array;
   private sid = 0;
-  /**
-   * Elevator shafts' insides: their cabs move, so nothing in one is ground to stand on (rides link the landings
-   * instead).
-   */
+  /** Shaft footprints whose enclosed solids are excluded from the grid. Elevator rides connect landing nodes instead. */
   private readonly shafts: readonly ZoneDef[];
-  /** Each elevator's landings as nodes, by stop (NONE while its level isn't built). */
+  /** Landing node for each elevator stop, or NONE when no suitable surface exists. */
   private readonly lifts: { def: ElevatorDef; nodes: number[] }[];
   /** The elevator stops at each landing node: [elevator, stop] pairs. */
   private readonly liftAt = new Map<number, [number, number][]>();
-  /**
-   * The elevators walkers ride, once the game has built them: a Walker hands itself over to them at a ride on its
-   * route.
-   */
+  /** Runtime elevators that take control of walkers during route hops. */
   elevators: Elevators | null = null;
-  /** Milliseconds the build took. */
+  /** Grid construction time in milliseconds. */
   buildMs = 0;
 
   private constructor(
@@ -380,7 +352,7 @@ export class NavGrid {
     z0: number,
     nx: number,
     nz: number,
-    /** The ramps' surfaces are read from it. */
+    /** Collision world used to sample ramp heights. */
     private readonly world: CollisionWorld,
     elevators: readonly ElevatorDef[],
   ) {
@@ -440,7 +412,7 @@ export class NavGrid {
 
   // ---------------------------------------------------------------- build
 
-  /** Is the solid inside an elevator shaft (the cab's floor, wherever it is now)? */
+  /** Return whether the solid's horizontal footprint lies within an elevator shaft, allowing EPS at the edges. */
   private inShaft(s: Solid): boolean {
     for (const z of this.shafts) {
       if (
@@ -457,8 +429,8 @@ export class NavGrid {
   }
 
   /**
-   * Find each elevator's landings on the grid: the surface at a stop's floor where riders wait (none on a level that
-   * isn't built).
+   * Associate each elevator stop with a nearby surface at its landing point. Leave stops without adequate headroom or a
+   * matching height unlinked.
    */
   private linkLifts(): void {
     this.liftAt.clear();
@@ -484,7 +456,10 @@ export class NavGrid {
     });
   }
 
-  /** Fill the cells in x0..x1, z0..z1 (world coordinates, rounded out to whole tiles) from the solids there. */
+  /**
+   * Rasterize solids over the requested world-coordinate rectangle, extending to tile boundaries and clipping to the
+   * grid.
+   */
   private rasterize(world: CollisionWorld, x0: number, z0: number, x1: number, z1: number): void {
     const lo: number[] = [];
     const hi: number[] = [];
@@ -509,7 +484,7 @@ export class NavGrid {
             isRamp.length = 0;
 
             for (const s of solids) {
-              // the cell's center inside it, or for a thin wall, any of the cell
+              // Count thin walls that overlap the cell even when they miss its center.
               const wall = s.max[1] - s.min[1] > THIN_WALL;
               const h = CELL / 2;
               const outX =
@@ -537,8 +512,8 @@ export class NavGrid {
   }
 
   /**
-   * Standing surfaces of one cell from the solids covering it, lowest first: the ground plane (0, or a pit's floor),
-   * then solid tops.
+   * Retain up to LAYERS exposed surfaces with sufficient headroom, ordered from lowest to highest. Candidates are the
+   * ground plane and solid tops above it.
    */
   private fillCell(c: number, plane: number, lo: number[], hi: number[], isRamp: boolean[], cand: number[]): void {
     cand.length = 0;
@@ -600,8 +575,8 @@ export class NavGrid {
   }
 
   /**
-   * Vehicles take ramps square: on a ramp and for a run-up beyond each mouth, only moves along the ramp's axis are
-   * allowed, so routes line up first and make their turn on open floor where there's room for the turning circle.
+   * Restrict vehicle movement to the ramp axis on its surface and approaches, allowing turns only after leaving the
+   * restricted area.
    */
   private flagRamps(solids: readonly Solid[]): void {
     const world = this.world;
@@ -643,7 +618,7 @@ export class NavGrid {
   }
 
   private flagGround(level: LevelData): void {
-    // drivable overlays (lots, driveways); the big ground box under the city is the street itself
+    // Distinguish raised asphalt overlays from the street-level ground box.
     for (const b of level.boxes) {
       if (b.mat !== 'asphalt' || b.max[1] < STREET_Y) {
         continue;
@@ -679,9 +654,8 @@ export class NavGrid {
   }
 
   /**
-   * Traffic loops as a direction field, so planned drives keep to the right side of the street: each cell takes the
-   * direction of the nearest lane line within LANE_REACH. Where lanes of different loops cross (an intersection)
-   * there's no preference.
+   * Assign each cell the nearest traffic lane direction within LANE_REACH. Clear the preference where different loops
+   * cross at sufficiently different angles.
    */
   private rasterizeLanes(level: LevelData): void {
     const cells = this.nx * this.nz;
@@ -770,7 +744,7 @@ export class NavGrid {
     return j * this.nx + i;
   }
 
-  /** The surface node of cell c nearest to height y within tol (and with room for p), or NONE. */
+  /** Return the surface in cell c nearest y within tol that has the requested headroom, or NONE. */
   private surface(c: number, y: number, tol: number, height: number): number {
     let best = NONE;
     let bd = tol;
@@ -788,9 +762,8 @@ export class NavGrid {
   }
 
   /**
-   * A random spot where profile p can stand, between rMin and rMax of (x, z), at street level (no higher than `upTo`)
-   * and, with `sidewalk`, off the road and outside the deck and buildings: where townsfolk walk. Null after SPOT_TRIES
-   * misses.
+   * Sample a standing position between rMin and rMax meters from (x, z), from street level up to upTo. With sidewalk,
+   * require a raised surface outside deck and building footprints. Return null after SPOT_TRIES unsuccessful attempts.
    */
   spotNear(
     rng: Rng,
@@ -814,7 +787,7 @@ export class NavGrid {
       for (let k = 0; k < n; k++) {
         const node = c * LAYERS + k;
         const y = this.h[node] ?? 0;
-        // street level and up: not down a stair shaft or in a basement
+        // Exclude below-street surfaces such as stair shafts and basements.
         if (y > upTo || y < -STREET_Y || (sidewalk && y < STREET_Y) || !this.clear(node, p)) {
           continue;
         }
@@ -827,8 +800,8 @@ export class NavGrid {
   }
 
   /**
-   * A random spot anywhere on the grid where profile p can stand, as spotNear (no higher than `upTo`, `sidewalk` as
-   * there).
+   * Sample points across the grid and call spotNear within ANYWHERE_REACH meters of each. Apply the same height and
+   * sidewalk restrictions; return null if all attempts fail.
    */
   anywhere(rng: Rng, p: NavProfile, upTo: number, sidewalk: boolean): Vector3 | null {
     for (let t = 0; t < SPOT_TRIES; t++) {
@@ -843,7 +816,10 @@ export class NavGrid {
     return null;
   }
 
-  /** Ground height an agent standing near (x, y, z) would be on, or null off the grid. */
+  /**
+   * Return a surface height near the supplied point with the required headroom, or null if none is within snapping
+   * tolerance. This does not check horizontal clearance.
+   */
   heightAt(x: number, y: number, z: number, p: NavProfile = NAV.person): number | null {
     const c = this.cellOf(x, z);
     if (c === NONE) {
@@ -855,10 +831,8 @@ export class NavGrid {
   }
 
   /**
-   * Ground height where profile p could stand with full clearance near (x, y, z), or null (wall, drop, too close to
-   * either). With a heading, vehicles also have to be lined up with a ramp lane they're in: by default the planner's
-   * rule (ramp and run-up, within ALIGN_SLACK); `loose` checks only the ramp itself with more slack, for a car that's
-   * tracking a route rather than shaping one.
+   * Return a surface height within the profile's step limit and with full clearance, or null. For vehicles with a
+   * heading, also enforce ramp alignment. With loose, check only ramp surfaces and allow greater heading deviation.
    */
   standable(x: number, y: number, z: number, p: NavProfile, yaw?: number, loose = false): number | null {
     const c = this.cellOf(x, z);
@@ -909,7 +883,10 @@ export class NavGrid {
     return d;
   }
 
-  /** Every cell within the profile's radius has ground at a compatible height (no wall, no drop). */
+  /**
+   * Check headroom and compatible surface heights at all grid offsets within the profile radius. Cache the result by
+   * profile name.
+   */
   private clear(node: number, p: NavProfile): boolean {
     let cache = this.clearance.get(p.name);
     if (!cache) {
@@ -942,7 +919,7 @@ export class NavGrid {
     return ok;
   }
 
-  /** Offsets within `roomy`, nearest first, so the wall search stops at the first hit. */
+  /** Return offsets beyond the profile radius and within roomy, sorted by distance for nearest-obstacle queries. */
   private ring(p: NavProfile): Int32Array {
     let r = this.rings.get(p.name);
     if (r) {
@@ -966,7 +943,10 @@ export class NavGrid {
     return r;
   }
 
-  /** How far node is from the nearest wall or drop, capped at the profile's `roomy`. */
+  /**
+   * Measure the nearest incompatible surface beyond the profile radius, capped at roomy. Cache distances at WALL_RES
+   * precision.
+   */
   private wallDist(node: number, p: NavProfile): number {
     let cache = this.wallDists.get(p.name);
     if (!cache) {
@@ -1004,7 +984,7 @@ export class NavGrid {
     return d;
   }
 
-  /** Cost per metre of being on node `node` (cell c) while moving along (dx, dz). */
+  /** Return the movement cost multiplier for this node and direction, including terrain, lane and wall preferences. */
   private costK(node: number, c: number, dx: number, dz: number, p: NavProfile): number {
     const flags = this.cellFlags[c] ?? 0;
     const street = Math.abs(this.h[node] ?? 0) < STREET_Y && !(flags & Cell.Deck);
@@ -1030,7 +1010,7 @@ export class NavGrid {
     }
 
     if (p.wallCost > 0) {
-      // keep to the middle: hugging a wall costs more, which also leaves room to swing wide into turns
+      // Favor clearance that leaves room for vehicle turns.
       const t = 1 - Math.min(1, (this.wallDist(node, p) - p.radius) / (p.roomy - p.radius));
       k *= 1 + p.wallCost * t * t;
     }
@@ -1040,7 +1020,10 @@ export class NavGrid {
 
   // ---------------------------------------------------------------- search
 
-  /** Nearest usable node to a point: its own cell first, then rings around it. */
+  /**
+   * Return a nearby surface with compatible height and headroom, searching the containing cell then expanding cell
+   * rings. This does not check blocks or horizontal clearance.
+   */
   private nodeNear(x: number, y: number, z: number, p: NavProfile): number {
     const c = this.cellOf(x, z);
     if (c === NONE) {
@@ -1116,7 +1099,10 @@ export class NavGrid {
     }
   }
 
-  /** Start a job's search: claims the shared scratch, so only one job may run at a time (NavPlanner). */
+  /**
+   * Initialize the job using shared search buffers. Only one job may search this grid at a time; NavPlanner serializes
+   * requests.
+   */
   begin(job: NavJob): void {
     this.sid++;
 
@@ -1165,7 +1151,10 @@ export class NavGrid {
     job.status = 'running';
   }
 
-  /** Work on the job until it settles or `deadline` (performance.now() time) passes. */
+  /**
+   * Advance a running job until completion or a deadline check exceeds the performance.now() deadline. Fail jobs whose
+   * search state no longer owns the shared buffers.
+   */
   advance(job: NavJob, deadline: number): void {
     const S = job.search;
     if (!S || job.status !== 'running' || S.sid !== this.sid) {
@@ -1183,7 +1172,7 @@ export class NavGrid {
     job.ms += performance.now() - t0;
   }
 
-  /** The grid A*: expand nodes until the goal, or the deadline. */
+  /** Expand weighted A* nodes until the goal is reached, the queue is exhausted or a periodic deadline check expires. */
   private advanceGrid(job: NavJob, S: NavSearch, deadline: number): void {
     const p = job.profile;
     const { sid, goal, sp, gp, relax, hScale, heapN, heapF } = S;
@@ -1265,7 +1254,7 @@ export class NavGrid {
     job.status = 'failed';
   }
 
-  /** From an elevator landing, every other stop of that elevator is a ride away. */
+  /** Expand valid, unblocked stops reachable by an elevator from this landing node. */
   private rideFrom(n: number, S: NavSearch, p: NavProfile): void {
     const at = this.liftAt.get(n);
     if (!at) {
@@ -1299,10 +1288,7 @@ export class NavGrid {
     }
   }
 
-  /**
-   * Consecutive nodes of a found path that are two landings of one elevator: rides, by the index of the node they start
-   * from.
-   */
+  /** Map raw path indices to elevator rides when consecutive nodes represent different stops of the same elevator. */
   private ridesAlong(nodes: readonly number[]): Map<number, [number, number, number]> {
     const rides = new Map<number, [number, number, number]>();
     for (let k = 0; k + 1 < nodes.length; k++) {
@@ -1325,9 +1311,8 @@ export class NavGrid {
   }
 
   /**
-   * The move from node n (cell i, j) to its neighbour (di, dj), as the node it lands on, or NONE: within a step of
-   * height, outside the plan's blocks, along the axis in ramp lanes and run-ups (vehicles, unless `anyWay`), and no
-   * cutting corners. Clearance is the caller's call (it's relaxed near the ends).
+   * Return the neighboring surface node within the step limit, or NONE. Reject blocked destinations and diagonal corner
+   * cuts; vehicles must follow ramp axes unless anyWay is true. The caller checks horizontal clearance.
    */
   private link(
     n: number,
@@ -1378,7 +1363,7 @@ export class NavGrid {
     return m;
   }
 
-  /** Run a job to completion now. Only safe when no planner job is mid-search (tests, tools). */
+  /** Run a job synchronously to completion. Do not call while another job is using the grid's shared search buffers. */
   solve(job: NavJob): NavJob {
     this.begin(job);
 
@@ -1389,7 +1374,10 @@ export class NavGrid {
     return job;
   }
 
-  /** Raw cell path from the search tree, shaped into waypoints (and, for a drive, laid out for the car). */
+  /**
+   * Recover the grid path and preserve the requested endpoints. Smooth pedestrian routes with elevator hops intact;
+   * shape vehicle routes or initialize their pose-search windows.
+   */
   private trace(job: NavJob, S: NavSearch): void {
     const nodes: number[] = [];
     for (let n = S.goal; n !== NONE; n = this.parent[n] ?? NONE) {
@@ -1427,7 +1415,7 @@ export class NavGrid {
     const pts: RoutePoint[] = [];
     for (const r of route) {
       const last = pts[pts.length - 1];
-      // zero-length pieces (where a window meets a plain stretch, a Dubins arc of no length) would repeat a point
+      // Adjacent route sections can repeat a boundary point without adding travel.
       if (last && Math.hypot(r.p.x - last.p.x, r.p.z - last.p.z) < EPS && r.reverse === last.reverse) {
         continue;
       }
@@ -1441,11 +1429,9 @@ export class NavGrid {
   }
 
   /**
-   * Lay a drive out along the shaped route (after Pinter, "Toward More Realistic Pathfinding"): plain stretches of
-   * straight lines and arcs at the turning radius wherever every pose along them fits, and windows where they don't (a
-   * turn too tight for the floor, a ramp mouth to line up with) for a drive search to fill. There's always a window
-   * into the end, which has a heading, and one out of the start when the car points the wrong way. Windows reach a
-   * little before and after the trouble, grow until the car fits at both ends, and merge when close.
+   * Partition the route into validated lines and arcs plus windows requiring vehicle pose searches, following Pinter,
+   * "Toward More Realistic Pathfinding". Always search the destination approach and search the departure when its
+   * heading differs. Expand and merge windows to find usable boundary poses, up to LAYOUT_PASSES passes.
    */
   private layout(job: NavJob, S: NavSearch, line: Vector3[], ends: Ends): DrivePiece[] {
     const p = job.profile;
@@ -1461,7 +1447,7 @@ export class NavGrid {
 
     const ground = this.driveGround(p, S.sid, ends);
     const body = bodyOffsets(v);
-    // the ground along the route, followed step by step (a straight line between waypoints can be a storey off: up a ramp and on)
+    // Follow surface heights incrementally so interpolation across ramps cannot select the wrong floor.
     const floor: number[] = [];
     for (let s = 0, y = job.from.y; s <= L + CHECK_STEP; s += CHECK_STEP) {
       route.sample(Math.min(s, L), _f);
@@ -1496,7 +1482,7 @@ export class NavGrid {
 
     let pieces: DrivePiece[] = [];
     for (let pass = 0; pass < LAYOUT_PASSES; pass++) {
-      // tidy the spans: in range, ends where the car fits and off any corner, merged when close
+      // Expand boundaries until the vehicle fits; keep entries away from corners and merge nearby windows.
       for (const sp of spans) {
         sp[0] = Math.max(0, sp[0]);
         sp[1] = Math.min(L, sp[1]);
@@ -1522,7 +1508,7 @@ export class NavGrid {
       }
 
       spans = merged;
-      // the plain stretches between them, and anything wrong with those
+      // Validate the ordinary route sections between windows.
       pieces = [];
       const found: number[] = [];
       let s = 0;
@@ -1552,7 +1538,7 @@ export class NavGrid {
 
             if (m === NONE || !fitsAt(_f.x, y, _f.z, Math.atan2(_g.x, _g.z))) {
               found.push(route.project(_f.setY(y), s, s0 - s));
-              c += R; // one report per bit of trouble
+              c += R; // Space failure reports by one turning radius.
             }
           }
 
@@ -1563,7 +1549,7 @@ export class NavGrid {
           const from =
             s0 <= 0 ? { x: job.from.x, y: job.from.y, z: job.from.z, yaw: d.yaw, reverse: false } : poseAt(s0);
           const goals: DriveGoals = s1 >= L ? this.endPoses(job, d) : [{ ...poseAt(s1), rest: 0 }];
-          // the guide covers the route through the window, plus room to swing wide
+          // Include maneuvering space around the route in the guide bounds.
           const box: [number, number, number, number] = [Infinity, Infinity, -Infinity, -Infinity];
           for (let c = s0; c <= s1 + BOX_STEP; c += BOX_STEP) {
             route.sample(Math.min(c, s1), _f);
@@ -1590,7 +1576,7 @@ export class NavGrid {
       }
     }
 
-    // a window may end anywhere along the straight start of the stretch after it, so the car can ease back onto the line
+    // Offer later rejoin points on the next straight section to allow a wider maneuver.
     for (let k = 0; k + 1 < pieces.length; k++) {
       const a = pieces[k] as DrivePiece;
       const b = pieces[k + 1] as DrivePiece;
@@ -1605,7 +1591,7 @@ export class NavGrid {
       const ux = (p1.x - p0.x) / (straight + REJOIN_SPARE);
       const uz = (p1.z - p0.z) / (straight + REJOIN_SPARE);
       const reach = Math.min(straight, R * REJOIN_REACH);
-      // its own end, then on along the straight as far as the car fits (none further if it's too short)
+      // Stop adding rejoin goals at the first pose that cannot fit.
       const goals: [DriveGoal, ...DriveGoal[]] = [
         { x: g0.x, y: floorAt(a.window.until), z: g0.z, yaw: g0.yaw, reverse: false, rest: 0 },
       ];
@@ -1622,7 +1608,7 @@ export class NavGrid {
         goals.push(last);
       }
 
-      // ending further along leaves less of the stretch to drive
+      // Include the remaining straight-line cost when comparing rejoin goals.
       for (const q of goals) {
         q.rest = Math.hypot(last.x - q.x, last.z - q.z) * ground.cost(q.x, q.y, q.z, q.yaw);
       }
@@ -1633,14 +1619,17 @@ export class NavGrid {
     return pieces;
   }
 
-  /** Where a drive ends: at the goal facing endYaw (or either way round). */
+  /** Return the destination pose at endYaw, plus its opposite heading when eitherWay is enabled. */
   private endPoses(job: NavJob, d: NonNullable<NavQuery['drive']>): DriveGoals {
     const to = job.to;
     const facing: DriveGoal = { x: to.x, y: to.y, z: to.z, yaw: d.endYaw, reverse: false, rest: 0 };
     return d.eitherWay ? [facing, { ...facing, yaw: d.endYaw + Math.PI }] : [facing];
   }
 
-  /** Fill the drive's windows one search at a time, then put the route together. */
+  /**
+   * Search each drive window within the deadline, then assemble the route. Replace failed windows with straight
+   * fallback segments and mark the job as not drivable.
+   */
   private advanceDrive(job: NavJob, S: NavSearch, deadline: number): void {
     const p = job.profile;
     const ground = S.ground as DriveGround;
@@ -1689,7 +1678,7 @@ export class NavGrid {
     let ended: DriveGoal | null = null;
     for (const piece of S.pieces as DrivePiece[]) {
       if ('pts' in piece) {
-        // picks up where the window before it ended (on its first straight)
+        // Resume from the rejoin goal selected by the preceding window.
         route.push(
           ...(ended
             ? [{ p: new Vector3(ended.x, ended.y, ended.z), reverse: false }, ...piece.pts.slice(1)]
@@ -1705,7 +1694,7 @@ export class NavGrid {
       if (w.poses) {
         route.push(...w.poses.map((q) => ({ p: new Vector3(q.x, q.y, q.z), reverse: q.reverse })));
       } else {
-        // no drivable way found: straight across, and the driver copes
+        // Preserve guidance through failed windows, but report that the route is not drivable.
         job.drivable = false;
         const g = w.goals[0];
         route.push(
@@ -1719,12 +1708,12 @@ export class NavGrid {
   }
 
   /**
-   * A window's guide (Dolgov's holonomic-with-obstacles heuristic): the cost from every node in a box around the window
-   * to its end, by Dijkstra from there with the grid's own costs. Moves are free in any direction (the search itself
-   * keeps ramps square). Outside the box: Infinity.
+   * Build a reverse Dijkstra cost field from the window's destination poses, following Dolgov's
+   * holonomic-with-obstacles heuristic. Include grid costs and clearance but omit ramp direction restrictions. Return
+   * Infinity for locations outside the field or unreachable from its goals.
    */
   private windowField(w: DriveWindow, p: NavProfile, S: NavSearch): (x: number, y: number, z: number) => number {
-    // the box, stretched to take in every place it may end
+    // Include every alternative destination in the guide bounds.
     const box = w.box.slice();
     for (const q of w.goals) {
       box[0] = Math.min(box[0] as number, q.x - WINDOW_MARGIN);
@@ -1799,7 +1788,7 @@ export class NavGrid {
             continue;
           }
 
-          // the car moves from m into n: n's cost, heading (-di, -dj)
+          // Reverse expansion uses the forward movement cost from m into n.
           const g = gn + (di && dj ? Math.SQRT2 : 1) * CELL * this.costK(n, c, -di, -dj, p);
           if (g >= (dist[lm] as number)) {
             continue;
@@ -1820,8 +1809,8 @@ export class NavGrid {
   }
 
   /**
-   * The ground as a drive search sees it: body fits (outside the plan's blocks, ramps taken square), costs, wall
-   * distance.
+   * Provide surface fit, movement cost and wall clearance queries for vehicle pose searches. Respect query blocks and
+   * relax clearance and ramp alignment near route endpoints.
    */
   private driveGround(p: NavProfile, sid: number, e: Ends): DriveGround {
     const node = (x: number, y: number, z: number): number => {
@@ -1837,7 +1826,7 @@ export class NavGrid {
           return null;
         }
 
-        // near either end the body just has to fit, and ramps are taken loosely (leaving a kerb, nosing into a spot)
+        // Relax clearance and ramp alignment near endpoints to allow departure and parking maneuvers.
         const near = Math.hypot(x - e.sp.x, z - e.sp.z) < e.relax || Math.hypot(x - e.gp.x, z - e.gp.z) < e.relax;
         if (!this.clear(n, near ? bodyOf(p) : p)) {
           return null;
@@ -1914,8 +1903,9 @@ export class NavGrid {
   // ---------------------------------------------------------------- shaping
 
   /**
-   * Cost of going straight from a to b while keeping to the ground (each sample must be within a step of the last, so a
-   * line can't hop between stacked floors), or Infinity when it can't be done.
+   * Return the sampled ground-following cost of a straight horizontal segment, or Infinity if it exceeds MAX_SEGMENT or
+   * violates clearance, blocks, ramp alignment or step limits. Require the final surface height to match b within the
+   * step limit.
    */
   private segmentCost(a: Vector3, b: Vector3, p: NavProfile, e: Ends): number {
     const dx = b.x - a.x;
@@ -1943,7 +1933,7 @@ export class NavGrid {
         return Infinity;
       }
 
-      // on the ramp proper straight lines follow the axis; the run-up only shapes the search
+      // Enforce axis alignment on the ramp surface; approaches constrain the grid search only.
       if (
         p.vehicle &&
         this.align[node] &&
@@ -1966,9 +1956,8 @@ export class NavGrid {
   }
 
   /**
-   * String-pull the raw cell path: from each kept waypoint, reach as far along the path as a straight segment can go
-   * without costing more than the stretch of path it replaces (so shortcuts never cut across kerbs, planters or the
-   * wrong lane).
+   * Replace successive raw path sections with the farthest valid straight segment whose cost stays within the shortcut
+   * allowance. Preserve elevator landing pairs and stop shortcuts at rides.
    */
   private smooth(
     raw: Vector3[],
@@ -1981,7 +1970,7 @@ export class NavGrid {
     let i = 0;
     while (i < raw.length - 1) {
       let j = i + 1;
-      // an elevator ride's two landings stay as they are, and no shortcut runs past one
+      // Preserve consecutive elevator landings so ride intervals survive smoothing.
       while (j + 1 < raw.length && !rides?.has(i) && !rides?.has(j)) {
         const c = this.segmentCost(raw[i] as Vector3, raw[j + 1] as Vector3, p, e);
         if (c > ((cost[j + 1] ?? 0) - (cost[i] ?? 0)) * SHORTCUT_SLACK + SHORTCUT_GRACE) {
@@ -1999,9 +1988,8 @@ export class NavGrid {
   }
 
   /**
-   * Prepare corners for rounding: drop waypoints that barely bend the route (or sit on stubby legs), then fold pairs of
-   * same-way corners joined by a short stub into one corner where their outer legs meet, so a single wide turn can use
-   * the whole floor (a U-turn at the foot of a ramp).
+   * Remove shallow bends and short legs when a direct segment is valid. Merge nearby corners turning in the same
+   * direction at the intersection of their outer legs, provided both replacement segments remain valid.
    */
   private merge(pts: Vector3[], p: NavProfile, e: Ends): Vector3[] {
     const ok = (a: Vector3, b: Vector3): boolean => this.segmentCost(a, b, p, e) < Infinity;
@@ -2041,7 +2029,7 @@ export class NavGrid {
           continue;
         }
 
-        // where line a->b meets line c->d, beyond b
+        // Intersect the outer legs beyond b to replace both turns with one.
         const ux = b.x - a.x;
         const uz = b.z - a.z;
         const vx = d.x - c.x;
@@ -2072,9 +2060,8 @@ export class NavGrid {
   }
 
   /**
-   * Round each corner into an arc at the vehicle's turning radius where the legs and the ground allow it. Otherwise:
-   * with `failed`, the corner's index goes there and it stays sharp (a drive's layout opens a window on it); without, a
-   * tighter arc has to do (good enough to point the way).
+   * Try rounding each corner at the configured vehicle radius fractions. If these fail, append the corner index to
+   * failed when supplied; otherwise try smaller radii. Retain sharp corners when no arc fits.
    */
   private corners(pts: Vector3[], p: NavProfile, e: Ends, failed?: number[]): RoutePoint[] {
     const R = turnRadius(p);
@@ -2114,7 +2101,7 @@ export class NavGrid {
         fix ??= this.arc(cr, R * f, p, e);
       }
 
-      // a drive's layout wants to know (it opens a window here); otherwise tighter will have to do
+      // Report failed turns so layout can add pose-search windows.
       if (!fix && failed) {
         failed.push(k);
       }
@@ -2130,19 +2117,22 @@ export class NavGrid {
     return out;
   }
 
-  /** The corner rounded into an arc of radius r, if the legs and the ground allow it. */
+  /**
+   * Return arc samples when the available leg lengths preserve the requested radius within tolerance and all sampled
+   * segments are valid; otherwise return null.
+   */
   private arc(cr: Corner, r: number, p: NavProfile, e: Ends): RoutePoint[] | null {
     const { a, b, c, l1, l2, u1x, u1z, u2x, u2z, turn } = cr;
     const t = Math.min(r * Math.tan(turn / 2), l1 * LEG_SHARE, l2 * LEG_SHARE);
     const rr = t / Math.tan(turn / 2);
-    // short legs force a tighter arc than asked for: that's not this radius, let the caller try another way
+    // Reject arcs whose available leg lengths force the radius below tolerance.
     if (rr < r * RADIUS_TOL) {
       return null;
     }
 
     const p1 = new Vector3(b.x - u1x * t, b.y + (a.y - b.y) * (t / l1), b.z - u1z * t);
     const p2 = new Vector3(b.x + u2x * t, b.y + (c.y - b.y) * (t / l2), b.z + u2z * t);
-    // arc center sits off p1 toward the inside of the turn
+    // Offset the arc center toward the inside of the turn.
     const side = u1x * u2z - u1z * u2x > 0 ? 1 : -1;
     const cx = p1.x - u1z * rr * side;
     const cz = p1.z + u1x * rr * side;
@@ -2171,7 +2161,7 @@ export class NavGrid {
   }
 }
 
-/** Ends of a search: near them only the body has to fit (bodyOf). */
+/** Search endpoints and the distance within which vehicle clearance is reduced to body radius. */
 interface Ends {
   sp: Vector3;
   gp: Vector3;
@@ -2193,7 +2183,7 @@ interface Corner {
 
 interface RoutePoint {
   p: Vector3;
-  /** Travelled into in reverse. */
+  /** Whether travel into this point is in reverse. */
   reverse: boolean;
 }
 
@@ -2218,8 +2208,8 @@ function toLegs(route: RoutePoint[]): RouteLeg[] {
 }
 
 /**
- * The rides on a smoothed route: `rides` maps the raw path's index where each starts to [elevator, from, to]; smoothing
- * keeps both landings, consecutive.
+ * Convert raw-path elevator rides to arc-length intervals on the smoothed route. Both landing objects must remain
+ * consecutive in pts; skip rides that no longer satisfy this condition.
  */
 function hopsAlong(
   pts: readonly Vector3[],
@@ -2254,46 +2244,49 @@ interface NavSearch {
   gp: Vector3;
   relax: number;
   hScale: number;
-  /** x0, z0, x1, z1 */
+  /** Search bounds in world coordinates: x0, z0, x1, z1. */
   box: [number, number, number, number];
   heapN: number[];
   heapF: number[];
-  /** Drives: once the cell route is found, its plain stretches and the windows being searched. */
+  /** Vehicle route sections and pose-search windows, populated after the grid path is found. */
   pieces: DrivePiece[] | null;
   ground: DriveGround | null;
-  /** May ride elevators (people who asked to). */
+  /** Whether this pedestrian search may use elevator links. */
   lifts: boolean;
 }
 
-/** A stretch of a drive the plain route can't take, for a drive search to fill. */
+/** A route section whose vehicle poses must be found by DriveSearch. */
 interface DriveWindow {
   from: DrivePose;
   goals: DriveGoals;
-  /** Area its guide covers: x0, z0, x1, z1. */
+  /** Guide bounds in world coordinates: x0, z0, x1, z1. */
   box: [number, number, number, number];
-  /** How far along the route it ends (at its first goal). */
+  /** Route arc length at the first goal, in meters. */
   until: number;
-  /** Whether it starts and ends partway along the drive (rather than at its start and goal). */
+  /** Whether either boundary lies inside the route rather than at a requested endpoint. */
   midway: { start: boolean; end: boolean };
   search: DriveSearch | null;
   poses: DrivePose[] | null;
 }
 
-/** A drive in order: plain stretches (lines and arcs) and windows. */
+/** An ordinary route section or a window requiring vehicle pose search. */
 type DrivePiece = { pts: RoutePoint[] } | { window: DriveWindow };
 
-/** One route request. Poll `status`; `path` (and `legs`) are set once it's 'done'. */
+/**
+ * A route request with polled status. A done job provides path and legs; drivable reports whether vehicle searches
+ * required fallback segments.
+ */
 export class NavJob {
   status: NavStatus = 'queued';
-  /** The whole route as one line (guidance, walkers). */
+  /** Complete route polyline for guidance and pedestrian movement. */
   path: Polyline | null = null;
   /** The route split into stretches driven forward or in reverse (vehicles). */
   legs: RouteLeg[] | null = null;
-  /** Drives: false when a stretch had no drivable shape and was left for the driver to cope with. */
+  /** False when a failed vehicle search is replaced by a straight fallback segment. */
   drivable = true;
-  /** Drives: how the route was put together (debugging). */
+  /** Debug descriptions of vehicle route sections and window searches. */
   layout: string[] = [];
-  /** Search time so far, summed over frames. */
+  /** Accumulated search time in milliseconds. */
   ms = 0;
   expanded = 0;
   /** Search state while running (owned by NavGrid). */
@@ -2318,8 +2311,8 @@ export class NavJob {
 }
 
 /**
- * Every route request goes through here. Searches share the grid's scratch buffers, so they run one at a time, a few
- * milliseconds per frame: a long cross-town drive never stalls a frame, short walks finish within one.
+ * Queue route requests and run them serially because searches share the grid's scratch buffers. Advance searches within
+ * a per-frame time budget; individual operations may exceed it between deadline checks.
  */
 export class NavPlanner {
   private readonly queue: NavJob[] = [];
@@ -2340,7 +2333,7 @@ export class NavPlanner {
     this.run(performance.now() + this.budgetMs, null);
   }
 
-  /** Finish everything queued up to and including `job` right now (debug, tests). */
+  /** Synchronously process queued requests through this job, including earlier requests. */
   finish(job: NavJob): NavJob {
     this.run(Infinity, job);
     return job;
@@ -2353,7 +2346,7 @@ export class NavPlanner {
         this.grid.begin(job);
       }
 
-      // a drive goes on from the grid search to the pose search within the same budget
+      // Continue from grid search into vehicle pose search under the same frame deadline.
       while (job.status === 'running' && performance.now() < deadline) {
         this.grid.advance(job, deadline);
       }

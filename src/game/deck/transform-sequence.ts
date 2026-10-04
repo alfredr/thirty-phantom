@@ -16,17 +16,14 @@ export interface FxKit {
   flash: (amount: number, color?: string) => void;
 }
 
-/** Seconds the old body shudders before it pops, then seconds the new one takes to spring out. */
+/** Durations of the old rig’s shudder and new rig’s expansion, in seconds. */
 const SHUDDER = 0.55;
 const SPRING = 0.85;
 const SLIME_PUFF = new Color(0.4, 1.6, 0.2);
 const _v = new Vector3();
 const _at = new Vector3();
 
-/**
- * Car -> monster truck (and back at sunrise): the old body shudders and lifts, pops in a slime burst, and the new one
- * springs out of it.
- */
+/** Animate a vehicle form change, replacing the rig after the shudder and restoring control after the expansion. */
 export class TransformSequence {
   private t = 0;
   private swapped = false;
@@ -75,7 +72,7 @@ export class TransformSequence {
     } else {
       const k = Math.min(1, (this.t - SHUDDER) / SPRING);
       const nr = this.newRig as VehicleRig;
-      // springs out to the scale it was built at (sedans are built smaller than modelled)
+      // Scale relative to the rig’s native size; sedan rigs are not unit scale.
       nr.root.scale.setScalar(nr.scale * Math.max(0.05, easeOutElastic(k)));
 
       if (k >= 1) {

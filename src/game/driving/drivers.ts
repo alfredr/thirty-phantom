@@ -6,9 +6,8 @@ import { Doing } from '@/engine/sim/action';
 import type { DriverJob, DriveWorld } from './drive-actions';
 
 /**
- * Every AI driver's job at the wheel, run on one runner: scared drivers making for the deck, valets parking, visitors
- * coming and going. Whoever starts a job keeps it to see how it went; this is where the game finds the job driving a
- * car, to tell its driver what they can see.
+ * Run AI driving jobs through a shared action runner. Track active jobs for perception delivery and completion checks;
+ * release their claims when they end.
  */
 export class Drivers {
   private readonly doing: Doing<DriveWorld, DriveWorld>;
@@ -21,7 +20,7 @@ export class Drivers {
     });
   }
 
-  /** Starts `job`. False if it couldn't (its first step failed). */
+  /** Start the job and return false if its initial action fails. */
   start(job: DriverJob): boolean {
     const result = this.doing.do(this.world, job);
     if ('fail' in result) {
@@ -35,17 +34,17 @@ export class Drivers {
     return true;
   }
 
-  /** Whether `job` is still going. */
+  /** Test whether the job remains active. */
   running(job: DriverJob): boolean {
     return this.jobs.includes(job);
   }
 
-  /** The job driving `car`, if an AI driver has it. */
+  /** Return the active AI job for the car, or null. */
   of(car: Vehicle): DriverJob | null {
     return this.jobs.find((j) => j.car === car) ?? null;
   }
 
-  /** The driver of `car`, if an AI driver has it, sees phantom Cody at `at` this frame. False if none has it. */
+  /** Deliver a sighting to the car’s active job. Return false when no job owns the car. */
   sees(car: Vehicle, at: Vector3): boolean {
     const job = this.of(car);
     job?.sees(at);

@@ -1,10 +1,10 @@
 import { DirectionalLight, HemisphereLight, type Scene, Vector3 } from 'three';
 
-/** Half-width of the sun's shadow box, metres (the chase view's, and the most the iso view's grows to). */
+/** Shadow-box half-width in meters for the chase view and the maximum for the isometric view. */
 const SHADOW_HALF = 55;
-/** Fitted to the view, the box's half sizes go up in steps of this (m), so they hold still as it moves. */
+/** Quantization step in meters for fitted half-extents, reducing changes as the view moves. */
 const SHADOW_STEP = 4;
-/** And reach this far past what the view shows (m): the shadow filter reads a little round each point. */
+/** Extra coverage in meters for shadow-filter samples beyond the visible region. */
 const SHADOW_PAD = 2;
 const _x = new Vector3();
 const _y = new Vector3();
@@ -31,7 +31,7 @@ export class SunLight {
     scene.add(this.hemi, sun, sun.target);
   }
 
-  /** Center the shadow box on `focus` with the sun out along `dir`, snapped to texels to avoid shimmer. */
+  /** Centre a fixed shadow box on the ground below `focus`, snapping horizontally to texels to reduce shimmer. */
   follow(focus: Vector3, dir: Vector3): void {
     this.size(SHADOW_HALF, SHADOW_HALF);
     this.sun.shadow.camera.up.set(0, 1, 0);
@@ -43,14 +43,12 @@ export class SunLight {
   }
 
   /**
-   * Fit the shadow box round `points` (what the view shows, IsoCamera.shadowCorners) as the sun sees them along `dir`.
-   * A caster shading anything in view lies on the sun's ray through it, so this is all the box needs; the less it
-   * spans, the fewer casters it draws and the sharper its shadows. The box turns to line up with `up` (the view's up
-   * the screen, flat), as the view's footprint does, else its corners would go to waste. Its centre snaps to its
-   * texels, its size to SHADOW_STEP, so shadows hold still.
+   * Fit shadow bounds to the supplied world points as seen along `dir`, oriented by `up`. Pad and quantize the
+   * half-extents, capped at SHADOW_HALF, then snap the centre to shadow texels to reduce shimmer. Callers normally
+   * supply IsoCamera.shadowCorners and the camera's horizontal screen-up direction.
    */
   cover(points: readonly Vector3[], dir: Vector3, up: Vector3): void {
-    // the shadow camera's axes, as three's lookAt builds them from its up
+    // Match the shadow camera basis constructed by Three.js lookAt.
     this.sun.shadow.camera.up.copy(up);
     _z.copy(dir).normalize();
     _x.copy(up).cross(_z);
@@ -86,7 +84,7 @@ export class SunLight {
     const hx = step((x1 - x0) / 2);
     const hy = step((y1 - y0) / 2);
     this.size(hx, hy);
-    // the middle, snapped to texels across the sun's view
+    // Snap the centre in the shadow camera's coordinate system.
     const tx = (hx * 2) / this.sun.shadow.mapSize.x;
     const ty = (hy * 2) / this.sun.shadow.mapSize.y;
     const mx = (x0 + x1) / 2;

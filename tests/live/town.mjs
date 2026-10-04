@@ -1,6 +1,6 @@
 // Townsfolk on foot. Each case runs in the page (see tools/scenarios.mjs).
 
-/** Someone strolling takes fright: they run from it, get well away, and calm down to stroll again. */
+/** Verify that a frightened pedestrian moves away and eventually resumes strolling or pausing. */
 export function runsFromAFrightThenCalmsDown() {
   const g = window.__game;
   const sim = window.__sim;
@@ -20,7 +20,7 @@ export function runsFromAFrightThenCalmsDown() {
   return { ok: ran && away > 4 && calm.ok, ran, away: +away.toFixed(1), calmAfter: calm.seconds };
 }
 
-/** Someone knocked off their feet lies there a while, then gets up limping and runs from what hit them. */
+/** Verify that an injured pedestrian falls, recovers, and flees with a limp. */
 export function knockedDownGetsUpAndRuns() {
   const g = window.__game;
   const sim = window.__sim;
@@ -44,7 +44,7 @@ export function knockedDownGetsUpAndRuns() {
   };
 }
 
-/** Nine skeletons raised next to one person with nobody else about: no more than three go after them. */
+/** Verify that at most three of nine summoned skeletons claim the only nearby pedestrian. */
 export function atMostThreeSkeletonsOnOnePerson() {
   const g = window.__game;
   const sim = window.__sim;
@@ -58,7 +58,7 @@ export function atMostThreeSkeletonsOnOnePerson() {
     return { ok: false, why: 'nobody about' };
   }
 
-  // everyone else far off, the one left a few metres away
+  // Move the other pedestrians away to isolate one nearby target.
   for (const p of rest) {
     p.walker.place(me.clone().add({ x: 400, y: 0, z: 400 }), 0);
   }

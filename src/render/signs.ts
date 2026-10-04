@@ -17,7 +17,7 @@ export interface SignTextures {
   glow: number;
 }
 
-/** A lit sign's material: its art, glowing through the emissive map. Register it for a day/night channel. */
+/** Create a cutaway-aware sign material from color and emissive textures. The caller registers its day/night channel. */
 export function signMaterial(t: SignTextures, roughness: number): MeshStandardMaterial {
   return withCutaway(
     new MeshStandardMaterial({
@@ -38,7 +38,7 @@ export const FONT = {
   brush: '"Bangers", "Impact", sans-serif',
 };
 
-/** Largest font size (<= max) that fits text into width. */
+/** Set and return a font size in pixels, reducing maxPx proportionally when the measured text exceeds maxW. */
 export function fitFont(ctx: Ctx, text: string, family: string, maxW: number, maxPx: number): number {
   let px = maxPx;
   ctx.font = `${px}px ${family}`;

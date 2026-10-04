@@ -10,14 +10,14 @@ import type { Loop, Mixer } from './mixer';
 
 const A = TUNING.audio;
 const E = A.engines;
-/** A gate's arm moving faster than this (its opening, 0..1, a second) runs its motor, and stops it below `still`. */
+/** Start and stop thresholds for gate motor audio, measured in opening fraction per second. */
 const ARM = { moving: 0.15, still: 0.05 };
-/** A running traffic engine ranks as if this much nearer, so two cars about as far off don't keep trading places. */
+/** Distance multiplier favoring engines already playing, to avoid switching between similarly distant cars. */
 const STAY = 0.7;
-/** By night, a moan in the dark every so often (s, least and most). */
+/** Minimum and maximum delay between nighttime moans, in seconds. */
 const MOANS: readonly [number, number] = [20, 45];
 
-/** 0 by day, 1 by night, crossing over TUNING.audio.dusk game hours either side of sunrise and nightfall. */
+/** Return the night ambience weight, from 0 to 1, with smooth transitions around sunrise and nightfall. */
 export function nightness(hours: number): number {
   const { sunrise, nightfall } = TUNING.clock;
   const w = A.dusk;
@@ -25,8 +25,8 @@ export function nightness(hours: number): number {
 }
 
 /**
- * A loop that should be playing or not: started when it's wanted (tried again next frame if it can't yet), stopped when
- * it isn't.
+ * Start a requested loop or keep the existing one. Stop and discard it when no longer wanted. A failed start can be
+ * retried on the next call.
  */
 function keep(loop: Loop | null, want: boolean, start: () => Loop | null): Loop | null {
   if (want) {
@@ -40,21 +40,24 @@ function keep(loop: Loop | null, want: boolean, start: () => Loop | null): Loop 
 interface Running {
   loop: Loop;
   sound: SoundOf<'engine'>;
-  /** Its revs, gear and load. */
+  /** Simulated RPM, gear, and load for this engine. */
   state: EngineState;
-  /** Its speed last frame and how fast that's been changing (smoothed): traffic's throttle. */
+  /** Previous speed and smoothed acceleration, used to estimate traffic throttle. */
   speed: number;
   accel: number;
 }
 
-/** Engines: Cody's ride, and the nearest few running cars, each with revs and load from how it's going. */
+/** Manage engine audio for the player vehicle and the nearest running traffic vehicles. */
 class Engines {
   private readonly on = new Map<Vehicle, Running>();
   private readonly near: Vehicle[] = [];
 
   constructor(private readonly mixer: Mixer) {}
 
-  /** `ride`: what Cody's driving, if anything, with his throttle (-1..1) and whether he's burning GhASt. */
+  /**
+   * Update audible engines. The player vehicle uses the supplied throttle and boost; traffic throttle is estimated from
+   * acceleration.
+   */
   update(dt: number, cars: readonly Vehicle[], ride: Vehicle | null, throttle: number, boost: boolean): void {
     const ear = this.mixer.ear;
     const near = this.near;
@@ -74,7 +77,7 @@ class Engines {
     near.sort((a, b) => rank(a) - rank(b));
     near.length = Math.min(near.length, E.traffic);
 
-    // stopped before any start, so the cue's cap has room
+    // Release unused engines before starting new ones so they do not consume the cue limit.
     for (const [v, r] of this.on) {
       if (v === ride || near.includes(v)) {
         continue;
@@ -96,7 +99,7 @@ class Engines {
   private run(v: Vehicle, dt: number, throttle: number, boost: boolean, mine: boolean): void {
     const { engine: sound, gears } = v.breed;
     let r = this.on.get(v);
-    // turned into the monster truck, or back
+    // Replace the engine sound when the vehicle changes form.
     if (r && r.sound !== sound) {
       r.loop.stop();
       this.on.delete(v);
@@ -114,7 +117,7 @@ class Engines {
     }
 
     const speed = Math.abs(v.speed);
-    // traffic's throttle, from how it's speeding up (it has no pedal to read)
+    // Estimate traffic throttle from acceleration because AI vehicles expose no pedal input.
     r.accel += ((speed - r.speed) / Math.max(dt, 1e-3) - r.accel) * (1 - Math.exp(-dt / 0.2));
     r.speed = speed;
     const pedal = mine ? (boost ? 1 : throttle) : r.accel > 0.3 ? clamp(r.accel / 4, 0.25, 1) : 0;
@@ -123,10 +126,7 @@ class Engines {
   }
 }
 
-/**
- * The loops that follow play from frame to frame: engines, Randy's fire (roaring when fed), the badge gates' arm
- * motors, the GhASt burn, the burner ringing, and the day and night ambience.
- */
+/** Manage continuous vehicle, fire, gate, boost, phone, and ambient sounds from the current game state. */
 export class Loops {
   private readonly engines: Engines;
   private readonly fires = new Map<Npc, Loop>();
@@ -136,7 +136,7 @@ export class Loops {
   private day: Loop | null = null;
   private night: Loop | null = null;
   private moanIn = MOANS[0];
-  /** Randy's on the line: the burner rings till he isn't. */
+  /** Whether the phone ringtone should play. */
   ringing = false;
 
   constructor(private readonly mixer: Mixer) {
@@ -183,7 +183,10 @@ export class Loops {
     }
   }
 
-  /** Each trash can fire crackles while Cody's within earshot, roaring up as it's fed. */
+  /**
+   * Start nearby fire loops and adjust their intensity as tires burn. Use separate entry and exit distances to avoid
+   * restarting at the range boundary.
+   */
   private updateFires(npcs: readonly Npc[]): void {
     const N = A.nearby;
     for (const n of npcs) {
@@ -207,7 +210,7 @@ export class Loops {
     }
   }
 
-  /** A gate's arm motor whirrs while the arm's on the move, near enough to hear. */
+  /** Play motor audio for nearby moving gate arms, with separate start and stop thresholds. */
   private updateArms(dt: number, gates: readonly GateRuntime[]): void {
     for (const g of gates) {
       let a = this.arms.get(g);

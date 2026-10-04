@@ -11,7 +11,7 @@ import type { CharacterRig } from './models/rig';
 const _p = new Vector3();
 const _want = new Vector3();
 const _v = new Vector3();
-/** Easing into the end of a route: speed allowed per metre left, plus a floor so the last step still happens. */
+/** Endpoint speed gain per remaining meter and a minimum target speed to complete the route. */
 const EASE_PER_M = 2.5;
 const EASE_FLOOR = 0.8;
 /**
@@ -23,61 +23,51 @@ const STEER_RATE = 8;
 const FOOT_RATE = 16;
 const STOP_RATE = 10;
 const TURN_RATE = 10;
-/** A height change bigger than this is a different floor: snap instead of easing. */
+/** Snap vertical changes above this threshold in meters; smooth smaller changes. */
 const SNAP_DROP = 1.5;
-/**
- * Steers for the route this far ahead of its nearest point: short, so cutting a corner stays inside the route's
- * clearance.
- */
+/** Short look-ahead distance in meters, limiting corner cutting beyond the route’s clearance. */
 const CARROT = 0.6;
-/** The cursor searches this far ahead for the walker's place on the route. */
+/** Forward route projection window, in meters. */
 const TRACK_WINDOW = 3;
-/** At the end of the route once within this of it (and the cursor too). */
+/** Endpoint distance tolerance, in meters. Cursor progress is checked separately. */
 const ARRIVED = 0.25;
-/**
- * Held up (slower than STALLED m/s) for STALL_TIME within NEAR_END of the end: someone's standing on it, so this is
- * close enough.
- */
+/** Speed, duration, and endpoint-distance thresholds for accepting arrival at a blocked destination. */
 const STALLED = 0.15;
 const STALL_TIME = 2;
 const NEAR_END = 2.5;
-/** Held up this long anywhere else: blocked, worth a fresh route. */
+/** Seconds stalled before reporting blockage to the route owner. */
 const BLOCKED_TIME = 3;
-/**
- * Still held up after this long, it pushes on for a moment giving way only to things on the move (never a deadlock
- * against something standing, at worst a brush past it).
- */
+/** After prolonged blockage, temporarily ignore stationary obstacles to escape local avoidance deadlocks. */
 const BLIND_AFTER = 5;
 const BLIND_FOR = 1.5;
 /**
- * Faces the way it's moving once that's at least this share of its pace; slower (a sidestep, waiting), it keeps facing
- * the route.
+ * Face actual motion above this fraction of cruise speed and the absolute minimum speed. Otherwise face the route
+ * target when it is far enough away.
  */
 const FACE_MOVING = 0.5;
 const FACE_MIN = 0.05;
 
 /**
- * Moves a person along a planned route, steering for a point just ahead on it. Routes keep to walkable ground with
- * clearance; with an Avoidance list, a walker also gives way to other people and vehicles (sidestepping, slowing,
- * waiting), stepping only where there's ground within a step of its feet, and finds its way back to the route after.
- * Feet go on the nav grid's surfaces, which puts them on stair treads rather than gliding up the slope.
+ * Follow a walking route with optional local avoidance and elevator transport. Sample navigation surfaces for foot
+ * height, including stair treads. If an avoided position has no standing clearance, advance along the planned route
+ * instead. Report arrival at the endpoint or after sustained blockage nearby.
  */
 export class Walker {
   readonly pos = new Vector3();
-  /** Velocity over the ground (x, z): what others steer around. */
+  /** Ground-plane velocity in m/s, used by other actors’ avoidance. */
   readonly vel = new Vector3();
   yaw = 0;
-  /** Ground speed (eases to 0 after stopping, for the gait). */
+  /** Speed used for gait animation, eased to zero after movement stops. */
   speed = 0;
-  /** Speed to keep along the route. */
+  /** Requested route speed, in m/s. */
   private pace = 1.5;
-  /** Speed the route asks for now: the pace, eased at the start and end. */
+  /** Current target speed after acceleration and endpoint easing, in m/s. */
   private cruise = 0;
   private cursor: RouteCursor | null = null;
   private planned: { job: NavJob; pace: number | (() => number) } | null = null;
   private wantYaw = 0;
   private stalled = 0;
-  /** Seconds left pushing on past whatever's standing in the way. */
+  /** Seconds remaining with stationary obstacles excluded from avoidance. */
   private blind = 0;
   private readonly gait = new Gait();
   private nav: NavGrid | null = null;
@@ -93,14 +83,14 @@ export class Walker {
     return this.planned !== null;
   }
 
-  /** Own a route request, cancelling any previous request. A lazy pace is chosen only if a route is found. */
+  /** Replace the pending route request. Evaluate a pace callback only when its successful route starts. */
   plan(job: NavJob | null, pace: number | (() => number)): boolean {
     this.cancelPlan();
     this.planned = job ? { job, pace } : null;
     return this.planning;
   }
 
-  /** Start a ready route once. `afterCurrent` lets a fleeing person finish their initial dash first. */
+  /** Consume a settled route request. With `afterCurrent`, defer successful results until the current route ends. */
   followPlanned(afterCurrent = false): 'waiting' | 'following' | 'failed' | null {
     const plan = this.planned;
     if (!plan) {
@@ -137,7 +127,7 @@ export class Walker {
     return this.cursor?.path.end ?? null;
   }
 
-  /** Held up on the way for a while (something new in the way, a jam): the owner might plan a fresh route. */
+  /** Report sustained low speed on an active route so its owner can request a replacement. */
   get blocked(): boolean {
     return this.cursor !== null && this.stalled > BLOCKED_TIME;
   }
@@ -170,17 +160,17 @@ export class Walker {
     this.vel.set(0, 0, 0);
   }
 
-  /** Turn to look at p (conversations, getting into a car). */
+  /** Set the desired heading toward `p`; update() applies the turn. */
   face(p: Vector3): void {
     this.wantYaw = Math.atan2(p.x - this.pos.x, p.z - this.pos.z);
   }
 
   /**
-   * Returns true on the frame the walker reaches the end of its route. With `avoid`, it steers around everyone listed
-   * there.
+   * Advance movement, avoidance, elevators, and gait. Return true only when an active route ends, either at its
+   * endpoint or after sustained blockage nearby. Nonpositive dt does not advance route movement.
    */
   update(dt: number, nav: NavGrid, avoid: Avoidance | null = null): boolean {
-    // an elevator on the route, or one it's riding: the elevator walks it in, carries it and walks it out (world/elevators.ts)
+    // Delegate boarding, transport, and disembarking to world/elevators.ts.
     if (dt > 0 && nav.elevators?.ride(this, this.cursor, dt)) {
       this.yaw = dampAngle(this.yaw, this.wantYaw, TURN_RATE, dt);
       this.sync(dt);
@@ -192,9 +182,9 @@ export class Walker {
     if (c && dt > 0) {
       this.nav = nav;
       c.track(this.pos, TRACK_WINDOW);
-      // ease into the last metre rather than stopping dead
+      // Reduce target speed near the endpoint while preserving a minimum approach speed.
       this.cruise = damp(this.cruise, Math.min(this.pace, c.remaining * EASE_PER_M + EASE_FLOOR), ACCEL_RATE, dt);
-      // the route's velocity: toward a point just ahead on it, never past its end
+      // Limit desired travel to the look-ahead target to avoid overshooting it.
       c.ahead(CARROT, _p);
       const dx = _p.x - this.pos.x;
       const dz = _p.z - this.pos.z;
@@ -219,7 +209,7 @@ export class Walker {
       this.vel.z = damp(this.vel.z, _v.z, STEER_RATE, dt);
       const nx = this.pos.x + this.vel.x * dt;
       const nz = this.pos.z + this.vel.z * dt;
-      // feet only go down on ground within a step of where they are; otherwise (a corner cut over a drop) ride the route itself
+      // Fall back to the planned route if avoidance moves beyond standing clearance.
       const ground = nav.standable(nx, this.pos.y, nz, NAV.person);
       if (ground !== null) {
         this.pos.set(
@@ -243,7 +233,7 @@ export class Walker {
         this.wantYaw = Math.atan2(dx, dz);
       }
 
-      // there, or as near as whoever's standing on the spot allows
+      // Accept a nearby blocked endpoint once both physical distance and route progress are close enough.
       const end = c.path.end;
       const toEnd = Math.hypot(end.x - this.pos.x, end.z - this.pos.z);
       this.stalled = this.speed < STALLED ? this.stalled + dt : 0;
@@ -265,7 +255,7 @@ export class Walker {
     return arrived;
   }
 
-  /** Room to stand at (x, z) on this floor: ground within a step there and a body's width either side. */
+  /** Check standing clearance at the center and four cardinal offsets on the current level. */
   private readonly fits = (x: number, z: number): boolean => {
     const nav = this.nav;
     if (!nav) {

@@ -6,7 +6,7 @@
     <title>30 Phantom Codys</title>
     <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-    <!-- from the home screen it runs fullscreen in landscape: the only fullscreen an iPhone gives a page -->
+    <!-- The manifest requests fullscreen display in landscape orientation when installed. -->
     <link rel="manifest" href="/web-manifest.json" />
     <meta name="theme-color" content="#0d0716" />
     <meta name="mobile-web-app-capable" content="yes" />
@@ -15,7 +15,7 @@
     <meta name="apple-mobile-web-app-title" content="Phantom Codys" />
     <style>
       html, body { margin: 0; height: 100%; background: #0d0716; overflow: hidden; }
-      /* absolute, not fixed: fixed would make #app a stacking context and sink the HUD under the touch pad */
+      /* Absolute positioning keeps #app from creating a stacking context that puts the HUD below touch controls. */
       #app { position: absolute; inset: 0; }
       #app canvas { display: block; }
     </style>

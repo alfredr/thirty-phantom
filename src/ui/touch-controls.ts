@@ -5,15 +5,15 @@ import { type Control, isControl, KEYS } from '@/game/controls';
 
 import './touch.css';
 
-/** Phones and tablets (a coarse pointer), or ?touch to try the controls with a mouse. */
+/** Enable touch controls for coarse pointers or the explicit ?touch flag. */
 export function wantsTouch(): boolean {
   return urlFlag('touch') || matchMedia('(pointer: coarse)').matches;
 }
 
-/** How far the stick's knob travels from where the thumb came down (px), and its dead zone (0..1). */
+/** Stick radius in CSS pixels and dead-zone fraction. */
 const STICK_REACH = 52;
 const DEAD_ZONE = 0.12;
-/** Thumbs that land left of this share of the screen width drive the stick; the rest look and pinch. */
+/** Fraction of viewport width eligible to start the movement stick. */
 const STICK_SIDE = 0.45;
 /** Drag to look: screen pixels to mouse-look pixels. */
 const LOOK_GAIN = 1.6;
@@ -22,13 +22,13 @@ const PINCH_STEP = 36;
 
 interface ButtonSpec {
   action: Control;
-  /** Big glyph, and an optional caption under it. */
+  /** Primary button label and optional secondary caption. */
   glyph: string;
   caption?: string;
   cls: string;
 }
 
-/** Actions the stick does rather than a button. */
+/** Movement controls represented by the analog stick. */
 const STICK: ReadonlySet<Control> = new Set<Control>(['forward', 'back', 'left', 'right']);
 
 const BUTTONS: readonly ButtonSpec[] = [
@@ -43,7 +43,7 @@ const BUTTONS: readonly ButtonSpec[] = [
   { action: 'rotateRight', glyph: '↻', cls: 'small rot-r' },
 ];
 
-/** The on-screen button for `action` (the one sending its key, so drift finds RUN), for key caps in HUD text. */
+/** Return the touch label for a control, matching shared primary keys such as run and drift. */
 export function touchGlyph(action: Control): string | undefined {
   if (STICK.has(action)) {
     return 'STICK';
@@ -53,15 +53,10 @@ export function touchGlyph(action: Control): string | undefined {
 }
 
 /**
- * On-screen controls for touch screens, all fed through Input like the keyboard:
- *
- * - a stick under the left thumb, wherever it lands (walk; throttle and steer)
- * - buttons under the right thumb (F use, hop, run / drift, summon on foot, boost in the truck, camera, iso rotate)
- * - drag anywhere else to look (chase view), pinch to zoom
- * - the prompt and speech-bubble choices can be tapped
- * - driving is always in the chase view (game.ts), and CAM switches top-down / chase on foot Off on the title screen,
- *   which takes a tap to start. In portrait, a card asks for landscape; turned sideways, where the browser allows it, a
- *   card offers fullscreen (it needs that tap).
+ * Translate touch gestures and buttons into the shared Input interface. Start a movement stick on the left, use
+ * remaining drags for camera motion, and convert two-pointer spread into zoom steps. Route HUD action taps through key
+ * presses. Mirror HUD mode and summon availability, hide controls on the title screen, and offer landscape, fullscreen,
+ * or home-screen installation guidance as appropriate.
  */
 export class TouchControls {
   readonly root: HTMLDivElement;
@@ -76,9 +71,9 @@ export class TouchControls {
   private spread = 0;
   private readonly fullCard: HTMLDivElement;
   private readonly fullButton: HTMLDivElement;
-  /** "Not now" on the fullscreen card: only the corner button offers it after that. */
+  /** Whether the fullscreen card was dismissed; retain the smaller fullscreen button. */
   private fullDismissed = false;
-  /** iPhones: the home screen is their only fullscreen, so this card says how, once. */
+  /** Home-screen installation instructions used when direct fullscreen is unavailable. */
   private readonly homeCard: HTMLDivElement;
   private homeSeen = remembered(HOME_HINT_KEY);
 
@@ -102,7 +97,7 @@ export class TouchControls {
     const later = el('div', 'later', this.fullCard, 'not now');
     this.fullButton = el('div', 'touch-full-btn', document.body, 'FULLSCREEN');
     go.addEventListener('click', () => void goFullscreen());
-    // where pages can't go fullscreen (iPhones), the corner button brings back the home-screen how-to
+    // Reopen installation guidance when direct fullscreen is unavailable.
     this.fullButton.addEventListener('click', () => {
       if (canFullscreen()) {
         void goFullscreen();
@@ -142,7 +137,7 @@ export class TouchControls {
       this.pad.addEventListener(t, (e) => this.padUp(e));
     }
 
-    // the prompt and the speech bubble's choices: a tap does what they say
+    // Dispatch HUD action taps through the same focus routing as keyboard presses.
     document.addEventListener('pointerdown', (e) => {
       const t = (e.target as Element | null)?.closest<HTMLElement>('#hud [data-action]');
       const action = t?.dataset.action;
@@ -205,7 +200,7 @@ export class TouchControls {
       }
 
       this.knob.style.transform = `translate(${dx * STICK_REACH}px, ${dy * STICK_REACH}px)`;
-      // screen up is forward; inside the dead zone the stick rests
+      // Invert screen y for forward movement and suppress drift inside the dead zone.
       const resting = Math.min(1, len) < DEAD_ZONE;
       this.input.setStick(resting ? 0 : dx, resting ? 0 : -dy);
       return;
@@ -222,7 +217,7 @@ export class TouchControls {
     p.y = e.clientY;
 
     if (this.looks.size >= 2) {
-      // spreading the fingers zooms in, as the wheel does rolled forward
+      // Convert increasing spread to negative wheel steps, which zoom inward.
       const s = this.fingerSpread();
       while (s - this.spread > PINCH_STEP) {
         this.input.zoom(-1);
@@ -260,10 +255,7 @@ export class TouchControls {
     return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
   }
 
-  /**
-   * Mirror the HUD's mode (title / foot / drive): the controls hide on the title screen, and the buttons for one mode
-   * only (boost in the truck) follow it; summon shows while Cody can summon.
-   */
+  /** Mirror HUD mode and summon availability into attributes used to show the appropriate touch controls. */
   private followMode(): void {
     const hud = document.getElementById('hud');
     if (!hud) {
@@ -279,16 +271,16 @@ export class TouchControls {
     sync();
   }
 
-  /** Offer fullscreen when it's possible and not on yet: the card once held sideways, then the corner button. */
+  /** Update fullscreen and installation prompts from orientation, browser support, and prior dismissal. */
   private syncFullscreen(): void {
-    // been fullscreen once: leaving it gets the corner button, not the card again
+    // After fullscreen has been used, retain only the compact re-entry button.
     if (document.fullscreenElement) {
       this.fullDismissed = true;
     }
 
     const landscape = matchMedia('(orientation: landscape)').matches;
     const offer = canFullscreen() && !document.fullscreenElement && landscape;
-    // Apple phones: only the home screen gets rid of the bars, so the card says how (and the corner button asks again)
+    // Offer installation guidance for supported Apple devices outside standalone mode.
     const home = !canFullscreen() && isAppleMobile() && !isHomeScreenApp() && landscape;
     this.fullCard.classList.toggle('on', offer && !this.fullDismissed);
     this.homeCard.classList.toggle('on', home && !this.homeSeen);
@@ -298,12 +290,12 @@ export class TouchControls {
 
 const HOME_HINT_KEY = '30pc.homeHint';
 
-/** Mobile Safari (iPhone, iPad) is the browser that knows navigator.standalone. */
+/** Detect Apple mobile behavior through the navigator.standalone property. */
 function isAppleMobile(): boolean {
   return 'standalone' in navigator;
 }
 
-/** Started from the home screen: no browser bars to get rid of. */
+/** Detect standalone or fullscreen launch modes, including Apple home-screen apps. */
 function isHomeScreenApp(): boolean {
   return (
     (navigator as Navigator & { standalone?: boolean }).standalone === true ||
@@ -323,13 +315,13 @@ function remember(key: string): void {
   try {
     localStorage.setItem(key, '1');
   } catch {
-    // storage blocked: the hint comes back next visit
+    // Without persistent storage, show the hint again on a later visit.
   }
 }
 
 /**
- * Android browsers and iPads can put a page fullscreen. iPhones can't (every iPhone browser is Safari underneath),
- * though some report fullscreenEnabled anyway, and the request does nothing.
+ * Require the document fullscreen API and enabled flag. Explicitly exclude iPhone and iPod user agents, whose
+ * advertised support is not accepted by this UI.
  */
 function canFullscreen(): boolean {
   if (/iPhone|iPod/.test(navigator.userAgent)) {
@@ -343,7 +335,7 @@ function canFullscreen(): boolean {
 const SHARE_ICON =
   '<svg class="share" viewBox="0 0 20 24"><path d="M10 15V2M5.5 6.5 10 2l4.5 4.5M6.5 10H3v12h14V10h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
-/** Fullscreen, held in landscape where the browser lets a page lock it. Must run inside a tap. */
+/** Request fullscreen and optional landscape lock. Call from a user gesture; ignore unsupported or rejected requests. */
 async function goFullscreen(): Promise<void> {
   try {
     if (!document.fullscreenElement) {
@@ -352,6 +344,6 @@ async function goFullscreen(): Promise<void> {
 
     await (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }).lock?.('landscape');
   } catch {
-    // not allowed here: the rotate card still asks for landscape
+    // The portrait guidance remains available if fullscreen or orientation locking is rejected.
   }
 }

@@ -1,7 +1,7 @@
 /* Touch screens (ui/touch-controls.ts). Colors come from the :root palette in hud.css. */
 
 body.touch {
-  /* the game handles every touch: no page scroll, zoom, text selection or long-press menu */
+  /* Suppress browser gestures, selection, and callouts where the game handles touch input. */
   touch-action: none;
   overscroll-behavior: none;
   user-select: none;
@@ -9,12 +9,12 @@ body.touch {
   -webkit-touch-callout: none;
 }
 
-/* keep the HUD clear of a notch or rounded corners (index.html asks for viewport-fit=cover) */
+/* Respect device safe areas with viewport-fit=cover enabled in index.html. */
 body.touch #hud {
   inset: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 
-/* drags and pinches land here; under the title and victory cards so a tap still starts the game */
+/* Capture camera and movement gestures below the title and victory overlays. */
 .touch-pad {
   position: fixed;
   inset: 0;
@@ -24,12 +24,12 @@ body.touch #hud {
 .touch[data-mode='title'] .touch-buttons {
   display: none;
 }
-/* a conversation (ui/dialogue.ts) takes the bottom of the screen, and the controls are muted meanwhile */
+/* Hide action buttons during conversations from ui/dialogue.ts. */
 body.dialogue-open .touch-buttons {
   visibility: hidden;
 }
 
-/* the stick appears wherever the left thumb lands */
+/* Center the stick around the gesture’s initial position. */
 .touch-stick {
   position: fixed;
   width: 112px;
@@ -59,7 +59,7 @@ body.dialogue-open .touch-buttons {
   box-shadow: 0 0 14px rgba(141, 255, 31, 0.6);
 }
 
-/* right-thumb cluster: F (use) biggest, hop and run beside it, view buttons above */
+/* Group right-hand action buttons around the larger interaction button. */
 .touch-buttons {
   position: fixed;
   right: calc(18px + env(safe-area-inset-right));
@@ -152,7 +152,7 @@ body.dialogue-open .touch-buttons {
   right: 60px;
   bottom: 176px;
 }
-/* the phone (ui/phone/): up the right edge, clear of the stick and the action buttons */
+/* Place the ui/phone/ shortcut along the action cluster’s right edge. */
 .touch-btn.phone {
   right: 14px;
   top: 112px;
@@ -160,7 +160,7 @@ body.dialogue-open .touch-buttons {
 .touch-btn.phone b {
   font-size: 22px;
 }
-/* phantom Cody's skeletons: while he can raise them (on foot) */
+/* Show the summon button only when the HUD reports summoning available. */
 .touch-btn.summon {
   right: 106px;
   bottom: 74px;
@@ -171,7 +171,7 @@ body.dialogue-open .touch-buttons {
 .touch:not([data-summon='on']) .touch-btn.summon {
   display: none;
 }
-/* burning GhASt (hold): in the same place, while the GhASt dial shows (hud.setGhast) */
+/* Share the summon position with the boost button, shown by Hud.drawGhast through ghast-on. */
 .touch-btn.boost {
   right: 106px;
   bottom: 74px;
@@ -187,14 +187,14 @@ body.ghast-on .touch[data-mode='drive'] .touch-btn.boost {
   display: flex;
 }
 
-/* the camera mode pill (hud.showCamera) sits by the CAM button, clear of the stick */
+/* Place the Hud.showCamera notification beside the camera button and clear of the stick. */
 body.touch .hud-cam {
   left: auto;
   right: 262px;
   bottom: 22px;
 }
 
-/* the prompt and the speech bubble's choices can be tapped */
+/* Enable touch targets for visible prompts and speech choices. */
 body.touch #hud .hud-prompt.show,
 body.touch #hud .hud-bubble.show .choice {
   pointer-events: auto;
@@ -203,7 +203,7 @@ body.touch #hud .hud-bubble .choice {
   padding: 4px 0;
 }
 
-/* keyboard help and key lists mean nothing here */
+/* Replace keyboard-only title guidance with touch guidance. */
 body.touch .hud-help,
 body.touch .title-keys {
   display: none;
@@ -216,7 +216,7 @@ body.touch .title-go::after {
   font-size: 22px;
 }
 
-/* item tags and their actions are tap targets; the key caps are for keyboards */
+/* Enlarge inventory touch targets and hide keyboard shortcuts. */
 body.touch .inv-item {
   padding: 5px 11px;
   font-size: 13px;
@@ -236,7 +236,7 @@ body.touch .inv-act {
   text-shadow: none;
 }
 
-/* phones on their side are short: shrink the HUD toward the edges it hangs from */
+/* Scale and reposition the HUD for short touch viewports. */
 @media (max-height: 540px) {
   body.touch .hud-logo {
     scale: 0.62;
@@ -247,11 +247,11 @@ body.touch .inv-act {
     scale: 0.72;
     transform-origin: 0 0;
   }
-  /* zoom, not scale: the clock plate is centered with a transform */
+  /* Use zoom to preserve the clock plate’s transform-based centering. */
   body.touch .hud-status {
     zoom: 0.72;
   }
-  /* carried items line up under the clock plate, clear of the buttons, and a tag's actions open below it */
+  /* Arrange inventory horizontally beneath the clock and open action menus below the tags. */
   body.touch .hud-inv {
     top: 62px;
     right: auto;
@@ -259,8 +259,8 @@ body.touch .inv-act {
     translate: -50% 0;
     flex-direction: row;
   }
-  /* the burner's objective pill takes that row while it's up: the items go under it */
-  /* during a chat the dialogue takes the bottom (portraits both sides): the wares go to one row up top */
+  /* Reserve the lower viewport for dialogue and its portraits. */
+  /* Move shop slots into one upper row while dialogue is active. */
   body.touch.dialogue-open .hud-wares {
     left: 50%;
     top: 96px;
@@ -274,7 +274,7 @@ body.touch .inv-act {
   body.touch:has(.burner-goal.on) .hud-inv {
     top: 92px;
   }
-  /* Randy's wares on the left, under the logo, smaller: the right is the buttons' */
+  /* Place the compact shop beneath the logo, leaving the right side for controls. */
   body.touch .hud-wares {
     right: auto;
     left: 14px;
@@ -297,7 +297,7 @@ body.touch .inv-act {
     scale: 0.72;
     transform-origin: 50% 0;
   }
-  /* the title card fits in a phone's height */
+  /* Size title typography relative to the short viewport height. */
   body.touch .title-30 {
     font-size: 26vh;
     -webkit-text-stroke-width: 4px;
@@ -318,7 +318,7 @@ body.touch .inv-act {
   }
 }
 
-/* held sideways, the browser can go fullscreen, but only from a tap: this card is that tap */
+/* Present the gesture required to request fullscreen in landscape orientation. */
 .touch-full {
   display: none;
 }
@@ -354,7 +354,7 @@ body.touch .inv-act {
   -webkit-text-stroke: 4px var(--ink);
   paint-order: stroke fill;
 }
-/* the home-screen how-to, step by step */
+/* Format home-screen installation steps. */
 .touch-full .steps {
   margin: 0;
   padding: 0 0 0 1.6em;
@@ -400,7 +400,7 @@ body.touch .inv-act {
   letter-spacing: 0.14em;
   color: var(--lilac);
 }
-/* after "not now" (or after leaving fullscreen) a small pill offers it again */
+/* Keep a compact fullscreen entry point after the main prompt is dismissed. */
 .touch-full-btn {
   display: none;
 }
@@ -420,7 +420,7 @@ body.touch .inv-act {
   letter-spacing: 0.14em;
 }
 
-/* asked to turn sideways while held upright */
+/* Show landscape-orientation guidance on portrait touch screens. */
 .touch-rotate {
   display: none;
 }

@@ -1,4 +1,4 @@
-/** Something the space can find. */
+/** A body indexed by its world position. */
 export interface Body {
   readonly pos: { readonly x: number; readonly y: number; readonly z: number };
 }
@@ -11,10 +11,9 @@ export type Any = typeof _;
 const SPAN = 2048;
 
 /**
- * Where everything is, for one frame. The grid is rebuilt whole at the start of each frame and never patched, so it
- * can't disagree with the bodies: positions change only after every query of the frame has run. Distances are measured
- * on the ground plane. Two bodies further apart vertically than the level tolerance are never near each other, so a
- * deck floor above or below doesn't count; a ramp between floors changes height gradually and stays continuous.
+ * Index bodies for ground-plane proximity queries with a separate vertical tolerance. Rebuild before querying each
+ * frame, and keep body positions fixed until all queries finish: the grid stores body references and pair results are
+ * cached. Both radius and vertical tolerance comparisons are strict.
  */
 export class Space<B extends Body> {
   private readonly cells = new Map<number, B[]>();
@@ -25,7 +24,7 @@ export class Space<B extends Body> {
     private readonly level = 2,
   ) {}
 
-  /** Indexes every body for this frame, and forgets last frame's answers. */
+  /** Rebuild the spatial index and invalidate cached pair queries. */
   rebuild(bodies: Iterable<B>): void {
     this.cells.clear();
     this.pairs.clear();
@@ -115,7 +114,7 @@ export class Space<B extends Body> {
       }
     }
 
-    // The only memo in the space: spatial, and dropped at the next rebuild.
+    // Pair results remain valid only until the next rebuild.
     this.pairs.set(key, list);
     return list;
   }

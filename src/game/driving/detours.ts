@@ -15,37 +15,28 @@ import type { NavGrid, NavJob, NavPlanner } from '@/world/nav-grid';
 
 import type { Fleet } from './fleet';
 
-/** Looking for where to rejoin the lane: in steps of this along it (m). */
+/** Lane re-entry sampling interval in meters. */
 const STEP = 2;
 /**
- * Standing cars within this of the car (m) close the ground out to their body plus TUNING.traffic.impatience.squeeze,
- * save those behind it; someone on foot in the way, out to PERSON_EXTRA (m) more than that.
+ * Obstacle search radius and extra pedestrian padding, in meters. Vehicle padding comes from
+ * TUNING.traffic.impatience.squeeze.
  */
 const PLAN_REACH = 35;
 const PERSON_EXTRA = 0.5;
-/** A car slower than this (m/s) is standing, for the plan. */
+/** Speed threshold in m/s for treating vehicles as stationary planning obstacles. */
 const STANDING = 0.5;
-/** A person's region runs from just under their feet to over their head (m). */
+/** Vertical obstacle extent below the feet and above them, in meters. */
 const BELOW = 0.3;
 const ABOVE = 2;
-/**
- * Back near the lane's line, within this (m), lined up with it (cosine of the heading difference) and this far (m) past
- * what was in the way: traffic again, easing onto the line.
- */
+/** Re-entry thresholds: lateral offset in meters, heading cosine, and distance past the obstruction in meters. */
 const JOIN_OFFSET = 0.8;
 const JOIN_ALIGN = 0.95;
 const JOIN_PAST = 1;
-/**
- * Further off the lane's line than this (m), or turned further from it, it has left the lane: it can't just slot back
- * in.
- */
+/** Maximum lane offset in meters for returning to traffic after a failed detour; heading alignment is also required. */
 const OFF_LANE = 0.6;
-/** Braking while it waits: throttle per m/s of speed (full brakes above 1/BRAKE_GAIN m/s), as the visitors do. */
+/** Braking gain per m/s; full braking begins at 1/BRAKE_GAIN. */
 const BRAKE_GAIN = 0.5;
-/**
- * Oncoming: a traffic car on the move (faster than this, m/s), heading the other way (cosine below this), ahead and
- * within this of the lane's line (m).
- */
+/** Oncoming traffic thresholds: minimum speed in m/s, maximum heading dot product, and lateral range in meters. */
 const ONCOMING_SPEED = 1;
 const ONCOMING_DOT = -0.3;
 const ONCOMING_SIDE = 9;
@@ -53,29 +44,26 @@ const ONCOMING_SIDE = 9;
 const _p = new Vector3();
 const _d = new Vector3();
 
-/** One impatient driver's pull-round: out of the lane, round what's in the way, back in beyond it. */
+/** An active maneuver around a lane obstruction. */
 interface Detour {
   car: Vehicle;
-  /** Who's at the wheel: holds the car's driverSeat claim (owned by the detour) while it pulls round. */
+  /** Driver-seat claimant, owned by this detour. */
   driver: object;
-  /** The lane it's leaving and coming back to, its index among the traffic loops. */
+  /** Original traffic loop and its index. */
   line: Polyline;
   path: number;
-  /** Arc length along the lane where it pulled out, and how much further on what's in the way is. */
+  /** Departure arc length and forward distance to the obstruction, in meters. */
   s0: number;
   block: number;
-  /** Where it rejoins the lane, heading which way. */
+  /** Target lane re-entry pose. */
   goal: Vector3;
   goalYaw: number;
-  /** What's in the way: a car, or (null) someone on foot at `at`. */
+  /** Blocking vehicle, or null for a pedestrian obstruction at `at`. */
   by: Vehicle | null;
   at: Vector3;
-  /**
-   * How angry the driver was when they pulled out (0..1): angrier squeezes by tighter and waits less for oncoming
-   * traffic.
-   */
+  /** Normalized impatience at departure; controls clearance, search distance, and oncoming wait. */
   anger: number;
-  /** planning: waiting on the route; gap: waiting for oncoming traffic to pass; driving. */
+  /** Wait for planning, wait for a traffic gap, or follow the route. */
   phase: 'planning' | 'gap' | 'driving';
   job: NavJob | null;
   pilot: Autopilot | null;
@@ -85,17 +73,13 @@ interface Detour {
 }
 
 /**
- * Drivers fed up with waiting behind something in their lane (a parked or wrecked car, Cody's, Cody himself) pull round
- * it: a short planned drive (the shared planner and the valets' autopilot, as for visitors) out of the lane and back
- * into it where there's room beyond, and they're traffic again. On the way the car is a 'visitor' (a townsperson at the
- * wheel). Only a few at once, since the planner is shared. No route in time, or none worth driving, and they wait on in
- * the lane (Traffic has them honk again later); wedged twice once out of it, they leave the car where it stands. An
- * angrier driver looks further along for a way back in, squeezes by tighter and waits less for oncoming traffic. Bumps
- * on the way are real contacts (`bump`), never cars passing through each other.
+ * Route impatient traffic around nearby obstructions and back into its lane. Limit concurrent plans and reject
+ * excessive detours. Impatience controls route clearance and gap waiting. Replan once if stuck; after failure, resume
+ * traffic when aligned with the lane or abandon the car outside it.
  */
 export class Detours {
   private readonly detours: Detour[] = [];
-  /** Cars that crashed pulling round, left where they lie: the game has their drivers get out and run once they stop. */
+  /** Cars that crashed during detours; the game releases their drivers after they settle. */
   readonly stranded: Vehicle[] = [];
 
   constructor(
@@ -104,26 +88,23 @@ export class Detours {
     private readonly collision: CollisionWorld,
     private readonly fleet: Fleet,
     private readonly traffic: Traffic,
-    /** A car pulling round against every other: real contact, shoves and knocks. */
+    /** Process physics events and vehicle contacts after each detour driving step. */
     private readonly drove: (car: Vehicle, ev: DriveEvents) => void,
-    /** Its driver holds the seat for the pull-round, like any AI driver's job: Cody taking the car ends it. */
+    /** Reserve the driver seat so another claimant can cancel the detour. */
     private readonly claims: Claims<ClaimKind>,
   ) {}
 
-  /** Cars pulling round something right now. */
+  /** Number of active detours. */
   get count(): number {
     return this.detours.length;
   }
 
-  /** Whether `car`'s driver is pulling round something. */
+  /** Test whether the car has an active detour. */
   has(car: Vehicle): boolean {
     return this.detours.some((d) => d.car === car);
   }
 
-  /**
-   * A driver pulling round sees phantom Cody at `from` this frame: the pull-round is off, and they're frightened
-   * traffic on their lane again, from wherever they've got to.
-   */
+  /** Cancel a detour, return its car to the original traffic loop, and apply the reported fright. */
   frighten(car: Vehicle, from: Vector3): void {
     const i = this.detours.findIndex((d) => d.car === car);
     const d = this.detours[i];
@@ -137,8 +118,8 @@ export class Detours {
   }
 
   /**
-   * A driver's had enough of `jam`: if there's room on the lane past what's in the way and not too many are already at
-   * it, they pull round. True if they did (the car is a 'visitor' till it's back in the lane).
+   * Reserve the driver seat and plan a detour when a lane re-entry point and capacity are available. Return whether the
+   * maneuver started.
    */
   take(jam: Jam): boolean {
     const I = TUNING.traffic.impatience;
@@ -153,7 +134,7 @@ export class Detours {
     }
 
     const block = (jam.at.x - car.pos.x) * Math.sin(car.yaw) + (jam.at.z - car.pos.z) * Math.cos(car.yaw);
-    // the first stretch of lane beyond it with room to slot back in
+    // Choose the first clear sampled position beyond the obstruction.
     const s0 = line.project(car.pos);
     let s = -1;
     const reach = lerp(I.reach[0], I.reach[1], jam.anger);
@@ -200,7 +181,7 @@ export class Detours {
     return true;
   }
 
-  /** `obstacles`: people and cars (their body circles, noses and tails too) to keep clear of. */
+  /** Advance detours using current pedestrian and vehicle-circle obstacles. */
   update(dt: number, obstacles: readonly Obstacle[]): void {
     for (let i = this.detours.length - 1; i >= 0; i--) {
       const d = this.detours[i];
@@ -210,7 +191,7 @@ export class Detours {
     }
   }
 
-  /** Pull-round i is over, however it ended: its route's called off and the driver lets go of the seat. */
+  /** Cancel pending planning and release the detour’s seat reservation. */
   private end(i: number): void {
     const d = this.detours[i];
     if (!d) {
@@ -223,11 +204,11 @@ export class Detours {
     this.detours.splice(i, 1);
   }
 
-  /** One frame of a pull-round; false once it's over. */
+  /** Advance one detour; return false when it ends. */
   private step(d: Detour, dt: number, obstacles: readonly Obstacle[]): boolean {
     const I = TUNING.traffic.impatience;
     const car = d.car;
-    // someone else has it now (Cody took the seat, a hit knocked it loose, it's gone): it's off, and the game sees to the driver
+    // Cancel when the seat, role, or vehicle is no longer owned by this detour.
     if (
       this.claims.holder('driverSeat', car) !== d.driver ||
       car.role !== 'visitor' ||
@@ -258,7 +239,7 @@ export class Detours {
         }
 
         d.job = null;
-        // no way round, or only the long way (round the block): not worth it
+        // Reject missing routes and routes too long relative to the direct distance.
         const legs = job.legs;
         if (!legs || !job.path || job.path.total > I.detour * car.pos.distanceTo(d.goal)) {
           return this.giveUp(d);
@@ -271,7 +252,7 @@ export class Detours {
       }
 
       case 'gap':
-        // still in its lane: let oncoming traffic by before pulling out across it
+        // Wait for oncoming traffic until the impatience-based timeout expires.
         this.hold(car, dt);
 
         if (
@@ -308,7 +289,7 @@ export class Detours {
             return this.giveUp(d);
           }
 
-          // one fresh route from wherever it wedged itself
+          // Retry once from the blocked position.
           d.replanned = true;
           d.pilot = null;
           this.plan(d);
@@ -319,7 +300,7 @@ export class Detours {
     }
   }
 
-  /** Ask for a drive from where the car is to where it rejoins the lane, round whatever's standing about. */
+  /** Plan toward the re-entry pose around nearby stationary obstacles. */
   private plan(d: Detour): void {
     const car = d.car;
     const fx = Math.sin(car.yaw);
@@ -333,7 +314,7 @@ export class Detours {
         continue;
       }
 
-      // the queue behind it doesn't matter going forward, and would only crowd where it starts
+      // Exclude the queue behind the car to keep its starting region clear.
       if ((o.pos.x - car.pos.x) * fx + (o.pos.z - car.pos.z) * fz < -tail) {
         continue;
       }
@@ -358,15 +339,15 @@ export class Detours {
   }
 
   /**
-   * Back on the lane's line, heading its way and past what was in the way (or, with `force`, wherever it got to): it's
-   * traffic again. True if it is.
+   * Return to traffic when aligned with the lane beyond the obstruction. `force` bypasses those checks. Return whether
+   * re-entry occurred.
    */
   private rejoin(d: Detour, force: boolean): boolean {
     const car = d.car;
     const s = d.line.project(car.pos);
     d.line.sample(s, _p, _d);
     const total = d.line.total;
-    // how far on from where it pulled out, either way round the loop
+    // Measure signed progress using the shortest distance around the loop.
     const on = mod(s - d.s0 + total / 2, total) - total / 2;
     const near =
       Math.hypot(_p.x - car.pos.x, _p.z - car.pos.z) < JOIN_OFFSET &&
@@ -383,10 +364,7 @@ export class Detours {
     this.traffic.join(d.car, d.path, s);
   }
 
-  /**
-   * No route in time, none worth driving, or wedged twice. Still in its lane, the driver waits on in the traffic (and
-   * honks again later). Out of it, they give up and sit where they are; the car's towed once out of sight.
-   */
+  /** On failure, rejoin traffic if still aligned with the lane; otherwise park and mark the car for distant removal. */
   private giveUp(d: Detour): false {
     const car = d.car;
     const s = d.line.project(car.pos);
@@ -407,7 +385,7 @@ export class Detours {
     return false;
   }
 
-  /** Oncoming traffic within `gap` (m) ahead: pulling out now would put the car in its way. */
+  /** Test for opposing traffic within the forward gap and lateral range, in meters. */
   private oncoming(car: Vehicle, gap: number): boolean {
     const fx = Math.sin(car.yaw);
     const fz = Math.cos(car.yaw);
@@ -431,13 +409,13 @@ export class Detours {
     return false;
   }
 
-  /** Nothing within TUNING.traffic.impatience.clear of `p` but `self`: room to slot back into the lane. */
+  /** Test vehicle clearance around a prospective lane re-entry point, excluding `self`. */
   private roomAt(p: Vector3, self: Vehicle): boolean {
     const clear = TUNING.traffic.impatience.clear;
     return !this.fleet.vehicles.some((v) => v !== self && !v.gone && v.pos.distanceTo(p) < clear);
   }
 
-  /** Waiting: brake to a stop where it is. */
+  /** Brake while waiting and process the resulting physics events. */
   private hold(car: Vehicle, dt: number): void {
     const input: DriveInput = {
       throttle: -Math.sign(car.speed) * Math.min(1, Math.abs(car.speed) * BRAKE_GAIN),

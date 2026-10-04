@@ -4,26 +4,24 @@ import type { Inventory } from '@/game/items/inventory';
 
 import type { Npc, Npcs } from './npcs';
 
-/** Cody on foot this close to Randy (m, on his level) can give him tires. */
+/** Horizontal trade range and maximum vertical separation, in meters. */
 const REACH = 2.4;
 const SAME_LEVEL = 2;
-/** The tires leave from about Cody's hands (m up). */
+/** Tire release height above Cody’s feet, in meters. */
 const HANDS = 1.1;
 
-/** What a trade tells the game: tires given (to whom), and brisket paid for them. */
+/** Callbacks for the tire transfer and its reward. */
 export interface TradeHooks {
   gave(n: number, to: Npc): void;
   paid(n: number): void;
 }
 
 /**
- * Randy wants "wheels": tires, for his fire. Standing by him with tires, Cody can give them to him (the item's GIVE
- * action). Randy pays a brisket a tire there and then; the tires go into his fire one by one after, the fire roaring up
- * with each (his work mind, randy-mind.ts), and he takes no more till they're in. Nothing tells the player this ahead
- * of time. The tutorial runs it itself (give) in its basement scene.
+ * Exchange all carried tires through the trade callbacks, then start Randy’s feeding animation. Only an idle roasting
+ * state accepts another batch. The tutorial can call give() directly during a scene.
  */
 export class TireTrade {
-  /** Set false while a scene wants the moment to itself: Cody isn't offered GIVE. */
+  /** Disable discovery of trade offers while a scene controls the interaction. */
   enabled = true;
 
   constructor(
@@ -32,10 +30,7 @@ export class TireTrade {
     private readonly hooks: TradeHooks,
   ) {}
 
-  /**
-   * Who Cody (on foot at `cody`) could give tires to right now, if anyone: Randy, at his fire, close by, and not still
-   * burning the last lot.
-   */
+  /** Return a nearby NPC with a fire who is ready to accept a tire batch, or null. */
   taker(cody: Vector3): Npc | null {
     if (!this.enabled) {
       return null;
@@ -55,7 +50,10 @@ export class TireTrade {
     return null;
   }
 
-  /** Hand Randy (`n`) every tire Cody has, from where Cody stands, and take the brisket for them; returns how many. */
+  /**
+   * Transfer every carried tire, invoke trade callbacks, and start feeding. Return zero if Randy is busy or Cody has
+   * none. The caller handles proximity and offer eligibility.
+   */
   give(n: Npc, cody: Vector3): number {
     if (!n.work.in('roasting')) {
       return 0;

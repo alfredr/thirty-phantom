@@ -19,19 +19,15 @@ export const DECK = {
 };
 
 /**
- * Ground floor parking: a row along the north wall, one spot in each bay between its columns (x centers), west of the
- * stair and elevator doors, so the lanes from the gates to the ramp stay clear. Spots start this far in from the wall's
- * face (clear of the columns), this wide and deep.
+ * Ground-floor parking dimensions in meters. Centre stalls between north-wall columns, west of the stair and elevator
+ * doors, to preserve routes from the gates to the ramp.
  */
 const GROUND_SPOTS = { xs: [4.3, 12, 20, 28], z: 1.3, width: 4.8, depth: 6.6 };
 
 /** How many cars are already parked in the deck when the game starts (a range). */
 const START_CARS: [number, number] = [5, 9];
 
-/**
- * Roof furniture stands this far above the roof: the corner banner towers' tops, and the clock tower's shaft (its head
- * sits on that).
- */
+/** Heights above the roof in meters for banner towers and the clock-tower shaft. */
 const ROOF = { banner: 6, clock: 9 };
 
 const BANNERS = [
@@ -43,9 +39,8 @@ const BANNERS = [
 ];
 
 /**
- * Pedestrian stair tower against the north face, between the columns at x 32 and 40: switchback flights in two lanes
- * split by a wall, a floor landing at the east end of every level with a door through the parapet (too narrow for a
- * car), and doors at the bottom into the ground floor and out to the sidewalk. Valets come down this way; so can Cody.
+ * Pedestrian stair tower on the north face between columns at X=32 and X=40. Switchback flights connect a landing at
+ * each floor with ground-floor and sidewalk entrances. Door widths restrict vehicle access.
  */
 const STAIR = {
   x0: 32.6,
@@ -60,18 +55,12 @@ const STAIR = {
   steps: 9,
   /** Divider between the north (up-going) and south lanes. */
   divider: [-1.8, -1.7] as [number, number],
-  /**
-   * Its walls rise this far above each floor (to the roof slab's top when that floor is the top), the roof slab this
-   * thick.
-   */
+  /** Wall height above each floor and roof-slab thickness, in meters. */
   above: 2.5,
   roof: 0.3,
 };
 
-/**
- * The basement under the deck's north side: a concrete store room the stairwell's last flight comes down to, through a
- * door in its north wall that lines up with the stair door. Randy Rolsen hangs about in here.
- */
+/** Basement storage room beneath the deck's north side, connected to the stairwell and containing Randy Rolsen. */
 const BASEMENT = {
   /** Top of its floor slab (a storey below the ground floor). */
   floor: -4.8,
@@ -85,18 +74,15 @@ const BASEMENT = {
   doorTop: 2.4,
   randy: [36.6, 2.0] as [number, number],
   randyYaw: 2.6,
-  /**
-   * His burning trash can, in his own frame (x to his left, z ahead): an arm and a roasting stick's length out in
-   * front, under the stick's end.
-   */
+  /** Trash-can offset in Randy's local frame (X left, Z forward), aligned with the end of his roasting stick. */
   fire: [0.36, 1.42] as [number, number],
   /** Its lamp hangs this far over the floor. */
   fireLight: 1.5,
 };
 
 /**
- * The stair tower's inside, world x0, z0, x1, z1, for a deck at `origin`: the city leaves its sidewalk out here (the
- * shaft goes down).
+ * Return the stair-shaft interior footprint (x0, z0, x1, z1) in world coordinates for a deck at `origin`. The city
+ * generator excludes sidewalk geometry here.
  */
 export function stairShaft(origin: V3): [number, number, number, number] {
   return [
@@ -108,9 +94,8 @@ export function stairShaft(origin: V3): [number, number, number, number] {
 }
 
 /**
- * The elevator, east of the stair tower on the north face (past the ramp lanes, so every level has floor in front of
- * its door): a shaft just outside the deck from a pit under the basement to above the top level, with a door into the
- * basement, the ground floor and each upper level.
+ * Elevator placement east of the stair tower on the north face. Its exterior shaft serves the basement and every deck
+ * floor, with landings beyond the ramp lanes.
  */
 const ELEV = {
   /**
@@ -121,19 +106,16 @@ const ELEV = {
   door: 1.4,
 };
 
-/**
- * Where the deck's walls stop either side of the elevator: the shaft's width, walls and all (its face is the wall
- * there).
- */
+/** Horizontal opening in the deck wall occupied by the elevator shaft, including its walls. */
 const ELEV_GAP: [number, number] = [ELEV.shaft[0] - LIFT.wall, ELEV.shaft[2] + LIFT.wall];
 
-/** The elevator shaft's inside, world x0, z0, x1, z1, for a deck at `origin`: no sidewalk here either. */
+/** Return the elevator-shaft interior footprint (x0, z0, x1, z1) in world coordinates for sidewalk exclusion. */
 export function elevatorShaft(origin: V3): [number, number, number, number] {
   const [x0, z0, x1, z1] = ELEV.shaft;
   return [origin[0] + x0, origin[2] + z0, origin[0] + x1, origin[2] + z1];
 }
 
-/** The elevator: stops at the basement, the ground floor and every upper level, roofed over the top one. */
+/** Append an elevator shaft serving the basement and supplied deck floor heights, with a roof over the top stop. */
 function elevator(w: LevelWriter, F: readonly number[]): void {
   const [x0, z0, x1, z1] = ELEV.shaft;
   const stops: ElevatorStop[] = [{ y: BASEMENT.floor, facing: 'z+', label: 'BASEMENT' }];
@@ -147,7 +129,7 @@ function elevator(w: LevelWriter, F: readonly number[]): void {
   });
 }
 
-/** The stair tower: from the basement up to every floor, a roof slab over the top one. */
+/** Append the stair tower, switchback flights, landing lights, and pit from the basement through all supplied floors. */
 function stairwell(w: LevelWriter, F: readonly number[]): void {
   const S = STAIR;
   const B = BASEMENT;
@@ -188,7 +170,7 @@ function stairwell(w: LevelWriter, F: readonly number[]): void {
     // half landing at the west end
     w.box([ix0, mid - 0.3, iz0], [runStart, mid, 0], 'concrete');
 
-    // up the south lane, heading east, to this floor's landing (at street level, the tower's own: the sidewalk stops at its walls)
+    // The eastbound flight ends on a tower landing; the sidewalk does not extend into the shaft.
     for (let i = 1; i <= S.steps; i++) {
       const x0 = runStart + S.tread * (i - 1);
       const y = mid + rise * i;
@@ -205,7 +187,7 @@ function stairwell(w: LevelWriter, F: readonly number[]): void {
   w.box([ix0, base, iz0], [ix1, B.floor, 0], 'concrete');
   flights(B.floor, F[0] as number);
   w.lamp([(runEnd + ix1) / 2, B.floor + 2.4, iz0 / 2], 'green', 'ceiling');
-  // below street level there's no ground plane in here
+  // Remove the ground plane within the stair shaft.
   w.data.pits.push({ min: w.p([ix0, base, iz0]), max: w.p([ix1, 0, 0]) });
 
   // each upper level's flights and walls
@@ -222,7 +204,7 @@ function stairwell(w: LevelWriter, F: readonly number[]): void {
   w.box([S.door[0] - 0.1, roof, S.z0 + 0.6], [S.door[1] + 0.1, roof + 0.15, S.z0 + 1.2], 'lampGreen', { solid: false });
 }
 
-/** The store room under the deck: walls, floor, a ceiling slab under the ground floor, a few columns and crates, Randy. */
+/** Append the basement shell, fixtures, pit, lighting, and Randy's spawn and fire positions. */
 function basement(w: LevelWriter): void {
   const B = BASEMENT;
   const [x0, z0, x1, z1] = B.room;
@@ -266,7 +248,7 @@ function basement(w: LevelWriter): void {
     w.lamp([lx, lightY, lz], color, 'ceiling');
   }
 
-  // no ground plane under the room (its floor slab is the ground)
+  // Remove the ground plane so the basement slab supplies the floor.
   w.data.pits.push({
     min: w.p([x0 - t, base, z0]),
     max: w.p([x1 + t, 0, z1 + t]),
@@ -277,7 +259,7 @@ function basement(w: LevelWriter): void {
   const [fx, fz] = B.fire;
   const cx = rx + fx * Math.cos(yaw) + fz * Math.sin(yaw);
   const cz = rz - fx * Math.sin(yaw) + fz * Math.cos(yaw);
-  // the can blocks people as an NPC's prop (it goes where he goes), not level geometry
+  // The NPC system supplies the moving trash-can collision; only its light is added here.
   w.lamp([cx, B.floor + B.fireLight, cz], 'warm', 'ceiling');
   w.data.npcs.push({
     id: 'randy',
@@ -288,16 +270,16 @@ function basement(w: LevelWriter): void {
 }
 
 /**
- * The haunted parking deck: a ground floor fenced in with badge gates on the east side, and upper levels with breakable
- * parapets reached by ramps in alternating lanes, roof furniture (kickers, billboard, banner towers, the clock tower)
- * on top, and a basement under it all.
+ * Append the haunted parking deck at `origin`, using `seed` for puddles and initially parked cars. Include gated
+ * ground-floor parking, upper floors with alternating ramps and breakable parapets, rooftop features, stairs, elevator,
+ * and basement. Update the level's deck bounds and ghost zone.
  */
 export function generateDeck(w: LevelWriter, origin: V3, seed: number): void {
   const rng = new Rng(seed);
   const { W, D, floors: F, slab: T } = DECK;
   const [ax0, ax1] = DECK.rampX;
   const top = F.length - 1;
-  // a breakable guardrail or railing run, `out` off the side it guards
+  // Place breakable railing runs with out directed away from the guarded edge.
   const rail = (style: RailDef['style'], a: V3, b: V3, out: [number, number]): void => {
     w.data.rails.push({ style, a: w.p(a), b: w.p(b), out });
   };
@@ -309,7 +291,7 @@ export function generateDeck(w: LevelWriter, origin: V3, seed: number): void {
     // ground floor
     w.box([0, 0, 0], [W, F[0], D], 'concreteDark');
 
-    // ground floor: low wall + fence (collision to 3.6 so trucks can't hop it)
+    // Extend ground-floor boundary collision to Y=3.7 to prevent trucks from jumping the fence.
     const wall = (x0: number, z0: number, x1: number, z1: number): void => {
       w.box([x0, 0, z0], [x1, 1.6, z1], 'concrete', { drip: 'top' });
       w.box([x0, 1.6, z0], [x1, 3.7, z1], 'invisible');
@@ -338,7 +320,7 @@ export function generateDeck(w: LevelWriter, origin: V3, seed: number): void {
     wall(W - 0.5, 1.6, W, 9.8);
     wall(W - 0.5, 26.2, W, D - 1.8);
 
-    // ground floor parking: spots numbered first, backed in facing the floor (yaw 0), lined like the levels above
+    // Number ground-floor spaces first and orient parked cars toward the floor interior.
     let spotId = 0;
     const firstSpot = w.data.spots.length;
     const G = GROUND_SPOTS;
@@ -365,7 +347,7 @@ export function generateDeck(w: LevelWriter, origin: V3, seed: number): void {
     for (let k = 1; k <= top; k++) {
       const lo = F[k - 1] as number;
       const fy = F[k] as number;
-      // slab with a hole for the ramp coming up (lane A on odd levels, B on even), railed round
+      // Leave the incoming ramp opening in lane A on odd levels and lane B on even levels.
       const holeA = k % 2 === 1;
       const rects: [number, number, number, number][] = holeA
         ? [
@@ -399,7 +381,7 @@ export function generateDeck(w: LevelWriter, origin: V3, seed: number): void {
         rail('railing', [ax1 + 0.2, ry1, 0.4], [ax1 + 0.2, ry1, DECK.laneB[1]], [-1, 0]);
       }
 
-      // the ramp up to it (rising east in lane A, west in lane B), guardrails straddling both edges
+      // Alternate ramp rise direction between levels and guard both edges.
       const [z0, z1] = holeA ? [29.4, 34.6] : [1.4, 6.6];
       w.ramp([ax0, lo, z0], [ax1, fy, z1], 'x', holeA ? 1 : -1, lo, 'concrete');
       const [ya, yb] = holeA ? [lo, fy] : [fy, lo];
@@ -428,7 +410,7 @@ export function generateDeck(w: LevelWriter, origin: V3, seed: number): void {
       ];
       for (const [x0, x1] of xs) {
         if (x0 === STAIR.x0) {
-          // the stairwell door: solid either side, so a truck can't smash it wide open
+          // Keep the stair doorway sides unbreakable so trucks cannot widen the entrance.
           w.box([x0, fy, 0], [STAIR.door[0], ry1, 0.4], 'concrete', {
             drip: 'top',
           });
@@ -436,7 +418,7 @@ export function generateDeck(w: LevelWriter, origin: V3, seed: number): void {
           rail('railing', [x0, ry1, 0.2], [STAIR.door[0], ry1, 0.2], [0, -1]);
           rail('railing', [STAIR.door[1], ry1, 0.2], [x1, ry1, 0.2], [0, -1]);
         } else if (x0 < ELEV_GAP[0] && x1 > ELEV_GAP[1]) {
-          // the elevator: solid either side of its shaft
+          // Preserve solid wall sections on both sides of the elevator shaft.
           const x2 = x1 + (x1 === 46.2 ? 0.2 : 0);
           w.box([x0, fy, 0], [ELEV_GAP[0], ry1, 0.4], 'concrete', {
             drip: 'top',
@@ -533,8 +515,7 @@ export function generateDeck(w: LevelWriter, origin: V3, seed: number): void {
     elevator(w, F);
     basement(w);
 
-    // roof furniture: corner banner towers and the clock tower stand a little taller than the deck,
-    // the billboard and the kickers sit on its roof
+    // Towers rise from the ground; the billboard and kickers stand on the roof.
     {
       const R = F[top] as number;
       const towers: [number, number][] = [
@@ -603,8 +584,7 @@ export function generateDeck(w: LevelWriter, origin: V3, seed: number): void {
       w.ramp([3.5, R, 15], [10, R + 1.8, 21], 'x', -1, R, 'concrete', true);
     }
 
-    // badge gates (east side). The deck face is the block edge and this block's traffic lane
-    // runs at W + 3, so nothing below roof height reaches past W + 1.6.
+    // Keep gate structures within W + 1.6 to clear the traffic lane centred at W + 3.
     w.box([W - 1.4, F[0], 16.6], [W + 1.4, 3.0, 19.4], 'concreteLight');
     w.box([W - 1.6, 3.0, 16.4], [W + 1.6, 3.3, 19.6], 'metal');
     w.box([W + 1.4, 1.4, 17.2], [W + 1.5, 2.6, 18.8], 'glass', {

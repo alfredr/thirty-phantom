@@ -13,7 +13,7 @@ const [{ Triggers }, { SaveGame }, { Emitter }, { Haunting, Quests, tireMarks },
     '/src/game/items/inventory.ts',
   );
 
-/** What a save reads and writes, standing in for the game. */
+/** Create the game state needed to test saving and loading. */
 function stand(over = {}) {
   const haunting = new Haunting({ needed: 30, victory: () => stand.victories++, moved() {} });
   return {
@@ -34,7 +34,7 @@ function stand(over = {}) {
 stand.victories = 0;
 stand.laidOut = null;
 
-/** Swaps in window, document and a localStorage for one test. */
+/** Install browser globals for one test and restore their original values during cleanup. */
 function browser(t, storage) {
   const globals = ['window', 'document', 'localStorage'];
   const originals = globals.map((key) => Object.getOwnPropertyDescriptor(globalThis, key));

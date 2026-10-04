@@ -13,41 +13,39 @@ import type { Valet, ValetService } from './valet';
 
 const DECK_FULL = "SORRY. THE DECK'S FULL.";
 
-/** What a conversation with a valet needs from the game. */
+/** Game operations available to valet conversations. */
 export interface TalkHooks {
-  /** Where Cody is: on foot or in his car. */
+  /** Return Cody’s position on foot or in a vehicle. */
   me(): Vector3;
-  /** Whether the stand's open. */
+  /** Return whether valet service is open. */
   onShift(): boolean;
-  /** The car a valet would take, if there is one. */
+  /** Return the vehicle eligible for handover, or null. */
   carToTake(): Vehicle | null;
-  /** Cody hands `car` over, getting out first if he's in it. */
+  /** Release Cody’s vehicle before handing it to the valet. */
   handOff(car: Vehicle): void;
-  /** Cody's cash, and paying out of it. */
+  /** Read and spend Cody’s balance in dollars. */
   cash(): number;
   pay(amount: number): boolean;
 }
 
 /**
- * How a car gets handed over: free to the top floor, tipped or bribed to the top floor, or untipped (wherever there's
- * room).
+ * Handover terms: highest available floor for free, a tip, or a bribe; any available spot if a requested tip is
+ * declined.
  */
 type Deal = 'top' | 'tipped' | 'bribed' | 'anywhere';
 
 /**
- * Talking to a valet. While it's open he faces Cody (his attention mind) without dropping what he was doing. The first
- * car goes to the top floor free. After that he may name a tip (TUNING.valet.tipChance), bigger each time he asks;
- * paid, the car goes to the top floor, otherwise wherever there's room. A tip he's named stands until a car is handed
- * over, so walking off doesn't make it go away. One caught walking back to the stand takes a car only for a bribe
- * (TUNING.valet.bribe), and then it goes to the top floor.
+ * Negotiate a parking handover while the valet faces Cody. The first car receives top-floor service free; later
+ * requests may require an increasing tip. Preserve the quoted tip until a non-bribed handover. Returning valets instead
+ * require the configured bribe.
  */
 export class ValetTalk extends Conversation<Valet, Deal> {
-  /** Cars handed over so far, and tips asked for. */
+  /** Completed handover count and number of tip requests. */
   private handed = 0;
   private asked = 0;
-  /** This visit's tip: unknown until he's asked (null), then 0 for none. */
+  /** Pending tip quote; null means unquoted and zero means no tip required. */
   private tip: number | null = null;
-  /** The valet this talk's with was on his way back to the stand: only money turns him round. */
+  /** Whether the selected valet requires a bribe to interrupt a return trip. */
   private bribe = false;
 
   constructor(
@@ -65,7 +63,7 @@ export class ValetTalk extends Conversation<Valet, Deal> {
     });
   }
 
-  /** Interact next to a valet: he stops, turns to Cody and asks what he can do. */
+  /** Start a conversation and choose or reuse the handover terms. */
   start(valet: Valet): void {
     const V = TUNING.valet;
     valet.send({ type: 'talk', who: () => this.hooks.me() });
@@ -86,7 +84,7 @@ export class ValetTalk extends Conversation<Valet, Deal> {
     this.hud.setPrompt(null);
   }
 
-  /** The valet drove it in and parked it: same as parking it yourself. */
+  /** Record an entry if the valet did not cross the gate and announce the parked spot. */
   parked(spot: SpotRuntime, valet: Valet): void {
     if (!valet.badged) {
       this.garage.logged++;
@@ -124,7 +122,7 @@ export class ValetTalk extends Conversation<Valet, Deal> {
     return [{ action: 'interact', label: 'PARK IT', off: false, does: 'top' }];
   }
 
-  /** The conversation's over: he stops facing Cody. */
+  /** Release the valet’s conversation attention. */
   protected ended(valet: Valet): void {
     valet.send({ type: 'talkEnded' });
   }
@@ -144,7 +142,7 @@ export class ValetTalk extends Conversation<Valet, Deal> {
       this.valets.take(valet, car, spot);
       this.handed++;
 
-      // a bribe is between him and Cody: the stand's tip still stands
+      // A bribe leaves the pending stand tip unchanged.
       if (deal !== 'bribed') {
         this.tip = null;
       }

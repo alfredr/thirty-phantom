@@ -16,9 +16,9 @@ import type { WorldConditions } from '@/game/rules/world-conditions';
 
 import type { CodyState } from './cody-state';
 
-/** Cody steps out this far past the side of the car (m). */
+/** Distance beyond the vehicle’s side used for exiting, in meters. */
 const DOOR_GAP = 1;
-/** An escaped truck rolls on this long (s) before it dissolves. */
+/** Minimum post-escape duration before a grounded vehicle disappears, in seconds. */
 const ESCAPE_ROLL = 2.5;
 const _door = new Vector3();
 
@@ -33,7 +33,7 @@ export type RideEvents = {
   entered: { v: Vehicle; possessed: boolean; from: Vehicle['role'] | null; quiet: boolean };
   /** Cody is back on foot; the car may have been parked in a deck spot. */
   exited: { v: Vehicle; spot: SpotRuntime | null; quiet: boolean };
-  /** An escaped truck dissolved into the night here. */
+  /** Report where an escaped vehicle disappears. */
   vanished: { at: Vector3 };
 };
 
@@ -118,7 +118,7 @@ export class CodyRide {
     return car.form === 'car' && car.insideDeck && this.world.conditions.deckAwake() && this.world.cody.can('possess');
   }
 
-  /** Scripted boarding is quiet; an owned car has no glovebox cash to find. */
+  /** Board quietly for scripts. Mark owned vehicles as searched to prevent glovebox rewards. */
   board(car: Vehicle, own = false): void {
     if (this.driving === car) {
       return;

@@ -11,23 +11,20 @@ import { type EventOf, Mind, mind, type MindEvent, type State, type StateOf } fr
 import type { ClaimKind } from '@/game/rules/claim-kinds';
 import { NAV, type NavGrid, type NavJob, type NavPlanner } from '@/world/nav-grid';
 
-/**
- * Whom skeletons hunt: the crowd's people, through opaque handles. A handle stays valid until victimAt() says they're
- * gone.
- */
+/** Victim queries and attacks through opaque handles. A target remains usable while victimAt() succeeds. */
 export interface Prey {
   /**
-   * The nearest person within `reach` (m) of `at` and within `sameLevel` (m) of its height, not dead yet, that `may`
-   * allow; or null.
+   * Return the nearest living victim within horizontal `reach` and vertical `sameLevel`, both in meters, that passes
+   * `may`; otherwise return null.
    */
   victimNear(at: Vector3, reach: number, sameLevel: number, may: (v: object) => boolean): object | null;
-  /** Where `v` is now (standing, or lying), into `out`; false once they're dead or gone. */
+  /** Write the victim’s current position into `out`; return false when dead or absent. */
   victimAt(v: object, out: Vector3): boolean;
-  /** A skeleton's blow from `from`: they run off hurt, go down, or die. */
+  /** Apply an attack and report whether the victim was hit, knocked down, or killed. */
   maul(v: object, from: Vector3, damage: number): 'hit' | 'downed' | 'killed';
 }
 
-/** A vehicle that can run a skeleton down, by its three body circles. */
+/** Vehicle geometry and motion used for three-circle skeleton collision checks. */
 export interface SkeletonCrusher {
   readonly pos: Vector3;
   readonly vel: Vector3;
@@ -36,67 +33,63 @@ export interface SkeletonCrusher {
   readonly gone: boolean;
 }
 
-/** Most up at once; how many rise per summon, and how often (s). */
+/** Population cap, maximum count per summon, and summon cooldown in seconds. */
 const MAX = 9;
 const PER_SUMMON = 3;
 const SUMMON_EVERY = 4;
-/** They come up within this ring around the summoner (m), and take this long to climb out (s). */
+/** Spawn radius range in meters, rise duration in seconds, and starting burial depth in meters. */
 const RING: readonly [number, number] = [1.6, 3.4];
 const RISE = 1.3;
 const BURIED = 1.9;
-/** Hunting: they look this far for someone (m), on their level, and pick again this often (s). */
+/** Hunting radius and vertical tolerance in meters, followed by retarget interval in seconds. */
 const HUNT = 26;
 const SAME_LEVEL = 2.5;
 const RETARGET = 0.6;
-/**
- * A shambling run (m/s). With nobody to hunt they keep near the summoner: further off than HEEL[1] (m) they come back,
- * until within HEEL[0].
- */
+/** Walking pace in m/s and following thresholds in meters. Start returning beyond HEEL[1] and stop inside HEEL[0]. */
 const PACE = 4.3;
 const HEEL: readonly [number, number] = [4, 7];
-/** Body for collisions: radius, height, step up (m). */
+/** Collision radius, height, and maximum step height, in meters. */
 const RADIUS = 0.35;
 const HEIGHT = 1.8;
 const STEP = 0.5;
-/** Clawing: within this reach (m), a blow this often (s) for this much (of a person's 100). */
+/** Attack reach in meters, interval in seconds, and damage range. */
 const REACH = 1.05;
 const SWING_EVERY = 0.8;
 const DAMAGE: readonly [number, number] = [22, 34];
-/** Their own health; a car at speed takes this much per m/s of impact. */
+/** Initial health, vehicle damage per m/s of impact, and minimum damaging speed in m/s. */
 const HEALTH = 100;
 const CAR_DAMAGE = 9;
 const CAR_MIN = 3;
-/** Knocked back this far (m) and staggered this long (s) by a car that didn't finish them. */
+/** Vehicle knockback distance in meters and stagger duration in seconds. */
 const KNOCK = 1.4;
 const STAGGER = 0.6;
-/** Left this far behind the summoner (m), they crumble. */
+/** Maximum distance from the summoner before removal, in meters. */
 const STRAY = 95;
-/** Re-plan a route around walls this often (s). */
+/** Route refresh interval while obstructed, in seconds. */
 const REPLAN = 1.5;
 /**
- * Spacing: within SPREAD (m) of each other they bear away, gently (at its strongest the push counts APART times their
- * heading); after the same quarry, only within CROWD, so they can gang up. With nothing to do, one too close to another
- * ambles off at up to AMBLE (m/s). Bodies never overlap.
+ * Separation ranges in meters, steering weight, and idle separation pace in m/s. Skeletons sharing a target use the
+ * smaller CROWD range.
  */
 const SPREAD = 3.5;
 const CROWD = 1.1;
 const APART = 1.2;
 const AMBLE = 1.1;
-/** Pushes weaker than this are left alone (so they settle rather than fidget). */
+/** Minimum spacing force that triggers idle movement, to avoid jitter. */
 const SETTLED = 0.02;
 
-/** What a skeleton's doing. */
+/** Skeleton animation and behavior states. */
 type Undead =
-  /** Climbing out of the ground, `t` seconds in (each starts a moment after the others, below 0). */
+  /** Rise from the ground; negative elapsed seconds stagger the start times. */
   | State<'rising', { t: number }>
-  /** After someone, or keeping near Cody with nobody to hunt. */
+  /** Hunt victims or follow the summoner. */
   | State<'hunting'>
-  /** Knocked back by a car, for `t` more seconds. */
+  /** Pause hunting for `t` seconds after a vehicle hit. */
   | State<'staggered', { t: number }>;
 
-/** What can happen to a skeleton. */
+/** Events accepted by skeleton behavior. */
 type UndeadEvent =
-  /** A car ploughed into it and didn't finish it: staggered this long (s). */
+  /** Stagger for the supplied duration in seconds after a vehicle impact. */
   MindEvent<'struck', { t: number }>;
 
 const stagger = (_s: Skeleton, _st: Undead, { t }: EventOf<UndeadEvent, 'struck'>): StateOf<Undead, 'staggered'> => ({
@@ -104,7 +97,7 @@ const stagger = (_s: Skeleton, _st: Undead, { t }: EventOf<UndeadEvent, 'struck'
   t,
 });
 
-/** A skeleton's mind: it climbs out, then hunts; a car that doesn't finish it staggers it a moment. */
+/** Rise, hunt, and temporarily stagger after vehicle impacts. */
 const SKELETON_MIND = mind<Skeleton, Undead, UndeadEvent>({
   rising: {
     tick: (s, st, dt) => (s.pack.rise(s, st, dt) ? { at: 'hunting' } : null),
@@ -126,20 +119,20 @@ const SKELETON_MIND = mind<Skeleton, Undead, UndeadEvent>({
   },
 });
 
-/** One of phantom Cody's skeletons. */
+/** One summoned skeleton’s movement, targeting, and animation state. */
 class Skeleton {
   readonly mind: Mind<Skeleton, Undead, UndeadEvent>;
   readonly gait = new Gait();
   speed = 0;
   hp = HEALTH;
-  /** Who it's after (held through a 'quarry' claim), and when it looks again. */
+  /** Current quarry and remaining retarget delay in seconds. */
   target: object | null = null;
   retarget = 0;
-  /** Seconds left of its current claw swipe. */
+  /** Remaining attack animation and cooldown time in seconds. */
   swing = 0;
-  /** Coming back to the summoner (see HEEL). */
+  /** Whether the skeleton is returning to the summoner under HEEL thresholds. */
   heeling = false;
-  /** A planned way around walls to whatever it's after, and when to plan again. */
+  /** Pending route, active cursor, and remaining replanning delay. */
   job: NavJob | null = null;
   route: RouteCursor | null = null;
   replan = 0;
@@ -159,33 +152,30 @@ class Skeleton {
 
 const _goal = new Vector3();
 const _step = new Vector3();
-/** The spacing push for the skeleton being moved (see spacing()). */
+/** Reusable separation vector populated by spacing(). */
 const _sep = new Vector3();
 const _p: V3 = [0, 0, 0];
 const _a: V3 = [0, 0, 0];
 const _b: V3 = [0, 0, 0];
 
 /**
- * Phantom Cody's skeletons. Summoned at night, a few climb out of the ground around him, then hunt the nearest
- * townsfolk: straight at them when nothing's in the way, round walls by a planned route when something is. In reach
- * they claw (the crowd decides what that does: hurt, down, dead); a kill is reported so a ghost can rise from the body.
- * With nobody about they keep near Cody. Cars knock them back and smash them; out of health, or at sunrise, they
- * crumble into bones.
+ * Spawn skeletons, acquire victims, and navigate or attack them. Optional quarry claims limit attackers per victim.
+ * Skeletons follow the summoner without prey, take damage from vehicles, and report kills and removal for effects.
  */
 export class Skeletons {
   readonly root = new Group();
-  /** Where each one is, for the crowd to run from (refilled every update). */
+  /** Current skeleton position references, refreshed every update. */
   readonly threats: Vector3[] = [];
-  /** One climbed out of the ground here (dirt). */
+  /** Notify effects when a skeleton begins rising. */
   onRise: ((at: Vector3) => void) | null = null;
-  /** One fell apart here (bones). */
+  /** Notify effects when a skeleton is removed. */
   onCrumble: ((at: Vector3) => void) | null = null;
-  /** One killed someone lying (or falling) here: a ghost rises from them. */
+  /** Notify effects at the position of a killed victim. */
   onKill: ((at: Vector3) => void) | null = null;
 
   private readonly list: Skeleton[] = [];
   private cooldown = 0;
-  /** Phantom Cody, whom they keep near with nobody to hunt, this frame (null: they just stand about). */
+  /** Current following target; null disables following but still permits hunting and spacing. */
   private master: Vector3 | null = null;
 
   constructor(
@@ -193,7 +183,7 @@ export class Skeletons {
     private readonly nav: NavGrid,
     private readonly planner: NavPlanner,
     private readonly prey: Prey | null,
-    /** Who's after whom ('quarry'); without them, any number gang up on one. */
+    /** Optional quarry reservations that limit attackers per victim. */
     private readonly claims: Claims<ClaimKind> | null = null,
   ) {}
 
@@ -201,7 +191,10 @@ export class Skeletons {
     return this.list.length;
   }
 
-  /** Call some up around `at` (facing `yaw`): how many rose (0 while the last summons is cooling down or at the cap). */
+  /**
+   * Attempt to spawn skeletons near `at` and return the count. Return zero during cooldown, at capacity, or when no
+   * valid positions are found.
+   */
   summon(at: Vector3, yaw: number): number {
     if (this.cooldown > 0 || this.list.length >= MAX) {
       return 0;
@@ -210,7 +203,7 @@ export class Skeletons {
     this.cooldown = SUMMON_EVERY;
     let n = 0;
     for (let k = 0; k < PER_SUMMON && this.list.length < MAX; k++) {
-      // spread round in front of him first
+      // Try positions ahead of the summoner before trying behind.
       for (let tries = 0; tries < 6; tries++) {
         const a = yaw + (k - (PER_SUMMON - 1) / 2) * 0.9 + (Math.random() - 0.5) * 0.6 + (tries > 2 ? Math.PI : 0);
         const r = RING[0] + Math.random() * (RING[1] - RING[0]);
@@ -230,7 +223,7 @@ export class Skeletons {
     return n;
   }
 
-  /** Sunrise: every one of them falls apart. */
+  /** Remove all skeletons and emit their crumble callbacks. */
   crumbleAll(): void {
     for (let i = this.list.length - 1; i >= 0; i--) {
       this.crumble(i);
@@ -238,8 +231,8 @@ export class Skeletons {
   }
 
   /**
-   * @param master phantom Cody, whom they keep near with nobody to hunt (null: they just stand about)
-   * @param cars vehicles that can run them down
+   * @param master Following target when no prey is available; null disables following.
+   * @param cars Vehicles checked for damaging contact.
    */
   update(dt: number, master: Vector3 | null, cars: readonly SkeletonCrusher[]): void {
     this.cooldown = Math.max(0, this.cooldown - dt);
@@ -257,7 +250,7 @@ export class Skeletons {
         continue;
       }
 
-      // out of the ground, cars can hit it
+      // Rising skeletons are immune to vehicle contacts.
       if (!s.mind.in('rising')) {
         this.runOver(s, cars);
 
@@ -288,7 +281,7 @@ export class Skeletons {
     this.list.push(new Skeleton(this, rig, pos, yaw));
   }
 
-  /** Is (x, y, z) too close to one already up (or coming up) to rise there? */
+  /** Test spawn spacing against existing skeletons on the same level. */
   private crowded(x: number, y: number, z: number): boolean {
     for (const o of this.list) {
       const dx = o.pos.x - x;
@@ -301,7 +294,7 @@ export class Skeletons {
     return false;
   }
 
-  /** Climbing out: up through the ground, shaking, dirt flying as it breaks the surface. True once it's out. */
+  /** Advance the emergence animation and notify effects at its start. Return true when fully above ground. */
   rise(s: Skeleton, st: { t: number }, dt: number): boolean {
     const was = st.t;
     st.t += dt;
@@ -315,7 +308,7 @@ export class Skeletons {
     const r = s.rig;
     r.root.position.set(s.pos.x + Math.sin(st.t * 40) * 0.03 * (1 - k), s.pos.y - BURIED * (1 - ease), s.pos.z);
     r.root.rotation.y = s.yaw;
-    // clawing its way up
+
     r.armL.rotation.x = -2.6 + Math.sin(st.t * 12) * 0.5 * (1 - k);
     r.armR.rotation.x = -2.6 + Math.cos(st.t * 12) * 0.5 * (1 - k);
 
@@ -328,12 +321,12 @@ export class Skeletons {
     return true;
   }
 
-  /** It can go after `v`: there's room among those already after them. */
+  /** Allow the existing quarry or a target with available reservation capacity. */
   private canHunt(s: Skeleton, v: object): boolean {
     return v === s.target || !this.claims || this.claims.free('quarry', v);
   }
 
-  /** It gives up on whoever it was after. */
+  /** Release the quarry claim and discard its route. */
   private letGo(s: Skeleton): void {
     if (s.target) {
       this.claims?.drop('quarry', s, s.target);
@@ -343,7 +336,7 @@ export class Skeletons {
     this.drop(s);
   }
 
-  /** After the nearest prey it has room to go after (or back toward the master), and clawing at them once in reach. */
+  /** Select an eligible victim, attack within reach, or follow the summoner when no victim is available. */
   hunt(s: Skeleton, dt: number): void {
     const master = this.master;
     s.retarget -= dt;
@@ -388,7 +381,7 @@ export class Skeletons {
         return;
       }
     } else if (master) {
-      // nobody to hunt: keep near Cody
+      // Use separate start and stop distances to avoid oscillating near Cody.
       const d = Math.hypot(master.x - s.pos.x, master.z - s.pos.z);
       if (d > HEEL[1]) {
         s.heeling = true;
@@ -402,7 +395,7 @@ export class Skeletons {
     }
 
     if (!goal) {
-      // nothing to do: drift off from any too close
+      // Apply only separation movement when there is no target.
       const push = this.spacing(s);
       if (push > SETTLED) {
         this.walk(s, _sep.x, _sep.z, AMBLE * Math.min(1, push * 2), dt);
@@ -416,7 +409,7 @@ export class Skeletons {
     this.go(s, goal, dt);
   }
 
-  /** Toward `goal`: straight there if nothing's in the way, else along a planned route. */
+  /** Move toward the goal, requesting routes around obstructions or height changes and blending in separation. */
   private go(s: Skeleton, goal: Vector3, dt: number): void {
     _a[0] = s.pos.x;
     _a[1] = s.pos.y + 1;
@@ -458,7 +451,7 @@ export class Skeletons {
     this.walk(s, dx / d + _sep.x * APART, dz / d + _sep.z * APART, PACE, dt);
   }
 
-  /** Turn toward (dx, dz) and walk at up to `pace` the way it's facing, so it turns rather than sidesteps. */
+  /** Turn toward the desired direction and move forward with collision resolution. `pace` is in m/s. */
   private walk(s: Skeleton, dx: number, dz: number, pace: number, dt: number): void {
     if (dx * dx + dz * dz > 1e-8) {
       s.yaw = dampAngle(s.yaw, Math.atan2(dx, dz), 8, dt);
@@ -474,8 +467,8 @@ export class Skeletons {
   }
 
   /**
-   * The push (into _sep) away from the others near `s` on its level, each falling off with distance: out to SPREAD, or
-   * only CROWD from one after the same quarry. Returns how strong it is.
+   * Write a distance-weighted separation vector into _sep and return its magnitude. Use reduced spacing for skeletons
+   * sharing a quarry.
    */
   private spacing(s: Skeleton): number {
     let x = 0;
@@ -500,7 +493,7 @@ export class Skeletons {
         x += (dx / d) * w;
         z += (dz / d) * w;
       } else {
-        // right on top of each other: part by their order
+        // Use list order to choose a deterministic direction for coincident positions.
         x += j < this.list.indexOf(s) ? w : -w;
       }
     }
@@ -509,7 +502,10 @@ export class Skeletons {
     return Math.sqrt(x * x + z * z);
   }
 
-  /** No two bodies in the same space: overlapping pairs pushed apart (a rising one stays put, the other gives way). */
+  /**
+   * Separate overlapping pairs while respecting walls. Rising skeletons stay fixed; pairs that are both rising are
+   * skipped.
+   */
   private unstack(): void {
     const n = this.list.length;
     for (let i = 0; i < n; i++) {
@@ -554,7 +550,7 @@ export class Skeletons {
     }
   }
 
-  /** Shift `s` by (dx, dz), keeping it out of walls. */
+  /** Apply a horizontal displacement with wall collision resolution. */
   private nudge(s: Skeleton, dx: number, dz: number): void {
     _p[0] = s.pos.x + dx;
     _p[1] = s.pos.y;
@@ -564,14 +560,14 @@ export class Skeletons {
     s.pos.z = _p[2];
   }
 
-  /** Forget a planned route. */
+  /** Cancel pending navigation and clear the active route. */
   private drop(s: Skeleton): void {
     s.job?.cancel();
     s.job = null;
     s.route = null;
   }
 
-  /** Cars plough into them: knocked back and staggered, or smashed. */
+  /** Apply damage, knockback, and stagger for the first qualifying vehicle-circle impact. */
   private runOver(s: Skeleton, cars: readonly SkeletonCrusher[]): void {
     for (const v of cars) {
       if (v.gone || Math.abs(v.pos.y - s.pos.y) > 2) {
@@ -604,7 +600,7 @@ export class Skeletons {
     }
   }
 
-  /** Rig follows: root at the feet, the shambling gait, and a claw swipe while one's coming. */
+  /** Update the rig pose, gait, attack arm, and stagger sway. */
   private pose(s: Skeleton, dt: number): void {
     const r = s.rig;
     r.root.position.copy(s.pos);
@@ -612,7 +608,7 @@ export class Skeletons {
     s.gait.update(r, dt, s.speed);
 
     if (s.swing > 0) {
-      // arm up then raking down across the swing
+      // Raise the arm, then complete the downward strike.
       const k = 1 - s.swing / SWING_EVERY;
       r.armR.rotation.x = k < 0.35 ? -2.4 * (k / 0.35) : -2.4 + 2.9 * Math.min(1, (k - 0.35) / 0.2);
     }

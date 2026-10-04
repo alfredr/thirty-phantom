@@ -4,47 +4,44 @@ import { type EventOf, mind, type MindEvent, type State, type StateOf } from '@/
 
 import type { Npc } from './npcs';
 
-/** He holds the coat open this long (s), then closes it and waits this long before the next pitch. */
+/** Coat-open duration and delay between pitches, in seconds. */
 const PITCH_HOLD = 3.5;
 const PITCH_REST = 4;
-/** Tires go into the fire one after another, this far apart (s); then a beat before he's back to the stick. */
+/** Interval between tire launches and additional delay before returning to roasting, in seconds. */
 const FEED_EVERY = 0.35;
 const FEED_AFTER = 0.5;
 
-/** His sales routine: coat shut between pitches, open while he pitches to Cody close by. */
+/** Coat presentation states for proximity, browsing, and scripted scenes. */
 export type Pitch =
-  /** Between pitches: coat shut, back to the fire. Seconds since the last pitch. */
+  /** Wait with the coat closed; `t` tracks the rest timer in seconds. */
   | State<'resting', { t: number }>
-  /** Coat open on his wares, turned to Cody. Seconds into the pitch. */
+  /** Present wares; `t` is elapsed pitch time in seconds. */
   | State<'pitching', { t: number }>
-  /** Cody's at his wares: the coat stays open till he goes. */
+  /** Keep the coat open until browsing ends. */
   | State<'browsing'>
-  /** A scene has him: he faces what it says (or Cody, given nothing), and opens his coat when it says. */
+  /** Let a scene control coat opening and facing; null `face` uses Cody’s position. */
   | State<'directed', { open: boolean; face: Vector3 | null }>;
 
-/** His fire. */
+/** Fire-feeding states, independent of the coat presentation. */
 export type Work =
-  /** Roasting on the stick, as always. */
+  /** Wait for a tire handover. */
   | State<'roasting'>
-  /**
-   * Tires going into the fire one by one: how many are still to go of how many, the time since the last, and where they
-   * come from (Cody's hands).
-   */
+  /** Launch tires from a fixed hand position, tracking remaining and total quantities plus the launch timer. */
   | State<'feeding', { left: number; of: number; t: number; from: Vector3 }>;
 
-/** What can happen to Randy. Either of his minds can be sent any of these; each moves only on the ones its state lists. */
+/** Events accepted by the pitch and work state machines; each state handles only its declared events. */
 export type RandyEvent =
-  /** A scene takes him, to face `face` (or Cody). */
+  /** Give a scene control of facing and coat presentation. */
   | MindEvent<'held', { face: Vector3 | null }>
-  /** The scene opens or shuts his coat. */
+  /** Set the coat opening requested by the scene. */
   | MindEvent<'flash', { open: boolean }>
-  /** The scene's done with him. */
+  /** Release scene control. */
   | MindEvent<'released'>
-  /** Cody's come up to his wares. */
+  /** Begin browsing the displayed wares. */
   | MindEvent<'browse'>
-  /** Cody's gone from them. */
+  /** End browsing. */
   | MindEvent<'browseEnded'>
-  /** Cody's handed him `n` tires, from his hands at `from`. */
+  /** Start feeding `n` tires from the supplied hand position. */
   | MindEvent<'given', { n: number; from: Vector3 }>;
 
 const directed = (_n: Npc, _s: Pitch, { face }: EventOf<RandyEvent, 'held'>): StateOf<Pitch, 'directed'> => ({
@@ -53,10 +50,7 @@ const directed = (_n: Npc, _s: Pitch, { face }: EventOf<RandyEvent, 'held'>): St
   face,
 });
 
-/**
- * The pitch: open for a while when Cody's close, shut for a while, again; held open while he browses, and as a scene
- * says while it has him.
- */
+/** Cycle proximity-based pitches, hold the coat open during browsing, and defer to directed scenes. */
 export const RANDY_PITCH = mind<Npc, Pitch, RandyEvent>({
   resting: {
     tick: (n, s, dt) => ((s.t += dt) > PITCH_REST && n.near ? { at: 'pitching', t: 0 } : null),
@@ -66,7 +60,7 @@ export const RANDY_PITCH = mind<Npc, Pitch, RandyEvent>({
     tick: (n, s, dt) => {
       s.t += dt;
 
-      // Cody's gone: shut, but the rest counts from the pitch's start, so he's soon at it again if Cody's back
+      // Preserve elapsed pitch time when Cody leaves so the next rest can finish sooner.
       if (!n.near) {
         return { at: 'resting', t: s.t };
       }
@@ -87,10 +81,10 @@ export const RANDY_PITCH = mind<Npc, Pitch, RandyEvent>({
   },
 });
 
-/** The fire. Tires go in only while he's just roasting: one hand-over at a time. */
+/** Accept one tire batch at a time and report completion after the final launch delay. */
 export const RANDY_WORK = mind<Npc, Work, RandyEvent>({
   roasting: {
-    // the first goes in straight away
+    // Prime the timer so the first tire launches on the next tick.
     on: { given: (_n, _s, { n, from }) => ({ at: 'feeding', left: n, of: n, t: FEED_EVERY, from: from.clone() }) },
   },
   feeding: {

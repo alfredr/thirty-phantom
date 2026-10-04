@@ -2,16 +2,16 @@ import type { Focus } from '@/engine/input/input';
 import { el } from '@/engine/ui/dom';
 import type { Control } from '@/game/controls';
 
-/** One slot of Randy's stock: a stack of `count` (0 leaves the slot showing, empty), `price` each. */
+/** Shop slot with stock count and unit price. A zero count preserves an empty slot. */
 export interface WareSlot {
   id: string;
   kind: string;
   name: string;
-  /** Its icon (inline SVG), if it has one; else its initial. */
+  /** Optional inline SVG icon; default to the item name’s initial. */
   icon?: string;
   count: number;
   price: number;
-  /** Cody can buy one right now: he can afford it and the slot isn't empty. */
+  /** Whether the game currently permits purchasing one item from this slot. */
   can: boolean;
 }
 
@@ -47,16 +47,16 @@ export function sameWares(a: Wares | null, b: Wares | null): boolean {
 const SLOT_KEYS: readonly Control[] = ['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6', 'slot7', 'slot8', 'slot9'];
 
 /**
- * Randy's coat, open: his stock in slots on the purple lining, up while he's open for business and Cody's in reach.
- * Keyboard: 1-9 buy one from that slot, Shift with it the whole stack. Mouse: click a slot (Shift-click: the stack).
- * Touch: tap a slot, then BUY 1 or BUY ALL, so a thumb landing for the stick only picks.
+ * Display Randy’s shop inventory and dispatch purchase requests. Number keys and mouse clicks buy one item; Shift
+ * requests the whole stack. Touch first selects a slot, then requires a purchase button to avoid accidental buying
+ * while using movement controls. The game supplies availability and handles transaction results.
  */
 export class WaresPanel {
   readonly root: HTMLDivElement;
   private wares: Wares | null = null;
-  /** The slot the info line is about: hovered, or tapped on touch. */
+  /** Slot selected for details by mouse hover or touch. */
   private focus: string | null = null;
-  /** Just bought from (it pops), or refused (it shakes). */
+  /** Slot and animation class for recent purchase feedback. */
   private flash: { id: string; cls: 'pop' | 'nope' } | null = null;
   private flashTimer = 0;
 
@@ -73,7 +73,7 @@ export class WaresPanel {
         this.setFocus(id);
       }
     });
-    // While the coat is open, the number keys buy from its slots (Shift buys the whole stack).
+    // Reserve only the displayed slots’ shortcuts while the shop is visible.
     layers.add({
       controls: () =>
         this.wares && this.root.offsetParent !== null ? SLOT_KEYS.slice(0, this.wares.slots.length) : [],
@@ -99,7 +99,7 @@ export class WaresPanel {
 
     this.root.classList.toggle('on', !!w);
 
-    // swing open each time he opens up, not on every stock change
+    // Replay the opening animation only when the panel becomes visible.
     if (opening) {
       this.root.classList.remove('open');
       void this.root.offsetWidth;
@@ -130,7 +130,7 @@ export class WaresPanel {
       return;
     }
 
-    // on touch the first tap picks the slot; its buttons buy
+    // Require a separate purchase button on touch to prevent accidental purchases.
     if (touch()) {
       return this.setFocus(s.id);
     }

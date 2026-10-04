@@ -18,7 +18,7 @@ import { radialGlowTexture } from '@/render/textures';
 import type { Gates } from '@/world/gates';
 import type { DeckNav, SpotDef, ZoneDef } from '@/world/level-data';
 
-/** Spot glow: purple for an empty or taken spot, slime green under a phantom. */
+/** Use purple for ordinary spots and green for phantom spots. */
 const SPOT_GLOW = new Color('#9b3cf0');
 const PHANTOM_GLOW = new Color('#7dff1a');
 
@@ -31,22 +31,22 @@ export interface SpotRuntime {
   glowMat: MeshBasicMaterial;
 }
 
-/** Whether `p` is within spot `s`'s painted bay, on its floor. */
+/** Test whether `p` lies inside the painted rectangle and within 1.2 meters of its floor. */
 export function inSpot(s: SpotRuntime, p: Vector3): boolean {
   const [w, d] = s.def.size;
   return Math.abs(p.x - s.center.x) < w / 2 && Math.abs(p.z - s.center.z) < d / 2 && Math.abs(p.y - s.center.y) < 1.2;
 }
 
-/** "SPOT 7, LEVEL 2": how toasts name a spot (ids and levels count from 1 on screen). */
+/** Format spot and level numbers for display, converting both from zero-based indices. */
 export function spotLabel(s: SpotRuntime): string {
   return `SPOT ${s.def.id + 1}, LEVEL ${s.def.level + 1}`;
 }
 
-/** A spot's region runs from just under its floor to above car height. */
+/** Vertical extent of a spot region below and above its floor, in meters. */
 const SPOT_BELOW = 0.3;
 const SPOT_ABOVE = 2;
 
-/** A spot's region: its painted rectangle (grown or shrunk by `pad`) from the floor to car height. */
+/** Build a spot region with horizontal padding in meters; negative padding shrinks it. */
 export function spotZone(s: SpotRuntime, pad: number): ZoneDef {
   const [w, d] = s.def.size;
   const c = s.center;
@@ -64,8 +64,8 @@ export interface Crossing {
 }
 
 /**
- * The garage's view of the world: a badge log (entries minus logged exits), the cars physically inside, and the phantom
- * trucks left in spots by every escape that never scanned out. Score = phantom occupancy = log - actual.
+ * Track badge counts, physical occupancy, and phantom imprints. Phantom occupancy is the badge count minus the number
+ * of vehicles physically inside.
  */
 export class Garage {
   readonly root = new Group();
@@ -121,7 +121,7 @@ export class Garage {
     return p.x > min[0] && p.x < max[0] && p.z > min[2] && p.z < max[2] && p.y < max[1];
   }
 
-  /** Vehicles physically in the deck right now. */
+  /** Count vehicles inside the deck, excluding removed vehicles. */
   actual(vehicles: Vehicle[]): number {
     let n = 0;
     for (const v of vehicles) {
@@ -141,17 +141,14 @@ export class Garage {
     return this.spots.find((s) => inSpot(s, p)) ?? null;
   }
 
-  /** Who has booked spot `s` on their way to it, if anyone. The game wires this to its claims. */
+  /** Return the spot’s reservation holder. The game supplies the claim lookup. */
   bookedBy: (s: SpotRuntime) => object | null = () => null;
-  /**
-   * A car standing in spot `s` right now, if any (Cody's, say, sitting there without getting out). The game wires this
-   * to its vehicles.
-   */
+  /** Return a vehicle physically standing in the spot, including one not registered as its occupant. */
   standingIn: (s: SpotRuntime) => Vehicle | null = () => null;
 
   /**
-   * No phantom in it, nobody parked in it or on their way to it, and no car standing in it; `except` may be any of
-   * them.
+   * Test availability against phantoms, occupants, reservations, and physically present vehicles. Ignore `except` in
+   * vehicle checks.
    */
   isFree(s: SpotRuntime, except?: Vehicle): boolean {
     const booked = this.bookedBy(s);
@@ -164,7 +161,7 @@ export class Garage {
     );
   }
 
-  /** Nearest free spot, only on `floor` if one is given. */
+  /** Return the nearest available spot, restricting the search when `floor` is non-null. */
   nearestFree(p: Vector3, floor: number | null): SpotRuntime | null {
     let best: SpotRuntime | null = null;
     let bd = Infinity;
@@ -187,12 +184,12 @@ export class Garage {
     return best;
   }
 
-  /** Every free spot, any floor. */
+  /** Return available spots across all floors. */
   freeSpots(): SpotRuntime[] {
     return this.spots.filter((s) => this.isFree(s));
   }
 
-  /** Highest free spot, lowest id on that floor: where the valet parks (top working down). */
+  /** Return an available spot on the highest floor, breaking ties by lowest spot ID. */
   topFree(): SpotRuntime | null {
     let best: SpotRuntime | null = null;
     for (const s of this.spots) {
@@ -263,7 +260,7 @@ export class Garage {
     }
   }
 
-  /** Leave the ghost image of a monster truck where the car was parked. */
+  /** Create a phantom truck at the spot, or at `at` when there is no spot. */
   addPhantom(at: Vector3, yaw: number, spot: SpotRuntime | null): Group {
     const rig = this.makeTruck();
     rig.root.traverse((o) => {
@@ -271,7 +268,7 @@ export class Garage {
       if (m.isMesh && m.layers.isEnabled(0)) {
         m.material = this.ghostMat;
         m.castShadow = false;
-        // drawn by the ghost pass, over the sky band: see-through, it writes no depth, so the sky would paint over it
+        // Render after the sky band because the transparent ghost does not write depth.
         m.layers.set(GHOST_LAYER);
       }
     });
@@ -294,7 +291,7 @@ export class Garage {
     return rig.root;
   }
 
-  /** @param beacon highlight free spots (Cody is driving a car by day) */
+  /** @param beacon Whether to pulse the glow of available spots. */
   update(dt: number, beacon: boolean, nightness: number): void {
     this.t += dt;
 

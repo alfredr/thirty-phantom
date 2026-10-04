@@ -11,27 +11,20 @@ import { facadeFaces, facadeOf } from './facade-layout';
 import type { Interior } from './interior-layout';
 
 /**
- * When rooms are built: Cody on foot within `near` m of a building's footprint, between `floor` m under its ground
- * floor and that far over its top walkable floor; dropped past `far`.
+ * Interior activation distances in meters. Activate within `near` of the footprint and retain until `far`; allow
+ * `floor` meters of vertical margin below the ground floor and above the highest walkable floor.
  */
 const LIVE = { near: 14, far: 22, floor: 3 };
 
-/**
- * The panes in a live building's windows: a lavender sky tint like the facade shader's glass, see-through enough to
- * show the rooms, a little glossy.
- */
+/** Window-pane material settings matching the facade shader's sky tint and reflectivity. */
 const PANE = { color: '#5c5c8f', roughness: 0.3, metalness: 0.25 };
-/**
- * How opaque the panes are: by day mostly sky reflection like the facade's glass, at night clearer onto the lit rooms
- * (following the 'windows' channel).
- */
+/** Pane opacity at the day and night endpoints of the windows channel. Lower night opacity reveals lit interiors. */
 const PANE_OPACITY = { day: 0.62, night: 0.3 };
 
 /**
- * Walk-in buildings' rooms, built only while Cody is near one (up to LIVE_MAX at a time) and thrown away when he
- * leaves. Their collision is in the level from the start (build-world.ts), so walkers use them either way; while a
- * building is live its facade opens its glass and doors onto the real rooms (which bring panes of their own), and its
- * elevator's cab and doors are drawn; until then its windows show interior-mapped rooms.
+ * Create and dispose interior render geometry near Cody, retaining at most LIVE_MAX buildings. Collision remains
+ * present independently in build-world.ts. Active interiors replace the facade's simulated windows with physical rooms
+ * and panes, and enable their elevator cab and landing geometry.
  */
 export class Interiors {
   readonly root = new Group();
@@ -39,7 +32,7 @@ export class Interiors {
   private readonly paints = new Map<string, Color>();
   private readonly order: number[] = [];
   private readonly glass: MeshStandardMaterial;
-  /** The rooms' lamps: lamp glass of their own, left out of the ink (they glow; a draw call saved per building). */
+  /** Shared interior lamp material excluded from the outline normal pass. */
   private readonly lamps: MeshStandardMaterial;
   private elevators: Elevators | null = null;
   /** Each interior's elevator, by index into the level's elevators (-1 for none). */
@@ -54,7 +47,7 @@ export class Interiors {
       new MeshStandardMaterial({ ...PANE, opacity: PANE_OPACITY.night, transparent: true, depthWrite: false }),
     );
     this.glass.name = 'pane';
-    // see-through: no ink of its own, so the rooms behind keep theirs
+    // Exclude transparent panes from normals so outlines on interior surfaces remain visible.
     this.glass.userData.noInk = true;
     const lamp = mats.get('lampWarm');
     this.lamps = withCutaway(lamp.clone());
@@ -63,7 +56,7 @@ export class Interiors {
     mats.register(this.lamps, 'lamps', LAMP_GLASS.warm.emissiveIntensity);
   }
 
-  /** The game's elevators (built after the world): each walk-in's own is drawn only while the building is live. */
+  /** Associate interiors with the game's elevators so active buildings can control cab and landing visibility. */
   attach(elevators: Elevators): void {
     this.elevators = elevators;
     this.lifts = this.all.map((it) => {
@@ -87,8 +80,8 @@ export class Interiors {
   }
 
   /**
-   * Build the rooms of the walk-ins nearest `at` (Cody's feet, or null when he's driving or not playing); drop the
-   * rest.
+   * Retain the nearest eligible interiors to `at`, updating facade openings and elevator visibility. Pass Cody's foot
+   * position while walking, or null to dispose all active interiors.
    */
   update(at: Vector3 | null): void {
     const want: { i: number; d: number }[] = [];
@@ -134,11 +127,11 @@ export class Interiors {
       this.order.push(i);
     }
 
-    // the panes follow the windows channel, as the facade's glass does
+    // Match pane opacity to the facade's current windows-channel intensity.
     const night = clamp(this.mats.get('facadeA').emissiveIntensity / FACADE_GLOW, 0, 1);
     this.glass.opacity = lerp(PANE_OPACITY.day, PANE_OPACITY.night, night);
 
-    // open the live buildings' facades onto their rooms, close the rest
+    // Restrict facade openings to the active interior slots.
     for (let k = 0; k < LIVE_MAX; k++) {
       const it = this.all[this.order[k] ?? -1];
       const rect = facadeUniforms.uLiveRect.value[k];
@@ -159,11 +152,11 @@ export class Interiors {
     }
   }
 
-  /** One mesh per material: the painted rooms in the facade material, the lamps, and the panes. */
+  /** Build batched interior meshes and optional transparent panes. Remove overlapping coplanar faces before batching. */
   private build(it: Interior): Group {
     const g = new Group();
     g.name = `interior ${it.def.use}`;
-    // where boxes meet flush (trim on trim, a fitting against a wall), one face gives way, as in the level
+    // Remove coplanar overlaps to prevent z-fighting where fittings meet walls.
     const holes = coplanarHoles(
       it.rooms.map((b) => ({ min: b.min, max: b.max, faces: boxFaces(b.min), yields: false })),
     );
@@ -185,14 +178,14 @@ export class Interiors {
 
     for (const { key, batch } of batches.values()) {
       const m = new Mesh(batch.build(), key === 'lampWarm' ? this.lamps : this.mats.get(key));
-      // indoors: the sun doesn't reach, so nothing in here needs to cast a shadow
+      // Interior meshes receive shadows but do not add shadow-map draw calls.
       m.receiveShadow = true;
       g.add(m);
     }
 
     if (it.panes.length) {
       const panes = new GeometryBatch();
-      // shaded darker toward the bottom, as the facade's glass reflects more sky toward the top
+      // Darken pane bottoms to match the facade's stronger sky reflection near the top.
       for (const b of it.panes) {
         panes.box(b.min, b.max, WHITE, 1, true);
       }

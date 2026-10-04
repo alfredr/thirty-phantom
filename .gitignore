@@ -4,7 +4,7 @@ dist/
 .DS_Store
 __pycache__/
 mise.local.toml
-# screenshots and probe scripts: a symlink into a temp scratch dir
+# Local screenshots and probe scripts, linked to a temporary directory.
 /shots
 .env
 .env.*

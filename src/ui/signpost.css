@@ -16,7 +16,7 @@
   display: block;
 }
 
-/* the plate, up on its post above the point */
+/* Center the plate above its projected world anchor. */
 .signpost-plate {
   position: absolute;
   bottom: 118px;
@@ -71,7 +71,7 @@
   letter-spacing: 0.1em;
 }
 
-/* the post down to the point, and a ring round its foot */
+/* Connect the plate to its anchor with a post and pulsing ring. */
 .signpost-pole {
   position: absolute;
   bottom: 0;
@@ -110,7 +110,7 @@
   }
 }
 
-/* phones on their side */
+/* Reduce the signpost height for short viewports. */
 @media (max-height: 540px) {
   .signpost-plate {
     bottom: 84px;

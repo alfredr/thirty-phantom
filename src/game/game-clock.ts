@@ -7,7 +7,7 @@ export interface ClockEvents {
   sunrise: boolean;
 }
 
-/** Game time of day. Day phase runs sunrise..7pm; the moon rises at 7pm. */
+/** Track game hours and emit day/night transitions at the configured phase boundaries. */
 export class GameClock {
   hours: number = TUNING.clock.startHour;
   day = 1;
@@ -55,7 +55,7 @@ export class GameClock {
     return ev;
   }
 
-  /** Jump straight to the next phase boundary (dev key). */
+  /** Set the clock just before the next phase boundary so the next update can emit its event. */
   skipToNextPhase(): void {
     const { sunrise, nightfall } = TUNING.clock;
     this.hours = this.phase === 'day' ? nightfall - 0.02 : sunrise - 0.02;

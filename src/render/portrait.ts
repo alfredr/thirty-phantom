@@ -14,15 +14,15 @@ import {
 import { PALETTE } from './palette';
 
 /**
- * Head-and-shoulders framing: the top this share of the figure's height (plus HEADROOM of that above the head), seen
- * from a little above and to one side.
+ * Fraction of the figure's height included in the portrait. HEADROOM adds space above the head relative to this
+ * fraction; LOOK_DOWN and LOOK_SIDE control the viewing angle.
  */
 const FRAME_SHARE = 0.36;
 const HEADROOM = 0.12;
 const FOV = 24;
 const LOOK_DOWN = 0.1;
 const LOOK_SIDE = 0.35;
-/** Rendered far below the world, out of reach of the cutaway's cuts (they only take away what's above the focus). */
+/** Stage height below the world keeps portrait geometry outside the cutaway's vertical range. */
 const STAGE_Y = -500;
 /** Key light from the front left, a cool fill from the sky, and a backdrop of night purple. */
 const KEY = { color: '#fff1dc', intensity: 4.2, at: [-1.2, 1.6, 2] as const };
@@ -30,11 +30,9 @@ const FILL = { sky: '#b9a8ff', ground: '#2a1a36', intensity: 1.9 };
 const BACKDROP = PALETTE.night;
 
 /**
- * A head-and-shoulders portrait of a character (Randy, Cody) for the HUD's dialogue: rendered once with the game's
- * renderer into an offscreen target, same framing, light and backdrop for everyone, turned three-quarters to look
- * toward the frame's left or right side (`looks`: the speaker on the left looks right, toward the other). `root` is
- * posed and dressed by the caller, feet at y=0 facing +Z; it's borrowed for the render and put back where it was.
- * Returns a PNG data URL.
+ * Render a square dialogue portrait and return a PNG data URL. The caller supplies a posed character with feet at y=0
+ * facing +Z; `looks` selects the direction it faces across the image. Temporarily reparent and position `root`, then
+ * restore its parent, position, yaw, visibility, and the renderer's target after rendering.
  */
 export function renderPortrait(renderer: WebGLRenderer, root: Object3D, looks: 'left' | 'right', size = 256): string {
   const parent = root.parent;
@@ -52,14 +50,14 @@ export function renderPortrait(renderer: WebGLRenderer, root: Object3D, looks: '
   stage.add(root);
   root.updateMatrixWorld(true);
 
-  // frame the top of the figure: the head and the shoulders under it
+  // Fit the head and shoulders using the posed character's bounds.
   const bounds = new Box3().setFromObject(root);
   const tall = bounds.max.y - bounds.min.y;
   const span = tall * FRAME_SHARE * (1 + HEADROOM);
   const midY = bounds.max.y + tall * FRAME_SHARE * HEADROOM - span / 2;
   const dist = span / 2 / Math.tan(((FOV / 2) * Math.PI) / 180);
   const camera = new PerspectiveCamera(FOV, 1, 0.05, 50);
-  // seen from a little to one side, he faces the other way across the frame
+  // Offset the camera opposite the requested gaze direction.
   const side = looks === 'left' ? LOOK_SIDE : -LOOK_SIDE;
   camera.position.set(Math.sin(side) * dist, midY + dist * LOOK_DOWN, Math.cos(side) * dist);
   camera.lookAt(new Vector3(0, midY, 0));
@@ -73,7 +71,7 @@ export function renderPortrait(renderer: WebGLRenderer, root: Object3D, looks: '
   renderer.setRenderTarget(prev);
   target.dispose();
 
-  // GL rows run bottom-up
+  // Flip WebGL's bottom-up pixel rows for the canvas.
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = size;
   const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;

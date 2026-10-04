@@ -16,7 +16,7 @@ type Word = 'LSL' | 'RSR' | 'LSR' | 'RSL' | 'RLR' | 'LRL';
 
 export interface DubinsPath {
   word: Word;
-  /** Length of each of the three pieces, metres. */
+  /** Length of each of the three pieces, meters. */
   lengths: [number, number, number];
   total: number;
 }
@@ -105,7 +105,7 @@ export function dubins(a: Pose, b: Pose, r: number): DubinsPath[] {
   return out.sort((x, y) => x.total - y.total);
 }
 
-/** Poses along a Dubins path every `step` metres (start excluded, end included). */
+/** Sample each Dubins segment at intervals no greater than `step` meters. Exclude the start and include the end. */
 export function sampleDubins(a: Pose, path: DubinsPath, r: number, step: number): Pose[] {
   const out: Pose[] = [];
   let x = a.x;
@@ -121,7 +121,7 @@ export function sampleDubins(a: Pose, path: DubinsPath, r: number, step: number)
         x += Math.cos(th) * ds;
         y += Math.sin(th) * ds;
       } else {
-        // arc about the turning center, left = counterclockwise
+        // Left turns are counterclockwise in the mathematical coordinate frame.
         const s = kind === 'L' ? 1 : -1;
         const cx = x - s * r * Math.sin(th);
         const cy = y + s * r * Math.cos(th);

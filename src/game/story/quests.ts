@@ -7,9 +7,9 @@ import type { Objective } from './objectives';
 /** Quest progress that survives a reload. */
 export interface Quest {
   readonly id: string;
-  /** Its step's name. */
+  /** Current step identifier. */
   readonly step: string;
-  /** Puts it back at `step` from a save, quietly: no fanfare for what's already happened. */
+  /** Restore saved progress without replaying completion announcements. */
   restore(step: string): void;
 }
 
@@ -17,12 +17,12 @@ export interface Quest {
 export class Quests {
   constructor(readonly all: readonly Quest[]) {}
 
-  /** Each quest's step, by its id. */
+  /** Return current steps keyed by quest ID. */
   steps(): Record<string, string> {
     return Object.fromEntries(this.all.map((q) => [q.id, q.step]));
   }
 
-  /** Puts each quest back at the step `steps` has for it. */
+  /** Restore known quests that have saved step values. */
   restore(steps: Readonly<Record<string, string>>): void {
     for (const q of this.all) {
       const step = steps[q.id];
@@ -33,21 +33,19 @@ export class Quests {
   }
 }
 
-// ---------------------------------------------------------------- the haunting: the main quest
-
-/** Leaving phantoms till there are enough, then it's won (`announced`: the victory's been shown). */
+/** Main quest progress. `announced` prevents duplicate victory displays. */
 export type HauntState = State<'haunting'> | State<'won', { announced: boolean }>;
 export type HauntEvent =
-  /** A phantom was left: the `n`th so far. */
+  /** A phantom was created; `n` is the total count. */
   MindEvent<'phantom', { n: number }>;
 
-/** What the haunting needs from the game. */
+/** Main quest completion threshold and callbacks. */
 export interface HauntWorld {
-  /** How many phantoms win it. */
+  /** Number of phantoms required for victory. */
   readonly needed: number;
-  /** Shows the victory. */
+  /** Display the victory announcement. */
   victory(): void;
-  /** It moved on to `step`. */
+  /** Notify the game of a step transition. */
   moved(step: string): void;
 }
 
@@ -67,7 +65,7 @@ const HAUNTING = mind<Haunting, HauntState, HauntEvent>({
   },
 });
 
-/** The game itself as a quest: leave enough phantoms and it's won, once, saved as won. */
+/** Complete the main quest when the phantom count reaches its target. Restored victories remain silent. */
 export class Haunting implements Quest {
   readonly id = 'haunting';
   readonly mind: Mind<Haunting, HauntState, HauntEvent>;
@@ -92,9 +90,7 @@ export class Haunting implements Quest {
   }
 }
 
-// ---------------------------------------------------------------- Randy's tire deal: an optional errand
-
-/** Carrying tires points Cody to Randy, while Randy is available to take them. */
+/** Create an optional Randy marker when Cody has tires and Randy is available. */
 export function tireMarks(have: number, randy: Vector3 | null): readonly Objective[] {
   return have > 0 && randy ? [{ id: 'tires-randy', label: 'RANDY TAKES TIRES', kind: 'optional', at: randy }] : [];
 }

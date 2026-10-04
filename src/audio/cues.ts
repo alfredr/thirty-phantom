@@ -1,15 +1,15 @@
 import type { EngineP } from './grains';
 import type { Synth } from './synth';
 
-/** The two mixes: effects, and the ambience bed under them (TUNING.audio sets each one's level). */
+/** Separate output buses for effects and ambience, each with a configured gain. */
 export type Bus = 'sfx' | 'ambience';
 
 /**
- * A sound: one of synth.ts's recipes with its params, or a file under public/audio/ (lazy-loaded, mp3 or m4a for iOS;
- * CC0 only, each credited in public/audio/CREDITS.md). Synthesis first; a file stands in where it doesn't do well (the
- * screams, the engines). `vol` trims one sound against the rest of its cue; a file's `vary` plays it up to that much
- * faster or slower each time (0.06: within 6%), so a recording isn't the same every time. An `engine` is a recording
- * cut into tagged cycles (`marks`, from tools/engine-grains.py), played by its revs and load (grains.ts).
+ * A synthesized recipe, a recorded sound, or a recording with engine-cycle metadata. Paths are relative to
+ * public/audio/. `vol` scales the cue gain; `vary` sets the maximum fractional playback-rate variation. Engine
+ * recordings are resynthesized from RPM and load.
+ *
+ * Recorded assets are CC0; credits are in public/audio/CREDITS.md.
  */
 export type Source =
   | Synth
@@ -18,28 +18,24 @@ export type Source =
 
 export interface Cue {
   bus: Bus;
-  /** Level at the source, before distance (0..1). */
+  /** Cue gain before distance attenuation. */
   vol: number;
-  /**
-   * Heard out to this far (m), falling off from TUNING.audio.near; null: everywhere at full level (Cody's own, the
-   * phone, ambience).
-   */
+  /** Audible range in meters, or null to disable distance attenuation. */
   range: number | null;
-  /** At most this many playing at once. */
+  /** Maximum simultaneous voices for this cue. */
   max: number;
-  /** Runs till it's stopped (engines, the fire, ambience). */
+  /** Marks cues intended for continuous playback. */
   loop?: true;
-  /** Its sounds, by name. The console logs each one by `cue: name` as it starts. */
+  /** Named variants selected by event handlers and loop controllers. */
   sounds: Readonly<Record<string, Source>>;
 }
 
 /**
- * The cue table: every sound in the game, by cue (what happened) and name (which sound). The console shows `[sound]
- * cue: name` as each one starts, so a weird one can be looked up here and retuned, or swapped for a file.
- * src/audio/sound.ts says what triggers each cue.
+ * Audio definitions grouped by cue and variant. sound.ts maps game events to one-shots; loops.ts controls continuous
+ * playback. With ?sound, console logs identify the cue and variant to tune here.
  */
 export const CUES = {
-  /** Traffic held up, leaning on the horn ('honk'): by kind of car, and angrier for longer and harsher. */
+  /** Vehicle horn variants; angry variants are longer or more distorted. */
   honk: {
     bus: 'sfx',
     vol: 0.5,
@@ -63,8 +59,8 @@ export const CUES = {
     },
   },
   /**
-   * Engines running: Cody's ride, and the nearest traffic. CC0 recordings cut into cycles and played by the engine's
-   * revs and load (grains.ts, engine-state.ts).
+   * Recorded engine cycles for the player vehicle and nearby traffic. grains.ts renders them using the RPM and load
+   * from engine-state.ts.
    */
   engine: {
     bus: 'sfx',
@@ -129,7 +125,7 @@ export const CUES = {
       },
     },
   },
-  /** The monster truck burning GhASt ('boosted', held): a roar over its engine. */
+  /** Continuous roar while the monster truck burns GhASt. */
   boost: {
     bus: 'sfx',
     vol: 0.75,
@@ -138,7 +134,7 @@ export const CUES = {
     loop: true,
     sounds: { 'boost-roar': { synth: 'fire', p: { rate: [70, 70], body: [1600, 1600], vol: 0.6 } } },
   },
-  /** The GhASt burn lighting up ('boosted'). */
+  /** Ignition sound when a GhASt boost starts. */
   ignite: {
     bus: 'sfx',
     vol: 0.7,
@@ -148,7 +144,7 @@ export const CUES = {
       'boost-ignite': { synth: 'whoosh', p: { f: [200, 1400, 600], q: 0.9, len: 0.7, peak: 0.25, vol: 1, boom: 60 } },
     },
   },
-  /** A knock between cars, or into a wall ('impact', soft). */
+  /** Low-speed impacts against cars or walls. */
   bump: {
     bus: 'sfx',
     vol: 0.6,
@@ -173,7 +169,7 @@ export const CUES = {
       },
     },
   },
-  /** A crash: car into car, or into a wall ('impact', hard). The harder, the darker and lower. */
+  /** Car and wall crashes, with a lower, darker variant for severe impacts. */
   crash: {
     bus: 'sfx',
     vol: 0.73,
@@ -210,7 +206,7 @@ export const CUES = {
       },
     },
   },
-  /** Coming down from the air ('impact' on the ground). */
+  /** Landing impacts for cars and monster trucks. */
   land: {
     bus: 'sfx',
     vol: 0.65,
@@ -235,7 +231,7 @@ export const CUES = {
       },
     },
   },
-  /** The monster truck flattening a car ('crushed'). */
+  /** Impact when a monster truck crushes a car. */
   crush: {
     bus: 'sfx',
     vol: 0.76,
@@ -253,7 +249,7 @@ export const CUES = {
       },
     },
   },
-  /** The truck breaking through a parapet ('smashed'). */
+  /** Concrete impact when a truck breaks through a parapet. */
   smash: {
     bus: 'sfx',
     vol: 0.76,
@@ -271,10 +267,7 @@ export const CUES = {
       },
     },
   },
-  /**
-   * Street furniture going over, smashed, or a lamp landing ('prop'), by its kind: metal clanks and crunches, wood
-   * knocks, leaves.
-   */
+  /** Prop impacts selected by material and object type, including a separate sound for a falling lamp landing. */
   prop: {
     bus: 'sfx',
     vol: 1,
@@ -375,7 +368,7 @@ export const CUES = {
       },
     },
   },
-  /** Randy's trash can fire, crackling where it stands; it roars up when fed. */
+  /** Continuous fire crackle, intensified when Randy adds tires. */
   fire: {
     bus: 'sfx',
     vol: 0.5,
@@ -389,7 +382,7 @@ export const CUES = {
       },
     },
   },
-  /** A tire going into Randy's fire, which plumes up ('stoked'). */
+  /** Fire burst when a tire is added. */
   stoke: {
     bus: 'sfx',
     vol: 0.52,
@@ -399,7 +392,7 @@ export const CUES = {
       'fire-whoomph': { synth: 'whoosh', p: { f: [150, 900, 300], q: 0.8, len: 1.1, peak: 0.2, vol: 1, boom: 55 } },
     },
   },
-  /** Ghosts sucked into the monster truck's intake ('swallowed'). */
+  /** Intake sound when the monster truck collects ghosts. */
   swallow: {
     bus: 'sfx',
     vol: 0.48,
@@ -423,7 +416,7 @@ export const CUES = {
       },
     },
   },
-  /** Someone vanishing in a puff of smoke ('puff': Randy at 7pm). */
+  /** Smoke effect sound, including Randy disappearing at nightfall. */
   puff: {
     bus: 'sfx',
     vol: 0.6,
@@ -433,7 +426,7 @@ export const CUES = {
       'puff-smoke': { synth: 'whoosh', p: { f: [500, 1200, 250], q: 0.7, len: 0.6, peak: 0.12, vol: 1, boom: 90 } },
     },
   },
-  /** Cody picking up money ('money'). */
+  /** Cash, wallet, and glovebox collection sounds. */
   money: {
     bus: 'sfx',
     vol: 0.36,
@@ -454,7 +447,7 @@ export const CUES = {
       },
     },
   },
-  /** Cody picking up a car part, a tire, or something handed or sold to him ('item', got). */
+  /** Item acquisition sounds, including collected parts, gifts, and purchases. */
   item: {
     bus: 'sfx',
     vol: 0.4,
@@ -473,7 +466,7 @@ export const CUES = {
       },
     },
   },
-  /** Randy calling on the burner ('phone' ring, till the call's over). */
+  /** Looping ringtone while the phone is calling. */
   call: {
     bus: 'sfx',
     vol: 0.24,
@@ -482,7 +475,7 @@ export const CUES = {
     loop: true,
     sounds: { 'phone-ring': { synth: 'ring', p: { f: [1320, 1660], trill: 20, pattern: [0.4, 0.2, 0.4, 2], vol: 1 } } },
   },
-  /** A text from Randy landing on the burner ('phone' text). */
+  /** Phone vibration and message tone. */
   text: {
     bus: 'sfx',
     vol: 0.36,
@@ -495,7 +488,7 @@ export const CUES = {
       },
     },
   },
-  /** Moonrise at 7pm ('nightfall'): a gong and an eerie chord. */
+  /** Nightfall cue: a gong and sustained chord. */
   moonrise: {
     bus: 'sfx',
     vol: 0.45,
@@ -508,7 +501,7 @@ export const CUES = {
       },
     },
   },
-  /** Sunrise ('sunrise'): a brighter, softer chord. */
+  /** Sunrise cue: a brighter, softer chord. */
   dawn: {
     bus: 'sfx',
     vol: 0.33,
@@ -521,7 +514,7 @@ export const CUES = {
       },
     },
   },
-  /** Cody's outfit swap in a puff ('outfit'): into phantom Cody, or back. */
+  /** Sounds for Cody changing between daytime and phantom forms. */
   outfit: {
     bus: 'sfx',
     vol: 0.5,
@@ -550,7 +543,7 @@ export const CUES = {
       },
     },
   },
-  /** A car turning into the monster truck ('entered', possessed), or one turning back at sunrise. */
+  /** Vehicle transformation sounds for possession and the return to car form at sunrise. */
   morph: {
     bus: 'sfx',
     vol: 0.51,
@@ -561,7 +554,7 @@ export const CUES = {
       'morph-car': { synth: 'morph', p: { shudder: 0.55, from: 110, to: 50, blorp: [160, 420], vol: 0.8 } },
     },
   },
-  /** A truck got out unseen and left its phantom imprint ('phantom'). */
+  /** Cue for a successful escape that leaves a phantom imprint. */
   phantom: {
     bus: 'sfx',
     vol: 0.72,
@@ -585,7 +578,7 @@ export const CUES = {
       },
     },
   },
-  /** Someone on foot taking fright and running ('fright'): CC0 recordings, public/audio/CREDITS.md. */
+  /** Recorded screams when pedestrians are frightened. See public/audio/CREDITS.md for CC0 sources. */
   scream: {
     bus: 'sfx',
     vol: 0.62,
@@ -597,7 +590,7 @@ export const CUES = {
       'scream-low': { file: 'scream-low.mp3', vary: 0.06 },
     },
   },
-  /** A badge gate's arm going up or down. */
+  /** Motor loop for a moving gate arm. */
   gate: {
     bus: 'sfx',
     vol: 0.4,
@@ -606,7 +599,7 @@ export const CUES = {
     loop: true,
     sounds: { 'gate-motor': { synth: 'motor', p: { f: [70, 140], tone: 500, vol: 1 } } },
   },
-  /** The badge scanner: a scan logged in or out, or a car sneaking in unbadged ('crossing'). */
+  /** Gate sounds for a logged entry or exit, or entry without a badge ('crossing'). */
   badge: {
     bus: 'sfx',
     vol: 0.75,
@@ -617,7 +610,7 @@ export const CUES = {
       'badge-buzz': { synth: 'chime', p: { notes: [196, 196], step: 0.18, decay: 0.16, wave: 'sawtooth', vol: 0.87 } },
     },
   },
-  /** The bed under it all: the town by day, wind and crickets by night, crossfaded at dusk and dawn. */
+  /** Daytime town ambience and nighttime wind and crickets, crossfaded at dawn and dusk. */
   ambience: {
     bus: 'ambience',
     vol: 0.5,
@@ -629,7 +622,7 @@ export const CUES = {
       'night-wind': { synth: 'night', p: { wind: 420, vol: 0.65, crickets: 0.065, chirp: [4300, 4750] } },
     },
   },
-  /** Now and then at night, a moan from somewhere in the dark. */
+  /** Periodic nighttime moan. */
   moan: {
     bus: 'ambience',
     vol: 0.3,
@@ -656,5 +649,5 @@ export const CUES = {
 } satisfies Record<string, Cue>;
 
 export type CueName = keyof typeof CUES;
-/** The names of a cue's sounds. */
+/** Variant names available for a given cue. */
 export type SoundOf<C extends CueName> = keyof (typeof CUES)[C]['sounds'] & string;

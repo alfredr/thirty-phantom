@@ -7,17 +7,17 @@ import { NAV, type NavGrid } from '@/world/nav-grid';
 
 const M = TUNING.money;
 
-/** Dropped money hovers this high, bobbing this much at this rate, and spins (rad/s). */
+/** Hover height and bob amplitude in meters; bob and spin rates in rad/s. */
 const HOVER = 0.25;
 const BOB = 0.06;
 const BOB_RATE = 3;
 const SPIN = 2.4;
-/** It's tossed as it falls from a hand at this height: up and out (m/s), under this gravity. */
+/** Release height in meters, launch velocities in m/s, and gravity in m/s². */
 const HAND = 1;
 const TOSS_UP = 3;
 const TOSS_OUT = 1.6;
 const GRAVITY = 14;
-/** It shrinks away over its last few seconds. */
+/** Shrink duration before expiry, in seconds. */
 const FADE = 2;
 
 interface Loot {
@@ -25,18 +25,18 @@ interface Loot {
   amount: number;
   pos: Vector3;
   vel: Vector3;
-  /** Ground under it. */
+  /** Ground height in meters. */
   floor: number;
   landed: boolean;
   age: number;
-  /** Seconds it lies there before it's gone: dropped money doesn't last, found money stays till the next sunrise. */
+  /** Lifetime in seconds. Daily cash has infinite lifetime and is replaced at sunrise. */
   life: number;
-  /** Laid out at sunrise (rather than dropped). */
+  /** Identify daily cash for saving and replacement. */
   found: boolean;
   root: Group;
 }
 
-/** Cash lying about town: where it lies on the ground (x, y, z), and how much. */
+/** A daily cash record: ground position (x, y, z) in meters and amount in dollars. */
 export type FoundCash = [number, number, number, number];
 
 export interface Pickup {
@@ -44,11 +44,11 @@ export interface Pickup {
   amount: number;
 }
 
-/** Cody's cash, and money lying around for him to pick up: dropped by people, or found about town. */
+/** Manage Cody’s balance, daily cash, and temporary dropped pickups. */
 export class Money {
   cash: number = M.start;
   private readonly loot: Loot[] = [];
-  /** Cars whose glovebox Cody has been through. */
+  /** Vehicles already checked for glovebox cash. */
   private readonly searched = new WeakSet<object>();
 
   constructor(
@@ -57,12 +57,12 @@ export class Money {
     private readonly rng: Rng,
   ) {}
 
-  /** `car`'s glovebox has nothing in it for Cody (his own car). */
+  /** Mark a car as searched so it cannot award glovebox cash. */
   empty(car: object): void {
     this.searched.add(car);
   }
 
-  /** Cody gets into `car`: the first time, there may be cash in the glovebox. Returns how much he found (0: none). */
+  /** Search a car once, add any cash found to the balance, and return the amount in dollars. */
   glovebox(car: object): number {
     if (this.searched.has(car)) {
       return 0;
@@ -79,7 +79,7 @@ export class Money {
     return found;
   }
 
-  /** Sunrise: whatever cash was lying about town is gone, and fresh bills turn up in new places. */
+  /** Replace daily cash with a new random layout, preserving temporary drops. */
   scatter(): void {
     const F = M.found;
     const fresh: FoundCash[] = [];
@@ -93,12 +93,12 @@ export class Money {
     this.layOut(fresh);
   }
 
-  /** The cash still lying about town today, where it lies (on the ground) and how much: for the save. */
+  /** Serialize remaining daily cash using ground heights rather than hovering positions. */
   foundToday(): FoundCash[] {
     return this.loot.filter((l) => l.found).map((l) => [l.pos.x, l.floor, l.pos.z, l.amount]);
   }
 
-  /** Lays out today's cash about town as `list` has it, in place of what was there. */
+  /** Replace daily cash with the supplied layout, preserving temporary drops. */
   layOut(list: readonly FoundCash[]): void {
     for (let i = this.loot.length - 1; i >= 0; i--) {
       if (this.loot[i]?.found) {
@@ -135,7 +135,7 @@ export class Money {
     return true;
   }
 
-  /** Someone at `at` lets go of money as they run off: it flies out behind them (away from `toward`). */
+  /** Release money at `at` with horizontal velocity toward `toward`. */
   drop(at: Vector3, kind: LootKind, toward: Vector3): void {
     const [lo, hi] = kind === 'cash' ? M.cash : M.wallet;
     const root = buildLoot(kind);
@@ -162,7 +162,7 @@ export class Money {
     this.scene.add(root);
   }
 
-  /** Toss, settle, spin and expire; whatever is within `reach` of `pos` gets picked up and returned. */
+  /** Advance and expire loot, collect landed pickups within `reach`, and credit their amounts to the balance. */
   update(dt: number, pos: Vector3 | null, reach: number): Pickup[] {
     const got: Pickup[] = [];
     for (let i = this.loot.length - 1; i >= 0; i--) {

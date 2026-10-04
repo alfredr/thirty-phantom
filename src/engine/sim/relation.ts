@@ -1,10 +1,10 @@
-/** Whatever owns a stored row. The row is deleted when its owner ends. */
+/** Identity used to release related rows together through end(). */
 export type Owner = object;
 
-/** What happens when an insert would break a key. */
+/** Policy for an insertion that exceeds a key’s capacity. */
 export type Conflict = 'refuse' | 'evict' | 'merge';
 
-/** A uniqueness rule: rows that agree on these columns may number at most `cap` (default 1). */
+/** Limit the number of rows sharing these column values. Capacity defaults to one. */
 export interface Key<R> {
   readonly on: readonly (keyof R)[];
   readonly cap?: number | ((row: R) => number);
@@ -16,7 +16,7 @@ export interface RelationSpec<R> {
   readonly onConflict?: Conflict;
   /** Combines an existing row with an inserted one, for the `merge` rule. */
   readonly merge?: (old: R, next: R) => R;
-  /** Rows that may never exist. An insert or merge that would produce one is refused. */
+  /** Accept a proposed row. Returning false rejects the insertion or merge. */
   readonly check?: (row: R) => boolean;
   /** Rows that are deleted as soon as a merge produces them, such as an item count of zero. */
   readonly empty?: (row: R) => boolean;
@@ -24,16 +24,15 @@ export interface RelationSpec<R> {
   readonly evicted?: (row: R) => void;
 }
 
-/** Any stored row may name the owner whose end deletes it. */
+/** Rows with an owner are released by end(owner). */
 export interface OwnedRow {
   readonly owner?: Owner;
 }
 
 /**
- * A stored relation: a set of rows with declared keys, a rule for conflicts, and owners whose end deletes their rows.
- * Its indexes are maintained only by its own methods, so they can never disagree with the rows. A trigger (an eviction)
- * does its own write and may queue an event; anything further happens through that event or through lostBy() checks,
- * never inside a write.
+ * Store rows with capacity limits, conflict policies, and optional lifetime owners. Use these methods for mutations so
+ * row and owner indexes stay synchronized. Eviction callbacks may queue events but must not mutate relations; process
+ * dependent changes after the write, through queued events or lostBy().
  */
 export class Relation<R extends OwnedRow> {
   private readonly rows = new Set<R>();
@@ -78,7 +77,7 @@ export class Relation<R extends OwnedRow> {
     return row;
   }
 
-  /** Deletes one row. */
+  /** Delete this row by identity. Missing rows are ignored. */
   delete(row: R): void {
     if (!this.rows.has(row)) {
       return;
@@ -101,7 +100,7 @@ export class Relation<R extends OwnedRow> {
     }
   }
 
-  /** The owner ended, however it ended: every row it owns is deleted. */
+  /** Delete all rows belonging to this owner. */
   end(owner: Owner): void {
     for (const row of [...(this.owned.get(owner) ?? [])]) {
       this.delete(row);
@@ -110,7 +109,7 @@ export class Relation<R extends OwnedRow> {
     this.owned.delete(owner);
   }
 
-  /** Moves the matching rows of `from` to `to`, so they outlive `from`. */
+  /** Reinsert matching rows under `to`, preserving them when `from` ends. */
   handOn(from: Owner, to: Owner, test: (row: R) => boolean = () => true): void {
     for (const row of [...(this.owned.get(from) ?? [])]) {
       if (!test(row)) {
@@ -127,7 +126,7 @@ export class Relation<R extends OwnedRow> {
     return this.lost.has(owner);
   }
 
-  /** Forgets the eviction marks of the previous frame. */
+  /** Clear the eviction records for the next frame. */
   newFrame(): void {
     this.lost.clear();
   }

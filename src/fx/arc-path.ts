@@ -13,10 +13,8 @@ import { withCutaway } from '@/render/materials';
 import { radialGlowTexture } from '@/render/textures';
 
 /**
- * A dotted glowing arc showing where something thrown will fly: `dots` dots (one draw call), each `size` px across on
- * screen (points in the orthographic view are sized in pixels either way), brightness running along the arc from the
- * thrower toward the landing (`march`, arcs per second), dimmest at `dim`; it fades over `fade` seconds once the throw
- * is done.
+ * Glowing trajectory markers rendered as one point cloud. `size` is in screen pixels, `march` is pulses per second, and
+ * `fade` is the fade-out duration in seconds.
  */
 const LOOK = { color: '#ffe27a', dots: 34, size: 26, march: 1.4, dim: 0.5, fade: 1.2 };
 
@@ -28,7 +26,7 @@ export class ArcPath {
   private readonly mat: PointsMaterial;
   private readonly base = new Color(LOOK.color);
   private t = 0;
-  /** Seconds into fading out, or -1 while it's showing. */
+  /** Elapsed fade-out time in seconds, or -1 before fading starts. */
   private fading = -1;
 
   constructor() {
@@ -52,7 +50,7 @@ export class ArcPath {
     this.root.frustumCulled = false;
   }
 
-  /** Lay the dots along a curve: `at(u)` gives the point a share u (0..1) of the way along. */
+  /** Sample the curve at evenly spaced parameter values from 0 to 1. The callback writes each position into `out`. */
   set(at: (u: number, out: Vector3) => Vector3): void {
     const pos = this.geo.getAttribute('position') as Float32BufferAttribute;
     const n = LOOK.dots;
@@ -64,14 +62,14 @@ export class ArcPath {
     pos.needsUpdate = true;
   }
 
-  /** Let it go: it fades out and `update` reports when it's gone. */
+  /** Start fading the markers. update() returns false when the fade completes. */
   fadeOut(): void {
     if (this.fading < 0) {
       this.fading = 0;
     }
   }
 
-  /** Animate; false once it has faded away (dispose it then). */
+  /** Animate the markers and return whether they are still visible. Dispose after this returns false. */
   update(dt: number): boolean {
     this.t += dt;
     let k = 1;
@@ -83,7 +81,7 @@ export class ArcPath {
     const col = this.geo.getAttribute('color') as Float32BufferAttribute;
     const n = LOOK.dots;
     for (let i = 0; i < n; i++) {
-      // a bright pulse running from the hand to the landing
+      // Move the brightness peak from the start of the curve toward the landing point.
       const phase = (i / n - this.t * LOOK.march) % 1;
       const b = (LOOK.dim + (1 - LOOK.dim) * Math.max(0, 1 - Math.abs(phase < 0 ? phase + 1 : phase) * 4)) * k;
       col.setXYZ(i, this.base.r * b, this.base.g * b, this.base.b * b);

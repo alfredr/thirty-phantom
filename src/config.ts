@@ -4,7 +4,7 @@ import type { VehicleParams } from './engine/physics/vehicle-params';
 
 export const TUNING = {
   clock: {
-    /** Hours as decimals: 7.5 = 7:30. */
+    /** Game time in decimal hours: 7.5 is 07:30. */
     startHour: 7.5,
     sunrise: 7.5,
     nightfall: 19,
@@ -18,43 +18,38 @@ export const TUNING = {
     maxZoom: 90,
     distance: 240,
     /**
-     * Small screens zoom both rigs in. CSS pixels are close to a constant visual angle, so a phone held sideways (short
-     * side about 390 px) showing the desktop view draws everything at about 60% of its laptop size. Below `shortSide`
-     * px the view shrinks by (short / shortSide)^power, which brings a phone back to about laptop size and still shows
-     * more than a 1:1 scale would.
+     * Scale both camera views on small screens to keep objects legible. Below `shortSide` CSS pixels, multiply the
+     * visible span by (short / shortSide)^power.
      */
     fit: { shortSide: 800, power: 0.6 },
     /**
-     * World curvature in the top-down view, an experiment: every material's vertex shader bends the world onto a small
-     * planet (render/curvature.ts), so the ground curves away into a real horizon with sky behind it. `on` switches it
-     * all, the tiling included (?curve=0 or ?curve=1 overrides). `radius` is the planet's radius in view heights at the
-     * default zoom, the one strength: smaller is rounder, larger flatter. Zooming keeps the planet's size. `lean` is
-     * how far buildings stand out along the planet's radius (1, fanning out as they rise) rather than straight up (0).
-     * `tile` (m) is the grid long faces are split on so they bend smoothly; the ground hazes toward the horizon once it
-     * faces the view less than `haze` (0 is edge on).
+     * Top-down world curvature, applied by render/curvature.ts. `radius` sets the planet size relative to the default
+     * view height; smaller values create stronger curvature. `lean` blends between vertical buildings (0) and radial
+     * buildings (1). `tile` is the maximum subdivision size in meters. `haze` controls fading near the horizon. The
+     * curve URL flag overrides `on`.
      */
     curve: { on: true, radius: 8, lean: 0, tile: 5, haze: 0.25 },
-    /** Third-person rig (C toggles it): boom length, pivot height above the feet, boom pitch in radians. */
+    /** Chase-camera offsets: boom length and pivot height in meters, pitch in radians. */
     chase: {
       foot: { dist: 6, pivot: 1.5, pitch: 0.22 },
       car: { dist: 8.5, pivot: 1.3, pitch: 0.2 },
       truck: { dist: 11.5, pivot: 2.4, pitch: 0.22 },
       /** Field of view (degrees) across the screen's short side. */
       fov: 60,
-      /** Widest horizontal view (degrees, 16:9 at `fov`): wider screens trim the vertical view instead of stretching. */
+      /** Maximum horizontal field of view in degrees. Wider screens reduce vertical coverage. */
       maxHFov: 92,
-      /** Extra field of view at top speed. */
+      /** Additional field of view in degrees at top speed. */
       fovBoost: 10,
       /** Q/E look-around speed, radians per second. */
       orbitRate: 2.4,
-      /** Mouse look: radians per pixel, boom pitch limits, and how long the view holds before recentering. */
+      /** Mouse sensitivity in radians per pixel, pitch limits in radians, and recenter delay in seconds. */
       mouseSens: 0.0025,
       pitchMin: -0.12,
       pitchMax: 1.2,
       recenterDelay: 1.5,
-      /** Clearance the camera keeps from walls and slabs. */
+      /** Camera clearance from walls and slabs, in meters. */
       pad: 0.35,
-      /** Distance fog (world units): the chase view can see to the edge of the map. */
+      /** Chase-camera fog start and end distances, in meters. */
       fogNear: 45,
       fogFar: 150,
     },
@@ -70,7 +65,7 @@ export const TUNING = {
     brake: 32,
     drag: 0.35,
     maxSteer: 0.55,
-    // body sizes match the sedan model at SEDAN_SCALE
+    // Match the sedan model dimensions after applying SEDAN_SCALE.
     wheelBase: 2.48,
     grip: 9,
     driftGrip: 1.8,
@@ -82,8 +77,8 @@ export const TUNING = {
     smashSpeed: Infinity,
   } satisfies VehicleParams,
   /**
-   * The compact pickup and the motorcycle stay within the sedan's length, radius and turning circle (wheelBase /
-   * tan(maxSteer) <= 4.04 m): valets plan every car's route as a sedan.
+   * Keep the pickup and motorcycle within the sedan's length, radius, and minimum turning radius: wheelBase /
+   * tan(maxSteer) <= 4.04 m. AI routes are planned using sedan dimensions.
    */
   pickup: {
     maxSpeed: 23,
@@ -143,9 +138,8 @@ export const TUNING = {
     speedMin: 6,
     speedMax: 10,
     /**
-     * Ghost Cody within `panicReach` (m) frightens a driver: for `panicTime` seconds they push on at `panicBoost` times
-     * their cruise, or brake if their way on would pass closer to him than `berth` (m); held below `stuckSpeed` (m/s)
-     * for `stuckTime` seconds, they leave the car and run.
+     * Driver fear thresholds: detection distance and clearance in meters, panic duration in seconds, and panic speed
+     * multiplier. A driver below `stuckSpeed` m/s for `stuckTime` seconds abandons the car.
      */
     panicReach: 8,
     berth: 3.5,
@@ -154,35 +148,29 @@ export const TUNING = {
     stuckSpeed: 1,
     stuckTime: 1.5,
     /**
-     * A frightened driver whose road would carry them toward ghost Cody turns off into the haunted deck instead when
-     * there's room to: their road passes within `divertGate` (m) of the deck's entry gate, no more than `divertReach`
-     * (m) ahead, and the turn for it starts at least `divertRoom` (m) ahead. They drive on to the turn while the way in
-     * is planned, swing in, park in a free spot and run, leaving phantom Cody a car to possess. At most `divertMax` are
-     * on their way at once. No route within `divertWait` seconds (the planner is shared and deck drives are slow to
-     * plan), and they bail where they are.
+     * Limits for routing frightened drivers into the deck. The entry gate must be within `divertGate` meters of the
+     * lane and at most `divertReach` meters ahead, with `divertRoom` meters to begin the turn. Limit concurrent
+     * diversions to `divertMax`; abandon planning after `divertWait` seconds.
      */
     divertReach: 20,
     divertRoom: 4,
     divertGate: 12,
     divertMax: 2,
     divertWait: 6,
-    /** Parked in the deck and out of phantom Cody's sight, a diverted driver sits this long (s) before getting out. */
+    /** Seconds a diverted driver waits in a parked car while outside phantom Cody's sight. */
     divertRest: 4,
     /**
-     * Impatient drivers. Each driver's anger runs 0 (calm) to 1 (fuming). It rises while they're stopped (below
-     * `speed`, m/s): `rise.blocked` a second behind something that isn't traffic going about its business (a parked or
-     * wrecked car, Cody's, someone on foot), `rise.queued` in a queue of traffic, and `rise.honkedAt` at once when the
-     * driver behind honks at them. On the move it fades by `calm` a second. Pairs run [calm, fuming], eased by anger.
+     * Driver anger ranges from 0 to 1. It rises while stopped below `speed` m/s, faster behind an obstruction than in
+     * traffic. `honkedAt` is an immediate increase; other rise and calm values are rates per second. Pairs interpolate
+     * between calm and angry values.
      *
-     * Traffic stops `room` (m, middle to middle) short of something that isn't traffic (room to pull out round it) and
-     * `gap` short of traffic, so an angry driver creeps up on what's in front. Past `honkAt` they honk, again every
-     * `again` seconds. Behind something that isn't traffic they try to pull round it `pullAfter` seconds after a honk;
-     * in a queue, only once past `queueJump`. A pull-round is a planned drive out of the lane and back into it `past`
-     * (m) or more beyond what's in the way, where there's `clear` (m) of room, at most `reach` (m) along the lane and
-     * no more than `detour` times as far to drive, keeping `squeeze` (m) round standing cars (people get a little
-     * more). At most `max` pull round at once (the planner is shared). No route within `planWait` seconds, or none
-     * worth taking, and they wait on. Before pulling out a pull-round waits up to `gapWait` seconds for oncoming
-     * traffic within `oncoming` (m) to pass.
+     * `room` and `gap` set stopping distances in meters. Drivers honk above `honkAt`, repeating every `again` seconds.
+     * Overtaking starts after `pullAfter` seconds, with `queueJump` required for passing queued traffic.
+     *
+     * A detour must rejoin at least `past` meters beyond the obstacle with `clear` meters of space, within `reach`
+     * meters along the lane. `detour` limits route length; `squeeze` sets obstacle clearance. Limit concurrent detours
+     * to `max`, planning to `planWait` seconds, and waiting for oncoming traffic within `oncoming` meters to `gapWait`
+     * seconds.
      */
     impatience: {
       speed: 1,
@@ -205,12 +193,12 @@ export const TUNING = {
       gapWait: [6, 1.5],
     },
   },
-  /** Anything with its engine running. */
+  /** Shared visual effects for running vehicles. */
   vehicle: {
     /**
-     * Idle shake: with someone at the wheel, the body buzzes on its springs, `lift` (m) up and down, `roll` and `pitch`
-     * (rad), at about `hz`. On the move it fades to `moving` of that by `fade` (m/s). Each car's pace is its own,
-     * within `spread` of the rest. Each breed scales it by its own [size, pace] (VehicleBreed.shake).
+     * Engine vibration amplitudes: vertical displacement in meters and roll/pitch in radians, at `hz` cycles per
+     * second. Frequency varies by `spread` between vehicles. Vibration falls to the `moving` fraction by `fade` m/s;
+     * each vehicle breed supplies additional size and rate multipliers.
      */
     idleShake: {
       lift: 0.01,
@@ -222,10 +210,9 @@ export const TUNING = {
       fade: 8,
     },
     /**
-     * Tailpipe smoke: `share` of cars (not the monster truck, which has its own) puff a little dark exhaust speeding up
-     * harder than `accel` (m/s^2) below `upTo` (m/s): up to `burst` puffs a go, `every` seconds apart. A puff grows
-     * over `size` (m) in `life` (s), at most `alpha` opaque. It's unlit, so its grey goes from `day` to `night` with
-     * the dark (by day a shade lighter than the asphalt, or it wouldn't show on the road).
+     * Exhaust for a fixed `share` of ordinary cars. Emit up to `burst` puffs, `every` seconds apart, while accelerating
+     * above `accel` m/s² and below `upTo` m/s. Puff size is in meters and lifetime in seconds; unlit colors interpolate
+     * from day to night.
      */
     exhaust: {
       share: 0.35,
@@ -240,44 +227,35 @@ export const TUNING = {
       alpha: 0.75,
     },
   },
-  /** Townsfolk on the sidewalks. */
+  /** Pedestrian population, movement, fear, and visitor settings. */
   crowd: {
-    /** How many are about near the view, by day and by night. */
+    /** Target pedestrian counts near the active view. */
     day: 14,
     night: 8,
-    /** They turn up this far from the view (m) and leave beyond `despawn`. */
+    /** Spawn distance range and removal distance from the active view, in meters. */
     spawnMin: 35,
     spawnMax: 65,
     despawn: 90,
-    /** A stroll: this far (m), at a walking pace (m/s), with a pause between (s). */
+    /** Walking route length in meters, speed in m/s, and pause duration in seconds. */
     stroll: [15, 45],
     walkPace: [1.1, 1.6],
     pause: [1, 5],
-    /** Running off: this far (m), at a run (m/s); they calm down after `calm` s. */
+    /** Escape route length in meters, running speed in m/s, and calm-down delay in seconds. */
     flee: [18, 32],
     runPace: [4.2, 5.4],
     calm: 6,
-    /**
-     * Ghost Cody this close (m) sends them running; so does a car Cody drives at them this fast (m/s) from this close
-     * (m).
-     */
+    /** Fear detection range in meters. An approaching player vehicle must also exceed `carSpeed` m/s. */
     ghostReach: 6,
     carSpeed: 6,
     carReach: 7,
-    /** A runner drops money this often: cash, or (walletShare of the time) a wallet. */
+    /** Chance of dropping money when frightened, and the fraction of drops that are wallets. */
     dropChance: 0.45,
     walletShare: 0.3,
-    /**
-     * Newcomers drive in and park in a lot stall within `bayReach` (m) of the view; after `stay` (s) they walk back to
-     * the car and drive off.
-     */
+    /** Maximum parking distance from the active view in meters, and visitor stay duration in seconds. */
     bayReach: 70,
     stay: [60, 180],
   },
-  /**
-   * Cody's money: what he starts with, what drops are worth, how close he picks them up from (m), how long they lie
-   * around (s).
-   */
+  /** Starting cash, drop values, collection radii in meters, and drop lifetime in seconds. */
   money: {
     start: 20,
     cash: [5, 25],
@@ -285,104 +263,98 @@ export const TUNING = {
     reachFoot: 1.3,
     reachCar: 2.6,
     life: 45,
-    /** Some cars have cash in the glovebox: this share of them, this much (Cody looks once per car). */
+    /** Chance and value range of glovebox cash. Each car is searched only once. */
     glovebox: { chance: 0.35, amount: [10, 40] as [number, number] },
-    /**
-     * Cash lying about town, this many bills of this much each, laid out afresh every sunrise (no higher than `upTo` m:
-     * street level).
-     */
+    /** Daily cash pickups: count, value range, and maximum placement height in meters. Regenerated at sunrise. */
     found: { count: 24, amount: [5, 25] as [number, number], upTo: 0.6 },
   },
   /**
-   * GhASt: ghosts the monster truck sucks in, burned for a boost. Ghosts within `reach` (m) of its intake get pulled
-   * in; each fills `perGhost` of a tank of 1. Holding boost burns `burn` a second for `push` times the truck's
-   * acceleration on top of the pedal, and lifts its top speed by `top` (a share).
+   * Monster-truck fuel and boost settings. Each ghost within `reach` meters adds `perGhost` to a tank capped at 1.
+   * Boost consumes `burn` units per second, adds `push` times normal acceleration, and raises top speed by the `top`
+   * fraction.
    */
   ghast: { reach: 7, perGhost: 0.2, burn: 0.3, push: 1.6, top: 0.45 },
-  /** Car parts knocked off in smashes, lying about for Cody to pick up on foot. */
+  /** Collectible parts released by vehicle impacts. */
   junk: {
     /**
-     * A car-on-car hit changing a car's speed by more than this (m/s) knocks a part off it; another for every `perDv`
-     * more, up to `perHit`.
+     * Minimum collision speed change in m/s for shedding a part. Each additional `perDv` adds another, capped by
+     * `perHit`.
      */
     crashDv: 4,
     perDv: 4,
     perHit: 3,
-    /** Parts one car has to lose in all, tires among them (no more of those than it has wheels). */
+    /** Total parts available per car. Tire drops are additionally limited by wheel count. */
     perCar: 8,
-    /** A car sheds again no sooner than this (s), so a grinding scrape isn't a shower of parts. */
+    /** Minimum seconds between part drops, preventing continuous scrapes from shedding every frame. */
     cooldown: 0.6,
     /** Share of shed parts that are tires. */
     tireShare: 0.35,
-    /** Flattened by the monster truck: it loses this many at once. */
+    /** Number of parts released when a monster truck crushes a car. */
     crushed: 5,
-    /** Thrown out from the hit at this speed (m/s) and up at this (m/s). */
+    /** Horizontal and vertical launch-speed ranges, in m/s. */
     fling: [2.5, 5.5] as [number, number],
     up: [2.5, 4.5] as [number, number],
-    /** Parts lie about this long (s); at most this many at once (the oldest goes). */
+    /** Part lifetime in seconds and pool capacity. Reuse the oldest slot when full. */
     life: 300,
     max: 40,
-    /** Picked up walking within this (m). */
+    /** Collection radius for Cody on foot, in meters. */
     reach: 1.2,
   },
   garage: { spots: 30 },
-  /** Any vehicle at this speed (m/s) knocks a street lamp over. */
+  /** Minimum vehicle speed in m/s for knocking down a street lamp. */
   knockdown: { speed: 7 },
-  /** Foxy's valets: how they walk, talk and hand cars over. */
+  /** Valet movement, conversation, payment, and recovery settings. */
   valet: {
-    /** Gap between valets waiting at the podium. */
+    /** Spacing between valets at the podium, in meters. */
     spacing: 1.2,
     walkPace: 2.6,
     jogPace: 4.2,
     /** Seconds to get in before driving off, and to ease the car into its spot. */
     boardTime: 0.5,
     settleTime: 0.8,
-    /** Where a driver gets in and out: this far out from the body's side. */
+    /** Offset from the vehicle body to the driver's door position, in meters. */
     doorGap: 0.6,
-    /**
-     * Talking: reach on foot and from the driver's seat, how far Cody can wander before it ends, how long the valet
-     * waits.
-     */
+    /** Conversation ranges in meters and timeout in seconds. End a conversation if Cody moves beyond `talkBreak`. */
     talkReach: { foot: 3.5, car: 4.5 },
     talkBreak: 6,
     talkTimeout: 8,
-    /** Seconds a closing line stays up. */
+    /** Duration of a conversation's closing line, in seconds. */
     lineTime: 1.5,
-    /** On foot, a valet takes the car Cody last got out of if it's this close. */
+    /** Maximum distance in meters to offer Cody's last driven car while he is on foot. */
     carReach: 20,
-    /** Only a car going slower than this can be handed over from the driver's seat. */
+    /** Maximum vehicle speed in m/s for handing over the keys from the driver's seat. */
     handOverSpeed: 3,
     /**
-     * From the second hand-over on, a valet asks for a tip `tipChance` of the time: `tipBase`, times `tipGrowth` for
-     * every tip asked before. Paid, the car goes to the top floor; not, it goes wherever there's room.
+     * Tip requests begin after the first handoff, with probability `tipChance`. The amount is `tipBase` multiplied by
+     * `tipGrowth` for each previous request. Paying selects the top floor.
      */
     tipChance: 0.6,
     tipBase: 10,
     tipGrowth: 2,
-    /** What it takes to turn round a valet who's walking back to the stand (to the top floor). */
+    /** Cost to redirect a returning valet to move the parked car to the top floor. */
     bribe: 40,
-    /** A valet's car left on its side or roof after a crash gets righted after this long (s). */
+    /** Seconds before an overturned valet vehicle is righted. */
     rightAfter: 2,
   },
-  /** How AI drivers (the valets) drive. */
+  /** Route-following speeds, clearances, steering gains, and recovery limits. */
   autopilot: {
     cruise: 10,
     deckCruise: 6,
-    /** Sideways grip it's happy to use in a bend, m/s^2: corner speed is sqrt(cornerGrip * radius). */
+    /** Lateral acceleration limit in m/s². Corner speed is sqrt(cornerGrip * radius). */
     cornerGrip: 3.5,
-    /** Braking it plans to stop with at the end of a route, m/s^2. */
+    /** Planned deceleration at the end of a route, in m/s². */
     stopDecel: 4,
-    /** Done this close to the end of the route (then eased into the spot). */
+    /** Distance in meters at which route following hands over to final parking alignment. */
     arrive: 2.5,
-    /** No progress for `stall` seconds, `stalls` times over, means give up. */
+    /** Declare a stall after `stall` seconds without progress; give up after `stalls` failures. */
     stall: 3,
     stalls: 3,
-    /** A committed back-up (recovering): how long, at what throttle. */
+    /** Duration in seconds and throttle for a reverse recovery maneuver. */
     reverseTime: 0.9,
     reverseThrottle: -0.4,
     /** Speed for planned reverse legs (three-point turns), m/s. */
     reverseCruise: 2,
-    /** Room kept beyond the body's sides (its radius) to a person or another car's middle (m). */
+    /** Additional body clearance from pedestrians and other vehicle centers, in meters. */
     keepOff: 0.65,
     /** Path tracking gains: heading error (rad per rad) and sideways offset. */
     kHeading: 1.1,
@@ -390,28 +362,25 @@ export const TUNING = {
   },
   /** Elevators (world/elevators.ts). */
   elevator: {
-    /** The cab's top speed (m/s) and how hard it speeds up and brakes (m/s^2). */
+    /** Elevator top speed in m/s and acceleration/deceleration in m/s². */
     speed: 5,
     accel: 4,
     /** Seconds the doors take to open or shut. */
     doorTime: 0.8,
-    /** Seconds they stay open at a stop, and at least this long after someone leaves the doorway. */
+    /** Door dwell time at a stop and minimum hold time after the doorway clears, in seconds. */
     dwell: 3,
     hold: 1,
-    /** After a floor's picked on the cab's panel, the doors shut this long after the last pick (s). */
+    /** Delay in seconds between the last floor selection and closing the doors. */
     panelDelay: 1,
-    /** Walkers walk on and off at this pace (m/s). */
+    /** Walking speed while boarding or leaving an elevator, in m/s. */
     boardPace: 1.5,
-    /** Cody can call the cab from this far from where you'd wait at a landing (m). */
+    /** Maximum distance from an elevator landing's waiting point to call the cab, in meters. */
     callReach: 1.8,
   },
   /**
-   * Sound (src/audio/): `on` unless ?sound=0 (a bare ?sound also logs each sound by name to the console as it starts);
-   * M mutes, and stays muted across reloads. `master` and the two buses' levels. Distance is from Cody (his ride, or
-   * what a cutscene looks at): full level within `near` (m), then near / distance, faded out to nothing by the cue's
-   * own range. Anything quieter than `cull` isn't played. At most `voices` one-shots play at once (loops aside). Stereo
-   * follows the camera, at most `pan` off centre. Each cue's own level, range and cap are in its row of the cue table
-   * (src/audio/cues.ts).
+   * Audio bus gains and spatial limits. One-shots are capped by `voices` and discarded below `cull` gain. Distance
+   * attenuation uses `near` meters as its reference; `pan` limits stereo separation. Individual cue gains, ranges, and
+   * caps are defined in audio/cues.ts.
    */
   audio: {
     on: true,
@@ -423,12 +392,12 @@ export const TUNING = {
     cull: 0.015,
     pan: 0.6,
     /**
-     * Engines: Cody's ride, and the `traffic` nearest running cars within `reach` (m), let go past `leave`. Their state
-     * (src/audio/engine-state.ts): the revs (0 idle, 1 redline) go up with road speed through the breed's gears
-     * (VehicleBreed.gears), shifting up at `shift` of the redline and down once the speed's `downshift` (a share) under
-     * the gear below's top. Pulling away the clutch lets them rise to `launch` times the throttle. They move at most
-     * `rise` and `fall` a second (a shift drops them in a blink), and the load follows the throttle `lag` seconds
-     * behind.
+     * Play the player engine and up to `traffic` nearby engines. Start traffic audio within `reach` meters and retain
+     * it until `leave`.
+     *
+     * Audio RPM follows vehicle speed through simulated gears. `shift` sets the RPM at each gear's speed limit;
+     * `downshift` adds speed hysteresis. `launch` allows revving at low speed. `rise` and `fall` limit normalized RPM
+     * change per second; `lag` is the load smoothing time constant in seconds.
      */
     engines: {
       traffic: 3,
@@ -442,15 +411,11 @@ export const TUNING = {
       lag: 0.08,
     },
     /**
-     * Hits by how hard (m/s of speed changed): a bump from `bump`, a crash from `crash`, a hard one from `hard`;
-     * landing from the air at `land` or more. A vehicle sounds off again no sooner than `again` (s), so grinding along
-     * a wall isn't a drum roll.
+     * Collision speed-change thresholds in m/s for bumps, crashes, severe crashes, and landings. `again` is the minimum
+     * delay in seconds between impact sounds from one vehicle.
      */
     impact: { bump: 1.5, crash: 5, hard: 10, land: 7, again: 0.25 },
-    /**
-     * Loops that come and go with distance (Randy's fire, the gate arms' motors): heard from `reach` (m), let go past
-     * `leave`.
-     */
+    /** Activation range for fire and gate loops, in meters. Fire loops use `leave` as a separate exit threshold. */
     nearby: { reach: 30, leave: 38 },
     /** Day and night ambience cross over this many game hours either side of sunrise and nightfall. */
     dusk: 0.5,

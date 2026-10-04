@@ -6,10 +6,7 @@ import { type Box, box, build, cylinder, group, model, NO_CAST, type Part, pivot
 import { FACE_INK } from './person';
 import { type CharacterRig, characterRig, limb } from './rig';
 
-/**
- * Randy Rolsen's look: lanky, round-bodied and round-headed; a long black trench coat (purple lining, beef brisket in
- * butcher paper and a burner phone tucked inside), short salt-and-pepper hair and a full goatee, no hat.
- */
+/** Randy Rolsen’s material palette, including his coat lining, hair, brisket, burner phone, and Cody’s badge. */
 const RANDY = {
   coat: '#1d1b21',
   lining: '#3b1f4a',
@@ -53,7 +50,7 @@ type Mat =
   | 'band'
   | 'ink';
 
-/** His build: thinner than the townsfolk, a round torso and head (radii, heights, m). */
+/** Randy’s body dimensions in meters, with cylindrical torso and head geometry. */
 const SHAPE = {
   hip: 0.9,
   leg: [0.19, 0.86, 0.23] as V3,
@@ -63,21 +60,18 @@ const SHAPE = {
   headR: 0.19,
   headH: 0.44,
   arm: [0.17, 0.68, 0.19] as V3,
-  /** Sides on the round parts. */
+  /** Radial segment count for cylindrical parts. */
   segments: 16,
 };
-/**
- * The coat: an eight-sided shell this far out from his middle (to each panel), from just below the knee to the
- * shoulders.
- */
+/** Perpendicular distance from the body center to each panel of the octagonal coat shell, in meters. */
 const COAT_R = 0.27;
-/** A hand holds a flap open by its front edge: this far in from the corner (m) and this share of the way up the coat. */
+/** Hand-target inset from the flap corner in meters and fractional height above the coat hem. */
 const GRIP = { in: 0.03, up: 0.62 };
 const COAT_HEM = 0.42;
 const COAT_PANEL = 0.035;
-/** The phone's screen glows, so an open coat reads in the basement's gloom. */
+/** Screen emissive intensity, keeping the phone visible inside the coat in the basement. */
 const SCREEN_GLOW = 1.2;
-/** Cropped hair stands this far off his scalp, and comes this far down the back of his head (m). */
+/** Hair-shell radial expansion and vertical coverage down the back of the head, in meters. */
 const CROP = 0.012;
 const CROP_DOWN = 0.24;
 /** Flecks in his hair: [x, z] on top of his head, and whether each is salt (light) or pepper (dark). */
@@ -90,9 +84,8 @@ const FLECKS: readonly (readonly [number, number, 'salt' | 'pepper'])[] = [
   [0.08, 0.02, 'salt'],
 ];
 /**
- * His roasting stick, in the right hand: this long (m), hanging this far below level (rad) with the arm down, so that
- * with the arm lifted forward to roast (ROAST_LIFT) it reaches out level-ish over a fire about an arm and a stick's
- * length in front of him.
+ * Roasting-stick length in meters and downward rest angle in radians. Raising the right arm by ROAST_LIFT brings the
+ * stick approximately horizontal over the fire.
  */
 const STICK = 1;
 const STICK_DROP = 0.79;
@@ -100,19 +93,16 @@ const STICK_DROP = 0.79;
 export const ROAST_LIFT = 0.7;
 
 export interface RandyRig extends CharacterRig {
-  /**
-   * The coat's front flaps (its front quarters), hinged at his sides. Left opens by turning it about y negatively,
-   * right positively; past a quarter turn the lining (and what's pinned to it) faces forward.
-   */
+  /** Side-hinged coat quarters. Negative left yaw and positive right yaw expose their lining and attached wares. */
   flaps: [Object3D, Object3D];
-  /** On each flap, the front edge his hand takes hold of to pull it open (an empty node that swings with it). */
+  /** Hand-target nodes parented to the moving coat flaps. */
   grips: [Object3D, Object3D];
-  /** What's inside: a brisket in each flap, and the burner phone (right flap) to show or hide. */
+  /** Brisket nodes on each flap and the burner phone on the right flap, for independent visibility. */
   brisket: [Object3D, Object3D];
   phone: Object3D;
-  /** The stick in his right hand with a chunk of brisket on the end (lift armR by ROAST_LIFT to hold it over the fire). */
+  /** Right-hand skewer node. Raise armR by ROAST_LIFT to position it over the fire. */
   skewer: Object3D;
-  /** Cody's badge, in his left hand: hidden until he's handed it. */
+  /** Badge node in Randy’s left hand, initially hidden until he receives it. */
   badge: Object3D;
 }
 
@@ -123,19 +113,16 @@ function panel(a: number, width: number, h: number): Part<Mat> {
   return solid(p, ['coat', 'coat', 'coat', 'coat', 'coat', 'lining'], { rot: [0, a, 0] });
 }
 
-/** Where something sits tucked inside the coat at angle `a`, `up` from the hem, against the lining. */
+/** Position a box against the coat lining at angle `a` and height `up` above the hem. */
 function tucked(a: number, up: number, b: Box): Box {
   const r = COAT_R - COAT_PANEL / 2 - b.size[2] / 2;
   return b.at(Math.sin(a) * r, COAT_HEM + up, Math.cos(a) * r);
 }
 
-/** Brisket proportions inside `at`: the paper it sits in, and how far down the smoke ring runs under the crust (m). */
+/** Paper thickness, smoke-ring thickness, and ring offset below the brisket top, in meters. */
 const BRISKET = { paper: 0.035, ring: 0.022, ringDown: 0.05 };
 
-/**
- * A slab of smoked brisket (turned to angle `a`): dark bark all over, a red smoke ring showing at the sides, sitting in
- * kraft paper.
- */
+/** Build a named brisket group in butcher paper, rotated by `a`, with a visible smoke ring beneath the crust. */
 function brisket(name: string, at: Box, a: number): Part<Mat> {
   const [w, h, d] = at.size;
   const B = BRISKET;
@@ -159,7 +146,7 @@ function skewer(hand: Box): Part<Mat> {
   ]);
 }
 
-/** Cody's badge, held up in the fist: a card on a lanyard clip, its photo and band toward whoever's in front. */
+/** Build Cody’s badge below the hand, with its photo and blue band facing forward. */
 function badge(hand: Box): Part<Mat> {
   const card = box(0.1, 0.065, 0.008).at(hand.center[0], hand.bottom - 0.03, hand.center[2] + 0.06);
   return group({ name: 'badge' }, [
@@ -169,10 +156,7 @@ function badge(hand: Box): Part<Mat> {
   ]);
 }
 
-/**
- * A feature on the front of his round head: x across and y from the head's middle (`mid`), `w` wide, set into the curve
- * (pushed `out`).
- */
+/** Position a facial detail against the cylindrical head surface, with optional forward offset `out`. */
 function onFace(x: number, y: number, w: number, h: number, d: number, mid: number, out = 0): Box {
   const r = SHAPE.headR;
   const edge = Math.min(r, Math.abs(x) + w / 2);
@@ -187,12 +171,12 @@ export function randy() {
   const h = top - COAT_HEM;
   const seg = Math.PI / 4;
   const panelW = 2 * COAT_R * Math.tan(seg / 2) + 0.01;
-  // the coat's corners are at the eighth turns: the ones at his sides are where the flaps hinge
+  // Hinge the front coat quarters at the side vertices of the octagonal shell.
   const hinge = COAT_R / Math.cos(seg / 2);
   const flaps = SIDES.map((s): Part<Mat> => {
     const front = (s * seg) / 2;
     const side = (s * 3 * seg) / 2;
-    // the left flap is the one he flashes, held by its front edge: its brisket hangs on the side panel, where his arm doesn't cover it
+    // Place the left brisket on the side panel so the opening arm does not obscure it.
     const at = s < 0 ? side : front;
     const wares: Part<Mat>[] = [
       brisket(s < 0 ? 'brisketL' : 'brisketR', tucked(at, h - 0.44, box(0.22, 0.22, 0.07)), at),
@@ -208,7 +192,7 @@ export function randy() {
       );
     }
 
-    // where a hand holds it: on the front edge (the coat's front corner), a little over halfway up
+    // Attach the hand target to the moving flap’s front edge.
     const grip = group<Mat>(
       { name: s < 0 ? 'gripL' : 'gripR', at: [s * GRIP.in, COAT_HEM + h * GRIP.up, hinge - GRIP.in] },
       [],
@@ -223,14 +207,14 @@ export function randy() {
   const headMid = torsoTop + 0.04 + S.headH / 2;
   const headParts: Part<Mat>[] = [
     cylinder(S.headR, S.headH, S.segments, 'skin', { at: [0, headMid, 0] }),
-    // close-cropped: a cap over the crown, and a shell set back so it shows round the back and sides but not the face
+    // Offset the hair shell backward to leave the face exposed.
     cylinder(S.headR + CROP, 0.05, S.segments, 'grey', { at: [0, headMid + S.headH / 2 - 0.02, 0] }),
     cylinder(S.headR + CROP, CROP_DOWN, S.segments, 'grey', { at: [0, headMid + S.headH / 2 - CROP_DOWN / 2, -0.04] }),
     ...FLECKS.map(([x, z, m]) => solid(box(0.05, 0.012, 0.05).at(x, headMid + S.headH / 2 + 0.008, z), m, NO_CAST)),
-    // brows, eyes
+    // Place facial details against the cylindrical head surface.
     ...SIDES.map((s) => solid(onFace(s * 0.085, 0.12, 0.09, 0.025, 0.02, headMid), 'pepper', NO_CAST)),
     ...SIDES.map((s) => solid(onFace(s * 0.085, 0.05, 0.045, 0.045, 0.02, headMid), 'ink', NO_CAST)),
-    // a full goatee, all the way round the mouth: moustache, down past the corners, across the chin; flecked salt and pepper
+    // Surround the mouth with a goatee and contrasting hair flecks.
     solid(onFace(0, -0.075, 0.2, 0.045, 0.03, headMid), 'grey', NO_CAST),
     ...SIDES.map((s) => solid(onFace(s * 0.08, -0.14, 0.045, 0.13, 0.03, headMid), 'grey', NO_CAST)),
     solid(onFace(0, -0.19, 0.2, 0.07, 0.035, headMid), 'grey', NO_CAST),
@@ -273,7 +257,7 @@ export function randy() {
         cylinder(S.torsoR, S.torsoH, S.segments, 'shirt', { at: [0, S.hip + S.torsoH / 2, 0] }),
         ...back,
         ...flaps,
-        // shoulders, and a turned-up collar
+        // Close the coat at the shoulders and add the raised collar.
         cylinder(COAT_R + 0.01, 0.06, 8, 'coat', { at: [0, top, 0], rot: [0, Math.PI / 8, 0] }),
         cylinder(0.16, 0.1, S.segments, 'coat', { at: [0, top + 0.07, -0.01], cast: false }),
         ...SIDES.map((s) => {

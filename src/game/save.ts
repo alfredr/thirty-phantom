@@ -8,12 +8,12 @@ import { type ItemKind, isItemKind } from './items/item-breeds';
 import type { FoundCash } from './items/money';
 
 const KEY = '30pc.save';
-/** 2 added quest steps, Randy's stock and today's cash about town; a version 1 save still loads. */
+/** Version 2 adds quest progress, shop stock, and daily cash. Version 1 remains readable. */
 const VERSION = 2;
-/** How often (s of play) to look for anything new to save. */
+/** Interval between save checks, in seconds of play. */
 const EVERY = 2;
 
-/** A saved phantom's spot (null for an unparked escape), position, yaw, number, and creation time. */
+/** Persisted phantom placement and creation time. A null spot records an escape without a parking spot. */
 export interface PhantomRecord {
   spot: number | null;
   at: [number, number, number];
@@ -24,9 +24,8 @@ export interface PhantomRecord {
 }
 
 /**
- * What a save keeps: the day, Cody's cash and inventory, every phantom so far, each quest's step (so a won game stays
- * won), what's left in each of Randy's slots, and the cash still lying about town today (null: lay out fresh), so a
- * reload brings back the same day rather than a new one.
+ * Persistent progress, inventory, shop stock, and daily cash. A null `found` value leaves the newly generated cash
+ * layout in place on restore.
  */
 export interface SaveData {
   v: typeof VERSION;
@@ -40,12 +39,11 @@ export interface SaveData {
 }
 
 /**
- * Persists the game in localStorage (SaveData). Restores on start unless the tutorial is running or ?fresh is set, and
- * writes nothing while the tutorial runs, so a run through it doesn't overwrite the game it set aside. Checks for
- * changes every two seconds and saves when the page is hidden.
+ * Restore progress from localStorage on start unless the tutorial or ?fresh disables restoration. Skip writes during
+ * the tutorial. Check for changes every two seconds and flush when the page is hidden.
  */
 export class SaveGame {
-  /** Every phantom so far, in order. */
+  /** Phantom records in creation order. */
   readonly phantoms: PhantomRecord[] = [];
   private playing = false;
   private wait = 0;
@@ -133,7 +131,7 @@ export class SaveGame {
 
     g.quests.restore(d.quests);
 
-    // Randy's slots as they were, if his coat's the same
+    // Restore stock only when the saved slot count matches the current shop.
     if (d.stock.length === g.wares.slots.length) {
       g.wares.slots.forEach((s, i) => (s.count = d.stock[i] ?? s.count));
     }
@@ -142,7 +140,7 @@ export class SaveGame {
       g.money.layOut(d.found);
     }
 
-    // start() said DAY 1
+    // Replace the initial day announcement with the restored day.
     g.hud.clearToasts();
     g.announceDay();
   }
@@ -160,7 +158,7 @@ function load(): SaveData | null {
 const isNum = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x);
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null;
 
-/** A save from storage, if it's one this version can read (version 1 too). */
+/** Validate and normalize supported saves, discarding invalid individual records. */
 function parse(x: unknown): SaveData | null {
   if (
     !isObj(x) ||
@@ -194,7 +192,7 @@ function parse(x: unknown): SaveData | null {
     }
   }
 
-  // a version 1 save that had already won had shown it: won, quietly
+  // Preserve completed version 1 games without replaying the victory announcement.
   const quests: Record<string, string> = x.v === 1 && phantoms.length >= TUNING.garage.spots ? { haunting: 'won' } : {};
   if (isObj(x.quests)) {
     for (const [id, step] of Object.entries(x.quests)) {

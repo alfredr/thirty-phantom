@@ -6,18 +6,14 @@ import { bayCount, FACADE, type Facade, frontWindow, storeyWindow } from './faca
 import type { BoxDef, BuildingDef, BuildingUse, DoorDef, ElevatorDef, FacadeDef, Facing, V3 } from './level-data';
 
 /**
- * Walk-in buildings (metres). A building's shell collides as walls round real doorways, a slab between each floor you
- * can walk and a solid block over the top one; its rooms are a hub (the shop floor, the lobby, an upper floor's
- * corridor) with smaller rooms off it, linings round the same openings the facade paints, finishes, lamps and fittings,
- * all grown from the building's seed. An office lobby's core is a real elevator (the general system: elevator-shaft.ts,
- * elevators.ts) up to its upper floors. Everything drawn is in the facade material (painted per box), lamp glass or
- * window panes, so a live interior is three meshes plus its elevator's.
+ * Interior dimensions in meters. Expand seeded buildings into collision shells and furnished rooms whose openings match
+ * the facade shader. Elevator cores connect walkable upper floors; stair cores remain closed placeholders. Room
+ * surfaces, lamps, and panes batch into separate material groups when rendered.
  */
 export const INTERIOR = {
   /**
-   * Shell walls (collision only): thick enough that a car or a bike at full speed can't step through one in a frame (up
-   * to 1.45 m at the game's 0.05 s cap) and gets pushed back out, not in. The drawn linings fill them, so every opening
-   * has deep reveals.
+   * Collision-shell thickness in meters. Thick walls reduce tunnelling and provide deep reveals around rendered
+   * openings.
    */
   wall: 1.0,
   /** The linings start this far behind the facade, so they never share its plane. */
@@ -28,8 +24,8 @@ export const INTERIOR = {
   lining: 0.06,
   finish: 0.03,
   /**
-   * Ceiling lamps (length, depth, thickness), about this far apart in a hub, hanging this far under the ceiling (so
-   * their tops never share a plane with a partition's).
+   * Lamp dimensions, ceiling offset, and target spacing in meters. Offset fixtures below the ceiling to avoid coplanar
+   * overlap.
    */
   lamp: [0.9, 0.3, 0.08] as const,
   lampDrop: 0.01,
@@ -38,25 +34,25 @@ export const INTERIOR = {
   doorway: { depth: 1.8, side: 0.5 },
   /** Kept clear in front of an elevator's door: how far out, and how much wider than the door. */
   landing: { depth: 2.2, side: 0.6 },
-  /** Cores: an elevator's footprint (across, deep; its shaft's inside is the deck's size inside LIFT.wall), a stair's. */
+  /** Elevator and stair core footprints as (width, depth), including shaft walls. */
   elevator: [3.0, 2.9] as const,
   stair: [2.4, 3.0] as const,
   /** An elevator's landing doors, as the deck's. */
   liftDoor: 1.4,
-  /** It serves at most this many storeys over the lobby (each one walkable costs collision and nav up front). */
+  /** Maximum upper storeys served by an interior elevator, limiting initial collision and navigation costs. */
   liftStoreys: 6,
   /** A stair core's door plate: width, height, standing off it. */
   plate: { w: 1.1, h: 2.2, off: 0.05 },
   /**
-   * Partitions between rooms: thickness, doorway width (wide enough that the 0.5 m nav grid always fits a person
-   * through), the lintel's height over the floor.
+   * Partition thickness, doorway width, and lintel height in meters. Doorways allow pedestrian passage on the 0.5-meter
+   * navigation grid.
    */
   partition: { thick: 0.12, door: 1.5, top: 2.4 },
   /** Small rooms: the narrowest, and how deep along a corridor (a range). */
   room: { min: 2.6, depth: [3.5, 5] as const },
   /**
-   * A strip of small rooms across the back of a ground floor at least `from` deep: its share of the depth and limits (a
-   * core sets it instead).
+   * Back-room strip dimensions for ground floors at least `from` meters deep. Use core depth when present; otherwise
+   * clamp the configured depth fraction.
    */
   back: { share: 0.3, min: 2.8, max: 4.5, from: 7 },
   /** An upper floor's corridor runs this far either side of the core. */
@@ -90,7 +86,7 @@ export const ROOM_WALLS: readonly string[] = PAINT.walls;
 /** The facade material's key for painted room boxes (every facade key shares the material). */
 const PAINTED = 'facadeA' as const;
 
-/** What a small room off a hub is for: its fittings. */
+/** Furnishing category for a room off the main hub. */
 type RoomKind = 'office' | 'meeting' | 'storage' | 'restroom' | 'kitchen' | 'mail';
 
 /** Small rooms behind each ground floor, by its use. */
@@ -100,17 +96,17 @@ const BACK_ROOMS: Readonly<Record<BuildingUse, readonly RoomKind[]>> = {
   lobby: ['mail', 'office', 'restroom'],
   hall: ['storage', 'mail', 'restroom'],
 };
-/** Rooms along an upper floor's corridor, picked from. */
+/** Weighted choices for upper-floor room use. */
 const UPPER_ROOMS: readonly RoomKind[] = ['office', 'office', 'office', 'meeting', 'storage', 'restroom'];
 
-/** A building's interior, expanded from its def. */
+/** Expanded interior definitions for collision and on-demand rendering. */
 export interface Interior {
   def: BuildingDef;
   /** Collision only: walls round the doorways, slabs, the block over the top floor, the elevator's shaft. */
   shell: BoxDef[];
   /**
-   * Drawn while Cody is near: linings, finishes, lamps, partitions, fittings, the core. The solid ones collide from the
-   * start.
+   * Render geometry for linings, finishes, lamps, partitions, fittings, and cores. Solid entries participate in
+   * collision even while not rendered.
    */
   rooms: BoxDef[];
   /** Glass in the windows, drawn while live in its own see-through material. */
@@ -161,8 +157,8 @@ function against(s: Side, a: number, b: number, y0: number, y1: number, d0: numb
 }
 
 /**
- * The room's own frame, from its main door's wall: `a` runs along that wall (0..W) and `d` from it into the room
- * (0..D), inside the linings.
+ * Interior coordinate frame relative to the main entrance wall: `a` spans width W along the wall, and `d` spans depth D
+ * inward, measured inside the linings.
  */
 export interface RoomFrame {
   W: number;
@@ -239,9 +235,9 @@ function doorZones(min: V3, max: V3, doors: readonly DoorDef[]): [number, number
 }
 
 /**
- * Where a building's core goes, at the back as seen from its main door (the first): an elevator in the middle of a
- * lobby's back wall, stairs in a back corner of anything else, wherever it keeps clear of every doorway; none for a
- * single storey or a room too small.
+ * Place an elevator core for a lobby or a closed stair core for other uses, behind the first doorway. Try central and
+ * corner placements while avoiding doorway clearances. Return null without upper storeys, a main door, sufficient
+ * space, or a clear candidate.
  */
 export function placeCore(
   use: BuildingUse,
@@ -281,9 +277,9 @@ function liftStoreys(def: BuildingDef): number {
 }
 
 /**
- * A walk-in building's elevator, from its core: a stop at the lobby and at each storey it serves, its doors facing the
- * lobby's front. The generator writes it into level.elevators, and the interior draws its shaft, so they agree. Null
- * without an elevator core.
+ * Derive an indoor elevator with stops at the lobby and each supported upper floor, facing the main entrance. Return
+ * null without a main door or an elevator core serving upper floors. Generation and interior rendering share this
+ * definition.
  */
 export function buildingLift(def: BuildingDef): ElevatorDef | null {
   const n = liftStoreys(def);
@@ -311,7 +307,7 @@ export function buildingLift(def: BuildingDef): ElevatorDef | null {
   };
 }
 
-/** A floor you can walk: which (-1 the ground floor, else the storey over it), its floor and its ceiling. */
+/** Walkable floor and ceiling heights; k=-1 identifies ground level and nonnegative k indexes upper storeys. */
 interface Level {
   k: number;
   floor: number;
@@ -329,7 +325,11 @@ interface Room {
   at: number;
 }
 
-/** Expand a walk-in building: its shell's collision, and the rooms and panes drawn while Cody is near. */
+/**
+ * Expand the seeded building into collision-shell boxes, furnished room boxes, window panes, and an optional elevator
+ * definition. Include the ground floor and elevator-served upper floors. Match facade openings and preserve shaft
+ * openings through floor finishes and slabs.
+ */
 export function expandInterior(def: BuildingDef): Interior {
   const I = INTERIOR;
   const P = I.partition;
@@ -350,7 +350,7 @@ export function expandInterior(def: BuildingDef): Interior {
     shell.push({ min: b[0], max: b[1], mat: 'invisible' });
   };
 
-  // the floors you can walk: the ground floor, and the storeys its elevator serves
+  // Build walkable interiors for the ground floor and elevator-served upper floors.
   const levels: Level[] = [{ k: -1, floor: y0 + FACADE.front.floor, ceiling: y0 + f.ground - I.slab }];
   for (let k = 0; k < liftStoreys(def); k++) {
     const floor = y0 + f.ground + k * f.storey;
@@ -362,11 +362,10 @@ export function expandInterior(def: BuildingDef): Interior {
   const core = def.core?.rect ?? null;
   const shaftHole = lift && core ? [{ u0: core[0], v0: core[1], u1: core[2], v1: core[3] }] : [];
 
-  // shell: walls round the ground floor's doorways, walls up past the floors above, a slab under each of those (the
-  // shaft goes through), and a solid block over the top floor
+  // Build continuous collision walls, leaving ground-floor doors open. Upper slabs exclude the elevator shaft.
   for (const s of sides(def.min, def.max)) {
     const doors = def.doors.filter((d) => d.facing === s.facing);
-    // corners: x sides run the full length, z sides between them
+    // Fit Z-side walls between the full-length X-side walls to avoid corner overlap.
     const inset = s.axis === 0 ? t : 0;
     const wa = s.a0 + inset;
     const wb = s.a1 - inset;
@@ -408,8 +407,8 @@ export function expandInterior(def: BuildingDef): Interior {
     [x1, y1, z1],
   ]);
 
-  // the elevator's shaft: its walls collide from the start and are drawn (painted) while live; no pit (the
-  // sidewalk is under it), no sign or roof lamp (each would be a mesh of its own)
+  // Reuse shaft walls for collision and interior paint. Omit the pit floor, signs, and roof lamp; the sidewalk
+  // remains beneath indoor shafts, and extra materials would add draw calls.
   if (lift) {
     const paint: Partial<Record<string, string>> = { concreteDark: PAINT.core, roof: PAINT.core, metal: PAINT.steel };
     shaftParts(lift).boxes.forEach((b, i) => {
@@ -426,8 +425,7 @@ export function expandInterior(def: BuildingDef): Interior {
     });
   }
 
-  // each floor: linings round the openings the facade paints (deep enough to be their reveals), panes in the
-  // windows, floor and ceiling finishes, then its hub and rooms
+  // Match physical window reveals and panes to the facade shader before adding finishes and furnishings.
   const m = t + L;
   const finishRect = { u0: x0 + m, v0: z0 + m, u1: x1 - m, v1: z1 - m };
   const wallPaint = def.paint;
@@ -444,7 +442,7 @@ export function expandInterior(def: BuildingDef): Interior {
       for (let k = 0; k < n; k++) {
         const b0 = s.a0 + k * bw;
         const b1 = b0 + bw;
-        // a doorway, except under lobby glass, which runs round its doors anyway
+        // Lobby doors are cut from the larger glazed opening instead of replacing a window.
         const door = front === 'lobby' ? undefined : doors.find((d) => d.at > b0 && d.at < b1);
         const [wx0, wy0, wx1, wy1] =
           lv === ground ? frontWindow(front, bw, f.ground) : storeyWindow(f.windows, bw, f.storey);
@@ -467,7 +465,7 @@ export function expandInterior(def: BuildingDef): Interior {
         piece(o0, o1, oy1, lv.ceiling);
 
         if (!door && o0 > la && o1 < lb && oy1 > oy0) {
-          // glass, round any doorway in it (a lobby's doors stand in its glass)
+          // Split the pane around any doorway within this bay.
           const pane = (p: number, q: number, ya: number, yb: number): void => {
             if (q - p < 0.01 || yb - ya < 0.01) {
               return;
@@ -491,7 +489,7 @@ export function expandInterior(def: BuildingDef): Interior {
       }
     }
 
-    // finishes between the linings, open over the shaft
+    // Keep floor and ceiling finishes inside the linings and clear of the shaft.
     const floorPaint = def.use === 'diner' && lv === ground ? PAINT.dinerFloor : lvRng.pick(PAINT.floors);
     for (const r of subtractRects(finishRect, shaftHole)) {
       painted(
@@ -527,7 +525,10 @@ export function expandInterior(def: BuildingDef): Interior {
     top: last === ground ? y0 + f.ground : last.floor + f.storey,
   };
 
-  /** A level's hub and its small rooms: partitions with doorways, fittings, lamps; the ground floor's stair core. */
+  /**
+   * Append floor partitions, furnishings, lamps, and a ground-floor stair placeholder, reserving entrance and elevator
+   * clearances.
+   */
   function furnishLevel(
     def: BuildingDef,
     lv: Level,
@@ -547,7 +548,7 @@ export function expandInterior(def: BuildingDef): Interior {
     const y = lv.floor + I.finish;
     const head = lv.ceiling - I.finish;
     const coreL = def.core ? r.local(def.core.rect) : null;
-    // kept clear: in front of doorways (the street's on the ground floor), the core and its landing
+    // Reserve entrance approaches, the core footprint, and elevator landing before placing fittings.
     const clear: [number, number, number, number][] = isGround ? doorZones(def.min, def.max, def.doors) : [];
     if (def.core) {
       clear.push(def.core.rect);
@@ -562,7 +563,10 @@ export function expandInterior(def: BuildingDef): Interior {
 
     const free = ([lo, hi]: [V3, V3]): boolean =>
       !clear.some(([a, b, c, e]) => lo[0] < c && hi[0] > a && lo[2] < e && hi[2] > b);
-    /** A fitting in the room frame, y0..y1 over the floor; skipped where it'd block a way through or leave the room. */
+    /**
+     * Append a fitting in room coordinates with heights relative to the finished floor. Return false for invalid
+     * bounds, placement outside the room, or overlap with a reserved circulation area.
+     */
     const fit = (
       a0: number,
       a1: number,
@@ -596,7 +600,10 @@ export function expandInterior(def: BuildingDef): Interior {
       out.push({ min: b[0], max: b[1], mat: 'lampWarm', solid: false });
     };
 
-    /** A partition from (a0, d0) to (a1, d1) (one of them thin), with doorways at `gaps` along it (centres). */
+    /**
+     * Append a solid partition with doorway centres at `gaps` along its longer axis, clipping openings to the partition
+     * extent.
+     */
     const wall = (a0: number, a1: number, d0: number, d1: number, gaps: readonly number[]): void => {
       const alongA = a1 - a0 > d1 - d0;
       const [s0, s1] = alongA ? [a0, a1] : [d0, d1];
@@ -621,15 +628,15 @@ export function expandInterior(def: BuildingDef): Interior {
       seg(at, s1, y, head);
     };
 
-    // the plan: a hub, and small rooms off it
+    // Divide each floor into a shared hub and adjoining rooms.
     const smalls: Room[] = [];
     let hub: [number, number, number, number] = [0, W, 0, D];
     const kinds = isGround ? BACK_ROOMS[def.use] : UPPER_ROOMS;
     if (isGround && D >= I.back.from) {
-      // a strip of rooms across the back (either side of the core), doors onto the hub
+      // Place ground-floor rooms behind the hub on either side of the core.
       const bd = coreL ? D - coreL[2] : Math.min(I.back.max, Math.max(I.back.min, D * I.back.share));
       const d0 = D - bd;
-      // the hub stops at the strip's front wall
+      // End the hub at the front wall of the rear rooms.
       hub = [0, W, 0, d0 - P.thick];
       const segs: [number, number][] = coreL
         ? [
@@ -660,7 +667,7 @@ export function expandInterior(def: BuildingDef): Interior {
         }
       }
 
-      // the strip's front wall, doorways into each room; walls between rooms
+      // Leave doorway openings in the front wall and separate adjacent rooms.
       for (const [s0, s1] of segs) {
         const these = smalls.filter((q) => q.a0 >= s0 - 1e-6 && q.a1 <= s1 + 1e-6);
         if (!these.length) {
@@ -680,7 +687,7 @@ export function expandInterior(def: BuildingDef): Interior {
         }
       }
     } else if (!isGround && coreL) {
-      // an upper floor: a corridor from the windows back to the elevator, rooms down either side
+      // Connect upper-floor windows to the elevator with a corridor between two room rows.
       let h0 = Math.max(0, coreL[0] - I.corridor);
       let h1 = Math.min(W, coreL[1] + I.corridor);
       if (h0 < I.room.min) {
@@ -692,7 +699,7 @@ export function expandInterior(def: BuildingDef): Interior {
       }
 
       hub = [h0, h1, 0, D];
-      // a room's door opens onto the corridor in front of the core
+      // Keep each room entrance ahead of the core so it opens into the corridor.
       const doorLimit = coreL[2] - I.landing.side;
       for (const [z0, z1, side] of [
         [0, h0, 'a1'],
@@ -712,7 +719,7 @@ export function expandInterior(def: BuildingDef): Interior {
 
           const at = Math.min((d + end) / 2, doorLimit - P.door / 2);
           const prev = zone[zone.length - 1];
-          // no room for a doorway in front of the core: it's part of the room before
+          // Merge with the preceding room when the new doorway cannot fit before the core.
           if (at - P.door / 2 < d + 0.2 && prev) {
             prev.d1 = end;
           } else {
@@ -738,7 +745,7 @@ export function expandInterior(def: BuildingDef): Interior {
       }
     }
 
-    // doorways into the small rooms stay clear on both sides
+    // Reserve clearance on both sides of each interior doorway.
     for (const q of smalls) {
       const half = P.door / 2 + I.doorway.side;
       const zone =
@@ -755,7 +762,7 @@ export function expandInterior(def: BuildingDef): Interior {
       clear.push([zone[0][0], zone[0][2], zone[1][0], zone[1][2]]);
     }
 
-    // lamps: a grid over the hub, one in each room
+    // Light the hub with a regular grid and each room with one fixture.
     const [ha0, ha1, hd0, hd1] = hub;
     const nx = Math.max(1, Math.round((ha1 - ha0) / I.lampEvery));
     const nz = Math.max(1, Math.round((hd1 - hd0) / I.lampEvery));
@@ -857,7 +864,7 @@ export function expandInterior(def: BuildingDef): Interior {
       }
     }
 
-    // each small room's fittings, in its own frame: u along its door's wall, v in from it (U by V)
+    // Furnish rooms in local coordinates: u follows the doorway wall and v points into the room.
     for (const q of smalls) {
       const U = q.door === 'd0' ? q.a1 - q.a0 : q.d1 - q.d0;
       const V = q.door === 'd0' ? q.d1 - q.d0 : q.a1 - q.a0;
@@ -935,7 +942,7 @@ export function expandInterior(def: BuildingDef): Interior {
       }
     }
 
-    // a stair core: walled off, with its door plate facing the room
+    // Represent the stair core as a closed solid with a decorative door plate.
     if (isGround && def.core && def.core.kind === 'stair') {
       const [cx0, cz0, cx1, cz1] = def.core.rect;
       paintBox(

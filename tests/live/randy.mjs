@@ -1,6 +1,6 @@
 // Randy at his fire: his pitch, his shop, and the tire trade. Each case runs in the page (see tools/scenarios.mjs).
 
-/** Cody walks up to Randy on foot. Returns Randy, with Cody standing `meters` in front of him. */
+/** Place Cody on foot the requested number of meters in front of Randy. Return Randy, or null if he is missing. */
 const standBy = (meters) => {
   const g = window.__game;
   const sim = window.__sim;
@@ -19,10 +19,7 @@ const standBy = (meters) => {
   return r;
 };
 
-/**
- * Close by, Randy pitches; while Cody browses his wares the coat stays open past a pitch's length; when Cody walks off,
- * it shuts.
- */
+/** Verify that Randy keeps his coat open while Cody browses, then closes it when Cody leaves. */
 export function keepsHisCoatOpenWhileCodyBrowses() {
   const g = window.__game;
   const sim = window.__sim;
@@ -45,7 +42,7 @@ export function keepsHisCoatOpenWhileCodyBrowses() {
   };
 }
 
-/** Given tires, Randy pays the brisket there and then, takes no more while they burn, and goes back to roasting. */
+/** Verify immediate payment for tires, refusal of another trade during feeding, and a return to roasting. */
 export function paysForTiresAtOnceThenBurnsThem() {
   const g = window.__game;
   const sim = window.__sim;
@@ -70,10 +67,7 @@ export function paysForTiresAtOnceThenBurnsThem() {
   };
 }
 
-/**
- * A scene holds Randy: no pitching of his own with Cody close; the coat opens and shuts as the scene says; released,
- * he's back to his routine.
- */
+/** Verify that a scene can hold Randy and control his coat, then release him to resume pitching. */
 export function aSceneDirectsHim() {
   const g = window.__game;
   const sim = window.__sim;
@@ -98,10 +92,7 @@ export function aSceneDirectsHim() {
   };
 }
 
-/**
- * Cody walks up to Randy carrying tires and presses F: they talk, F again gives him the tires (paid there and then),
- * and when the talk's over Randy's back to his routine.
- */
+/** Use the interact key to start a conversation and trade tires, then verify that the conversation releases Randy. */
 export function talkToGiveHimTires() {
   const g = window.__game;
   const sim = window.__sim;
@@ -131,7 +122,7 @@ export function talkToGiveHimTires() {
   };
 }
 
-/** With tires on him, Cody's shown where Randy is (the tire deal); once they're handed over, the marker's gone. */
+/** Verify that carrying tires adds Randy’s objective marker and trading them removes it. */
 export function tiresPutRandyOnTheMap() {
   const g = window.__game;
   const sim = window.__sim;
@@ -154,7 +145,7 @@ export function tiresPutRandyOnTheMap() {
   return { ok: !before && carrying && !after && g.inventory.count('tire') === 0, before, carrying, after };
 }
 
-/** While the tutorial runs, F by Randy doesn't start a talk of its own. */
+/** Disabling RandyTalk prevents the interact key from starting a conversation or trading tires. */
 export function noTalkDuringTheTutorial() {
   const g = window.__game;
   const sim = window.__sim;
@@ -218,5 +209,5 @@ export function shopAndInventoryFollowState() {
   };
 }
 
-/** Steps shared by this set's cases, installed on window.__sim before each one. */
+/** Shared browser scenario helpers installed on window.__sim before each case. */
 export const steps = { standBy };

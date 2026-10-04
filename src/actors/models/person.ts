@@ -10,7 +10,7 @@ export const BODY = {
   /** Top of the legs (the hip pivot). */
   hip: 0.9,
   leg: [0.24, 0.86, 0.28] as V3,
-  /** Leg centers either side of the middle. */
+  /** Horizontal offset of each leg center from the body midline, in meters. */
   stance: 0.14,
   torso: [0.66, 0.72, 0.4] as V3,
   arm: [0.19, 0.68, 0.22] as V3,
@@ -32,7 +32,7 @@ export interface Outfit {
   hatColor?: string;
 }
 
-/** Eyes, mouth and tie: the dark detail every face shares. */
+/** Shared dark material for facial details and ties. */
 export const FACE_INK = { color: '#1a0f14', roughness: 0.9 };
 
 /** A city person on the shared rig layout (body, head, armL/R, legL/R). Feet at y=0, faces +Z. */
@@ -144,7 +144,7 @@ const BOTTOMS = ['#2b2f48', '#1b1622', '#3a3a3a', '#5a4a3a', '#2a3a4a', '#4a3a5a
 const SKINS = ['#e0b08c', '#c48a64', '#8a5a3c', '#f0c8a8', '#6a4028', '#d9a07a'];
 const HAIR = ['#1a120e', '#5a3a24', '#c8a050', '#8a8a8a', '#2a1a12', '#7a2f8a'];
 
-/** A random passer-by. */
+/** Choose a pedestrian outfit from the configured palettes using the supplied generator. */
 export function randomOutfit(rng: Rng): Outfit {
   const hat = rng.chance(0.25) ? (rng.chance(0.5) ? 'cap' : 'beanie') : undefined;
   return {
@@ -159,18 +159,18 @@ export function randomOutfit(rng: Rng): Outfit {
   };
 }
 
-/** Above this speed (m/s) a walk becomes a run: longer strides, a bigger swing. */
+/** Speed threshold in m/s for switching to running stride length and amplitude. */
 const RUN_SPEED = 3.5;
-/** Metres per full stride cycle walking and running. */
+/** Meters per full stride cycle walking and running. */
 const WALK_STRIDE = 1.5;
 const RUN_STRIDE = 2.2;
 const RUN_SWING = 1.15;
-/** Swing of the legs and arms (radians) and bob of the body (metres) at full stride. */
+/** Swing of the legs and arms (radians) and bob of the body (meters) at full stride. */
 const LEG_SWING = 0.7;
 const ARM_SWING = 0.6;
 const BOB = 0.06;
 
-/** Walk/run cycle: legs and arms swing with stride, the body bobs. Speed in m/s. */
+/** Advance a walking or running gait from ground speed in m/s, with phase proportional to distance. */
 export class Gait {
   private phase = 0;
 
@@ -182,7 +182,7 @@ export class Gait {
   }
 }
 
-/** Swing the limbs to `phase` of a stride, at `amp` of a full swing; returns the body's bob (m). */
+/** Set limb rotations for stride phase in radians and amplitude `amp`. Return vertical body displacement in meters. */
 export function stride(rig: CharacterRig, phase: number, amp: number): number {
   const s = Math.sin(phase);
   rig.legL.rotation.x = s * LEG_SWING * amp;

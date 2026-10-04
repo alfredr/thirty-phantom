@@ -6,7 +6,7 @@ import { loadModules } from './modules.mjs';
 const [{ roadLeadsToward }, { turnOff }] = await loadModules('/src/actors/traffic.ts', '/src/game/driving/refuge.ts');
 
 const at = (x, z) => ({ x, y: 0, z });
-/** A straight road heading +x from the origin, a point every 2 m for 30 m. */
+/** Create a 30 m road along +x with a sample every 2 m. */
 const road = Array.from({ length: 15 }, (_, i) => at(2 * (i + 1), 0));
 
 test('staying on the road is out when it would carry the driver toward the fright, within spooking distance', () => {

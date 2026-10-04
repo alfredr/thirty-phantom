@@ -2,13 +2,12 @@ import { el, polar, svg } from '@/engine/ui/dom';
 
 /** Degrees either side of 12 o'clock the needle swings, E to F. */
 const SWEEP = 62;
-/** A rise this big in one update is a ghost going in: the dial gulps. */
+/** Minimum increase since the last drawn level that triggers the refill animation. */
 const GULP = 0.01;
 
 /**
- * The monster truck's ghost tank, beside the speedometer: a fuel gauge from E to F labelled GhASt (GAS with the ghost
- * tucked in, its h and t small and dropped). It flares while the boost burns, gulps when a ghost goes in, and glows
- * when full.
+ * Display the monster truck’s GhASt reserve beside the speedometer. Animate refills, highlight active boost, and
+ * indicate a full tank. Small lowered h and t characters preserve the GhASt wordmark.
  */
 export class GhastDial {
   readonly root: HTMLDivElement;
@@ -47,7 +46,7 @@ export class GhastDial {
     this.root.addEventListener('animationend', () => this.root.classList.remove('gulp'));
   }
 
-  /** Tank level 0..1 and whether the boost is burning it. */
+  /** Clamp tank level to [0, 1] and update fill, needle, refill animation, and boost state. */
   set(fill: number, burning: boolean): void {
     const f = Math.min(1, Math.max(0, fill));
     const r = this.root.classList;
@@ -67,7 +66,7 @@ export class GhastDial {
     this.needle.style.transform = `rotate(${-SWEEP + f * SWEEP * 2}deg)`;
   }
 
-  /** Forget the last level, so the next set() doesn't gulp for a tank refilled out of sight. */
+  /** Reset the stored level so the next update does not animate an offscreen refill. */
   reset(): void {
     this.last = -1;
   }

@@ -13,33 +13,12 @@ import type { ElevatorDef, Facing } from './level-data';
 import { NavRoute, type NavHop } from './nav-grid';
 
 /**
- * Elevators: the design.
- *
- * Data: an ElevatorDef (level-data.ts) is a shaft footprint, a door width and stops (floor height, which side its door
- * faces, a panel label). writeElevator (elevator-shaft.ts) writes the shaft itself as ordinary level boxes; what moves
- * is built here.
- *
- * Runtime: one cab per elevator, eased up and down toward a target stop. It keeps the set of stops it's been called or
- * sent to: parked with its doors shut it heads for the nearest one the way it last went (else the nearest), and on the
- * way it takes any call ahead it can still stop for. At a stop the doors open, dwell (longer while anyone's in the
- * doorway) and shut before it moves.
- *
- * Collision: the cab's floor is an ordinary solid moved up and down in place (CollisionWorld.setHeight), so everything
- * that asks for the ground sees it where it is, and the cab lifts whoever stands in it by however far it moved. The
- * shaft's walls are the cab's walls. Each landing's closed doors are a solid that's off only while they're open with
- * the cab there. The doorways are too narrow for a car (a motorcycle squeezes in).
- *
- * Nav: the grid leaves out whatever is inside a shaft, and links an elevator's landings to each other at the cost of a
- * ride. A route asked for with `elevators: true` may ride, and comes back as a NavRoute with its `hops`. A Walker on
- * one hands itself over here at a hop (ride()): it waits at the landing, walks in, rides, walks out and carries on
- * along its route.
- *
- * Cody uses them through actions in game/cody/cody-actions.ts: F calls the cab at a landing; in the cab F picks a floor
- * up and G a floor down.
- *
- * Indoors (ElevatorDef.indoors, the walk-in buildings' lifts): it runs and collides the same, but nothing's drawn until
- * its building's rooms are (world/interiors.ts calls show()), and then only the cab and the landing nearest Cody's
- * feet, without shadows: there are dozens of them.
+ * ElevatorDef describes shaft bounds and ordered stops; elevator-shaft.ts builds static geometry, while this module
+ * controls moving cabins, doors, and riders. Cab floors move as collision solids. Landing collision opens only when the
+ * cabin is present and its doors pass DOOR_PASS. Requests prefer reachable stops in the previous travel direction, then
+ * the nearest request. Navigation routes expose elevator hops; ride() handles boarding, travel, and exit before
+ * advancing the route cursor. Cody controls elevators through game/cody/cody-actions.ts. Indoor elevators simulate
+ * continuously but build only their cabin and the landing nearest Cody when Interiors calls show().
  */
 
 /** Doors this far open let people through: the doorway's solid is off and riders get on and off. */
@@ -51,19 +30,19 @@ const CARRY_BELOW = 0.3;
 /** Feet within this of a landing's floor are on it. */
 const SAME_FLOOR = 1;
 /**
- * The doorway, for holding the doors: within this of the wall's thickness either side, across the door's width. A
- * little more than a body's radius, so walking up to shut doors opens them again.
+ * Door-hold margin in meters on either side of the shaft wall. Approaching the current landing can reopen closing
+ * doors.
  */
 const DOORWAY = 0.5;
-/** A walker this close to where a ride starts gets on. */
+/** Maximum horizontal distance in meters from the departure landing to begin a route hop. */
 const BOARD_REACH = 0.6;
-/** Within this of where it's walking to (in or out of the cab), it's there. */
+/** Arrival tolerance in meters for boarding and exit movement. */
 const STEP_DONE = 0.05;
-/** A rider found this far from where the ride last left it was moved by someone else: the ride's off. */
+/** Distance in meters indicating that another system moved a rider; cancel the stored ride. */
 const RIDER_LOST = 1.5;
-/** A ride nobody's handed over for this long is dropped (the walker's gone). */
+/** Seconds without a ride() call before discarding a rider's state. */
 const RIDE_STALE = 2;
-/** Where riders stand in the cab, as (in from the door, across) from its middle, in turn. */
+/** Rider-slot offsets from the cabin centre, oriented to the departure door as (outward, across). */
 const SLOTS: readonly [number, number][] = [
   [-0.45, -0.55],
   [-0.45, 0.55],
@@ -86,10 +65,7 @@ function approach(x: number, to: number, step: number): number {
   return x < to ? Math.min(to, x + step) : Math.max(to, x - step);
 }
 
-/**
- * A box `across` wide, `h` tall and `depth` deep for a wall facing f, its vertex colors white (world materials tint by
- * them).
- */
+/** Create a white-vertex-colored box aligned with facing f, with width across the wall and depth perpendicular to it. */
 function wallBox(f: Facing, across: number, h: number, depth: number): BoxGeometry {
   return whiteColors(facingAxis(f).axis === 2 ? new BoxGeometry(across, h, depth) : new BoxGeometry(depth, h, across));
 }
@@ -100,8 +76,8 @@ function acrossOf(f: Facing): 'x' | 'z' {
 }
 
 /**
- * A pair of sliding door panels, drawn closed about `center` (the doorway's middle, half way up) and slid apart `open`
- * (0..1). One mesh: the panels are slid by moving their vertices, only when they move (a draw call per pair, not two).
+ * Represent a pair of sliding doors as one mesh centred on the doorway. set() changes panel vertices for an opening
+ * fraction from 0 to 1, skipping unchanged values.
  */
 class DoorPair {
   readonly mesh: Mesh;
@@ -123,7 +99,7 @@ class DoorPair {
     this.panel = (one.getAttribute('position').array as Float32Array).slice();
     one.dispose();
     this.pos = geo.getAttribute('position') as BufferAttribute;
-    // bounds that hold the panels wide open, so it's never culled while they slide
+    // Use fixed bounds enclosing the fully open panels to avoid culling during motion.
     geo.boundingSphere = new Sphere(new Vector3(), width + LIFT.doorTop);
     this.mesh = new Mesh(geo, mat);
     this.mesh.position.copy(center);
@@ -159,7 +135,7 @@ interface LandingLook {
   doors: DoorPair;
   /** Lit while the cab's been called here. */
   button: Mesh;
-  /** Lit while the cab's here with its doors open (none indoors: a draw call each, and the lit cab says as much). */
+  /** Arrival lantern, omitted indoors to avoid an additional mesh per landing. */
   lantern: Mesh | null;
 }
 
@@ -210,7 +186,7 @@ export class Elevator {
     private readonly lights: Lights,
     private readonly root: Group,
   ) {
-    // it starts at the stop nearest street level
+    // Start at the stop nearest world Y=0.
     let home = 0;
     def.stops.forEach((s, i) => {
       if (Math.abs(s.y) < Math.abs(def.stops[home]?.y ?? Infinity)) {
@@ -239,7 +215,7 @@ export class Elevator {
       this.landings.push({ look: null, solid });
     });
 
-    // indoors, nothing's drawn until its building's rooms are (show())
+    // Defer indoor geometry until its building activates show().
     if (!def.indoors) {
       this.buildCab();
       def.stops.forEach((_, i) => this.buildLanding(i));
@@ -249,8 +225,8 @@ export class Elevator {
   }
 
   /**
-   * An indoor elevator's looks, while its building's rooms are built: the cab and the landing nearest height `y`
-   * (Cody's feet: the others are out of sight behind floors), or nothing for null. Others are always drawn.
+   * For indoor elevators, build the cabin and the landing nearest world height `y`, disposing other landing geometry.
+   * Pass null to dispose all indoor render geometry. Non-indoor elevators are unchanged.
    */
   show(y: number | null): void {
     if (!this.def.indoors) {
@@ -352,17 +328,17 @@ export class Elevator {
     return best;
   }
 
-  /** What the panel calls stop i. */
+  /** Return the stop label, or an empty string for an invalid index. */
   label(i: number): string {
     return this.def.stops[i]?.label ?? '';
   }
 
-  /** Floor height at stop i. */
+  /** Return the stop's floor height, or the current cabin height for an invalid index. */
   stopY(i: number): number {
     return this.def.stops[i]?.y ?? this.y;
   }
 
-  /** Call the cab to stop i (a landing's button, a walker waiting there, a rider's floor). */
+  /** Queue a valid stop request. Ignore invalid indices. */
   call(i: number): void {
     if (this.def.stops[i]) {
       this.requests.add(i);
@@ -375,8 +351,8 @@ export class Elevator {
   }
 
   /**
-   * The cab's panel: pick the next floor up (dir 1) or down (-1) from the last one picked, or from where the cab is,
-   * wrapping round past the top or bottom. The doors shut a moment after the last pick.
+   * Cycle the panel destination up or down from the last selection, current stop, or nearest stop, wrapping at the
+   * ends. Replace the previous panel request and shorten an active door dwell to panelDelay.
    */
   pick(dir: 1 | -1): void {
     const n = this.def.stops.length;
@@ -388,13 +364,13 @@ export class Elevator {
     this.picked = i;
     this.requests.add(i);
 
-    // open (or opening): they shut a moment after this; already shutting, they carry on
+    // Shorten active dwell after a panel selection without interrupting doors already closing.
     if (this.dwell > 0) {
       this.dwell = TUNING.elevator.panelDelay;
     }
   }
 
-  /** Is p standing in the cab (as it stands at height `y`)? */
+  /** Test whether p lies within the cabin footprint and vertical carrying range at floor height `y`. */
   holds(p: Vector3, y = this.y): boolean {
     const { min, max } = this.def;
     return (
@@ -407,7 +383,7 @@ export class Elevator {
     );
   }
 
-  /** Is p in the doorway where the cab stands (so the doors mustn't shut on it)? */
+  /** Test whether p is in the current landing's door-hold region. Return false while travelling between stops. */
   inDoorway(p: Vector3): boolean {
     if (this.at === null) {
       return false;
@@ -426,7 +402,10 @@ export class Elevator {
     return out > -DOORWAY && out < LIFT.wall + DOORWAY && across < this.def.door / 2;
   }
 
-  /** Move the cab and work its doors. `held`: someone's in the doorway, keep them open. Returns how far the cab moved. */
+  /**
+   * Advance cabin motion and doors by `dt` seconds, extending the open dwell when `held` is true. Synchronize rendering
+   * and collision, then return the vertical displacement in meters.
+   */
   update(dt: number, held: boolean): number {
     const E = TUNING.elevator;
     if (this.picked !== null && !this.requests.has(this.picked)) {
@@ -465,7 +444,7 @@ export class Elevator {
     return this.y - y0;
   }
 
-  /** Toward the target: speeding up, cruising, braking to stop level with its floor. */
+  /** Retarget from queued requests and integrate acceleration toward the destination, braking to stop at its floor. */
   private move(dt: number): void {
     const E = TUNING.elevator;
     const next = this.next(true);
@@ -500,8 +479,8 @@ export class Elevator {
   }
 
   /**
-   * The call to answer next: the nearest ahead (the way it last went) that it can still stop for, else the nearest
-   * either way; null with none.
+   * Select the nearest requested stop ahead beyond braking distance, otherwise the nearest request in either direction.
+   * Return null when there are no requests.
    */
   private next(moving: boolean): number | null {
     const brake = moving ? (this.v * this.v) / (2 * TUNING.elevator.accel) : 0;
@@ -535,7 +514,7 @@ export class Elevator {
     return this.nearestTo(this.y);
   }
 
-  /** The cab, its doors and the landings' doors, lights and solids where they are now. */
+  /** Synchronize cabin geometry, moving floor collision, landing-door collision, and request lights. */
   private sync(): void {
     this.cab.position.y = this.y;
     this.collision.setHeight(this.floor, this.y - LIFT.floor, this.y);
@@ -562,9 +541,8 @@ export class Elevator {
   }
 
   /**
-   * The cab: a floor slab, walls round it with a doorway on each side a stop faces, a lit ceiling, its doors. Indoors
-   * it's plainer to draw: its walls share one material, its lights another, and nothing in it casts a shadow (the sun
-   * can't reach).
+   * Build cabin geometry and doors for all landing-facing sides. Batch by material; indoor cabins use fewer materials
+   * and do not cast shadows.
    */
   private buildCab(): void {
     const mats = this.mats;
@@ -657,7 +635,7 @@ export class Elevator {
   }
 }
 
-/** Someone an elevator can walk in, carry and walk out: a Walker, through its public parts. */
+/** Walker state and facing control needed for boarding, travel, and exit. */
 export interface ElevatorRider {
   readonly pos: Vector3;
   readonly vel: Vector3;
@@ -668,21 +646,18 @@ export interface ElevatorRider {
 /** A walker's ride: waiting for the cab, walking in, riding, walking out. */
 interface Ride {
   hop: NavHop;
-  /** The route it rides on (the cursor gets moved past the ride when it's over). */
+  /** Route cursor to advance beyond the hop after exit, if it is still the active cursor. */
   cursor: RouteCursor | null;
   phase: 'call' | 'in' | 'ride' | 'out';
   /** Where in the cab it stands (SLOTS). */
   slot: number;
-  /** Where the ride left it last, to tell when someone else has moved it. */
+  /** Last managed position, used to detect external movement. */
   at: Vector3;
-  /** Seconds since it was last handed over. */
+  /** Seconds since ride() last updated this rider. */
   idle: number;
 }
 
-/**
- * Every elevator in the level, built from level.elevators: the cabs and the landings' doors and lights, Cody carried in
- * a cab, and walkers riding them on their routes.
- */
+/** Manage all level elevators, direct passenger carrying, and route-based walker rides. */
 export class Elevators {
   readonly root = new Group();
   readonly list: Elevator[];
@@ -703,7 +678,10 @@ export class Elevators {
     this.list[i]?.show(y);
   }
 
-  /** Run the cabs. `riders`: people on foot the cabs carry and hold their doors for (Cody). */
+  /**
+   * Advance elevators and discard stale rides. Hold doors for direct riders in doorways and walkers boarding or
+   * exiting. Move direct rider positions by the cabin's displacement when they lie within its carrying range.
+   */
   update(dt: number, riders: readonly Vector3[]): void {
     for (const [w, r] of this.rides) {
       if ((r.idle += dt) > RIDE_STALE) {
@@ -748,10 +726,7 @@ export class Elevators {
     return null;
   }
 
-  /**
-   * The landing p is standing at (within `reach` of where you'd wait for the cab, on its floor, there to be called to),
-   * or null.
-   */
+  /** Return the first landing within horizontal `reach` and SAME_FLOOR vertical tolerance of p, or null. */
   landingAt(p: Vector3, reach: number): { elevator: Elevator; stop: number } | null {
     for (const e of this.list) {
       for (let i = 0; i < e.def.stops.length; i++) {
@@ -767,14 +742,13 @@ export class Elevators {
   }
 
   /**
-   * A walker hands itself over each frame (Walker.update): at the start of a ride on its route, or partway through one,
-   * the elevator takes it from there and this returns true; it walks it in, carries it and walks it out, then moves its
-   * route's cursor past the ride and lets it go (false). Once on board it rides to the end whatever happens to its
-   * route.
+   * Advance a walker through a route hop: call, board, ride, then exit. Return true while controlling the walker and
+   * false when no ride applies or exit completes. Advance the matching cursor beyond the hop after exit. Route changes
+   * cancel waiting rides; external displacement can cancel any ride.
    */
   ride(w: ElevatorRider, cursor: RouteCursor | null, dt: number): boolean {
     let r = this.rides.get(w);
-    // put somewhere else, or sent off on a new route before it got on: the ride's off
+    // Cancel externally displaced riders or waiting riders whose route changed.
     if (r && (w.pos.distanceTo(r.at) > RIDER_LOST || (r.phase === 'call' && cursor !== r.cursor))) {
       this.rides.delete(w);
       r = undefined;
@@ -805,7 +779,7 @@ export class Elevators {
 
         if (this.walkTo(w, _v.fromArray(landingPoint(e.def, from, _p)), dt)) {
           w.face(_w.fromArray(doorPoint(e.def, from, 0, _p)));
-          // a full cab goes without them: they wait for the next
+          // Wait at the landing until a cabin slot becomes available.
           const slot = e.openAt(from) ? this.freeSlot(e) : null;
           if (slot !== null) {
             r.slot = slot;
@@ -836,7 +810,7 @@ export class Elevators {
         if (this.walkTo(w, _v.fromArray(landingPoint(e.def, to, _p)), dt)) {
           this.rides.delete(w);
 
-          // back on its route, just past the ride
+          // Resume only the cursor that originally requested this hop.
           if (cursor && cursor === r.cursor) {
             cursor.s = r.hop.s1;
           }
@@ -851,7 +825,10 @@ export class Elevators {
     return true;
   }
 
-  /** The ride starting where w stands on its route, if it's at one. */
+  /**
+   * Return the next uncompleted route hop when the cursor and walker are close enough to its departure landing, or
+   * null.
+   */
   private hopAt(pos: Vector3, cursor: RouteCursor): NavHop | null {
     const path = cursor.path;
     if (!(path instanceof NavRoute)) {
@@ -879,7 +856,7 @@ export class Elevators {
     return null;
   }
 
-  /** The first place in e's cab nobody else riding it has taken; null when it's full. */
+  /** Return the first cabin slot not occupied by a boarding, riding, or exiting walker, or null when full. */
   private freeSlot(e: Elevator): number | null {
     for (let k = 0; k < SLOTS.length; k++) {
       let taken = false;
@@ -895,7 +872,7 @@ export class Elevators {
     return null;
   }
 
-  /** Where slot k is in e's cab, turned to face stop i's door, at the cab's floor. */
+  /** Write slot k's cabin position into `out`, oriented to stop i's door and at the current floor height. Return `out`. */
   private slotPoint(e: Elevator, i: number, k: number, out: Vector3): Vector3 {
     const s = e.def.stops[i];
     const [inward, across] = SLOTS[k] ?? [0, 0];
@@ -916,7 +893,10 @@ export class Elevators {
     return out;
   }
 
-  /** Walk w straight toward p (at its height) at boarding pace; true once it's there. */
+  /**
+   * Move w directly toward p at boarding speed, setting its height to p.y. Return true after snapping to the
+   * destination and stopping.
+   */
   private walkTo(w: ElevatorRider, p: Vector3, dt: number): boolean {
     const dx = p.x - w.pos.x;
     const dz = p.z - w.pos.z;

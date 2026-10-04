@@ -2,7 +2,7 @@ import path from 'node:path';
 
 import type { EnvironmentModuleNode, Plugin } from 'vite';
 
-/** True if an update to `mod` bubbles up to a module nothing accepts, i.e. Vite would full-reload. */
+/** Return whether an update reaches an importer without an HMR acceptance boundary, requiring a page reload. */
 function hitsDeadEnd(mod: EnvironmentModuleNode, seen = new Set<EnvironmentModuleNode>()): boolean {
   if (seen.has(mod)) {
     return false;
@@ -10,7 +10,7 @@ function hitsDeadEnd(mod: EnvironmentModuleNode, seen = new Set<EnvironmentModul
 
   seen.add(mod);
 
-  // undefined = not analyzed yet; Vite stops propagating there too
+  // Match Vite: stop traversal for self-accepting modules and modules not yet analyzed.
   if (mod.isSelfAccepting !== false) {
     return false;
   }
@@ -29,8 +29,8 @@ function hitsDeadEnd(mod: EnvironmentModuleNode, seen = new Set<EnvironmentModul
 }
 
 /**
- * Dev only: instead of letting a code change full-reload the page (and lose game state), hold it and tell
- * src/dev/reload-prompt.ts to show a "change ready" toast. Updates that can hot-swap (CSS) still apply live.
+ * Defer development updates that would reload the page, preserving the current game session until the player chooses to
+ * reload. Notify the injected reload prompt; allow accepted HMR updates, such as CSS, to proceed.
  */
 export function reloadPrompt(): Plugin {
   return {

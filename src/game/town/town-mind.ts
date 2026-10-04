@@ -14,77 +14,76 @@ import type { Casualties, Casualty, Harm } from './casualties';
 
 const C = TUNING.crowd;
 
-/** Still this close to the threat (in ghost reaches) when a run ends: keep running. */
+/** Distance multiplier on ghostReach below which fleeing continues. */
 const STILL_CLOSE = 1.5;
-/** An injured person back on their feet runs at this share of their pace. */
+/** Running-speed multiplier after recovery from an injury. */
 const LIMP = 0.55;
 
 const _up = new Vector3();
 
-/** What someone in town is doing, and what each part holds while it lasts. */
+/** Pedestrian behavior states and their retained context. */
 export type Doing =
-  /** Standing about for `t` more seconds, or waiting on a route to somewhere to stroll to. */
+  /** Wait for `t` seconds or for a pending walking route. */
   | State<'pause', { t: number }>
-  /** Strolling a route somewhere. */
+  /** Follow a walking route. */
   | State<'stroll'>
   /**
-   * Running from what's at `from`: a straight dash away first, then the route planned meanwhile by the walker. They
-   * calm down `t` seconds after the last fright, once well away. `fresh`: a new fright, not a turn away from a new side
-   * of one they're already running from.
+   * Flee from the recorded threat position with a direct dash followed by a planned route. `t` is the remaining calm
+   * timer; `fresh` selects a new running pace and emits a fright event.
    */
   | State<'flee', { from: Vector3; t: number; fresh: boolean }>
-  /** Walking back to their car to drive off in it. */
+  /** Walk back to an associated car to depart. */
   | State<'leave'>
-  /** Knocked off their feet, moving (vx, vz), by something at `from`: the ragdoll has them till they can get up. */
+  /** Retain impact velocity and injury while a casualty ragdoll controls the character. */
   | State<'down', { from: Vector3; vx: number; vz: number; harm: Harm; hurt: Casualty | null }>
-  /** Drove off: off the street for good. */
+  /** End pedestrian simulation after departure or removal. */
   | State<'gone'>;
 
-/** What can happen to someone in town. Each state moves only on the ones it lists. */
+/** Events that can interrupt pedestrian behavior. */
 export type TownEvent =
-  /** Something frightening at `from`: phantom Cody, a skeleton, a car driven at them, a shove, a claw. */
+  /** Report a frightening source position. */
   | MindEvent<'frightened', { from: Vector3 }>
-  /** Knocked off their feet: run over, or clawed down. */
+  /** Knock the pedestrian down with the supplied impact and injury. */
   | MindEvent<'felled', { from: Vector3; vx: number; vz: number; harm: Harm }>;
 
-/** What the people in town share: the town itself, as their minds use it. */
+/** Navigation, injury, visitor, and event services available to pedestrian behavior. */
 export interface Town {
   readonly nav: NavGrid;
   readonly rng: Rng;
   readonly casualties: Casualties | null;
-  /** Who's about to steer round this frame, and the visitors' cars, as the frame has them. */
+  /** Current dynamic avoidance and visitor vehicle services. */
   readonly avoid: Avoidance | null;
   readonly visitors: Visitors | null;
-  /** A pause's length (s). */
+  /** Return a random pause duration in seconds. */
   pause(): number;
-  /** A route to stroll to somewhere near `at`, or null if there's nowhere to go. */
+  /** Plan a nearby walking route, or return null when no destination is available. */
   strollFrom(at: Vector3): NavJob | null;
-  /** A route from `at` to `car`'s driver's door. */
+  /** Plan a route to the car’s driver door. */
   walkTo(at: Vector3, car: Vehicle): NavJob;
-  /** A straight line away from `from`, as far as the ground allows, or null if they can't get going that way. */
+  /** Return a direct escape segment over standable ground, or null when blocked immediately. */
   dash(at: Vector3, from: Vector3): Polyline | null;
-  /** A route from `start` to somewhere well away from `from`, or null if there's nowhere. */
+  /** Plan toward a destination away from the threat, or return null. */
   fleeFrom(start: Vector3, from: Vector3): NavJob | null;
-  /** Someone at `at` took fright and started running. */
+  /** Report the start of a new fright response. */
   frightAt(at: Vector3): void;
-  /** Someone at `at` drops their money as they run from `from`. */
+  /** Drop money at the pedestrian’s position using the threat as the directional reference. */
   dropMoney(at: Vector3, from: Vector3): void;
 }
 
-/** Someone in town, on foot. */
+/** A pedestrian’s behavior state, walker, health, and optional parked car. */
 export class Townsperson {
   readonly mind: Mind<Townsperson, Doing, TownEvent>;
-  /** Dropped their money already (once each). */
+  /** Whether this pedestrian has already dropped money. */
   dropped = false;
-  /** Their running pace (m/s), picked when a fright starts. */
+  /** Selected running speed in m/s. */
   pace = 0;
-  /** Running pace scale: an injured person limps. */
+  /** Injury multiplier applied when selecting a running speed. */
   limp = 1;
-  /** The car they drove in and left parked, while it's still where they left it. */
+  /** Associated parked car, cleared if it becomes unavailable. */
   car: Vehicle | null = null;
-  /** Seconds before they head back to it and drive off. */
+  /** Time before returning to the car, in seconds. */
   stay = 0;
-  /** Out of 100: skeletons' claws take it down (Crowd.maul). */
+  /** Health depleted by skeleton attacks; initially 100. */
   hp = 100;
 
   constructor(
@@ -94,12 +93,12 @@ export class Townsperson {
     this.mind = new Mind<Townsperson, Doing, TownEvent>(TOWN_MIND, this, { at: 'pause', t: town.pause() });
   }
 
-  /** Down, the ragdoll that has them; else null. */
+  /** Current casualty while down, or null. */
   get hurt(): Casualty | null {
     return this.mind.in('down')?.hurt ?? null;
   }
 
-  /** What they're running from, while they're running. */
+  /** Recorded threat position while fleeing, or null. */
   get threat(): Vector3 | null {
     return this.mind.in('flee')?.from ?? null;
   }
@@ -121,9 +120,9 @@ const frighten = (_p: Townsperson, _s: Doing, { from }: EventOf<TownEvent, 'frig
   flee(from, true);
 
 /**
- * A townsperson's mind: they stand about, stroll from spot to spot, and after a while walk back to their car and drive
- * off. A fright sends them running from wherever they are (again, from a new side, if it heads them off), and a car or
- * a claw can knock them off their feet.
+ * Alternate pauses and walking routes, return visitors to their cars, and interrupt these activities for fright or
+ * injury. Fleeing can redirect toward a newly reported threat direction; recovered casualties flee with an injury-
+ * dependent pace.
  */
 export const TOWN_MIND = mind<Townsperson, Doing, TownEvent>({
   pause: {
@@ -132,7 +131,6 @@ export const TOWN_MIND = mind<Townsperson, Doing, TownEvent>({
       const w = p.walker;
       s.t -= dt;
 
-      // time to go: back to the car
       if (p.car && p.stay <= 0 && !w.planning) {
         return { at: 'leave' };
       }
@@ -158,7 +156,7 @@ export const TOWN_MIND = mind<Townsperson, Doing, TownEvent>({
   stroll: {
     tick: (p, _s, dt) => {
       const w = p.walker;
-      // held up too long: give it up and pick somewhere else
+      // Abandon a blocked stroll and immediately request another destination.
       if (w.blocked) {
         w.stop();
         return { at: 'pause', t: 0 };
@@ -182,7 +180,7 @@ export const TOWN_MIND = mind<Townsperson, Doing, TownEvent>({
         t.dropMoney(w.pos, s.from);
       }
 
-      // bolt away at once, with a proper route to somewhere well away planned meanwhile
+      // Start a direct dash while planning a longer escape route.
       const dash = t.dash(w.pos, s.from);
       if (dash) {
         w.follow(dash, p.pace);
@@ -198,7 +196,7 @@ export const TOWN_MIND = mind<Townsperson, Doing, TownEvent>({
       s.t -= dt;
       w.followPlanned(true);
       const close = w.pos.distanceTo(s.from) < C.ghostReach * STILL_CLOSE;
-      // the run ended: further if the threat's still about, else catch their breath
+      // Continue fleeing if the route ends too close to the recorded threat.
       if (!w.walking && !w.planning) {
         if (close) {
           return flee(s.from, false);
@@ -221,9 +219,8 @@ export const TOWN_MIND = mind<Townsperson, Doing, TownEvent>({
       return null;
     },
     on: {
-      // already running: they keep at it, and turn to run from this instead only when it's off to a
-      // new side (more than a right angle from what they ran from), so a fright that heads them off
-      // sends them another way
+      // Redirect only when the new threat differs by more than a right angle; otherwise refresh the calm timer.
+
       frightened: (p, s, { from }) => {
         const at = p.walker.pos;
         if ((at.x - s.from.x) * (at.x - from.x) + (at.z - s.from.z) * (at.z - from.z) < 0) {
@@ -250,13 +247,13 @@ export const TOWN_MIND = mind<Townsperson, Doing, TownEvent>({
       }
 
       const car = p.car;
-      // no way back to it, or it's gone (stolen, towed): stay a pedestrian
+      // Resume pedestrian behavior after losing access to the car.
       if (!car) {
         return w.walking ? { at: 'stroll' } : pause(p);
       }
 
       if (w.blocked && !w.planning) {
-        // something's parked in the way since: a fresh route round it
+        // Replan a blocked return route from the current position.
         w.plan(p.town.walkTo(w.pos, car), () => p.town.rng.range(C.walkPace[0], C.walkPace[1]));
       } else if (w.update(dt, p.town.nav, p.town.avoid)) {
         if (p.town.visitors?.leave(car)) {
@@ -283,7 +280,7 @@ export const TOWN_MIND = mind<Townsperson, Doing, TownEvent>({
 
       s.hurt = p.town.casualties?.strike(w.rig, s.vx, s.vz, s.harm) ?? null;
     },
-    // up once able (an injured one limps off), running from what hit them
+    // Recover when ready, then flee from the impact source with an injury-dependent pace.
     tick: (p, s) => {
       const c = p.town.casualties;
       if (!s.hurt || !c) {

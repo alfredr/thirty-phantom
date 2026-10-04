@@ -2,12 +2,12 @@ import type { Focus } from '@/engine/input/input';
 import { el } from '@/engine/ui/dom';
 import { type Control, keyName } from '@/game/controls';
 
-/** Something Cody carries, as the HUD shows it. */
+/** Inventory data required to render an item and its available actions. */
 export interface InvItem {
-  /** The game's id for the item, handed back with an action. */
+  /** Game item identifier returned with action callbacks. */
   kind: string;
   name: string;
-  /** Its icon (inline SVG), if it has one. */
+  /** Optional inline SVG icon markup. */
   icon?: string;
   count: number;
   /** A line shown with the item's actions. */
@@ -41,10 +41,9 @@ export function sameInventory(a: readonly InvItem[], b: readonly InvItem[]): boo
 const ACTION_KEYS: readonly Control[] = ['interact', 'pay'];
 
 /**
- * What Cody's carrying: a strip of tags, and the actions of the one picked. Keyboard: I picks the first usable item and
- * steps through them, closing after the last; arrows step too, F (or Enter) and G run the first and second action, Esc
- * closes. While the menu is open those keys are kept from the game, so the F that eats doesn't also steal a car. Mouse
- * and touch: tap a tag, then an action; a tap anywhere else closes it.
+ * Render inventory tags and actions for the selected item. The inventory control cycles usable items and closes after
+ * the last; menu controls wrap, confirm runs the first action, and cancel closes. Reserve these controls while open to
+ * prevent simultaneous world actions. Pointer input selects tags and actions; pressing outside closes it.
  */
 export class InventoryStrip {
   readonly root: HTMLDivElement;
@@ -74,7 +73,7 @@ export class InventoryStrip {
   set(items: readonly InvItem[]): void {
     const kind = this.items[this.sel]?.kind;
     this.items = items;
-    // the menu stays on the same item while counts change, and closes if it's gone
+    // Preserve selection by item identity across count changes; close if the item disappears.
     this.sel = kind === undefined ? -1 : items.findIndex((it) => it.kind === kind);
     this.render();
   }
@@ -83,9 +82,9 @@ export class InventoryStrip {
     return this.items.flatMap((it, i) => (it.actions.length ? [i] : []));
   }
 
-  /** The keys the item strip takes right now: I to open it, and the menu keys while it's open. */
+  /** Reserve the inventory control when usable items exist, plus menu controls while an item is selected. */
   private controls(): readonly Control[] {
-    // Hidden on the title screen.
+    // Hidden inventory must not reserve controls.
     if (this.root.offsetParent === null) {
       return [];
     }
@@ -179,14 +178,14 @@ export class InventoryStrip {
 
         it.actions.forEach((a, j) => {
           const key = ACTION_KEYS[j];
-          // data-act, not data-action: touch-controls turns a tap on [data-action] into a key press
+          // Use data-act to avoid the global data-action handler dispatching a second input event.
           el('div', 'inv-act', menu, `${key ? `<kbd>${keyName(key)}</kbd>` : ''}${a.label}`).dataset.act = String(j);
         });
       }
 
       return tag;
     });
-    // the I hint shows while something could be used and the menu is closed
+    // Offer the inventory shortcut only when a usable item exists and no menu is open.
     const hint = this.sel < 0 && this.usable.length ? [el('kbd', 'inv-hint', undefined, keyName('inventory'))] : [];
     this.root.replaceChildren(...hint, ...tags);
   }

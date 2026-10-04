@@ -11,54 +11,42 @@ import type { NpcDef } from '@/world/level-data';
 
 import { type Pitch, RANDY_PITCH, RANDY_WORK, type RandyEvent, type Work } from './randy-mind';
 
-/**
- * Cody this close (m, on his level) gets Randy's attention: he looks over, and between pitches turns to him and opens
- * his coat.
- */
+/** Horizontal attention range and maximum vertical separation, in meters. */
 const PITCH_REACH = 5;
 const SAME_LEVEL = 2;
 /**
- * He flashes one side of the coat, the left (his right hand has the stick): how wide that flap swings (rad: past a
- * right angle, so the lining and the goods face whoever's in front) and how fast (damp rate). His left hand holds it by
- * its front edge the whole way.
+ * Left coat flap opening angle in radians and damping rate. Only the left flap opens because the right hand holds the
+ * roasting stick.
  */
 const FLAP_OPEN = 1.9;
 const FLAP_RATE = 9;
-/** A hanging arm points down its own -y. */
+/** Local direction from the shoulder toward the hand in the resting pose. */
 const DOWN = new Vector3(0, -1, 0);
 const _grip = new Vector3();
 const _held = new Vector3();
 const _aim = new Quaternion();
 const _rest = new Quaternion();
-/**
- * Turning (damp rate); how far his body turns from the fire toward Cody (rad, so the meat stays over it), and his head
- * the rest of the way.
- */
+/** Turn damping rate and maximum body and head angles in radians. Limit body rotation to keep the stick near the fire. */
 const TURN_RATE = 6;
 const BODY_TURN = 0.6;
 const LOOK = 1.1;
-/** Idle: a slow weight shift (rad/s, m), and a glance over his shoulder every so often (s, rad). */
+/** Idle sway rate in rad/s and amplitude in meters; glance interval in seconds and angle in radians. */
 const SWAY_RATE = 1.3;
 const SWAY = 0.02;
 const GLANCE_EVERY = 5;
 const GLANCE = 0.7;
-/** Turning the meat over the fire: the stick dips and rises this much (rad) at this rate (rad/s). */
+/** Roasting arm oscillation amplitude in radians and rate in rad/s. */
 const TURN_MEAT = 0.06;
 const TURN_MEAT_RATE = 2.2;
-/**
- * Flames lick up and down: each one's height swings by FLICKER around FLAME_REST of its own, at two rates, and its
- * width by WOBBLE.
- */
+/** Relative flame height and width variation, driven by two frequencies in rad/s. */
 const FLAME_REST = 0.8;
 const FLICKER = 0.35;
 const FLICKER_RATES: readonly [number, number] = [7.3, 11.1];
 const WOBBLE = 0.12;
 /**
- * Tossing something from his left hand: the arm winds back and swings through in TOSS_WIND seconds, letting go at the
- * end. It flies a gravity arc at least TOSS_ARC high (more for a long throw), lobbed higher if it must, to pass
- * TOSS_CLEAR over every surface under its path (the roof, a parapet) till the last TOSS_LAND of the way, where it comes
- * down; for TOSS_FLIGHT plus a second per TOSS_SPEED metres, or as long as a fall from its peak takes under TOSS_G. It
- * tumbles, and lies flat where it lands.
+ * Throw timing, arm angles, arc height, and clearance. Flight duration grows with distance and has a gravity-based
+ * minimum. Distances use meters, times use seconds, and gravity uses m/s²; TOSS_LAND is the final path fraction exempt
+ * from clearance checks.
  */
 const TOSS_WIND = 0.75;
 const TOSS_BACK = 1.15;
@@ -70,36 +58,30 @@ const TOSS_ARC_PER_M = 0.15;
 const TOSS_CLEAR = 0.6;
 const TOSS_LAND = 0.06;
 const TOSS_G = 9.8;
-/** Points along the throw checked against what's under it. */
+/** Number of intervals used to sample throw clearance. */
 const TOSS_SAMPLES = 40;
 const TOSS_SPIN = 9;
 const ARM_RATE = 8;
-/**
- * Feeding the fire: something lobbed in flies FEED_FLIGHT seconds over an arc FEED_ARC high, tumbling, and drops in
- * below the rim.
- */
+/** Fire-feeding flight duration in seconds, arc height in meters, and final depth below the rim in meters. */
 const FEED_FLIGHT = 0.7;
 const FEED_ARC = 1.2;
 const FEED_SINK = 0.3;
-/** Fed, the fire plumes up: flames this much taller and wider at the peak, dying back over PLUME_TIME seconds. */
+/** Additional peak flame scale and plume decay duration in seconds. */
 const PLUME_HEIGHT = 2.2;
 const PLUME_WIDTH = 0.6;
 const PLUME_TIME = 1.6;
 
-/** What each is called on the HUD. */
+/** NPC display names. */
 export const NPC_NAMES: Readonly<Record<NpcDef['id'], string>> = { randy: 'RANDY' };
 
-/** His trash can fire, and where it sits in his own frame (x to his left, z ahead). */
+/** Fire rig and its horizontal offset in the NPC’s local coordinates. */
 export interface TrashFire {
   root: Object3D;
   flames: readonly Object3D[];
   at: [number, number];
 }
 
-/**
- * Something he's throwing: from his hand to `to` (world), its flight time, how far into the throw, and where in his
- * hand it came from.
- */
+/** Active throw, including world-space endpoints, elapsed time, flight duration, and original hand attachment. */
 interface Toss {
   item: Object3D;
   to: Vector3;
@@ -113,7 +95,7 @@ interface Toss {
   lift: number;
 }
 
-/** Something on its way into his fire. */
+/** An item traveling into the fire, with its completion callback. */
 interface Feed {
   item: Object3D;
   from: Vector3;
@@ -122,31 +104,30 @@ interface Feed {
 }
 
 /**
- * Randy: his body and fire, and his two minds (randy-mind.ts), the pitch (his coat, and a scene holding him) and his
- * work at the fire. Tell him things with send(): a scene holds and releases him and flashes his coat, the shop has Cody
- * browsing, and Cody hands him tires.
+ * Randy’s rig, fire, and independent pitch and work state machines. Events coordinate scripted scenes, browsing, and
+ * tire feeding; see randy-mind.ts.
  */
 export class Npc {
   readonly pitch: Mind<Npc, Pitch, RandyEvent>;
   readonly work: Mind<Npc, Work, RandyEvent>;
-  /** The way he faces when nobody's about (at his fire), and the way he's facing. Move him with Npcs.place. */
+  /** Resting and current yaw in radians. Use Npcs.place to move the NPC and fire together. */
   homeYaw: number;
   yaw: number;
-  /** Coat open, 0..1. */
+  /** Coat opening fraction from zero to one. */
   open = 0;
   t = Math.random() * GLANCE_EVERY;
-  /** Cody's close on foot, on his level, this frame. */
+  /** Whether Cody is on foot within the attention range and level tolerance. */
   near = false;
   toss: Toss | null = null;
-  /** How hard his fire's roaring from being fed, 1 just fed down to 0. */
+  /** Normalized fire plume strength, decaying from one to zero. */
   plume = 0;
-  /** Things on their way into his fire. */
+  /** Items currently traveling into the fire. */
   feeding: Feed[] = [];
 
   constructor(
     readonly def: NpcDef,
     readonly rig: RandyRig,
-    /** Where he stands. */
+    /** World position. */
     readonly pos: Vector3,
     readonly fire: TrashFire | null,
     readonly npcs: Npcs,
@@ -156,23 +137,23 @@ export class Npc {
     this.work = new Mind<Npc, Work, RandyEvent>(RANDY_WORK, this, { at: 'roasting' });
   }
 
-  /** A scene has him: he turns toward Cody (as far as his fire allows), roasts on, and opens his coat only when told to. */
+  /** Whether a scene controls Randy’s facing and coat. */
   get held(): boolean {
     return !!this.pitch.in('directed');
   }
 
-  /** While a scene has him, what he turns to instead of Cody (a car window, say), or null. */
+  /** Scene-specified look target, or null to use Cody’s position. */
   get face(): Vector3 | null {
     return this.pitch.in('directed')?.face ?? null;
   }
 
-  /** His coat's open on his wares, facing Cody. */
+  /** Whether the current pitch state requests an open coat. */
   get pitching(): boolean {
     const s = this.pitch.state;
     return s.at === 'pitching' || s.at === 'browsing' || (s.at === 'directed' && s.open);
   }
 
-  /** Sends `event` to both his minds. True if either moved. */
+  /** Send the event to both state machines and report whether either transitioned. */
   send(event: RandyEvent): boolean {
     const pitch = this.pitch.send(event);
     const work = this.work.send(event);
@@ -180,21 +161,21 @@ export class Npc {
   }
 }
 
-/** What Randy's doings tell the game. */
+/** NPC animation callbacks and terrain queries. */
 export interface NpcHooks {
-  /** A thing he threw has landed: a copy lies at the ground height `floor` (the one in his hand goes back, hidden). */
+  /** Register a landed copy as a pickup at ground height `floor`; the original returns to the hand, hidden. */
   landed(item: Object3D, floor: number): void;
-  /** The highest surface at (x, z) no higher than `below`, so a throw can clear what's under it. */
+  /** Return the highest surface at or below `below` for throw-clearance checks. */
   ground(x: number, z: number, below: number): number;
-  /** A tire went into his fire at `at`. */
+  /** Report a tire entering the fire. */
   burned(at: Vector3): void;
-  /** The last of `n` tires Cody gave him has gone in. */
+  /** Report completion of the tire-feeding sequence. */
   fed(n: number): void;
 }
 
 /**
- * Randy's placement, idle animation, coat display, and thrown items. Dialogue is managed by the tutorial, which uses
- * talkable() and holds the NPC during conversations.
+ * Manage NPC placement, idle animation, coat display, and thrown items. Conversation systems control the NPC through
+ * state-machine events.
  */
 export class Npcs {
   readonly list: Npc[];
@@ -215,7 +196,7 @@ export class Npcs {
         const built = buildTrashFire();
         built.root.position.set(...def.fire);
         scene.add(built.root);
-        // where it sits in his frame, so it moves with him
+        // Store the fire offset in local coordinates so placement can preserve it.
         const dx = def.fire[0] - pos.x;
         const dz = def.fire[2] - pos.z;
         const c = Math.cos(def.yaw);
@@ -227,7 +208,7 @@ export class Npcs {
     });
   }
 
-  /** Move him (and his fire, which goes where he goes) to stand at `pos` facing `yaw` when idle. */
+  /** Move the NPC and fire together and set the resting yaw. */
   place(n: Npc, pos: Vector3, yaw: number): void {
     n.pos.copy(pos);
     n.homeYaw = n.yaw = yaw;
@@ -245,8 +226,8 @@ export class Npcs {
   }
 
   /**
-   * He throws what's in his left hand (Cody's badge, rig.badge: it's shown if it wasn't) over an arc to land and lie at
-   * `to`. Returns the seconds until it lands.
+   * Throw the badge rig to `to`, optionally displaying its path. Return the estimated duration including wind-up, in
+   * seconds.
    */
   toss(n: Npc, to: Vector3, opts: { showPath?: boolean } = {}): number {
     const item = n.rig.badge;
@@ -255,11 +236,11 @@ export class Npcs {
     const lift = this.liftFor(from, to);
     const flight = Math.max(TOSS_FLIGHT + from.distanceTo(to) / TOSS_SPEED, fallTime(from, to, lift));
     const hand = { parent: item.parent, pos: item.position.clone(), quat: item.quaternion.clone() };
-    // marked from the wind-up on: a halo round it, and a ring where it'll come down
+    // Show the item and destination highlights during wind-up.
     const highlight = new Highlight();
     highlight.place(from, to);
     this.scene.add(highlight.root);
-    // and, if asked, the arc it'll fly, dotted out ahead of it
+
     const path = opts.showPath ? new ArcPath() : null;
     if (path) {
       path.set((u, out) => arcAt(from, to, lift, u, out));
@@ -271,8 +252,8 @@ export class Npcs {
   }
 
   /**
-   * Lob `item` (already in the scene) from `from` into his fire: it arcs in, the fire plumes up, and `done` runs as it
-   * goes in. Without a fire it just goes, and `done` runs at once.
+   * Animate a scene item into the fire, then remove it and call `done`. Without a fire, remove it and call `done`
+   * immediately.
    */
   feed(n: Npc, item: Object3D, from: Vector3, done: () => void = () => {}): void {
     if (!n.fire) {
@@ -285,12 +266,12 @@ export class Npcs {
     n.feeding.push({ item, from: from.clone(), t: 0, done });
   }
 
-  /** The fire roars up for a moment, as if fed. */
+  /** Reset the fire plume to full strength. */
   stoke(n: Npc): void {
     n.plume = 1;
   }
 
-  /** One of the tires Cody gave him goes into the fire, from Cody's hands at `from`. */
+  /** Create and throw a tire from `from`, reporting when it enters the fire. */
   feedTire(n: Npc, from: Vector3): void {
     const tire = buildJunk('tire');
     this.scene.add(tire);
@@ -301,14 +282,14 @@ export class Npcs {
     });
   }
 
-  /** The last of `count` tires has gone in. */
+  /** Notify the game that the tire-feeding sequence has completed. */
   fed(_n: Npc, count: number): void {
     this.hooks.fed(count);
   }
 
   /**
-   * How hard a throw from `from` to `to` is lobbed (the arc's `lift`, see arcAt): enough for its usual height, and to
-   * clear everything under it (no higher than the throw) till it comes down at the end.
+   * Compute the arc lift needed for the distance and sampled surface clearance. Ignore the final landing fraction and
+   * surfaces above the endpoint height allowance.
    */
   private liftFor(from: Vector3, to: Vector3): number {
     const d = from.distanceTo(to);
@@ -332,15 +313,15 @@ export class Npcs {
     return lift;
   }
 
-  /** Throw arcs fading out after their throw. */
+  /** Released trajectory displays that are fading out. */
   private trails: ArcPath[] = [];
 
-  /** The NPC with this id, if the level has one. */
+  /** Return the NPC with the requested ID, or null. */
   find(id: NpcDef['id']): Npc | null {
     return this.list.find((n) => n.def.id === id) ?? null;
   }
 
-  /** Nearest NPC within `reach` of p, on its level, or null. */
+  /** Return the nearest NPC within the horizontal reach and level tolerance, or null. */
   talkable(p: Vector3, reach: number): Npc | null {
     let best: Npc | null = null;
     let bd = reach;
@@ -355,7 +336,7 @@ export class Npcs {
     return best;
   }
 
-  /** `cody`: where Cody is on foot, or null (driving, or off somewhere else). */
+  /** Advance animation and behavior. Supply Cody’s on-foot position, or null to disable proximity responses. */
   update(dt: number, cody: Vector3 | null): void {
     const fading: ArcPath[] = [];
     for (const tr of this.trails) {
@@ -378,13 +359,13 @@ export class Npcs {
       n.pitch.tick(dt);
       n.work.tick(dt);
       const r = n.rig;
-      // he never leaves his fire: the body turns partway toward Cody (or whatever he's told to face) to pitch or talk, the head does the rest
+      // Limit torso rotation so the roasting stick remains near the fire.
       const at = n.held && n.face ? n.face : cody;
       const toCody = at ? Math.atan2(at.x - n.pos.x, at.z - n.pos.z) : n.homeYaw;
       const turn = n.pitching || n.held ? clamp(wrapAngle(toCody - n.homeYaw), -BODY_TURN, BODY_TURN) : 0;
       n.yaw = dampAngle(n.yaw, n.homeYaw + turn, TURN_RATE, dt);
       r.root.rotation.y = n.yaw;
-      // coat: the left flap swings open in his left hand; the right stays shut over the stick arm
+      // Open only the left flap; the right arm remains occupied by the stick.
       n.open = damp(n.open, n.pitching ? 1 : 0, FLAP_RATE, dt);
       const [left, right] = r.flaps;
       left.rotation.y = -FLAP_OPEN * n.open;
@@ -395,16 +376,15 @@ export class Npcs {
         this.holdFlap(n);
       }
 
-      // always roasting: the stick held out, turned now and then
       r.armR.rotation.x = -ROAST_LIFT + Math.sin(n.t * TURN_MEAT_RATE) * TURN_MEAT;
       r.body.position.y = Math.sin(n.t * SWAY_RATE) * SWAY;
-      // looking: at Cody when he's about (head only, unless he's turned to him), else the odd glance
+      // Track the nearby conversation target; otherwise animate an occasional glance.
       const look =
         n.near || n.held || n.face
           ? clamp(wrapAngle(toCody - n.yaw), -LOOK, LOOK)
           : Math.max(0, Math.sin((n.t / GLANCE_EVERY) * Math.PI * 2)) ** 4 * GLANCE;
       r.head.rotation.y = damp(r.head.rotation.y, look, TURN_RATE, dt);
-      // the fire, roaring up for a moment when fed
+
       this.feedFire(n, dt);
       n.plume = Math.max(0, n.plume - dt / PLUME_TIME);
       const roar = n.plume * n.plume;
@@ -420,7 +400,7 @@ export class Npcs {
     }
   }
 
-  /** His left arm reaching to the open flap's front edge (as far as it's open), so arm and flap move as one. */
+  /** Aim the left arm at the flap grip and blend from rest according to the coat opening. */
   private holdFlap(n: Npc): void {
     if (n.open < 0.01) {
       return;
@@ -438,7 +418,7 @@ export class Npcs {
     arm.quaternion.slerpQuaternions(_rest.identity(), _aim, n.open);
   }
 
-  /** Things lobbed into the fire: over an arc into the can, where they're gone and the fire roars. */
+  /** Advance items into the fire and invoke their callbacks after removal. */
   private feedFire(n: Npc, dt: number): void {
     const fire = n.fire;
     if (!fire) {
@@ -452,7 +432,7 @@ export class Npcs {
       const u = Math.min(1, f.t / FEED_FLIGHT);
       const to = fire.root.position;
       f.item.position.lerpVectors(f.from, to, u);
-      // from the hand up over the arc, down to the rim, then in
+      // Finish below the rim so the item disappears inside the can.
       const rim = to.y + CAN_TOP - FEED_SINK * u - f.from.y;
       f.item.position.y = f.from.y + rim * u + 4 * FEED_ARC * u * (1 - u);
       f.item.rotation.x += TOSS_SPIN * dt;
@@ -468,7 +448,7 @@ export class Npcs {
     }
   }
 
-  /** The left arm's throw, and the thing in flight once he lets go. */
+  /** Animate wind-up, release, flight, and restoration of the reusable badge rig. */
   private throwing(n: Npc, dt: number): void {
     const arm = n.rig.armL;
     const tw = n.toss;
@@ -482,7 +462,6 @@ export class Npcs {
     tw.highlight.place(tw.item.getWorldPosition(_held), tw.to);
 
     if (!tw.released) {
-      // wind back, then swing through
       const k = tw.t / TOSS_WIND;
       arm.rotation.x = k < 0.5 ? TOSS_BACK * (k / 0.5) : TOSS_BACK - (TOSS_BACK + TOSS_THROUGH) * ((k - 0.5) / 0.5);
 
@@ -490,12 +469,12 @@ export class Npcs {
         return;
       }
 
-      // let go: into the world where it is
+      // Detach while preserving the item’s world transform.
       tw.released = true;
       tw.item.getWorldPosition(tw.from);
       this.scene.attach(tw.item);
       tw.t = 0;
-      // it leaves from where the hand ended up: the arc (and the dots) from there
+      // Recalculate clearance from the hand’s actual release position.
       tw.lift = this.liftFor(tw.from, tw.to);
       tw.path?.set((u, out) => arcAt(tw.from, tw.to, tw.lift, u, out));
     }
@@ -507,10 +486,10 @@ export class Npcs {
     tw.item.rotation.z += TOSS_SPIN * 0.6 * dt;
 
     if (u >= 1) {
-      // lands flat where it was thrown, and stays there to be found; his hand keeps one to throw next time
+      // Create a landed copy and restore the original for subsequent throws.
       tw.item.rotation.set(-Math.PI / 2, 0, tw.item.rotation.z);
       n.toss = null;
-      // the one lying there takes its own mark (Junk keeps it highlighted till it's picked up); the arc fades
+      // The pickup system supplies the persistent highlight; fade the trajectory separately.
       tw.highlight.dispose();
 
       if (tw.path) {
@@ -530,9 +509,8 @@ export class Npcs {
 }
 
 /**
- * Where something thrown from `from` to `to` is a share u (0..1) of the way through its flight: straight across, and a
- * gravity arc up and down, lobbed by `lift` (its rise is lift * u * (1 - u) over the plain drop, which comes late, as a
- * falling thing's does).
+ * Evaluate a throw at normalized time `u` into `out`. Horizontal motion is linear; height combines a lift parabola with
+ * a quadratic endpoint drop.
  */
 function arcAt(from: Vector3, to: Vector3, lift: number, u: number, out: Vector3): Vector3 {
   out.lerpVectors(from, to, u);
@@ -540,10 +518,10 @@ function arcAt(from: Vector3, to: Vector3, lift: number, u: number, out: Vector3
   return out;
 }
 
-/** How long a throw's arc takes as a real fall: up to its peak and down from it under TOSS_G (s). */
+/** Estimate ascent plus descent time under TOSS_G using the arc’s peak height, in seconds. */
 function fallTime(from: Vector3, to: Vector3, lift: number): number {
   const drop = to.y - from.y;
-  // the peak: where the rise and the drop balance
+  // Find the peak of the quadratic height curve within the flight interval.
   const u = Math.min(1, Math.max(0, lift / (2 * (lift - drop))));
   const peak = from.y + lift * u * (1 - u) + drop * u * u;
   return Math.sqrt((2 * Math.max(0, peak - from.y)) / TOSS_G) + Math.sqrt((2 * Math.max(0, peak - to.y)) / TOSS_G);

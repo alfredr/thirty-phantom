@@ -9,13 +9,13 @@ import { engine, type Mark } from './grains';
 import { type Controls, type Kit, makeKit, synthesize, type Voice } from './synth';
 
 const A = TUNING.audio;
-/** Loops fade in and out over this long (s), and follow a moving source with this lag (s). */
+/** Loop fade duration and source-following time constant, in seconds. */
 const FADE = 0.08;
 const FOLLOW = 0.05;
 
 /**
- * Level at `d` (m) from the listener, for a cue heard out to `range`: full within TUNING.audio.near, then near / d,
- * gone by `range`.
+ * Return distance attenuation for a cue with the given range, in meters. Apply inverse-distance falloff and fade to
+ * silence over the final 40% of the range.
  */
 export function falloff(d: number, range: number): number {
   if (d >= range) {
@@ -26,19 +26,19 @@ export function falloff(d: number, range: number): number {
 }
 
 export interface PlayOpts {
-  /** Where it is; unset or null for Cody's own sounds (no falloff, centred). */
+  /** Sound position. Omit or use null for centered audio without distance attenuation. */
   at?: Vector3 | null;
-  /** Level on top of the cue's: a harder crash louder. */
+  /** Gain multiplier applied in addition to the cue and sound levels. */
   gain?: number;
-  /** A few words more for the log ("car 12"). */
+  /** Optional context included in audio logs, such as a vehicle ID. */
   note?: string;
 }
 
-/** A loop playing. Its owner keeps `at` where the sound is, sets its level and controls, and stops it. */
+/** Handle for a playing loop. The owner updates its position, gain, and synthesis controls, then stops it. */
 export interface Loop {
-  /** Where it is (the owner moves it, the mixer reads it every frame), or null for everywhere. */
+  /** Mutable source position read each frame, or null for audio without spatial effects. */
   readonly at: Vector3 | null;
-  /** Level on top of the cue's (0..1): an engine's throttle, ambience by the time of day. */
+  /** Gain multiplier applied to the loop each frame. */
   gain: number;
   readonly stopped: boolean;
   set(c: Controls): void;
@@ -52,7 +52,7 @@ interface Live {
   voice: Voice;
   out: GainNode;
   pan: StereoPannerNode;
-  /** The cue's level, the sound's trim and the play's, together. */
+  /** Combined cue, sound, and playback gain before distance attenuation. */
   level: number;
   range: number | null;
   loop: LoopVoice | null;
@@ -83,15 +83,13 @@ class LoopVoice implements Loop {
   }
 }
 
-/** A cue's level for the log: two places. */
+/** Format a logged gain to two decimal places. */
 const fmt = (v: number): string => v.toFixed(2);
 
 /**
- * The audio graph: voices into the sfx and ambience buses, into a master level (muted with M) and a gentle limiter.
- * Plays cues from the cue table: positioned ones fall off with distance from the listener (Cody) and pan with the
- * camera; too quiet, over its cue's cap or over the voice limit, a sound isn't played. With ?sound every sound that
- * does start is logged to the console by name. Nothing exists till unlock(), which must come from a user gesture (iOS
- * insists).
+ * Mix synthesized and recorded sounds through effects and ambience buses, a master gain, and a limiter. Apply distance
+ * attenuation, camera-relative stereo panning, and voice limits. Call unlock() from a user gesture before playing
+ * audio.
  */
 export class Mixer {
   private ctx: AudioContext | null = null;
@@ -99,11 +97,11 @@ export class Mixer {
   private master: GainNode | null = null;
   private buses: Record<Bus, GainNode> | null = null;
   private readonly live: Live[] = [];
-  /** Decoded sound files, by path; a promise while one's loading, null if it failed. */
+  /** Cache decoded audio by path. A promise marks a pending load; null marks a failed load. */
   private readonly files = new Map<string, AudioBuffer | Promise<void> | null>();
-  /** Engines' grain tables (their cycles), by path, the same way. */
+  /** Cache engine cycle metadata by path, using the same pending and failed states as audio files. */
   private readonly marks = new Map<string, readonly Mark[] | Promise<void> | null>();
-  /** Where sounds are heard from (Cody), and the camera's right along the ground (for panning). */
+  /** Listener position and horizontal camera-right vector used for spatial audio. */
   readonly ear = new Vector3();
   readonly right = new Vector3(1, 0, 0);
   private muted = false;
@@ -116,7 +114,7 @@ export class Mixer {
     return this.muted;
   }
 
-  /** Start audio, or wake it up: call from inside a key, click or touch handler. */
+  /** Create or resume the audio context. Call from a keyboard, pointer, or touch event. */
   unlock(): void {
     if (!this.ctx) {
       if (typeof AudioContext === 'undefined') {
@@ -131,7 +129,7 @@ export class Mixer {
     }
   }
 
-  /** Sleep while the page is hidden; wake with unlock(). */
+  /** Suspend the audio context when the page is hidden. Resume it with unlock(). */
   suspend(): void {
     if (this.ctx?.state === 'running') {
       void this.ctx.suspend();
@@ -171,7 +169,7 @@ export class Mixer {
     this.master = master;
     this.buses = { sfx: bus(A.sfx), ambience: bus(A.ambience) };
     soundLog(`audio started (${ctx.sampleRate} Hz)`);
-    // any sounds that are files load now, in the background
+    // Start loading recorded sounds and engine metadata without blocking playback.
     const cues: Readonly<Record<string, Cue>> = CUES;
     for (const cue of Object.values(cues)) {
       for (const src of Object.values(cue.sounds)) {
@@ -186,7 +184,7 @@ export class Mixer {
     }
   }
 
-  /** Play a one-shot of `cue`. False if it wasn't (no audio yet, muted, too far to hear, or over a cap). */
+  /** Play a one-shot cue. Return false if audio is unavailable, muted, inaudible, still loading, or at its voice limit. */
   play<C extends CueName>(cue: C, sound: SoundOf<C>, o: PlayOpts = {}): boolean {
     const def: Cue = CUES[cue];
     const src = def.sounds[sound];
@@ -198,7 +196,7 @@ export class Mixer {
     const level = def.vol * (src.vol ?? 1) * (o.gain ?? 1);
     const d = at ? at.distanceTo(this.ear) : 0;
     const heard = level * (at && def.range !== null ? falloff(d, def.range) : 1);
-    // out of earshot: not played, and not worth a line
+    // Silently discard sounds below the audible threshold.
     if (heard < A.cull) {
       return false;
     }
@@ -233,7 +231,10 @@ export class Mixer {
     return true;
   }
 
-  /** Start a loop of `cue` at `at` (null: everywhere); null if it can't start yet (no audio, or over the cue's cap). */
+  /**
+   * Start a looping cue, or return null if its source is unavailable or its cue limit is reached. A null position
+   * disables spatial effects.
+   */
   loop<C extends CueName>(cue: C, sound: SoundOf<C>, at: Vector3 | null, gain = 1, note?: string): Loop | null {
     const def: Cue = CUES[cue];
     const src = def.sounds[sound];
@@ -268,7 +269,7 @@ export class Mixer {
     return handle;
   }
 
-  /** Once a frame: loops follow their sources and levels and schedule what's next; finished one-shots go. */
+  /** Update loop gain and panning, schedule audible loop voices, and disconnect completed one-shots. */
   update(): void {
     const ctx = this.ctx;
     if (!ctx) {
@@ -300,14 +301,14 @@ export class Mixer {
     this.live.length = n;
   }
 
-  /** A loop's live controls, now. */
+  /** Send synthesis controls to a voice at the current audio context time. */
   control(l: Live, c: Controls): void {
     if (this.ctx) {
       l.voice.set?.(c, this.ctx.currentTime);
     }
   }
 
-  /** A loop's done: fade it out, stop it, and say so. */
+  /** Remove a loop from the active set, fade it out, then stop and disconnect its sources. */
   release(l: Live): void {
     const i = this.live.indexOf(l);
     if (i >= 0) {
@@ -374,7 +375,7 @@ export class Mixer {
       const s = ctx.createBufferSource();
       s.buffer = buf;
       s.loop = loop;
-      // a little faster or slower each time
+      // Vary playback rate to make repeated recordings less uniform.
       const rate = 1 + (Math.random() * 2 - 1) * ('vary' in src ? (src.vary ?? 0) : 0);
       s.playbackRate.value = rate;
       s.connect(out);
@@ -385,7 +386,7 @@ export class Mixer {
     return this.keep(cue, name, def, voice, out, pan, level, note);
   }
 
-  /** A voice started into `out`: panned onto its bus and kept track of. */
+  /** Connect a voice to its stereo panner and output bus, then register it for updates. */
   private keep(
     cue: CueName,
     name: string,
@@ -406,7 +407,7 @@ export class Mixer {
     return live;
   }
 
-  /** A loop's level from where it is now (before its own gain). */
+  /** Calculate a loop's distance-adjusted level before applying its mutable gain. */
   private heard(l: Live): number {
     const at = l.loop?.at;
     if (!at || l.range === null) {
@@ -416,7 +417,7 @@ export class Mixer {
     return l.level * falloff(at.distanceTo(this.ear), l.range);
   }
 
-  /** Left or right of the camera, nearer the middle up close. */
+  /** Calculate camera-relative stereo pan, reducing separation near the listener. */
   private panFor(at: Vector3): number {
     const dx = at.x - this.ear.x;
     const dz = at.z - this.ear.z;
@@ -428,7 +429,7 @@ export class Mixer {
     return clamp((dx * this.right.x + dz * this.right.z) / h, -1, 1) * A.pan * smoothstep(0, A.near, h);
   }
 
-  /** A sound file: fetched and decoded in the background, ready for next time. */
+  /** Fetch and decode an audio file once. Cache the result or the failure. */
   private load(path: string): void {
     const ctx = this.ctx;
     if (!ctx || this.files.has(path)) {
@@ -447,7 +448,7 @@ export class Mixer {
     this.files.set(path, job);
   }
 
-  /** An engine's grain table: fetched in the background, ready for next time. */
+  /** Fetch engine cycle metadata once. Cache the result or the failure. */
   private loadMarks(path: string): void {
     if (this.marks.has(path)) {
       return;

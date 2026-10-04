@@ -34,10 +34,7 @@ export const cutUniforms = {
   uCutNear: { value: 0.8 },
   /** Everything above this height is cut, in front of the focus or not (the slab overhead). */
   uCutCeil: { value: 1e9 },
-  /**
-   * Slime-green edge of the cutaway hole, round the player whenever under a slab: past 1 so it glows, kept low enough
-   * not to haze.
-   */
+  /** HDR color of the cutaway rim. Values above 1 produce bloom without excessive glare. */
   uCutRim: { value: new Color(0.45, 1.6, 0.1) },
   /** World-space dirt strength for materials compiled with GRIME. */
   uGrime: { value: 1 },
@@ -66,15 +63,15 @@ vec3 applyGrime(vec3 c, vec3 p, vec3 n) {
   float macro = gNoise(p * 0.07) * 0.55 + gNoise(p * 0.31 + 11.0) * 0.3 + gNoise(p * 1.7 + 3.0) * 0.15;
   float dirt = smoothstep(0.38, 0.8, macro);
   float wall = 1.0 - smoothstep(0.35, 0.65, abs(n.y));
-  // rain/slime streaks running down walls
+  // Stretch noise vertically to form rain and slime streaks on walls.
   float st = gNoise(vec3(p.x * 2.6 + p.z * 2.6, p.y * 0.22, p.z * 0.9));
   float streak = smoothstep(0.58, 0.92, st) * wall;
   float slime = smoothstep(0.78, 0.97, gNoise(vec3(p.x * 1.3 + p.z * 1.3, p.y * 0.3 + 5.0, 7.0))) * wall;
-  // oily stains on floors
+  // Confine broad oil stains to horizontal surfaces.
   float oil = smoothstep(0.58, 0.95, gNoise(p * 0.16 + 23.0) * 0.7 + gNoise(p * 0.9 + 5.0) * 0.3) * (1.0 - wall);
   c = mix(c, c * vec3(0.38, 0.32, 0.4), dirt * 0.85 * uGrime);
   c = mix(c, c * 0.42, streak * 0.65 * uGrime);
-  // grit: fine high-frequency mottling
+  // Add fine surface grain independently of the adjustable grime strength.
   c *= 0.86 + 0.28 * gNoise(p * 6.0 + 41.0);
   c = mix(c, c * vec3(0.45, 0.4, 0.48), oil * 0.55 * uGrime);
   c = mix(c, vec3(0.2, 0.45, 0.03), slime * 0.6 * uGrime);
@@ -107,8 +104,8 @@ const CUT_VERT = /* glsl */ `#include <project_vertex>
 `;
 
 /**
- * Soft ink: the outline pass draws no crease lines on this material and only a thin, light silhouette around it. For
- * small glowing bits (slime lips, drips, splats) that the full ink would otherwise bury in black borders.
+ * Mark a material for a thin silhouette without crease lines. This keeps outlines from obscuring small glowing surfaces
+ * such as slime, drips, and splats. Return the same material.
  */
 export function softInk<T extends Material>(mat: T): T {
   mat.userData.softInk = true;
@@ -117,7 +114,7 @@ export function softInk<T extends Material>(mat: T): T {
 
 const patched = new WeakSet<Material>();
 
-/** Idempotent: clones (which don't carry onBeforeCompile) get patched afresh, shared materials only once. */
+/** Install the cutaway shader patch once per material and return it. Clones must be patched separately. */
 export function withCutaway<T extends Material>(mat: T): T {
   if (patched.has(mat)) {
     return mat;
@@ -131,7 +128,7 @@ export function withCutaway<T extends Material>(mat: T): T {
     shader.vertexShader =
       'varying vec3 vCutWorld;\nvarying vec3 vCutNormal;\n' +
       shader.vertexShader.replace('#include <project_vertex>', CUT_VERT);
-    // world curvature (render/curvature.ts): drawn bent, and the window is cut where things are drawn
+    // Use curved positions for the cutaway so its opening follows the rendered geometry.
     const bent = CURVE_ON && curveVertex(shader, 'vCutBent');
     if (bent) {
       shader.vertexShader = 'varying vec3 vCutBent;\n' + shader.vertexShader;
@@ -174,8 +171,8 @@ interface GlowSpec {
 }
 
 /**
- * Lit lamp-head glass by lamp color: the world's lamp materials and the street lamp props. Bright enough to bloom;
- * brighter, and the deck's ceiling fixtures fog the chase view.
+ * Emissive glass settings shared by world lamps and street-lamp props. Limit intensity to retain bloom without
+ * excessive glare from ceiling fixtures in the chase view.
  */
 export const LAMP_GLASS: Readonly<Record<LampColor, GlowSpec>> = {
   green: { color: '#e9ffd0', emissive: '#9dff3a', emissiveIntensity: 3.6 },
@@ -186,9 +183,8 @@ export const LAMP_GLASS: Readonly<Record<LampColor, GlowSpec>> = {
 export const METAL = { color: '#2a2233', roughness: 0.55, metalness: 0.4 };
 export const GLASS = { color: '#1a1030', roughness: 0.2, metalness: 0.6 };
 /**
- * Landscaping (world/decor-models.ts): leaves (street trees, hedges, bushes), darker needles (pines, cypresses), bark,
- * and petals in the poster's slime green and hot purple that glow faintly by day and brighter at night (the neon
- * channel). Leaves, needles and bark share a roughness so the decor bakes them into one mesh (part.ts baked()).
+ * Landscaping materials for world/decor-models.ts. Leaves, needles, and bark share roughness so part.ts baked() can
+ * combine them into one mesh. Petals use the neon channel for stronger emission at night.
  */
 export const FOLIAGE = { color: '#33573f', roughness: 0.9 };
 export const NEEDLES = { color: '#24453f', roughness: 0.9 };
@@ -257,7 +253,7 @@ export class MaterialLibrary {
     this.set('hazard', worldMat({ map: hazardTexture('#2a1040', '#9b3cf0') }));
     this.facade(['facadeA', 'facadeB', 'facadeC']);
 
-    // slime glows a tier below lamps and neon: it covers so much of the deck that its glow sets the glare
+    // Keep emission low on large slime surfaces to limit overall bloom.
     this.glow('slime', PALETTE.slime, '#59ff00', 0.55, 'slime', { roughness: 0.35 });
     this.glow('slimePool', '#4dd10a', '#59ff00', 1.0, 'slime', { roughness: 0.2 });
     this.glow('neonGreen', '#c8ff8a', PALETTE.slime, 3.2, 'neon');
@@ -269,7 +265,7 @@ export class MaterialLibrary {
     this.glow('linePurple', '#c08bff', '#a84cff', 1.6, 'neon');
     this.glow('lineGreen', '#b8ff7a', '#7dff1a', 1.6, 'neon');
     this.glow('marking', '#bdb4cc', '#8a7aa6', 0.25, 'neon');
-    // road paint is a decal, not a shape: inked, each dash turns into a speckle of outline from afar
+    // Exclude road markings from outlines to avoid speckling at a distance.
     this.get('marking').userData.noInk = true;
     this.glow('doorGlow', '#b8ff7a', '#7dff1a', 2.2, 'neon');
   }
@@ -280,9 +276,8 @@ export class MaterialLibrary {
   }
 
   /**
-   * One material for every facade key, so their boxes batch together: each box brings its own paint (vertex color) and
-   * the facade shader draws its windows and the rooms behind them (render/facade.ts), lit at night on the windows
-   * channel.
+   * Assign one shared material to all facade keys so their geometry can batch together. Vertex colors provide paint;
+   * render/facade.ts supplies windows and interior imagery, with emission controlled by the windows channel.
    */
   private facade(keys: readonly MatKey[]): void {
     const m = withFacade(worldMat({ emissive: '#ffffff', emissiveIntensity: FACADE_GLOW, roughness: 0.9 }));
@@ -337,7 +332,7 @@ export class MaterialLibrary {
    * ink, 0.5 = soft ink, 0 (cleared) = background.
    */
   static normalMaterial(soft = false): MeshNormalMaterial {
-    // NoBlending keeps OPAQUE undefined so the shader writes opacity as alpha, unblended
+    // NoBlending leaves OPAQUE undefined, preserving the opacity value in the normal pass alpha channel.
     return withCutaway(
       new MeshNormalMaterial({ side: DoubleSide, ...(soft ? { opacity: 0.5, blending: NoBlending } : {}) }),
     );

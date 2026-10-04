@@ -37,7 +37,7 @@ const ENTER_HEIGHT = 1.8;
 const PROMPT_CONTROLS: readonly Control[] = ['hop', 'interact', 'pay'];
 const ACT_CONTROLS: readonly Control[] = ['interact', 'pay', 'summon', 'hop'];
 
-/** Where to find possible interactions; Play supplies the rules and effects. */
+/** Sources of nearby interaction candidates; Play supplies action rules and effects. */
 interface InteractionWorld {
   readonly player: Pick<Player, 'pos'>;
   readonly vehicles: readonly Vehicle[];
@@ -85,7 +85,7 @@ export class Interactions {
     return () => this.offerSources.delete(source);
   }
 
-  /** Resolve again at the click: the menu may have been drawn before a target moved. */
+  /** Resolve item actions at selection time because targets may have moved since the menu was rendered. */
   useItem(kind: string, id: string): void {
     if (!isItemKind(kind)) {
       return;
@@ -113,13 +113,12 @@ export class Interactions {
   }
 
   /**
-   * Cody's offers this frame. The prompt shows the best offer for each key, and pressing a key performs the offer the
-   * prompt showed. A key with nothing to offer shows the reason, if any. Keys a focus layer takes never reach here: the
-   * layer gets them instead.
+   * Resolve one offer per control, update prompts, and perform pressed actions. Show a refusal when resolution fails.
+   * Focus layers consume their controls before this update.
    */
   update(): void {
     const { offers, refusals } = bestOffers(this.play, this.candidates());
-    // A conversation, sign or menu that has a key right now owns it, so the prompt doesn't offer it.
+    // Hide prompts for controls currently owned by a focus layer.
     const shown = PROMPT_CONTROLS.flatMap((control) => {
       const offer = offers.get(control);
       return offer?.label && !this.input.focus.owns(control) ? [offer] : [];
@@ -145,7 +144,7 @@ export class Interactions {
     }
   }
 
-  /** Everything Cody might do with a key right now, before resolving. Nearest vehicles come first. */
+  /** Collect candidates for the current context. Order vehicle candidates by distance before resolution. */
   private candidates(): CodyCandidate[] {
     if (this.world.blocked()) {
       return [];
@@ -211,7 +210,7 @@ export class Interactions {
     return out;
   }
 
-  /** Vehicles Cody could get into from `p`, nearest first. */
+  /** Return nearby, available vehicles in distance order for action resolution. */
   private vehiclesInReach(p: Vector3): Vehicle[] {
     const near = this.world.vehicles.filter(
       (v) =>
@@ -223,7 +222,7 @@ export class Interactions {
     return near.sort((a, b) => a.pos.distanceTo(p) - b.pos.distanceTo(p));
   }
 
-  /** What Cody could do with one kind of item right now, resolved: EAT, or GIVE TO RANDY. */
+  /** Resolve supported inventory actions and omit any that currently fail. */
   private itemOffers(kind: ItemKind): { id: ItemActionId; action: CodyAction; label: string }[] {
     const candidates: [ItemActionId, CodyAction][] = [];
     if (kind === 'brisket') {

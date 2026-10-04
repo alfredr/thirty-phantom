@@ -18,7 +18,7 @@ export const SEDAN = {
 
 export type SedanParams = typeof SEDAN;
 
-/** Mundane box sedan (+Z forward). Muted paint so the monster trucks pop. */
+/** Build a box sedan facing +Z. Muted default paint distinguishes it from monster trucks. */
 export function sedan(params: Partial<SedanParams> = {}) {
   const p = { ...SEDAN, ...params };
   const lower = box(...p.body).on(p.clearance);
@@ -69,8 +69,8 @@ export function sedan(params: Partial<SedanParams> = {}) {
 }
 
 /**
- * Sedans are modelled at SEDAN's sizes and built at this scale: a touch smaller, so a car turns around inside the
- * deck's floors without backing up. TUNING.car's dimensions match.
+ * Scale authored sedan dimensions to match TUNING.car and the deck’s turning clearance. Apply the same scale to
+ * procedural and imported rigs, including wheel radii.
  */
 export const SEDAN_SCALE = 0.92;
 

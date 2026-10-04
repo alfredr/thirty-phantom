@@ -1,6 +1,6 @@
 // Valets driving cars into the deck. Each case runs in the page (see tools/scenarios.mjs).
 
-/** A valet takes a car to a deck spot, parks it, and comes back to the stand. */
+/** Verify that a valet parks the assigned car and returns to the stand. */
 export function parksAndComesBack() {
   const g = window.__game;
   const sim = window.__sim;
@@ -30,10 +30,7 @@ export function parksAndComesBack() {
   };
 }
 
-/**
- * Cody pulls up by an idle valet and presses F: the talk opens and he stays in his car; F again (PARK IT) hands the car
- * over and the valet goes for it.
- */
+/** Use the interact key from the car to open the valet conversation, then hand over the car and release attention. */
 export function talkHandsOverTheCar() {
   const g = window.__game;
   const sim = window.__sim;
@@ -75,7 +72,7 @@ export function talkHandsOverTheCar() {
   };
 }
 
-/** Cody takes the car off a valet mid-drive: the drive's off, the spot's free again, and he walks back to the stand. */
+/** Verify that boarding the valet’s car cancels the drive, frees the reserved spot, and returns the valet to the stand. */
 export function carjackedMidDrive() {
   const g = window.__game;
   const sim = window.__sim;
@@ -111,7 +108,7 @@ export function carjackedMidDrive() {
   };
 }
 
-/** Cody sits at the wheel in the top free spot without getting out: it isn't free, so no valet is sent there. */
+/** Verify that a spot occupied by Cody’s car is excluded from the free spots available to valets. */
 export function codysSpotIsntFree() {
   const g = window.__game;
   const sim = window.__sim;
@@ -137,8 +134,8 @@ export function codysSpotIsntFree() {
 }
 
 /**
- * A valet's spot is booked for the car while he fetches and drives it, and only taken once it's parked there, the
- * booking gone.
+ * Verify that a valet’s reservation excludes the destination from free spots until parking replaces the claim with
+ * occupancy.
  */
 export function spotBookedTillParked() {
   const g = window.__game;

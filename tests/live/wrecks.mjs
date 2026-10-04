@@ -1,9 +1,6 @@
-// Cars nobody is driving: wrecks tumbling on their own. Each case runs in the page (see tools/scenarios.mjs).
+// Vehicle wreck and escape scenarios. Each case runs in the page (see tools/scenarios.mjs).
 
-/**
- * A monster truck flung at a deck parapet with nobody at the wheel smashes through it like one Cody drives: the piece
- * is broken (gone from view), never a hole left open in a parapet that still shows.
- */
+/** Verify that an uncontrolled truck crash updates both parapet collision and visible damage. */
 export function wreckSmashesThroughAParapet() {
   const g = window.__game;
   const sim = window.__sim;
@@ -16,7 +13,7 @@ export function wreckSmashesThroughAParapet() {
   }
 
   const s = piece.solid;
-  // square on to it from the deck side, eight metres back, on its floor
+  // Place the truck 8 m inside the parapet, facing it at the same floor height.
   const alongX = s.max[0] - s.min[0] > s.max[2] - s.min[2];
   const mid = g.deckCenter;
   const out = alongX ? Math.sign(piece.center.z - mid.z) : Math.sign(piece.center.x - mid.x);
@@ -28,7 +25,7 @@ export function wreckSmashesThroughAParapet() {
   const rig = g.assets.truckRig();
   truck.setForm('truck', rig);
   g.scene.add(rig.root);
-  // knocked hard toward the parapet: it crashes, and tumbles on with nobody driving
+  // Apply an impulse toward the parapet with no driver controlling the truck.
   const push = truck.mass * 22;
   truck.hit(truck.pos.x, truck.pos.y, truck.pos.z, dx * push, 0, dz * push, true);
   sim.run(150);
@@ -37,10 +34,7 @@ export function wreckSmashesThroughAParapet() {
   return { ok: broken > 0 && holes === 0, broken, holes };
 }
 
-/**
- * Phantom Cody possesses a car in the deck and gets the truck out without going through the gate: a phantom's left
- * behind, the truck rolls on a moment, dissolves, and leaves him on foot.
- */
+/** Verify that a truck escaping outside a gate creates a phantom, coasts, and starts vanishing after Cody disembarks. */
 export function escapedTruckRollsOnThenDissolves() {
   const g = window.__game;
   const sim = window.__sim;
@@ -60,7 +54,7 @@ export function escapedTruckRollsOnThenDissolves() {
     return { ok: false, why: 'no truck', changed: changed.ok };
   }
 
-  // straight out through the side, well clear of any gate
+  // Move the truck beyond the west edge, clear of every gate.
   const out = truck.pos.clone();
   while (g.garage.inFootprint(out)) {
     out.x -= 1;
@@ -87,10 +81,7 @@ export function escapedTruckRollsOnThenDissolves() {
   };
 }
 
-/**
- * Cody's monster truck runs over a parked car outside the deck: it's flattened, nobody's to drive it, and it's gone a
- * few seconds later.
- */
+/** Verify that a truck collision crushes an outside parked car, clears its parking record, and eventually removes it. */
 export function truckCrushesACar() {
   const g = window.__game;
   const sim = window.__sim;
@@ -107,7 +98,7 @@ export function truckCrushesACar() {
   const rig = g.assets.truckRig();
   ride.setForm('truck', rig);
   g.scene.add(rig.root);
-  // ten metres short of it, heading straight at it at 12 m/s
+  // Place the truck 10 m behind the car, approaching at 12 m/s.
   const yaw = victim.yaw;
   ride.place(victim.pos.x - Math.sin(yaw) * 10, victim.pos.y, victim.pos.z - Math.cos(yaw) * 10, yaw, 0, 0, null);
   ride.vel.set(Math.sin(yaw) * 12, 0, Math.cos(yaw) * 12);

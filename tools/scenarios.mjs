@@ -1,10 +1,9 @@
-// Runs the live engine tests in tests/live/ against the real game, headless, with rendering off from
-// the start (?render=0: no shaders to compile, the bulk of a boot) so the simulation runs fast, and
-// JOBS cases at a time (default 3). Each file there is a set of cases. A case sets up a situation,
-// runs the game until the AI finishes its job or time runs out, and checks it finished without
-// anything jumping. Run a dev server first, then:
-//   node tools/scenarios.mjs [baseUrl] [set | set/case[/input] | case[/input] ...]
-// It needs Chromium at /Applications/Chromium.app (override with CHROME).
+// Run browser scenarios from tests/live/ against a running development server.
+// Rendering and audio are disabled to reduce startup work. Each scenario gets its own
+// page; JOBS controls concurrency (default 3).
+//
+// Usage: node tools/scenarios.mjs [baseUrl] [set | set/case[/input] | case[/input] ...]
+// Set CHROME to override /Applications/Chromium.app/Contents/MacOS/Chromium.
 import { readdirSync } from 'node:fs';
 
 import { chromium } from 'playwright-core';
@@ -16,10 +15,9 @@ const LIVE = new URL('../tests/live/', import.meta.url);
 const JOBS = Math.max(1, Number(process.env.JOBS ?? 3));
 
 /**
- * Every case in every set, in file order. A set's exported functions are its cases, its `steps` (if any) are helpers
- * its cases call as window.__sim.<name>(), and `tutorial = true` runs its cases with the tutorial on (the others start
- * as if it's been done). An exported `cases` table maps names to { run, inputs }: each string input becomes a separate
- * name/input case, passed as the run function's argument in the browser.
+ * Discover exported scenario functions in filename order. The optional `steps` export supplies browser helpers under
+ * window.__sim; `tutorial = true` enables the tutorial. A `cases` table defines parameterized scenarios as { run,
+ * inputs }, with each input run on a separate page.
  */
 const cases = [];
 for (const file of readdirSync(LIVE)
@@ -66,7 +64,7 @@ const browser = await chromium.launch({
 });
 let failed = 0;
 const queue = [...cases];
-/** One case, start to finish, on a page of its own. */
+/** Run one scenario in an isolated page and report its result, uncaught browser errors, and excessive movement. */
 async function runCase({ id, run, input, steps, tutorial }) {
   const started = Date.now();
   const page = await browser.newPage({ viewport: { width: 640, height: 400 } });
@@ -90,7 +88,10 @@ async function runCase({ id, run, input, steps, tutorial }) {
           g.frame(DT);
         }
       },
-      /** Steps until `done()` or `seconds` pass, tracking the biggest single-frame move of `watch`. */
+      /**
+       * Advance frames until the condition succeeds or the time limit expires. Track the largest movement in one frame
+       * among the watched bodies.
+       */
       until: (done, seconds, watch) => {
         let maxJump = 0;
         const last = watch.map((v) => v.pos.clone());
@@ -115,12 +116,12 @@ async function runCase({ id, run, input, steps, tutorial }) {
     await page.evaluate(`Object.assign(window.__sim, { ${helpers.join(', ')} })`);
   }
 
-  // a case that throws fails with what it threw, rather than stopping the run
+  // Report scenario exceptions as failures so the remaining cases can run.
   const booted = Date.now();
   const result = await page
     .evaluate(run, input)
     .catch((e) => ({ ok: false, threw: String(e.message ?? e).split('\n')[0] }));
-  // A body moving more than 3 m in one frame (about 90 m/s) is a jump, not driving.
+  // Treat movement above 3 m per frame (90 m/s at this timestep) as an unexpected position jump.
   const jumped = (result.maxJump ?? 0) > 3;
   const ok = result.ok && !jumped && errors.length === 0;
   if (!ok) {

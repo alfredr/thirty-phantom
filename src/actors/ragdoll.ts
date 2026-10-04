@@ -6,7 +6,7 @@ import type { CollisionWorld } from '@/engine/physics/collision';
 import { exitHit, penetration } from './crash-body';
 import type { CharacterRig } from './models/rig';
 
-/** Something that shoves a ragdoll about: a vehicle, by its three body circles. */
+/** Vehicle pose and dimensions used to push ragdoll particles with three body circles. */
 export interface RagdollPusher {
   readonly pos: Vector3;
   readonly vel: Vector3;
@@ -15,7 +15,7 @@ export interface RagdollPusher {
   readonly gone: boolean;
 }
 
-// particles
+// Particle indices.
 const PELVIS = 0;
 const NECK = 1;
 const HEAD = 2;
@@ -27,13 +27,13 @@ const HIP_L = 7;
 const HIP_R = 8;
 const FOOT_L = 9;
 const FOOT_R = 10;
-/** In front of the chest: keeps the torso from folding flat along its diagonals. */
+/** Particle offset in front of the torso to prevent its bracing constraints from collapsing into a plane. */
 const CHEST = 11;
 const COUNT = 12;
 
-/** Sticks between particles: the torso braced rigid, limbs and head on single bones. */
+/** Distance constraints that brace the torso and connect the head and limbs. */
 const STICK_LIST = [
-  // torso
+  // Torso bracing.
   [PELVIS, NECK],
   [SHOULDER_L, SHOULDER_R],
   [HIP_L, HIP_R],
@@ -51,17 +51,17 @@ const STICK_LIST = [
   [CHEST, HIP_R],
   [CHEST, NECK],
   [CHEST, PELVIS],
-  // head, held loosely by the shoulders too
+  // Head constraints include both shoulders.
   [NECK, HEAD],
   [HEAD, SHOULDER_L],
   [HEAD, SHOULDER_R],
-  // limbs
+  // Limb constraints.
   [SHOULDER_L, HAND_L],
   [SHOULDER_R, HAND_R],
   [HIP_L, FOOT_L],
   [HIP_R, FOOT_R],
 ] as const;
-/** The same, flat (a, b per stick), for the solver's inner loop. */
+/** Flattened particle-index pairs for the constraint solver. */
 const STICKS = Uint8Array.from(STICK_LIST.flat());
 const STICK_COUNT = STICK_LIST.length;
 
@@ -71,9 +71,9 @@ const SUBSTEPS = 2;
 /** Velocity kept per substep (air drag), and on the ground (friction). */
 const DRAG = 0.998;
 const GROUND_KEEP = 0.55;
-/** Particle radius off the ground and walls (m). */
+/** Vertical offset applied before point penetration tests, in meters. */
 const RADIUS = 0.09;
-/** Asleep after moving less than this per frame (m) for this long (s). */
+/** Motion threshold in meters and continuous quiet time in seconds required for sleep. */
 const STILL = 0.004;
 const SLEEP_AFTER = 0.8;
 
@@ -89,23 +89,22 @@ const DOWN = new Vector3(0, -1, 0);
 const UP = new Vector3(0, 1, 0);
 
 /**
- * A limp person: twelve Verlet particles (pelvis, neck, head, shoulders, hands, hips, feet, and one in front of the
- * chest to brace the torso) on sticks, laid over a CharacterRig's pose when it goes down. Gravity, the ground and walls
- * act on it, vehicles shove it, and every frame the rig is posed from it: the root from the torso, each limb pivot
- * along its bone. Allocated once per fall; a step allocates nothing.
+ * Simulate a fallen CharacterRig with twelve Verlet particles and distance constraints initialized from its current
+ * pose. Resolve gravity, world penetration, and vehicle pushes, then reconstruct the torso and limb transforms. Stop
+ * integrating after sustained low motion; a vehicle push or launch wakes the body.
  */
 export class Ragdoll {
-  /** Positions, and where they were a substep ago (Verlet), x y z per particle. */
+  /** Current and previous substep positions for Verlet integration, stored as x, y, z triples. */
   private readonly p = new Float32Array(COUNT * 3);
   private readonly o = new Float32Array(COUNT * 3);
   private readonly rest = new Float32Array(STICK_COUNT);
-  /** Rig-root-space pelvis (unscaled), and the rig's scale, to put the root back over the torso. */
+  /** Unscaled pelvis position in rig coordinates and uniform scale, used to reconstruct the root transform. */
   private readonly pelvisLocal = new Vector3();
   private readonly scale: number;
   private still = 0;
-  /** Moved since the rig was last posed. */
+  /** Whether particle motion requires updating the visual rig. */
   private dirty = true;
-  /** Hardest shove a vehicle gave it since last read (m/s), for escalating harm. */
+  /** Largest relative vehicle impact speed in m/s. The caller resets this after consuming it. */
   hardest = 0;
 
   constructor(private readonly rig: CharacterRig) {
@@ -131,7 +130,7 @@ export class Ragdoll {
     set(NECK, rig.head, 0, 0, 0);
     set(HEAD, rig.head, 0, 0.46, 0);
     this.mid(PELVIS, HIP_L, HIP_R);
-    // chest: between neck and pelvis, out front
+    // Offset the torso brace along the rig’s local forward axis.
     root.localToWorld(_a.set(0, 0, 0.22));
     root.localToWorld(_b.set(0, 0, 0));
     _a.sub(_b);
@@ -143,11 +142,11 @@ export class Ragdoll {
     this.p[CHEST * 3 + 2] = (pz + (this.p[NECK * 3 + 2] as number)) / 2 + _a.z;
     this.o.set(this.p);
     STICK_LIST.forEach(([i, j], k) => (this.rest[k] = this.dist(i, j)));
-    // where the pelvis sits in the rig's own (unscaled) frame
+    // Preserve the local pelvis offset when reconstructing the rig root.
     root.worldToLocal(this.pelvisLocal.set(px, py, pz));
   }
 
-  /** Every particle moving (vx, vy, vz), plus a tumble: the feet pushed harder than the head (struck low). */
+  /** Initialize particle velocities in m/s. Increase horizontal velocity at the feet and hips to induce tumbling. */
   launch(vx: number, vy: number, vz: number, tumble: number): void {
     const dt = 1 / 60 / SUBSTEPS;
     for (let i = 0; i < COUNT; i++) {
@@ -161,17 +160,17 @@ export class Ragdoll {
     this.still = 0;
   }
 
-  /** Pelvis position, into out. */
+  /** Write the world-space pelvis position to `out`. */
   pelvis(out: Vector3): Vector3 {
     return out.set(this.p[0] as number, this.p[1] as number, this.p[2] as number);
   }
 
-  /** Chest position (where wounds bleed from), into out. */
+  /** Write the chest particle position to `out` for wound effects. */
   chest(out: Vector3): Vector3 {
     return out.set(this.p[CHEST * 3] as number, this.p[CHEST * 3 + 1] as number, this.p[CHEST * 3 + 2] as number);
   }
 
-  /** Facing of the torso (yaw, actor convention), for standing back up. */
+  /** Torso heading in radians, used when the character stands back up. */
   get yaw(): number {
     const fx = (this.p[CHEST * 3] as number) - (this.p[PELVIS * 3] as number);
     const fz = (this.p[CHEST * 3 + 2] as number) - (this.p[PELVIS * 3 + 2] as number);
@@ -218,7 +217,7 @@ export class Ragdoll {
       }
     }
 
-    // how far it really moved in the last substep, after the ground held it up
+    // Measure motion after constraint and contact corrections to detect rest.
     for (let i = 0; i < COUNT * 3; i += 3) {
       const m =
         Math.abs((this.p[i] as number) - (this.o[i] as number)) +
@@ -232,7 +231,7 @@ export class Ragdoll {
     this.still = moved * SUBSTEPS < STILL ? this.still + dt : 0;
   }
 
-  /** Pose the rig from the particles (a no-op while it lies still). */
+  /** Update the rig from particle positions only when motion has marked it dirty. */
   pose(): void {
     if (!this.dirty) {
       return;
@@ -240,7 +239,7 @@ export class Ragdoll {
 
     this.dirty = false;
     const r = this.rig;
-    // torso frame: x across the shoulders, y up the spine, z out of the chest
+    // Construct an orthogonal torso frame from the shoulders and spine.
     this.vec(_x, SHOULDER_R).sub(this.vec(_a, SHOULDER_L)).normalize();
     this.vec(_y, NECK).sub(this.vec(_a, PELVIS));
     _y.addScaledVector(_x, -_y.dot(_x)).normalize();
@@ -258,7 +257,7 @@ export class Ragdoll {
     this.bone(r.head, NECK, HEAD, UP);
   }
 
-  /** Limb pivot turned so its `axis` (rest direction) points from particle a to b. */
+  /** Rotate a limb’s rest axis toward the particle segment in root-local coordinates. */
   private bone(o: Object3D, a: number, b: number, axis: Vector3): void {
     this.vec(_a, b).sub(this.vec(_b, a)).applyQuaternion(_inv).normalize();
     o.quaternion.copy(_q.setFromUnitVectors(axis, _a));
@@ -300,7 +299,7 @@ export class Ragdoll {
             continue;
           }
 
-          // out to the body's edge, moving with it
+          // Separate the particle and transfer the vehicle’s horizontal velocity.
           const pvx = ((this.p[i] as number) - (this.o[i] as number)) / (dt / SUBSTEPS);
           const pvz = ((this.p[i + 2] as number) - (this.o[i + 2] as number)) / (dt / SUBSTEPS);
           const rvx = v.vel.x - pvx;
@@ -336,7 +335,7 @@ export class Ragdoll {
       this.p[i + 2] = z + exitHit.nz * d;
 
       if (exitHit.ny > 0.5) {
-        // on the ground: friction drags the slide out of it
+        // Dampen horizontal Verlet displacement at ground-facing contacts.
         this.o[i] = (this.p[i] as number) - ((this.p[i] as number) - (this.o[i] as number)) * GROUND_KEEP;
         this.o[i + 2] =
           (this.p[i + 2] as number) - ((this.p[i + 2] as number) - (this.o[i + 2] as number)) * GROUND_KEEP;

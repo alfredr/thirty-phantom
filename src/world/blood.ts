@@ -17,7 +17,7 @@ import { puddleTexture } from '@/render/textures';
 
 import { PUDDLE } from './slime';
 
-/** Most drops and pools alive at once; the oldest pool goes to make room. */
+/** Capacity limits for drops and pools. Drops reuse slots cyclically; new pools replace the oldest when full. */
 const DROPS = 256;
 const POOLS = 96;
 /**
@@ -41,9 +41,8 @@ const _gh: GroundHit = { solid: null };
 const _c = new Color();
 
 /**
- * Blood, on the drip system's rules made simpler: drops fall and splat onto whatever's below, joining or starting a
- * pool there; pools spread with the blood in them and dry out slowly, darkening as they go. Fixed-size typed arrays and
- * instanced meshes, so a frame allocates nothing.
+ * Simulate falling blood drops and persistent pools using fixed-capacity arrays and instanced meshes. Drops merge into
+ * nearby pools on flat surfaces; pools spread with volume, evaporate, and darken with age.
  */
 export class BloodSim {
   readonly root = new Group();
@@ -108,7 +107,10 @@ export class BloodSim {
     this.root.add(this.drops, this.pools);
   }
 
-  /** A drop of `vol` (m^3, a few cc) leaving (x, y, z) at (vx, vy, vz). */
+  /**
+   * Emit a drop with volume `vol` in cubic meters at the given world position and velocity in meters per second. Reuse
+   * the next cyclic drop slot.
+   */
   drip(x: number, y: number, z: number, vx: number, vy: number, vz: number, vol: number): void {
     const i = this.nextDrop;
     this.nextDrop = (i + 1) % DROPS;
@@ -121,7 +123,10 @@ export class BloodSim {
     this.dvol[i] = vol;
   }
 
-  /** A spray of `n` drops from (x, y, z), flung along (vx, vz) and up, spread by `spread` (m/s). */
+  /**
+   * Emit `n` drops with randomized volume and upward velocity. Add horizontal velocity noise scaled by `spread` in
+   * meters per second.
+   */
   spray(x: number, y: number, z: number, vx: number, vz: number, n: number, spread: number, vol: number): void {
     for (let k = 0; k < n; k++) {
       this.drip(
@@ -153,8 +158,7 @@ export class BloodSim {
       const floor = this.world.groundAt(x, z, (this.dy[i] as number) + 0.05, 0, _gh);
       const o = i * 16;
       if (y <= floor) {
-        // splat: into a pool, unless it's a ramp (a flat puddle can't lie on one)
-        // (groundAt filled _gh in; TS can't see that through the call)
+        // Flat pool decals cannot follow ramps. The assertion accounts for groundAt mutating _gh.solid.
         if (!(_gh.solid as Solid | null)?.ramp) {
           this.pool(x, floor, z, vol);
         }
@@ -184,7 +188,10 @@ export class BloodSim {
     this.dryPools(dt);
   }
 
-  /** Blood landing on the floor at (x, y, z): into a pool it touches, or a new one. */
+  /**
+   * Merge incoming blood into a nearby pool at the same height, or create a pool in an empty slot. Replace the oldest
+   * pool if all slots are occupied.
+   */
   private pool(x: number, y: number, z: number, vol: number): void {
     let best = -1;
     let oldest = 0;
@@ -246,7 +253,7 @@ export class BloodSim {
       this.pv[i] = vol;
       const age = (this.page[i] as number) + dt;
       this.page[i] = age;
-      // spreads with what's in it (eased, so a splat swells it rather than popping)
+      // Ease the radius toward its volume-dependent target to avoid abrupt growth on impact.
       let r = this.pr[i] as number;
       r += (Math.min(POOL_MAX, Math.max(POOL_MIN, POOL_K * Math.sqrt(vol))) - r) * k;
       this.pr[i] = r;
@@ -264,7 +271,7 @@ export class BloodSim {
       m[o + 14] = this.pz[i] as number;
       m[o + 15] = 1;
 
-      // darkens as it dries (only re-tinted every so often, it's slow)
+      // Stagger color updates because drying changes the tint slowly.
       if ((i + Math.floor(age * 4)) % 8 === 0) {
         this.pools.setColorAt(i, _c.copy(FRESH).lerp(DRIED, Math.min(1, age / DARKEN)));
         colors = true;

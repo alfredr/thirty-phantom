@@ -1,20 +1,20 @@
 import type { Vector3 } from 'three';
 
-/** A primary objective gets the big arrow; an optional one the small arrow, marked "(OPTIONAL)" by the HUD. */
+/** Primary objectives use the large arrow; optional objectives use smaller arrows and an optional label. */
 export type ObjectiveKind = 'primary' | 'optional';
 
-/** Something to point Cody at. `at` is live: whoever sets it keeps it current (a car's `pos`, a pickup's position). */
+/** A marker target whose position reference is kept current by its owner. */
 export interface Objective {
   id: string;
-  /** Plain text ('PHANTOM TRUCK', 'YOUR BADGE'); the HUD adds "(OPTIONAL)" itself. */
+  /** Plain display text; the HUD adds the optional suffix. */
   label: string;
   kind: ObjectiveKind;
   at: Vector3;
 }
 
 /**
- * The objectives the markers and the minimap point at right now: at most one primary, any number of optional ones. Each
- * source replaces its own markers; the HUD reads the list (and re-projects each `at`) every frame.
+ * Combine marker sources into at most one primary objective and any number of optional objectives. Each source replaces
+ * only its own entries.
  */
 export class Objectives {
   /** The current task, shared by the HUD and the phone's task list. */

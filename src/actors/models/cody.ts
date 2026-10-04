@@ -13,7 +13,7 @@ export const CODY_DAY = {
   /** Top of the legs (the hip pivot). */
   hip: 0.9,
   leg: [0.26, 0.86, 0.3] as V3,
-  /** Leg centers either side of the middle. */
+  /** Horizontal offset of each leg center from the body midline, in meters. */
   stance: 0.16,
   torso: [0.74, 0.76, 0.44] as V3,
   arm: [0.21, 0.7, 0.24] as V3,
@@ -116,31 +116,22 @@ export const CODY_NIGHT = {
   hip: 0.86,
   leg: [0.22, 0.8, 0.26] as V3,
   stance: 0.14,
-  /** Where the robe skirt hangs and sways from. */
+  /** Height of the robe skirt’s animation pivot, in meters. */
   waist: 1.0,
-  /**
-   * The robe below the waist: a many-sided cone (each edge inks like a fold), radius at its hem and top, the hem's
-   * height.
-   */
+  /** Skirt cone dimensions: hem and waist radii, hem height in meters, and radial segment count. */
   skirt: { hem: 0.52, top: 0.36, bottom: 0.1, sides: 9 },
   /** The robe above the waist: radius at the bottom and the shoulders, height, sides. */
   torso: { bottom: 0.36, top: 0.27, height: 0.7, sides: 8 },
-  /**
-   * Mantle over the shoulders: radius at its hem and at the neck, height, sides, how far its top rises past the
-   * torso's.
-   */
+  /** Shoulder mantle radii, height, radial segments, and rise above the torso top. Distances are in meters. */
   mantle: { hem: 0.5, neck: 0.18, height: 0.4, sides: 7, rise: 0.06 },
   arm: [0.16, 0.62, 0.18] as V3,
   /** Shoulders: how far below the torso's top (under the mantle) the arms hang from, and how far out. */
   shoulder: { drop: 0.22, out: 0.3 },
   /** Bell sleeve round each arm: radius at the shoulder and the cuff, sides, how far the cuff hangs past the arm. */
   sleeve: { top: 0.09, cuff: 0.23, sides: 7, past: 0.1 },
-  /**
-   * Deep rounded hood: its radii, the dark hollow's half width and height, and how far forward its sides and brim
-   * reach.
-   */
+  /** Hood ellipsoid radii, opening half-width and half-height, and forward reach of its sides and brim. */
   hood: { radii: [0.32, 0.34, 0.31] as V3, hollow: [0.19, 0.25] as [number, number], reach: 0.29 },
-  /** The long pale mask: radii, and how far it's rolled (crooked, radians). */
+  /** Mask ellipsoid radii and roll angle in radians. */
   face: { radii: [0.115, 0.19, 0.05] as V3, roll: 0.06 },
   /** Rags hanging off the hem: [angle round from the front (radians), length]. */
   tatters: [
@@ -154,15 +145,15 @@ export const CODY_NIGHT = {
     [5.1, 0.14],
     [5.8, 0.2],
   ] as [number, number][],
-  /** Runs of the hem soaked in slime: angles round from the front (radians). */
+  /** Angular positions of slime patches around the hem, measured from forward in radians. */
   soaked: [0.6, 2.7, 4.6],
 };
 
 export type CodyNightParams = typeof CODY_NIGHT;
 
 /**
- * Phantom Cody (after moonrise): a heavy ragged robe with a mantle and bell sleeves, a deep rounded hood, and a long
- * pale mask (crooked, cracked, with drooping teardrop eyes and a stretched mouth); a little slime soaked into the hem.
+ * Build Cody’s night form on the shared character rig, including an independently animated robe skirt. Layer the
+ * mantle, bell sleeves, and hood around an asymmetric pale mask, with emissive eyes and slime hem details.
  */
 export function codyNight(params: Partial<CodyNightParams> = {}) {
   const p = { ...CODY_NIGHT, ...params };
@@ -170,7 +161,7 @@ export function codyNight(params: Partial<CodyNightParams> = {}) {
   const torsoTop = p.waist + torso.height;
   const skirtH = p.waist + 0.1 - skirt.bottom;
   const headY = torsoTop + 0.3;
-  // the mask's middle, and a point on its curved front `dx, dy` from there (rolled with it)
+  // Place facial details on the ellipsoid surface and rotate them with the mask.
   const mc: V3 = [0, headY - 0.04, hood.reach - 0.04 - face.radii[2]];
   const onFace = (dx: number, dy: number, out = 0): V3 => {
     const [rx, ry, rz] = face.radii;
@@ -251,7 +242,7 @@ export function codyNight(params: Partial<CodyNightParams> = {}) {
           'head',
           [0, torsoTop, 0],
           [
-            // the hood, the dark hollow it opens on, its sides and drooping brim reaching forward round the face
+            // Layer the hood around a dark inset to frame the mask.
             sphere(hood.radii, [12, 9], 'robe', { at: [0, headY + 0.02, -0.1] }),
             sphere([hood.hollow[0], hood.hollow[1], 0.1], [12, 8], 'inner', { at: [0, headY - 0.02, mc[2] - 0.07] }),
             ...SIDES.map((s) =>
@@ -261,10 +252,10 @@ export function codyNight(params: Partial<CodyNightParams> = {}) {
               }),
             ),
             sphere([0.25, 0.07, 0.16], [10, 6], 'robe', { at: [0, headY + 0.2, hood.reach - 0.16], rot: [0.2, 0, 0] }),
-            // the mask
+            // Keep mask details aligned with its roll angle.
             sphere(face.radii, [14, 10], 'mask', { at: mc, rot: [0, 0, face.roll] }),
             ...SIDES.map((s) => {
-              // drooping teardrop eyes, the points down and out (one droops more)
+              // Use asymmetric eye angles to preserve the mask’s crooked expression.
               const a = s > 0 ? 0.5 : 0.3;
               return group({ cast: false }, [
                 sphere([0.028, 0.03, 0.012], [10, 6], 'inner', { at: onFace(s * 0.05, 0.05), rot: [0, 0, face.roll] }),

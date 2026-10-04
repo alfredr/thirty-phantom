@@ -13,14 +13,11 @@ import { type CarKind, VEHICLE_BREEDS, type VehicleBreed, type VehicleBuild } fr
 
 export type VehicleForm = 'car' | 'truck';
 /**
- * Who's at the wheel. traffic: on a lane loop. player: Cody. valet: a valet. visitor: someone from town driving in to
- * park, or back out to the traffic. parked: nobody.
+ * Current driving controller: lane traffic, Cody, a valet, or a visitor entering or leaving the deck. `parked` means no
+ * active driver.
  */
 export type VehicleRole = 'traffic' | 'parked' | 'player' | 'valet' | 'visitor';
-/**
- * What's happening to the car itself, whoever had the wheel: changing form (transforming), flattened by a truck
- * (crushed), an escaped truck dissolving into the night (vanishing).
- */
+/** Vehicle lifecycle changes independent of its driver: changing form, being crushed, or dissolving after escape. */
 export type VehicleStatus = 'transforming' | 'crushed' | 'vanishing';
 
 export interface DriveInput {
@@ -28,7 +25,7 @@ export interface DriveInput {
   steer: number;
   hop: boolean;
   drift: boolean;
-  /** Burning GhASt (the monster truck), 0..1: more push and a higher top speed (TUNING.ghast). */
+  /** GhASt boost fraction, from 0 to 1, controlling added acceleration and top speed (TUNING.ghast). */
   boost?: number;
 }
 
@@ -36,7 +33,7 @@ export interface DriveEvents {
   impact: number;
   landed: number;
   smashed: Solid[];
-  /** Whether it hopped this step: off its wheels, or rocked over from its side or roof. */
+  /** Whether this step initiated a hop or overturned-vehicle recovery. */
   hopped: boolean;
 }
 
@@ -45,24 +42,24 @@ export const NO_INPUT: Readonly<DriveInput> = { throttle: 0, steer: 0, hop: fals
 /** A bike rider's jacket when the rider is a valet in uniform. */
 const VALET_JACKET = new Color(VALET_OUTFIT.top);
 
-/** Rolling to a stop with no throttle, m/s per second. */
+/** Coasting deceleration with zero throttle, in m/s². */
 const COAST = 5;
 /** Drifting tightens the turn by this factor. */
 const DRIFT_YAW = 1.35;
 /** Steering in the air: yaw rate at full lock, rad/s. */
 const AIR_YAW = 1.4;
-/** How far past the body a smash or knock-down reaches, m. */
+/** Additional collision radius for smashing and knockdown, in meters. */
 const SMASH_REACH = 0.25;
-/** Off a wall: push back this much of the speed into it, then keep this share of the rest. */
+/** Normal-velocity correction for wall impacts, followed by the retained velocity fraction. */
 const WALL_BOUNCE = 1.25;
 const WALL_KEEP = 0.92;
-/** Ground further below than this is a ledge to fall off, not a slope to follow down. */
+/** Maximum downward ground change followed without becoming airborne, in meters. */
 const STEP_DOWN = 0.45;
-/** Stuck on its side or roof, a hop rocks it over: spin (rad/s) and lift (m/s). */
+/** Angular speed in rad/s and upward speed in m/s used to recover an overturned vehicle. */
 const FLIP_SPIN = 5;
 const FLIP_LIFT = 4.5;
 
-/** Sim time for crashedAt and the engine's buzz, and the frame count, advanced once a frame by Vehicle.advance(). */
+/** Simulation time and frame number, advanced once per frame for crash timing and engine vibration. */
 let now = 0;
 let frame = 0;
 const _up = new Vector3();
@@ -75,16 +72,13 @@ const _c: V3 = [0, 0, 0];
 let nextId = 1;
 
 /**
- * Arcade vehicle on the 2.5D collision world: bicycle-model steering with lateral slip (drift), ledge stepping, ramps
- * that launch you, a hop, three collision circles along the body, and a sprung body for the visuals.
- *
- * A hard hit (a wall, another car) switches it into crash mode: a CrashBody takes over and it tumbles as a rigid box,
- * ignoring the controls, until it comes to rest on its wheels and drives on. Stuck on its side or roof, a hop rocks it
- * back over.
+ * Simulate driving with bicycle steering, lateral slip, ground following, jumps, and three body collision circles.
+ * Animate suspension separately from the collision pose. Severe impacts transfer motion to CrashBody; driving resumes
+ * after the body settles upright. A recovery hop can rotate a settled, overturned vehicle.
  */
 export class Vehicle {
   readonly id = nextId++;
-  /** Its own 0..1, fixed for life: the pace and phase of its engine's buzz, so no two cars buzz in step. */
+  /** Stable per-vehicle value in [0, 1) that varies engine vibration frequency and phase. */
   readonly quirk = new Rng(this.id * 7919).next();
   form: VehicleForm;
   role: VehicleRole;
@@ -99,33 +93,33 @@ export class Vehicle {
   private groundVy = 0;
   steer = 0;
   speed = 0;
-  /** Tumbling as a rigid body (see CrashBody); input is ignored and nothing should place() it. */
+  /** Use CrashBody physics while true. Only a recovery hop is accepted; kinematic placement cancels the crash. */
   crashing = false;
-  /** Sim time (Vehicle.advance) when its last crash ended. */
+  /** Simulation time of the last return from crash physics to driving. */
   crashedAt = -Infinity;
   private crash: CrashBody | null = null;
-  /** The frame of its last step (Vehicle.advance counts them). */
+  /** Frame number of the most recent drive() call. */
   private steppedAt = -1;
   private crashForm: VehicleForm | null = null;
-  /** Yaw rate the steering gave it last step (rad/s, positive turns the heading down). */
+  /** Steering angular rate in rad/s; positive values decrease yaw. */
   private yawRate = 0;
 
-  // garage bookkeeping
+  // Parking state.
   homeSpot: number | null = null;
   insideDeck = false;
-  /** Where it was last left parked (ghost image goes here). */
+  /** Last recorded parking position, used to place the ghost image. */
   readonly restPos = new Vector3();
   restYaw = 0;
 
-  // traffic
+  // Lane-following state.
   pathIndex = -1;
   pathS = 0;
   cruise = 8;
-  /** What's happening to it, if anything (setStatus), and for how long (s). */
+  /** Current transformation or removal status and its elapsed time in seconds. */
   status: VehicleStatus | null = null;
   statusTime = 0;
 
-  // sprung body state
+  // Visual suspension state.
   private bodyY = 0;
   private bodyVy = 0;
   private pitch = 0;
@@ -133,10 +127,10 @@ export class Vehicle {
   private roll = 0;
   private rollV = 0;
   private wheelSpin = 0;
-  /** The last syncRig buzzed the body (the engine was on): once it's off, one more sits it still. */
+  /** Whether the last rig update applied vibration, requiring a final reset after the engine stops. */
   private shook = false;
 
-  /** The civilian model it is (and turns back into at sunrise after a night as a truck). */
+  /** Civilian model restored when the monster truck transforms back at sunrise. */
   readonly kind: CarKind;
   /** The role its bike rider was last dressed for; null until the first sync or after a rig swap. */
   private riderRole: VehicleRole | null = null;
@@ -149,7 +143,7 @@ export class Vehicle {
     this.kind = kind;
   }
 
-  /** Its breed: its civilian kind's, or the monster truck's while it's one. */
+  /** Parameters and model metadata for the current form. */
   get breed(): VehicleBreed {
     return VEHICLE_BREEDS[this.build];
   }
@@ -177,18 +171,18 @@ export class Vehicle {
     return this.vel.x * Math.sin(this.yaw) + this.vel.z * Math.cos(this.yaw);
   }
 
-  /** Crushed or dissolving: on its way out of the world, so nothing collides with it. */
+  /** Whether removal is in progress and other collision systems should ignore the vehicle. */
   get gone(): boolean {
     return this.status === 'crushed' || this.status === 'vanishing';
   }
 
-  /** Something starts happening to it (its clock from zero), or stops (null). */
+  /** Set or clear the status and reset its elapsed time. */
   setStatus(s: VehicleStatus | null): void {
     this.status = s;
     this.statusTime = 0;
   }
 
-  /** Someone's at the wheel with the engine running: traffic, a valet, a visitor, Cody. */
+  /** Whether a driving role is active and crash physics is inactive. */
   get engineOn(): boolean {
     return (
       !this.crashing &&
@@ -196,26 +190,26 @@ export class Vehicle {
     );
   }
 
-  /** Engine off, but the body still where the last buzz left it: sit it still. Cheap enough for every car every frame. */
+  /** Reset residual engine vibration after the engine stops. */
   settle(): void {
     if (this.shook && !this.engineOn) {
       this.syncRig();
     }
   }
 
-  /** Remember where it is now as where it was left parked (the ghost image goes here). */
+  /** Record the current pose for the parked ghost image. */
   markRest(): void {
     this.restPos.copy(this.pos);
     this.restYaw = this.yaw;
   }
 
-  /** Move the sim clock on (crashedAt); once a frame. */
+  /** Advance shared simulation time and frame number once per frame. */
   static advance(dt: number): void {
     now += dt;
     frame++;
   }
 
-  /** It took a step (drive()) this frame: nothing else should step it again. */
+  /** Return whether drive() has already run this frame, preventing duplicate physics updates. */
   get steppedThisFrame(): boolean {
     return this.steppedAt === frame;
   }
@@ -240,12 +234,12 @@ export class Vehicle {
     return out.set(out.x + w.y * rz - w.z * ry, out.y + w.z * rx - w.x * rz, out.z + w.x * ry - w.y * rx);
   }
 
-  /** Not tumbling, or come to rest (maybe on its side or roof). */
+  /** Return whether crash physics is inactive or settled, regardless of orientation. */
   get resting(): boolean {
     return !this.crashing || !!this.crash?.settled;
   }
 
-  /** Slide the whole body (crash body included) by (dx, dz): pushed apart from another car. */
+  /** Apply horizontal separation to both the vehicle position and active crash body. */
   shift(dx: number, dz: number): void {
     this.pos.x += dx;
     this.pos.z += dz;
@@ -256,7 +250,7 @@ export class Vehicle {
     }
   }
 
-  /** Centre of mass, for lever arms (the body's middle when it isn't crashing). */
+  /** Write the world-space center of mass used to calculate collision lever arms. */
   centre(out: Vector3): Vector3 {
     if (this.crashing && this.crash) {
       return out.copy(this.crash.com);
@@ -266,8 +260,8 @@ export class Vehicle {
   }
 
   /**
-   * Struck by something else: impulse j (kg m/s) at world point p. With `crash` (or already crashing) it tumbles, spin
-   * and all; otherwise it's just shoved.
+   * Apply an impulse in kg·m/s at a world-space contact point. With crash enabled or already active, update both linear
+   * and angular velocity. Otherwise apply only the horizontal linear impulse.
    */
   hit(px: number, py: number, pz: number, jx: number, jy: number, jz: number, crash: boolean): void {
     if (crash && !this.crashing) {
@@ -296,7 +290,7 @@ export class Vehicle {
 
     let fx = Math.sin(this.yaw);
     let fz = Math.cos(this.yaw);
-    // right-hand side of the vehicle
+    // Lateral axis follows the steering convention: (-forward.z, forward.x).
     let rx = -fz;
     let rz = fx;
     let fwd = this.vel.x * fx + this.vel.z * fz;
@@ -307,7 +301,7 @@ export class Vehicle {
       const boost = inp.boost ?? 0;
       const top = P.maxSpeed * (1 + TUNING.ghast.top * boost);
       if (boost > 0 && t >= 0 && fwd > -0.5) {
-        // a boost shoves the truck on whether or not the pedal's down
+        // Boost adds acceleration even with zero throttle.
         fwd += P.accel * (Math.max(t, 0) + TUNING.ghast.push * boost) * dt * (1 - clamp(fwd / top, 0, 1) * 0.6);
       } else if (t > 0) {
         if (fwd < -0.5) {
@@ -358,19 +352,18 @@ export class Vehicle {
     this.pos.x += this.vel.x * dt;
     this.pos.z += this.vel.z * dt;
 
-    // smash breakables (and knock over lamps), then resolve walls with three circles
+    // Remove breakable obstacles before resolving solid body contacts.
     const offs = this.breed.body;
     this.smash(ev, world, Math.abs(fwd), fx, fz);
     let dx = 0;
     let dz = 0;
     _hits.length = 0;
-    // ground under the new position: pos.y is still last frame's, which lags behind on a slope
+    // Update clearance height before collision checks when climbing a slope.
     const yNow = this.grounded ? Math.max(oldY, world.groundAt(this.pos.x, this.pos.z, oldY, P.stepUp)) : oldY;
     for (const o of offs) {
       const ox = this.pos.x + fx * o;
       const oz = this.pos.z + fz * o;
-      // step up from the ground under this circle, not under the body center: near the top of a
-      // ramp the front circle is already higher and meets the next floor's slab edge first
+      // Use each circle’s ground height so the front circle can clear the slab at a ramp’s upper end.
       _c[0] = ox;
       _c[1] = Math.max(yNow, world.groundAt(ox, oz, yNow, P.stepUp));
       _c[2] = oz;
@@ -385,7 +378,7 @@ export class Vehicle {
 
     this.pos.x += dx;
     this.pos.z += dz;
-    // the hardest wall hit, in case it's hard enough to crash
+    // Preserve pre-contact velocity for a possible transfer to crash physics.
     const vx0 = this.vel.x;
     const vz0 = this.vel.z;
     let worst = 0;
@@ -414,7 +407,7 @@ export class Vehicle {
       return ev;
     }
 
-    // vertical: ground following, launching off ramps, falling, landing
+    // Preserve uphill velocity when the vehicle leaves a ledge.
     const g = world.groundAt(this.pos.x, this.pos.z, oldY, P.stepUp);
     if (this.grounded) {
       if (g >= oldY - STEP_DOWN) {
@@ -440,7 +433,7 @@ export class Vehicle {
         }
       }
 
-      // x/z haven't moved since g was found, so it is still the ground underneath
+      // Horizontal position is unchanged, so the previous ground query remains valid.
       if (this.pos.y <= g) {
         ev.landed = -this.vel.y;
         this.pos.y = g;
@@ -457,7 +450,7 @@ export class Vehicle {
     return ev;
   }
 
-  /** Knock over or smash what this speed breaks, along heading (fx, fz); disables them and lists them in ev. */
+  /** Collect destructible solids overlapping the body at this speed, append them to ev.smashed, and disable them. */
   private smash(ev: DriveEvents, world: CollisionWorld, speed: number, fx: number, fz: number): void {
     const P = this.params;
     const knocks = speed >= TUNING.knockdown.speed;
@@ -492,7 +485,7 @@ export class Vehicle {
     }
   }
 
-  /** Into a wall with normal (nx, nz) too hard to shrug off at velocity (vx, vz): crash, struck where the body meets it. */
+  /** Start crash physics and apply contact response at the body point facing the wall normal. */
   private crashInto(vx: number, vz: number, nx: number, nz: number): void {
     const c = this.beginCrash();
     this.vel.x = vx;
@@ -500,7 +493,7 @@ export class Vehicle {
     const P = this.params;
     const fx = Math.sin(this.yaw);
     const fz = Math.cos(this.yaw);
-    // the circle facing the wall: the nose or tail, or the middle for a side-on hit
+    // Select the nose, tail, or middle circle according to the impact direction.
     const along = -(fx * nx + fz * nz);
     const o = Math.abs(along) < 0.3 ? 0 : Math.sign(along) * (this.breed.body[2] ?? 0);
     c.contact(
@@ -516,7 +509,7 @@ export class Vehicle {
     );
   }
 
-  /** Switch to crash mode from where it is now, carrying its speed and turn into the tumble. */
+  /** Initialize crash orientation and spin from the current driving pose, preserving linear velocity. */
   private beginCrash(): CrashBody {
     if (!this.crash || this.crashForm !== this.form) {
       this.crash = new CrashBody(this.params);
@@ -529,11 +522,11 @@ export class Vehicle {
     return this.crash;
   }
 
-  /** A crash step: the body tumbles; on its wheels and still, it drives again. */
+  /** Advance crash physics and recovery hops. Resume driving when settled upright. */
   private tumble(dt: number, inp: DriveInput, world: CollisionWorld, ev: DriveEvents): DriveEvents {
     const c = this.crash as CrashBody;
     if (c.settled && !c.upright && inp.hop) {
-      // rock it over: spin about the axis that turns its up back toward the sky
+      // Rotate body-up toward world-up; use body-forward when fully inverted.
       _f.crossVectors(c.up(_up), Y_UP);
 
       if (_f.lengthSq() < 1e-4) {
@@ -572,7 +565,7 @@ export class Vehicle {
     return ev;
   }
 
-  /** Back on its wheels: hand back to the arcade model, nose tilt carried into the sprung body. */
+  /** Return to driving physics, preserving heading and pitch while resetting suspension motion. */
   private endCrash(world: CollisionWorld): void {
     const c = this.crash as CrashBody;
     this.crashing = false;
@@ -590,7 +583,7 @@ export class Vehicle {
     this.groundVy = 0;
   }
 
-  /** Kinematic placement (traffic AI, parked). Ends a crash, if one was going. */
+  /** Set pose and forward velocity directly for traffic or parking. Cancel crash physics. */
   place(x: number, y: number, z: number, yaw: number, speed: number, dt: number, world: CollisionWorld | null): void {
     this.crashing = false;
     this.pos.set(x, y, z);
@@ -608,7 +601,7 @@ export class Vehicle {
 
   private animate(dt: number, world: CollisionWorld, inp: DriveInput): void {
     const P = this.params;
-    // body springs
+    // Integrate visual suspension independently from collision geometry.
     const k = 120;
     const c = 14;
     const accel = inp.throttle * (this.grounded ? 1 : 0);
@@ -630,9 +623,9 @@ export class Vehicle {
     this.pitch += this.pitchV * dt;
     const lean = P.lean;
     const targetRoll = lean
-      ? // a bike leans into the turn, as far as its speed and lock call for
+      ? // Limit inward motorcycle lean by its handling parameters.
         clamp(Math.atan((this.speed * this.speed * Math.tan(this.steer)) / (P.wheelBase * TUNING.gravity)), -lean, lean)
-      : // a car's body rolls the other way, out of the turn, on its springs
+      : // Car suspension rolls outward under lateral acceleration.
         clamp(-this.steer * this.speed * 0.012, -0.12, 0.12);
     this.rollV += ((targetRoll - this.roll) * 80 - this.rollV * 9) * dt;
     this.roll += this.rollV * dt;
@@ -679,12 +672,12 @@ export class Vehicle {
     }
   }
 
-  /** The engine running: a small, quick shake on the springs, most at a standstill (TUNING.vehicle.idleShake). */
+  /** Apply engine vibration to the visual body, reducing its amplitude with speed (TUNING.vehicle.idleShake). */
   private buzz(r: VehicleRig): void {
     const S = TUNING.vehicle.idleShake;
     const [size, pace] = this.breed.shake;
     const k = size * lerp(1, S.moving, Math.min(1, Math.abs(this.speed) / S.fade));
-    // two close frequencies per axis, so it reads as a buzz rather than a bob (no multiple far above hz, which a low frame rate would alias into a wobble)
+    // Keep vibration frequencies near the base rate to limit visible aliasing at low frame rates.
     const t = now * TAU * S.hz * pace * (1 + (this.quirk - 0.5) * 2 * S.spread) + this.quirk * 100;
     r.body.position.y += k * S.lift * (0.7 * Math.sin(t) + 0.3 * Math.sin(t * 1.45 + 1.7));
     r.body.rotation.z += k * S.roll * Math.sin(t * 1.21 + 0.6);
@@ -692,8 +685,8 @@ export class Vehicle {
   }
 
   /**
-   * A bike's rider is on it while someone rides it (a valet in his uniform); Cody sits on the saddle himself
-   * (Player.mount).
+   * Show the built-in rider for traffic, valets, and visitors, selecting the valet jacket when needed. Player.mount
+   * supplies Cody’s separate model while he rides.
    */
   private dressRider(rider: BikeRider): void {
     this.riderRole = this.role;

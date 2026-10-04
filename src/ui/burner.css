@@ -1,6 +1,6 @@
-/* Randy's burner phone and the objective line (ui/burner.ts). Palette from hud.css :root. */
+/* Style the phone frame and task line from ui/phone/phone.ts using the hud.css :root palette. */
 
-/* the phone: off past the left edge, panned in for a text, back to a strip at the edge after */
+/* Slide the phone from offscreen to its raised or partially retracted state. */
 .burner {
   position: absolute;
   left: 18px;
@@ -17,7 +17,7 @@
   transform: translateX(calc(-100% - 60px)) rotate(-10deg);
   transition: transform 0.55s cubic-bezier(0.2, 1.25, 0.4, 1);
   pointer-events: none;
-  /* over the touch pad, so the strip at the edge takes a tap */
+  /* Keep the retracted tab above the touch pad so it can receive taps. */
   z-index: 3;
 }
 .burner.up {
@@ -29,7 +29,7 @@
   pointer-events: auto;
   cursor: pointer;
 }
-/* a conversation takes the screen: the phone gets out of its way */
+/* Move the phone offscreen while dialogue is active. */
 body.dialogue-open .burner {
   transform: translateX(calc(-100% - 60px)) rotate(-10deg);
 }
@@ -137,7 +137,7 @@ body.dialogue-open .burner {
   opacity: 0.7;
 }
 
-/* the texts, newest at the bottom */
+/* Align short message threads to the bottom of their container. */
 .burner-thread {
   flex: 1;
   display: flex;
@@ -167,7 +167,7 @@ body.dialogue-open .burner {
 .burner-msg kbd {
   font-size: 0.7em;
 }
-/* GhASt, spelled as on its dial */
+/* Match the GhASt dial’s lowered small letters. */
 .ghast-word small {
   font-size: 0.62em;
   vertical-align: -0.18em;
@@ -178,7 +178,7 @@ body.dialogue-open .burner {
     transform: scale(0.6);
   }
 }
-/* "typing...": three dots, one after the other */
+/* Animate three staggered dots for the typing indicator. */
 .burner-msg.typing {
   display: flex;
   gap: 5px;
@@ -210,7 +210,7 @@ body.dialogue-open .burner {
   }
 }
 
-/* an incoming call over the whole screen */
+/* Cover the phone display with the incoming-call screen. */
 .burner-call {
   position: absolute;
   inset: 0;
@@ -273,7 +273,7 @@ body.dialogue-open .burner {
   }
 }
 
-/* the task right now, under the clock */
+/* Position the current task beneath the HUD clock. */
 .burner-goal {
   position: absolute;
   top: 98px;
@@ -298,7 +298,7 @@ body.dialogue-open .burner {
   content: '\25B8  ';
   color: var(--bone);
 }
-/* a task that's a key press leads with its key cap instead */
+/* Suppress the decorative prefix when the task includes a key cap. */
 .burner-goal:has(kbd)::before {
   content: none;
 }
@@ -306,7 +306,7 @@ body.dialogue-open .burner {
   margin: 0 6px 0 0;
 }
 
-/* phones on their side: smaller, tucked toward the top edge */
+/* Scale the phone and task line for short touch viewports. */
 @media (max-height: 540px) {
   body.touch .burner {
     top: 56px;
@@ -321,7 +321,7 @@ body.dialogue-open .burner {
   }
 }
 
-/* the title's tutorial link: skip it the first time, replay it after */
+/* Style the title-screen tutorial skip or replay link. */
 .title-tut {
   margin-top: 14px;
   font-size: 12px;

@@ -16,7 +16,7 @@ interface Bat {
   wobble: number;
 }
 
-/** A loose colony circling over the deck once night falls. */
+/** Animate bats circling the deck, visible as night falls. */
 export class Bats {
   readonly root = new Group();
   private readonly bats: Bat[] = [];
@@ -97,7 +97,7 @@ export class Bats {
       const x = this.center.x + Math.cos(a) * r;
       const z = this.center.z + Math.sin(a) * r * 0.8;
       const y = b.height + Math.sin(this.t * 1.3 + b.phase) * 2;
-      // face the way it's flying
+      // Align each bat with its actual movement direction.
       const pos = b.root.position;
       const dx = x - pos.x;
       const dy = y - pos.y;

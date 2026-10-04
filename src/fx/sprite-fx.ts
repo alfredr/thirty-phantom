@@ -16,7 +16,7 @@ import { ghostTexture, puffTexture } from '@/render/textures';
 
 const _vel = new Vector3();
 
-/** puff: glowing (additive) smoke; smoke: plain, dark smoke drawn over what's behind it; ghost: a wisp. */
+/** Sprite appearance: additive glow, ordinary smoke, or a ghost texture. */
 export type SpriteKind = 'puff' | 'smoke' | 'ghost';
 
 interface Puff {
@@ -29,7 +29,7 @@ interface Puff {
   alpha: number;
 }
 
-/** Pooled billboards: spectral exhaust, tailpipe smoke, ghost wisps rising out of transformations. */
+/** Reusable sprites for exhaust, smoke, and transformation effects. */
 export class SpriteFx {
   readonly root = new Group();
   private readonly pool: Puff[] = [];
@@ -59,8 +59,8 @@ export class SpriteFx {
   }
 
   /**
-   * `n` sprites from `at`, flung up to spread/2 sideways and between up[0] and up[1] upward. `life` is fixed, or a
-   * (min, max) range drawn per sprite.
+   * Emit `n` sprites at one position. Horizontal velocity on each axis ranges from -spread/2 to spread/2; vertical
+   * velocity uses `up`. Speeds are in m/s. Lifetime is fixed or sampled from a range in seconds.
    */
   spray(
     at: Vector3,

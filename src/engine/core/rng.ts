@@ -1,4 +1,4 @@
-/** Small seeded PRNG (mulberry32). Deterministic so procedural content is stable across reloads. */
+/** Seeded Mulberry32 generator. Equal seeds produce the same procedural content. */
 export class Rng {
   private s: number;
 

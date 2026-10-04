@@ -72,16 +72,13 @@ export interface BuiltWorld {
   clocks: ClockFaces;
   gates: Gates;
   slime: SlimeSim;
-  /** Lamps and fence panels cars knock over. */
+  /** Breakable props, including lamps, barriers, and decor. */
   props: Props;
-  /**
-   * What hides Cody from the iso camera but stops nothing (tree crowns): the cut-away view looks for these as well as
-   * solids.
-   */
+  /** Visual occluders used by isometric cutaway probes without blocking physical movement. */
   sight: CollisionWorld;
   lampDecals: MeshBasicMaterial;
   puddleDecals: MeshBasicMaterial;
-  /** Walk-in buildings: their rooms are built while Cody is near one (update it with his feet). */
+  /** Interior rendering manager; update with Cody's foot position to activate nearby rooms. */
   interiors: Interiors;
   stats: { meshes: number; triangles: number };
 }
@@ -97,18 +94,21 @@ const LAMP_HEAD: Readonly<Record<LampColor, MatKey>> = { green: 'lampGreen', pur
 const uvScale = (m: MatKey): number => UV_SCALE[m] ?? 4;
 const rampShape = (r: RampDef): RampShape => ({ axis: r.axis, dir: r.dir, low: r.low });
 
-/** LevelData -> merged meshes per material+chunk, collision, and runtime props. */
+/**
+ * Build chunked render geometry, collision, lighting, interiors, and runtime props from level data. Return the world
+ * root and managers needed for simulation and rendering.
+ */
 export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld {
   const root = new Group();
   root.name = 'world';
   const collision = new CollisionWorld();
   const occupancy = new CollisionWorld();
-  // the deck's basement and stair shaft go below street level
+  // Remove ground within declared pits before querying geometry.
   collision.dig(level.pits);
   occupancy.dig(level.pits);
   const rng = new Rng(4242);
   const batches = new Map<string, { mat: MatKey; batch: GeometryBatch }>();
-  // keyed by the material itself, so keys sharing one (the facades) share a batch
+  // Batch by material name so facade aliases share geometry batches.
   const batchFor = (mat: MatKey, x: number, z: number): GeometryBatch => {
     const key = `${mats.get(mat).name}|${Math.floor(x / CHUNK)}|${Math.floor(z / CHUNK)}`;
     let b = batches.get(key);
@@ -121,7 +121,7 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
 
   const stats = { meshes: 0, triangles: 0 };
 
-  // occupancy for drip edge tests (visible geometry only)
+  // Build drip-placement occupancy from substantial visible surfaces.
   for (const b of level.boxes) {
     if (b.mat === 'invisible' || b.mat === 'marking' || b.mat === 'asphalt') {
       continue;
@@ -138,8 +138,7 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
     occupancy.add(r.min, r.max, { ramp: rampShape(r) });
   }
 
-  // slime never cuts through a sign: the lip and drips sit a few cm off the wall, right in the sign's
-  // plane. Billboards are the exception, slime pours over those on purpose (and sits in front).
+  // Reserve sign bounds because drips project into the sign plane. Billboards intentionally allow slime overlap.
   const signBoxes = level.signs
     .filter((s) => s.style !== 'billboard')
     .map((s) => {
@@ -160,8 +159,8 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
         min[2] < s.max[2] &&
         max[2] > s.min[2],
     );
-  // where drops land: the highest surface under them, and a puddle there that nearby drops share,
-  // no bigger than the top it's on (none on a ramp or a top too narrow to hold one)
+  // Share pools between nearby landing points and limit their radius to the supporting surface.
+  // Ramps and narrow surfaces cannot support flat puddles.
   const pools: (PoolSite & { n: number })[] = [];
   let runs = 0;
   const under: GroundHit = { solid: null };
@@ -223,7 +222,7 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
     return new Color(t, t, t);
   };
 
-  // which faces each box draws, so coplanar overlaps can be cut out of one side
+  // Use the rendered face sets when resolving coplanar overlaps.
   const SIDES_TOP: readonly BoxFace[] = [0, 1, 2, 3, 4];
   const isSolid = (b: BoxDef): boolean => b.solid !== false && b.max[1] - b.min[1] > 0.04;
   const holeMap = coplanarHoles(
@@ -246,7 +245,7 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
 
     const uv = uvScale(b.mat);
     const holes = (f: BoxFace) => holeMap.get(i * 6 + f);
-    // facade boxes wear their own paint, and their faces get bays and storeys for the facade shader
+    // Combine facade paint with box tint and supply the shader's bay/storey mappings.
     const fac = facadeOf(b);
     const map = fac ? facadeFaces(b, fac) : undefined;
     const paint = (c: Color): Color => (fac?.paint ? c.clone().multiply(paintColor(fac.paint)) : c);
@@ -274,7 +273,7 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
     }
 
     if (b.top) {
-      // split: sides in the box material, top in its own
+      // Separate the top face when it uses a different material.
       const c = tint(b);
       const lo = b.max[1] - b.min[1] > 6 ? 0.5 : 0.62;
       batchFor(b.mat, cx, cz).box(b.min, b.max, paint(c), uv, true, { faces: [0, 1, 2, 3], lo, holes, map });
@@ -288,8 +287,7 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
     }
   }
 
-  // walk-in buildings: the shell round their doorways and their solid fittings collide from the start (so walkers can
-  // route in), their rooms are drawn only while Cody is near (world/interiors.ts)
+  // Keep interior collision available for navigation regardless of whether nearby rooms are currently rendered.
   const interiors = new Interiors((level.buildings ?? []).map(expandInterior), mats);
   for (const it of interiors.all) {
     for (const b of it.shell) {
@@ -411,8 +409,7 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
   const lampDecalMesh = fxDecal(new Mesh(glow.build(), lampDecals));
   root.add(lampDecalMesh);
 
-  // street furniture cars knock over, drawn from their models: lamps, and fence runs split evenly
-  // into panels about FENCE.span long, the last closing its run with a second post
+  // Build independent props for lamps and fence panels so each can be knocked down.
   const propSpecs: PropSpec[] = [];
   const lampDown = restTilt(LAMP.cap[0] / 2, lampHeight());
   for (const c of ['green', 'purple', 'warm'] as const) {
@@ -439,11 +436,7 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
     );
   }
 
-  /**
-   * A straight run from a to b (the feet of its end posts, along x or z) split evenly into panels about `span` long,
-   * each its own knockdown solid. Panels face `out` (their local +Z); posts stay upright on a slope; the panel at the
-   * run's local +X end closes it with a second post.
-   */
+  /** A panel from an axis-aligned run, with independent knockdown collision and an optional far-end post. */
   type Panel = Omit<PropSpec, 'kind' | 'slot'> & { end: boolean };
 
   const runPanels = (
@@ -460,7 +453,7 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
     const len = Math.abs(b[ax] - a[ax]);
     const n = Math.max(1, Math.round(len / span));
     const yaw = Math.atan2(out[0], out[1]);
-    // which way local +X runs from a to b
+    // Determine which run endpoint corresponds to local +X for the closing post.
     const s = Math.sign((ax === 0 ? Math.cos(yaw) : -Math.sin(yaw)) * (b[ax] - a[ax])) || 1;
     const at = (t: number, i: number): number => (a[i] as number) + ((b[i] as number) - (a[i] as number)) * t;
     const list: Panel[] = [];
@@ -488,7 +481,7 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
     return list;
   };
 
-  /** Instanced copies of a panel model (and its run-closing variant) for these panels, a kind called `name`. */
+  /** Create instanced panel kinds for ordinary and end-post variants, then append their prop definitions. */
   const addPanels = (
     name: string,
     panels: Panel[],
@@ -520,7 +513,7 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
   }
 
   addPanels('fence', fences, fencePanel, fenceHeight(), FENCE.span / 2, FENCE.finial / 2);
-  // ramp guardrails; railings along wall tops go over with the parapet under them when a truck smashes it
+  // Associate wall-top railings with breakable parapets so losing support also topples the railing.
   const guardrails: Panel[] = [];
   const railings: Panel[] = [];
   for (const r of level.rails ?? []) {
@@ -529,7 +522,7 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
       continue;
     }
 
-    // as deep as the wall it stands on, so a car stopped by the wall still reaches it
+    // Match the supporting wall depth so a vehicle stopped by the wall can still strike the railing.
     for (const p of runPanels(r.a, r.b, r.out, RAILING.span, 0.4, railingHeight(), r.out)) {
       const under = breakables.find(
         ({ solid: s }) =>
@@ -541,7 +534,7 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
 
   addPanels('guardrail', guardrails, guardrailPanel, guardrailHeight(), GUARDRAIL.span / 2, GUARDRAIL.beam.t);
   addPanels('railing', railings, railingPanel, railingHeight(), RAILING.span / 2, RAILING.rail / 2);
-  // the badge gates' barrier arms: held (tipped) by their gates, and snapped off like the rest
+  // Gate arms use held props for posing and become loose props when struck.
   const gateArms: number[] = [];
   const armKinds = new Map<number, PropKind>();
   level.gates.forEach((g, k) => {
@@ -561,7 +554,7 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
 
     const slot = level.gates.slice(0, k).filter((o) => o.armLength === g.armLength).length;
     const heading = facingYaw(g.armDir);
-    // stands in for a collision box: the arm has none (the gate checks for hits itself)
+    // Use a synthetic solid ID for prop bookkeeping; Gates performs arm collision tests.
     const solid: Solid = { id: -1 - k, min: [...g.hinge], max: [...g.hinge], enabled: true, stamp: 0 };
     gateArms.push(propSpecs.length);
     propSpecs.push({
@@ -576,7 +569,7 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
       held: { heading, tilt: Math.PI / 2 },
     });
   });
-  // landscaping: static pieces baked together by material, benches as props
+  // Add material-batched landscaping and its breakable props.
   const decor = buildDecor(level.decor ?? [], mats, collision);
   propSpecs.push(...decor.props);
   root.add(decor.root);
@@ -605,7 +598,7 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
 
   // live drips off the lips, and the puddles their drops feed
   const slime = new SlimeSim(slimeDrips, slimeFilms, runs, pools, mats.get('slime'), puddleDecals);
-  // the fountain and pond come and go with the rest of it (the tutorial's clean first evening)
+  // Include fountain and pond slime in the tutorial's global slime emergence.
   slime.fadeWith(mats.get('slimePool'));
   root.add(slime.root, fxDecal(slime.puddles));
 

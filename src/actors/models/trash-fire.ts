@@ -2,10 +2,7 @@ import type { Group, Object3D } from 'three';
 
 import { box, build, cylinder, group, model, NO_CAST, solid } from './part';
 
-/**
- * A dented steel trash can with a fire going in it: the can's size, and the flames' sizes and spots on top (x, z,
- * width, height).
- */
+/** Dimensions of the steel trash can. Flame entries specify x, z, width, and height above its rim, in meters. */
 const CAN = { radius: 0.3, height: 0.88, segments: 12 };
 /** Height of the can's rim. */
 export const CAN_TOP = CAN.height;
@@ -22,7 +19,7 @@ const CORE_GLOW = 4.5;
 
 export interface TrashFire {
   root: Group;
-  /** The flames, to flicker: each one's resting height is in userData.height. */
+  /** Flame groups for flicker animation, with each rest height stored in userData.height. */
   flames: Object3D[];
 }
 
@@ -37,7 +34,7 @@ export function trashFire() {
     },
     [
       cylinder(CAN.radius, CAN.height, CAN.segments, 'can', { at: [0, CAN.height / 2, 0] }),
-      // ribs pressed into the side, and the charred mess inside the rim
+      // Raised ribs and a dark inset distinguish the can’s rim and interior.
       cylinder(CAN.radius + RIB, 0.04, CAN.segments, 'can', { at: [0, CAN.height * 0.3, 0] }),
       cylinder(CAN.radius + RIB, 0.04, CAN.segments, 'can', { at: [0, CAN.height * 0.7, 0] }),
       cylinder(CAN.radius - 0.03, 0.02, CAN.segments, 'char', { at: [0, CAN.height - 0.03, 0], cast: false }),

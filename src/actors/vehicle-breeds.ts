@@ -8,42 +8,42 @@ import { buildMotorcycleRig } from './models/motorcycle';
 import { buildPickupRig } from './models/pickup';
 import type { VehicleRig } from './models/rig';
 
-/** What a civilian car (form 'car') can be: the model it's built from and the handling it gets. */
+/** Civilian models available while a vehicle has the car form. */
 export const CAR_KINDS = ['sedan', 'pickup', 'motorcycle'] as const;
 export type CarKind = (typeof CAR_KINDS)[number];
-/** A vehicle breed's name: a civilian car's kind, or the monster truck. */
+/** Model identifier for a civilian vehicle or monster truck. */
 export type VehicleBuild = CarKind | 'truck';
 
-/** One kind of vehicle: everything that differs from one kind to the next. */
+/** Handling, presentation, and spawning parameters for one vehicle model. */
 export interface VehicleBreed {
   /** Handling and size. */
   readonly params: VehicleParams;
   /** Collision circle offsets along the body (see bodyOffsets). */
   readonly body: readonly number[];
-  /** How its route is planned: every civilian car plans as a sedan (TUNING's note on the pickup). */
+  /** Navigation profile. Civilian models share NAV.car; see the pickup note in TUNING. */
   readonly nav: NavProfile;
-  /** Into a wall faster than this (m/s along its normal) and it crashes: it tumbles as a rigid body. */
+  /** Wall-normal impact speed above which rigid-body crash physics begins, in m/s. */
   readonly crashAt: number;
-  /** Cody can get in this close (m). */
+  /** Maximum interaction distance for Cody to enter, in meters. */
   readonly enterReach: number;
-  /** Knocking a lamp or panel over keeps this share of its speed (a prop kind can say otherwise: PropKind.keep). */
+  /** Speed fraction retained after knockdown unless overridden by PropKind.keep. */
   readonly knockKeep: number;
-  /** Its idle shake (TUNING.vehicle.idleShake), [size, pace]: bikes buzz quicker, the monster truck rumbles. */
+  /** Amplitude and frequency multipliers for TUNING.vehicle.idleShake. */
   readonly shake: readonly [size: number, pace: number];
-  /** Its engine's sound, and how many gears the revs climb through (TUNING.audio.engines). */
+  /** Engine sound cue and simulated gear count (TUNING.audio.engines). */
   readonly engine: SoundOf<'engine'>;
   readonly gears: number;
-  /** Its horn, calm and fed up; null if it never honks. */
+  /** Calm and angry horn cues, or null to disable honking. */
   readonly horn: readonly [calm: SoundOf<'honk'>, angry: SoundOf<'honk'>] | null;
-  /** What the dash calls it while Cody drives it. */
+  /** Dashboard label while Cody drives this model. */
   readonly label: string;
-  /** Its share of the civilian cars that spawn, parked and in traffic (the shares add up to 1). */
+  /** Spawn probability for civilian parked and traffic vehicles; civilian shares sum to one. */
   readonly share: number;
   /** Builds its model in `color`. */
   model(assets: AssetRegistry, color: string): VehicleRig;
 }
 
-/** A civilian car: the sedan's reach, crash and knock, whatever its handling. */
+/** Shared civilian navigation, entry range, crash threshold, and knockdown retention. */
 const CIVILIAN = { nav: NAV.car, crashAt: 12, enterReach: 3.4, knockKeep: 0.75 } as const;
 
 export const VEHICLE_BREEDS: Readonly<Record<VehicleBuild, VehicleBreed>> = {
@@ -57,7 +57,7 @@ export const VEHICLE_BREEDS: Readonly<Record<VehicleBuild, VehicleBreed>> = {
     horn: ['horn-sedan', 'horn-sedan-angry'],
     label: 'STOLEN SEDAN',
     share: 0.62,
-    // from its GLB when there is one
+    // The asset registry selects the imported model when available.
     model: (assets, color) => assets.carRig(color),
   },
   pickup: {
@@ -97,7 +97,7 @@ export const VEHICLE_BREEDS: Readonly<Record<VehicleBuild, VehicleBreed>> = {
     horn: null,
     label: 'PHANTOM MONSTER TRUCK',
     share: 0,
-    // its livery is its own
+    // Monster truck materials use their authored livery.
     model: (assets) => assets.truckRig(),
   },
 };

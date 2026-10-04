@@ -24,10 +24,8 @@ import type { V3 } from '@/engine/core/math';
 import { softInk, withCutaway } from '@/render/materials';
 
 /**
- * Parametric models: a model is a plain function of its params that returns a Model (material table + part tree).
- * Nothing touches three.js until build() turns the tree into meshes, so a model can be evaluated, inspected or diffed
- * on its own. Box does the placement math so parts are positioned relative to each other ("on the tub", "on the cab's
- * front face") instead of by hand-computed coordinates.
+ * Describe parametric models as material specifications and part trees, then construct three.js objects with build(),
+ * instanced(), or baked(). Box placement helpers express relationships between parts in model coordinates.
  */
 
 export type Face = '+x' | '-x' | '+y' | '-y' | '+z' | '-z';
@@ -39,7 +37,7 @@ export const SIDES = [-1, 1] as const;
 /** For small details (eyes, trim, lamps) that shouldn't cast shadows. */
 export const NO_CAST = { cast: false } as const;
 
-/** Axis-aligned box in a model's frame. Immutable: every method returns a new Box. */
+/** Axis-aligned model bounds. Placement and sizing methods return a new Box without modifying the original. */
 export class Box {
   constructor(
     readonly size: V3,
@@ -82,12 +80,12 @@ export class Box {
     return new Box(this.size, [this.center[0] + dx, this.center[1] + dy, this.center[2] + dz]);
   }
 
-  /** Same center, new size. */
+  /** Return a box with the requested size and the same center. */
   sized(sx: number, sy: number, sz: number): Box {
     return new Box([sx, sy, sz], this.center);
   }
 
-  /** Grow (or shrink, negative) each side by d, keeping the center. */
+  /** Offset both faces of each axis by the corresponding delta, preserving the center. Negative deltas shrink. */
   grow(dx: number, dy: number, dz: number): Box {
     return new Box([this.size[0] + dx * 2, this.size[1] + dy * 2, this.size[2] + dz * 2], this.center);
   }
@@ -95,27 +93,27 @@ export class Box {
   // The relational placements below only move along the named face's axis,
   // so they chain: box(...).on(tub).inside(tub, '+z', 0.05).
 
-  /** Rest on top of `o`, or with a number, rest the bottom at that height. */
+  /** Align the bottom with the other box’s top or a numeric height. */
   on(o: Box | number): Box {
     return this.y((typeof o === 'number' ? o : o.top) + this.size[1] / 2);
   }
 
-  /** Hang below `o`, or with a number, put the top at that height. */
+  /** Align the top with the other box’s bottom or a numeric height. */
   under(o: Box | number): Box {
     return this.y((typeof o === 'number' ? o : o.bottom) - this.size[1] / 2);
   }
 
-  /** Touch `o`'s face from outside. */
+  /** Place outside the selected face with an optional gap along its normal. */
   outside(o: Box, face: Face, gap = 0): Box {
     return this.place(o, face, 1, gap);
   }
 
-  /** Flush with `o`'s face from inside. */
+  /** Place inside the selected face with an optional inset. */
   inside(o: Box, face: Face, inset = 0): Box {
     return this.place(o, face, -1, -inset);
   }
 
-  /** Centered on `o`'s face plane (straddling it), `out` along the face normal. */
+  /** Align the center with the selected face plane, offset by `out` along its normal. */
   onFace(o: Box, face: Face, out = 0): Box {
     return this.place(o, face, 0, out);
   }
@@ -139,7 +137,7 @@ export type Shape =
   /** Ellipsoid with these radii along x, y, z; `segments` around and from pole to pole. */
   | { kind: 'sphere'; radius: V3; segments: [number, number] };
 
-/** A node in the model tree: a transform, an optional mesh, children. */
+/** Model-tree node with an optional shape, local transform, and children. */
 export interface Part<M extends string = string> {
   name?: string;
   at?: V3;
@@ -279,7 +277,7 @@ function materialsOf<M extends string>(m: Model<M>): { mats: Record<M, MeshStand
   return { mats, materials };
 }
 
-/** The material, or per-group materials, a shaped part draws with. */
+/** Resolve a shaped part’s material references. Throw if no material is specified. */
 function meshMats<M extends string>(
   p: Part<M>,
   mats: Record<M, MeshStandardMaterial>,
@@ -362,21 +360,20 @@ export function build<M extends string>(m: Model<M>): Built<M> {
 }
 
 /**
- * A model drawn many times. Its mesh parts have their transforms baked into their geometry, and parts that draw alike
- * (one material, the same name and shadow flags) are merged into one InstancedMesh, so one matrix places a whole copy
- * and a model costs a draw call per material, not per part. Parts can be hidden per copy by name (or by the name of a
- * group they're in).
+ * Render repeated model copies with one transform per copy. Merge single-material parts sharing material, inherited
+ * name, and shadow flags into instanced meshes. Per-face material parts remain separate. Named parts can be hidden per
+ * copy without changing its stored placement.
  */
 export interface Instanced<M extends string> {
   root: Group;
   mats: Record<M, MeshStandardMaterial>;
   materials: Material[];
   readonly count: number;
-  /** Place copy i. Parts hidden on it stay hidden. */
+  /** Set copy `i`’s transform while preserving its per-part visibility. */
   place(i: number, m: Matrix4): void;
-  /** Show or hide copy i's parts named `name`. */
+  /** Set visibility for parts with the inherited name `name` in copy `i`. */
   show(i: number, name: string, on: boolean): void;
-  /** Upload whatever place() and show() changed. */
+  /** Mark modified instance matrices for GPU upload. */
   flush(): void;
 }
 
@@ -384,7 +381,7 @@ const _local = new Matrix4();
 const _euler = new Euler();
 const HIDDEN = new Matrix4().makeScale(0, 0, 0);
 
-/** A shaped part with its transform from the model's origin, the shadow flags and name it inherits. */
+/** Flattened shaped part with its model transform and inherited shadow flags and name. */
 interface PlacedPart<M extends string> {
   part: Part<M>;
   world: Matrix4;
@@ -421,7 +418,7 @@ function placeParts<M extends string>(m: Model<M>, origin: Matrix4): PlacedPart<
   return out;
 }
 
-/** One geometry from many (all indexed, with the same attributes, as every Shape's is). */
+/** Merge compatible indexed geometries. Fall back to the first geometry if merging fails. */
 const mergeAll = (geos: BufferGeometry[]): BufferGeometry =>
   geos.length === 1 ? (geos[0] as BufferGeometry) : (mergeGeometries(geos) ?? (geos[0] as BufferGeometry));
 
@@ -430,7 +427,7 @@ export function instanced<M extends string>(m: Model<M>, count: number): Instanc
   const { mats, materials } = materialsOf(m);
   const root = new Group();
   const meshes: { mesh: InstancedMesh; name: string | undefined }[] = [];
-  // parts that draw alike share a mesh; a part with a material per face keeps its own (its geometry's groups pick them)
+  // Keep per-face material groups separate; merge only compatible single-material parts.
   const alike = new Map<string, PlacedPart<M>[]>();
   for (const pp of placeParts(m, new Matrix4())) {
     const { part, name, cast, receive } = pp;
@@ -450,7 +447,7 @@ export function instanced<M extends string>(m: Model<M>, count: number): Instanc
     mesh.instanceMatrix.setUsage(DynamicDrawUsage);
     mesh.castShadow = cast;
     mesh.receiveShadow = receive;
-    // copies are usually spread far apart: one bound around them all would never cull anything
+    // Disable aggregate frustum culling for widely distributed instances.
     mesh.frustumCulled = false;
 
     for (let i = 0; i < count; i++) {
@@ -514,7 +511,7 @@ export function instanced<M extends string>(m: Model<M>, count: number): Instanc
   };
 }
 
-/** A copy of a model that never moves, and where it stands. */
+/** A static model instance and its placement transform. */
 export interface Placement<M extends string = string> {
   model: Model<M>;
   at: Matrix4;
@@ -523,29 +520,28 @@ export interface Placement<M extends string = string> {
 export interface Baked {
   root: Group;
   /**
-   * Each material drawn and the spec it was made from, its color left to the vertices (a glow's day/night level goes by
-   * its spec).
+   * Created materials and their normalized specifications. Base color is stored in vertex colors; the remaining
+   * specification supports updates such as day/night emissive intensity.
    */
   materials: { spec: MatSpec; mat: MeshStandardMaterial }[];
   /**
-   * Show or hide copy i (by its place in the copies baked): hidden, its triangles collapse to a point, so it costs
-   * nothing and the meshes stay one draw call each. Only the changed vertices are uploaded.
+   * Set visibility by input-copy index. Hide geometry by collapsing each vertex range to a point, retaining the shared
+   * meshes. Restore saved positions when shown and upload only modified ranges.
    */
   show(i: number, on: boolean): void;
 }
 
 /**
- * Copies of models that never move (trees, hedges, a fountain) baked into static meshes: parts of any model whose specs
- * differ at most in color, with the same shadow flags, share a mesh (their colors go in its vertex colors), so however
- * many copies and models there are, they cost a draw call per kind of surface. Each part takes one material (no
- * per-face ones).
+ * Bake static model placements into shared meshes. Group parts by material specification excluding color, plus shadow
+ * flags; preserve individual colors as vertex attributes. Each part must reference one valid material. Individual
+ * copies may be hidden and restored, but their placement transforms cannot change.
  */
 export function baked(copies: readonly Placement[]): Baked {
   const root = new Group();
   const shapes = new Map<string, BufferGeometry>();
   type Batch = { spec: MatSpec; cast: boolean; receive: boolean; geos: BufferGeometry[]; verts: number; mesh?: Mesh };
   const batches = new Map<string, Batch>();
-  // where each copy's vertices land in the merged meshes
+  // Record vertex ranges so visibility changes can target individual copies.
   const ranges: { b: Batch; start: number; count: number }[][] = [];
   const tint = new Color();
   for (const { model: m, at } of copies) {
@@ -617,7 +613,7 @@ export function baked(copies: readonly Placement[]): Baked {
     g.dispose();
   }
 
-  // a hidden copy's own vertex positions, to put back when it shows again
+  // Save hidden vertex positions for exact restoration.
   const saved = new Map<number, Float32Array[]>();
   const show = (i: number, on: boolean): void => {
     const list = ranges[i];

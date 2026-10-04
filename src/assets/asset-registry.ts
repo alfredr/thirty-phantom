@@ -24,9 +24,8 @@ import { softInk, withCutaway } from '@/render/materials';
 export type ModelKey = 'monsterTruck' | 'car' | 'cody';
 
 /**
- * A GLB part smaller than this share of its whole model (bounding radii) casts no shadow: hubs, lamps, trim, buttons.
- * The body round them casts the shadow that reads, and each part is a draw call in the shadow pass for every car in
- * view.
+ * Disable shadow casting for meshes whose bounding radius is below this fraction of the full model. Small details add
+ * shadow draw calls with little visible benefit.
  */
 const SMALL_CASTER = 0.12;
 
@@ -40,15 +39,13 @@ interface Loaded {
 }
 
 /**
- * Actor models. GLBs listed in public/assets/manifest.json replace the box-built fallbacks.
+ * Load optional GLB actor models from public/assets/manifest.json, with procedural fallbacks for missing or failed
+ * assets.
  *
- * Contract: +Y up, +Z forward, meters, origin at ground center.
- *
- * - vehicles: nodes wheel_fl / wheel_fr / wheel_rl / wheel_rr at axle centers (spun about X, front pair steered), "body"
- *   node for suspension sway.
- * - cody: skinned, actions idle / walk / run, meshes day_* and night_* per outfit.
- * - material names are roles: paint (tinted per car), livery_side / hood (game livery textures), headlight / taillight
- *   (night switch).
+ * Models use meters, +Y up, +Z forward, and an origin at ground center. Vehicle wheels use wheel_fl, wheel_fr,
+ * wheel_rl, and wheel_rr nodes at axle centers; a body node supports suspension motion. Cody models provide idle, walk,
+ * and run animations with day_* and night_* outfit meshes. Material names identify paint, livery_side, hood, headlight,
+ * and taillight roles.
  */
 export class AssetRegistry {
   private readonly models = new Map<ModelKey, Loaded>();
@@ -57,7 +54,7 @@ export class AssetRegistry {
     const reg = new AssetRegistry();
     if (urlFlag('boxes')) {
       return reg;
-    } // force procedural fallbacks
+    } // Explicitly disable GLB loading.
 
     let manifest: Manifest = { models: {} };
     try {
@@ -66,7 +63,7 @@ export class AssetRegistry {
         manifest = (await r.json()) as Manifest;
       }
     } catch {
-      /* no manifest: all procedural */
+      /* Use procedural models when the manifest is unavailable. */
     }
 
     const loader = new GLTFLoader();
@@ -150,7 +147,7 @@ export class AssetRegistry {
       return buildCarRig(color);
     }
 
-    // modelled at the box sedan's sizes, so it's built at the same scale (TUNING.car's body matches)
+    // Match the procedural sedan scale and its collision dimensions.
     const rig = vehicleFromGltf(src.scene.clone(true), SEDAN.height * SEDAN_SCALE, (name, m) => {
       if (name === 'paint') {
         const p = m.clone();
@@ -183,7 +180,7 @@ function liveryMat(
   return m;
 }
 
-/** Strip the ".001" style suffixes Blender adds (GLTFLoader turns them into "001"). */
+/** Remove Blender numeric name suffixes, including the dotless form produced by GLTFLoader. */
 function baseName(n: string): string {
   return n.replace(/\.?\d{3}$/, '');
 }

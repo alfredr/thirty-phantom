@@ -44,7 +44,7 @@ uniform float pixelWorld;
 uniform vec2 inkFade;
 varying vec2 vUv;
 
-// normal buffer alpha is the ink class: 1 full, 0.5 soft, 0 background
+// Normal-buffer alpha identifies full ink (1), soft ink (0.5) and background (0).
 float viewZ(vec2 uv) {
   float d = texture2D(tDepth, uv).x;
   return isPersp > 0.5 ? -perspectiveDepthToViewZ(d, cameraNear, cameraFar) : cameraNear + d * (cameraFar - cameraNear);
@@ -52,19 +52,19 @@ float viewZ(vec2 uv) {
 vec4 nrm(vec2 uv) { vec4 n = texture2D(tNormal, uv); return vec4(n.xyz * 2.0 - 1.0, n.a); }
 bool isSoft(float a) { return a > 0.25 && a < 0.75; }
 
-// nearest depth among this pixel and a full-ink neighbour
+// Include neighboring depth only when the neighbor uses full ink.
 float nearFull(float z, vec2 uv, float a) { return a > 0.75 ? min(z, viewZ(uv)) : z; }
 float nearSoft(float z, vec2 uv) { return isSoft(texture2D(tNormal, uv).a) ? min(z, viewZ(uv)) : z; }
 
-// How much ink gives way at view depth z: 0 up close, 1 where a pixel spans inkFade.y of world.
-// Detail there is smaller than the lines drawn around it, and inking it only makes broken dashes.
+// Fade ink as world units per pixel increase between the inkFade thresholds.
+// This suppresses outlines around details too small to resolve.
 float farness(float z) {
   float wpp = isPersp > 0.5 ? z * pixelWorld : pixelWorld;
   return smoothstep(inkFade.x, inkFade.y, wpp);
 }
 
-// crease against a neighbour: by angle between full-ink surfaces, always
-// against background (outer contour), never against soft ink
+// Use normal differences for full-ink neighbors and a full contour against background.
+// Soft-ink neighbors do not create crease edges.
 float crease(vec4 n0, vec4 n) { return n.a > 0.75 ? 1.0 - dot(n0.xyz, n.xyz) : n.a < 0.25 ? 1.0 : 0.0; }
 
 void main() {
@@ -77,25 +77,25 @@ void main() {
   vec4 n2 = nrm(vUv + vec2(o.x, 0.0));
   vec4 n3 = nrm(vUv + vec2(0.0, o.y));
   vec4 n4 = nrm(vUv - vec2(0.0, o.y));
-  // silhouettes: a neighbour is notably closer than this pixel (soft ink: thinner and lighter)
+  // Detect silhouettes where a neighbor is closer, using narrower sampling for soft ink.
   float nf = nearFull(nearFull(nearFull(nearFull(c, vUv - vec2(o.x, 0.0), n1.a), vUv + vec2(o.x, 0.0), n2.a), vUv + vec2(0.0, o.y), n3.a), vUv - vec2(0.0, o.y), n4.a);
   float ns = nearSoft(nearSoft(nearSoft(nearSoft(c, vUv - vec2(s.x, 0.0)), vUv + vec2(s.x, 0.0)), vUv + vec2(0.0, s.y)), vUv - vec2(0.0, s.y));
   float thr = depthThreshold;
   if (isPersp > 0.5) {
-    // perspective: a pixel spans more world the farther away it is, and a floor seen at a grazing
-    // angle changes depth quickly between neighbours without being an edge
+    // Scale the depth threshold with distance and viewing angle in perspective.
+    // Grazing surfaces can change depth sharply between pixels without forming an edge.
     vec3 ray = normalize(vec3((vUv * 2.0 - 1.0) * tanHalf, -1.0));
     float facing = n0.a > 0.25 ? abs(dot(n0.xyz, ray)) : 1.0;
     thr = max(0.03, c * depthThreshold) / max(facing, 0.12);
   }
   float de = smoothstep(thr, thr * 2.0, c - nf);
   float ds = smoothstep(thr, thr * 2.0, c - ns) * softInk;
-  // creases from the normal buffer (full ink only)
+  // Detect normal-based creases only on full-ink surfaces.
   float nd = 0.0;
   if (n0.a > 0.75) nd = max(max(crease(n0, n1), crease(n0, n2)), max(crease(n0, n3), crease(n0, n4)));
   float ne = smoothstep(0.22, 0.5, nd);
-  // silhouettes fade by the depth of what they outline (the nearer side), creases by their own;
-  // silhouettes keep half, so far shapes still read as inked
+  // Fade silhouettes using the foreground depth and creases using the current surface depth.
+  // Retain at least half of full-ink silhouettes so distant shapes remain outlined.
   de *= 1.0 - 0.5 * farness(nf);
   ds *= 1.0 - farness(ns);
   ne *= 1.0 - farness(c);
@@ -105,9 +105,8 @@ void main() {
 `;
 
 /**
- * Renders the scene (with a float depth texture), then a view-normal pass, and composites thick ink lines on
- * silhouettes and creases: the comic linework of the poster. Materials tagged with softInk() get no creases and a thin,
- * light silhouette.
+ * Render scene color, floating-point depth, and view-space normals, then composite outlines at silhouettes and creases.
+ * Materials tagged by softInk() receive thin, faint silhouettes without crease lines.
  */
 export class SceneOutlinePass extends Pass {
   private readonly sceneRT: WebGLRenderTarget;
@@ -154,10 +153,7 @@ export class SceneOutlinePass extends Pass {
         tanHalf: { value: new Vector2(1, 1) },
         /** World units per pixel: constant in the iso view, per unit of view depth in the chase view. */
         pixelWorld: { value: 0.04 },
-        /**
-         * Pixel sizes (world units) over which fine ink fades out: none at play zoom, most of it zoomed all the way
-         * out.
-         */
+        /** World-space pixel-size range over which fine outlines fade, reducing visual noise on distant detail. */
         inkFade: { value: new Vector2(0.06, 0.16) },
       },
       vertexShader: FULLSCREEN_VERT,
@@ -179,7 +175,7 @@ export class SceneOutlinePass extends Pass {
     (this.material.uniforms.texel?.value as Vector2).set(1 / w, 1 / h);
   }
 
-  /** Stands in for materials tagged noInk (a see-through Cody): not drawn into the normals at all. */
+  /** Invisible replacement material excludes noInk surfaces from the normal pass. */
   private readonly noInkMat = new MeshBasicMaterial({ visible: false });
   private readonly pickNormal = (m: Material): Material =>
     !m.visible ? m : m.userData.noInk ? this.noInkMat : m.userData.softInk ? this.softNormalMat : this.normalMat;
@@ -206,7 +202,7 @@ export class SceneOutlinePass extends Pass {
     renderer.clear();
     renderer.render(this.scene, this.camera);
 
-    // normals: no background, no fog, no FX layer, no shadow re-render
+    // Exclude background, fog, and effects from normals, and reuse the scene pass's shadow maps.
     const bg = this.scene.background;
     const fog = this.scene.fog;
     const autoShadow = renderer.shadowMap.autoUpdate;
@@ -243,7 +239,7 @@ export class SceneOutlinePass extends Pass {
     const thick = u.thickness!.value as number;
     const cam = this.camera;
     if ('isPerspectiveCamera' in cam) {
-      // threshold per unit of view depth; the shader scales it by each pixel's depth
+      // Scale the threshold by pixel footprint at unit depth; the shader applies each pixel's actual depth.
       const ty = Math.tan((cam.fov * Math.PI) / 360);
       (u.tanHalf!.value as Vector2).set(ty * cam.aspect, ty);
       u.isPersp!.value = 1;

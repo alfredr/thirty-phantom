@@ -35,7 +35,7 @@ export function toTexture(c: HTMLCanvasElement, opts: { repeat?: boolean; srgb?:
   return t;
 }
 
-/** Per-pixel luminance grain. */
+/** Add seeded RGB grain in place, with a slightly stronger blue component. Preserve alpha. */
 export function addNoise(ctx: Ctx, w: number, h: number, rng: Rng, amount: number): void {
   const img = ctx.getImageData(0, 0, w, h);
   const d = img.data;
@@ -68,7 +68,7 @@ function wrappedBlob(ctx: Ctx, S: number, x: number, y: number, r: number, color
   }
 }
 
-/** Cast-concrete panel: lavender grey, stains, pores, a seam around the tile. */
+/** Create a seeded, repeating concrete texture using `base`, with stains, pores, cracks, and optional panel seams. */
 export function concreteTexture(base: string, seed: number, seams = true): CanvasTexture {
   const S = 256;
   const { c, ctx } = makeCanvas(S, S);

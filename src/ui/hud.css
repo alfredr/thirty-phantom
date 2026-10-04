@@ -1,4 +1,4 @@
-/* Values track src/render/palette.ts so the HUD shares the world's slime and night. */
+/* Keep HUD color values aligned with src/render/palette.ts. */
 :root {
   --ink: #0d0716;
   --night: #160a26;
@@ -17,7 +17,7 @@
 }
 
 #hud {
-  /* the clock's accent follows the sky: sodium-lamp amber by day, slime once the moon is up */
+  /* Use amber clock accents by day and green accents at night. */
   --accent: var(--warm);
   --accent-glow: rgba(255, 207, 115, 0.45);
   position: fixed;
@@ -34,7 +34,7 @@
   --accent-glow: rgba(141, 255, 31, 0.55);
 }
 
-/* a soft ink band behind the top row so it reads over bright roofs and the dusk sky */
+/* Maintain top-row contrast over bright scene backgrounds. */
 #hud::before {
   content: '';
   position: absolute;
@@ -56,8 +56,7 @@
   letter-spacing: 0.03em;
 }
 
-/* Every HUD surface is the same material: an inked plate with a neon keyline and a hard
-   offset shadow, so it sits in the same comic linework as the scene's outline pass. */
+/* Share an outlined plate treatment with a neon inset and hard offset shadow across HUD surfaces. */
 .plate {
   position: relative;
   background: linear-gradient(180deg, var(--plum), var(--night) 70%);
@@ -115,8 +114,7 @@ kbd {
   padding-top: 3px;
 }
 
-/* The clock and the deck's occupancy board share one plate, top center: dial and time on
-   the left, the board on the right once the tutorial hands it over. */
+/* Center the shared clock, occupancy, and cash plate at the top of the screen. */
 .hud-status {
   position: absolute;
   top: 14px;
@@ -175,7 +173,7 @@ kbd {
   flex-direction: column;
   gap: 5px;
 }
-/* each digit gets a fixed cell and the hour two, right-aligned, so the plate never changes width */
+/* Reserve fixed digit widths, including two hour cells, to prevent clock layout shifts. */
 .clock-digits {
   display: flex;
   align-items: baseline;
@@ -220,8 +218,7 @@ kbd {
   stroke-linecap: round;
 }
 
-/* The deck's occupancy board, the right half of the clock plate. Thirty stalls, one per phantom
-   it takes to win: slime = a ghost the badge log still counts, purple = a car really parked. */
+/* Use green occupancy cells for phantoms and purple cells for vehicles still parked in the deck. */
 .hud-sign {
   position: relative;
   align-self: stretch;
@@ -233,14 +230,14 @@ kbd {
   border-right: 2px solid rgba(196, 107, 255, 0.35);
   animation: sign-drop 0.5s cubic-bezier(0.2, 1.5, 0.4, 1);
 }
-/* the slime runs along the plate's top edge */
+/* Extend the decorative drip across the occupancy panel’s top edge. */
 .hud-sign.drip::before {
   left: 0;
   right: 0;
   height: 14px;
   border-radius: 0;
 }
-/* held back until the tutorial's first phantom drops it in */
+/* Hide the occupancy panel until the tutorial reveals it. */
 .hud-sign.held {
   display: none;
 }
@@ -348,7 +345,7 @@ kbd {
   box-shadow: inset 0 0 0 1px var(--purple-hot);
 }
 
-/* Cody's cash at the plate's right end, matching the dial at its left: a coin with bills fanned out behind it */
+/* Balance the clock dial with the cash coin and banknote fan at the plate’s right end. */
 .hud-cash {
   position: relative;
   flex: none;
@@ -415,8 +412,7 @@ kbd {
   }
 }
 
-/* What Cody's carrying: tags top right (ui/inventory.ts). A tag with something to do has a
-   slime pip; click it (or press I) and its actions open beside it. */
+/* Style inventory tags from ui/inventory.ts, with a green indicator for usable items. */
 .hud-inv {
   position: absolute;
   top: 14px;
@@ -460,7 +456,7 @@ kbd {
 .inv-item.on {
   box-shadow: inset 0 0 0 2px var(--slime), 0 0 12px rgba(141, 255, 31, 0.45), 4px 4px 0 rgba(13, 7, 22, 0.8);
 }
-/* the picked item's actions, to its left */
+/* Open the selected item’s action menu to the left of its tag. */
 .inv-menu {
   position: absolute;
   top: -3px;
@@ -488,7 +484,7 @@ kbd {
 
 /* ------------------------------------------------------------------ prompts, help */
 
-/* sits just under the player, who the camera keeps at screen center */
+/* Place the default prompt beneath the centered player. */
 .hud-prompt {
   position: absolute;
   top: calc(50% + 62px);
@@ -512,7 +508,7 @@ kbd {
 #hud[data-mode='drive'] .hud-prompt {
   top: calc(50% + 84px);
 }
-/* the chase camera frames Cody low and center, so the prompt drops below him */
+/* Lower the prompt to match chase-camera framing while clearing the driving dashboard. */
 #hud[data-cam='chase'] .hud-prompt {
   top: auto;
   bottom: 9%;
@@ -677,8 +673,7 @@ kbd {
   text-shadow: 0 0 8px var(--accent-glow);
 }
 
-/* The monster truck's ghost tank, the dash unit's right pod: a fuel gauge reading GhASt.
-   Ghosts sucked in fill it; holding boost burns it. */
+/* Style the GhASt fuel gauge in the dashboard’s right pod. */
 .ghast {
   flex: none;
   width: 96px;
@@ -747,7 +742,7 @@ kbd {
   stroke: var(--ink);
   stroke-width: 1.5;
 }
-/* GAS with the ghost tucked in: G A S full size, the h and t small and dropped below the line */
+/* Preserve the GhASt wordmark with smaller, lowered h and t characters. */
 .ghast-label {
   position: absolute;
   left: 0;
@@ -766,7 +761,7 @@ kbd {
   margin: 0 0.04em;
   color: var(--bone);
 }
-/* a ghost going in (on the insides: the dial's own animation is its entrance) */
+/* Animate refill feedback on inner elements so it does not replace the dial’s entrance animation. */
 .ghast.gulp .ghast-svg,
 .ghast.gulp .ghast-label {
   animation: ghast-gulp 0.45s cubic-bezier(0.2, 1.8, 0.4, 1);
@@ -785,7 +780,7 @@ kbd {
     filter: drop-shadow(0 0 9px var(--slime-hot));
   }
 }
-/* burning: the tank flares white-hot and flickers */
+/* Highlight and flicker the fill while boost consumes GhASt. */
 .ghast.burn .ghast-fill {
   stroke: var(--slime-hot);
   animation: ghast-burn 0.12s steps(2) infinite;
@@ -803,8 +798,7 @@ kbd {
   }
 }
 
-/* The camera mode just picked, bottom left, for a moment (hud.showCamera). Flashing, its key
-   blinks for a player who hasn't found it yet. */
+/* Style the temporary camera notification from Hud.showCamera, including its introductory shortcut flash. */
 .hud-cam {
   position: absolute;
   left: 18px;
@@ -855,8 +849,7 @@ kbd {
 
 /* ------------------------------------------------------------------ Randy's wares */
 
-/* Randy's coat swung open (ui/wares.ts): his stock in slots on the lining, in his coat's own
-   colors (actors/models/randy.ts), stitched. Right side, middle. */
+/* Style ui/wares.ts as coat-lining slots using colors from actors/models/randy.ts. */
 .hud-wares {
   position: absolute;
   right: 22px;
@@ -886,12 +879,12 @@ kbd {
 .hud-wares.on {
   display: flex;
 }
-/* during a chat with Randy the dialogue takes the bottom: the panel moves up, under the clock plate */
+/* Move shop stock below the clock while dialogue occupies the bottom of the screen. */
 body.dialogue-open .hud-wares {
   top: 110px;
   translate: none;
 }
-/* the flap swings open */
+/* Rotate the shop panel into view like an opening coat flap. */
 .hud-wares.open {
   animation: wares-open 0.45s cubic-bezier(0.2, 1.4, 0.4, 1);
 }
@@ -947,7 +940,7 @@ body.dialogue-open .hud-wares {
   opacity: 0.4;
   filter: grayscale(0.6);
 }
-/* item icons (ui/item-icons.ts), in a wares slot and, small, in an inventory tag */
+/* Size icons from ui/item-icons.ts for shop slots and compact inventory tags. */
 .ware-slot .item-icon.icon-brisket {
   width: 38px;
   height: 29px;
@@ -1079,7 +1072,7 @@ body.dialogue-open .hud-wares {
 .wares-how kbd {
   font-size: 10px;
 }
-/* touch: what a picked slot's buttons look like */
+/* Provide large purchase buttons for the selected touch slot. */
 .wares-btn {
   display: flex;
   align-items: center;
@@ -1099,8 +1092,7 @@ body.dialogue-open .hud-wares {
 
 /* ------------------------------------------------------------------ objectives, minimap */
 
-/* Objective markers (ui/objective-marks.ts), in viewport pixels (the HUD's touch inset doesn't apply).
-   On target: a bobbing chevron over it with its label. Off screen: the chevron on the edge, pointing. */
+/* Position ui/objective-marks.ts in viewport coordinates, independently of HUD touch insets. */
 .hud-marks {
   position: fixed;
   inset: 0;
@@ -1179,7 +1171,7 @@ body.dialogue-open .hud-marks {
 .mark:not(.edge) .mark-dist {
   display: none;
 }
-/* optional: the lesser kind, smaller and lilac */
+/* Distinguish optional objectives with smaller lilac markers. */
 .mark.optional {
   --ty: calc(-100% - 24px);
 }
@@ -1198,9 +1190,7 @@ body.dialogue-open .hud-marks {
   color: var(--purple-hot);
 }
 
-/* The dash unit while driving: the minimap's screen in the middle of one plate, the speedometer
-   pod overlapping its left end and the GhASt pod its right. Equal wings keep the screen centered
-   whether or not GhASt is up. Without the map (touch screens) the pods just sit side by side. */
+/* Keep the dashboard map centered with equal side wings. Without a map, place the gauges side by side. */
 .dash-unit {
   display: flex;
   align-items: center;
@@ -1232,8 +1222,7 @@ body.dialogue-open .hud-marks {
   margin-left: 10px;
 }
 
-/* The minimap (ui/minimap.ts, desktop): a 16:10 screen. On foot it's in its own plate, bottom
-   left; while driving, in the dash unit's. */
+/* Provide a standalone corner frame for ui/minimap.ts, overridden when docked in the dashboard or phone. */
 .hud-map {
   position: absolute;
   left: 18px;
@@ -1254,7 +1243,7 @@ body.dialogue-open .hud-marks {
 .hud-map.off {
   display: none;
 }
-/* a conversation (ui/dialogue.ts) takes the bottom of the screen: the corner map hides and the dash slides away */
+/* Hide non-dashboard maps and retract the dashboard during conversations from ui/dialogue.ts. */
 body.dialogue-open .hud-map:not(.in-dash) {
   visibility: hidden;
 }
@@ -1273,7 +1262,7 @@ body.dialogue-open .hud-dash.show {
   width: 224px;
   height: 140px;
 }
-/* the camera pill moves up over the corner map */
+/* Reserve space above the optional corner map for walking camera notifications. */
 body:not(.touch) #hud[data-mode='foot'] .hud-cam {
   bottom: 190px;
 }
@@ -1304,7 +1293,7 @@ body:not(.touch) #hud[data-mode='foot'] .hud-cam {
   -webkit-text-stroke: 3px var(--purple-ink);
   text-shadow: 0 0 16px rgba(141, 255, 31, 0.55), 4px 4px 0 var(--purple);
 }
-/* the subtitle rides on an inked ribbon so it survives any background */
+/* Maintain toast subtitle contrast with a dark backing. */
 .toast .small {
   margin-top: 4px;
   padding: 4px 14px 3px;
@@ -1463,7 +1452,7 @@ body:not(.touch) #hud[data-mode='foot'] .hud-cam {
   }
 }
 
-/* NPC speech: the same inked plate, pinned over the speaker with a tail pointing at them */
+/* Anchor speech bubbles above their projected speaker positions. */
 .hud-bubble {
   position: absolute;
   left: 0;

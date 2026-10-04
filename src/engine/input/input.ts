@@ -1,6 +1,6 @@
 import { clamp } from '@/engine/core/math';
 
-/** Each control's keys (KeyboardEvent codes), by control. The first is the one a HUD shows. */
+/** KeyboardEvent codes for each control. The first code supplies its HUD label. */
 export type KeyTable<C extends string> = Readonly<Record<C, readonly [string, ...string[]]>>;
 
 /** The controls a touch stick pushes, one per direction. */
@@ -20,8 +20,8 @@ export interface KeyPress {
 }
 
 /**
- * Something that takes keys before the world does: a conversation, a sign, a menu, a shop. It says which controls it
- * takes right now; the top layer that takes a key's control gets the press, and the world never sees that key.
+ * Reserve controls for a UI surface. The topmost layer accepting a key receives its press before world input is
+ * updated. controls() may change with the layer’s current state.
  */
 export interface FocusLayer<C extends string> {
   controls(): readonly C[];
@@ -46,12 +46,12 @@ export class Focus<C extends string> {
     };
   }
 
-  /** Whether any layer takes `control` right now, so the world shouldn't offer anything for it. */
+  /** Return whether a focus layer currently reserves this control. */
   owns(control: C): boolean {
     return this.layers.some((layer) => layer.controls().includes(control));
   }
 
-  /** Offers a key press to the layers, top first. True if a layer took it. */
+  /** Dispatch to the topmost layer accepting this key. Return whether the press was handled. */
   route(code: string, key: KeyPress): boolean {
     for (let i = this.layers.length - 1; i >= 0; i--) {
       const layer = this.layers[i];
@@ -66,15 +66,15 @@ export class Focus<C extends string> {
   }
 }
 
-/** Key caps for codes whose name isn't what's printed on the key. */
+/** Display labels for key codes that need explicit mapping. */
 const CAPS: Readonly<Record<string, string>> = { Backquote: '~', Escape: 'ESC' };
 
-/** What's printed on a key: KeyF -> F, ShiftLeft -> SHIFT, Space -> SPACE, Backquote -> ~. */
+/** Convert a KeyboardEvent code into a display label, such as KeyF → F or ShiftLeft → SHIFT. */
 export function keyCap(code: string): string {
   return CAPS[code] ?? code.replace(/^Key|Left$|Right$/g, '').toUpperCase();
 }
 
-/** Keyboard + wheel state with per-frame edge detection, read by control (see KeyTable). */
+/** Keyboard, pointer, wheel, and touch input with per-frame key press detection. */
 export class Input<C extends string> {
   private readonly down = new Set<string>();
   private readonly pressed = new Set<string>();
@@ -83,12 +83,9 @@ export class Input<C extends string> {
   private mouseY = 0;
   private lockEl: HTMLElement | null = null;
   private dragging = false;
-  /**
-   * A cutscene has the controls: every read comes back empty (keys, stick, mouse, wheel). Focus layers still get their
-   * keys.
-   */
+  /** Suppress world input reads while preserving focus-layer key dispatch, such as during cutscenes. */
   muted = false;
-  /** Conversations, signs and menus, which take keys before the world. */
+  /** UI layers that receive key presses before world controls. */
   readonly focus: Focus<C>;
   /** Analog stick (touch): x to the right, y forward, each -1..1. axis() adds it to the keys. */
   private stickX = 0;
@@ -104,7 +101,7 @@ export class Input<C extends string> {
         e.preventDefault();
       }
 
-      // A conversation, sign or menu that takes this key gets it, and the world doesn't.
+      // Consumed key presses must not enter world input state.
       if (this.focus.route(e.code, { repeat: e.repeat, shift: e.shiftKey })) {
         e.preventDefault();
         return;
@@ -124,7 +121,7 @@ export class Input<C extends string> {
     window.addEventListener(
       'wheel',
       (e) => {
-        // over something on the HUD that scrolls (the phone's screen), the wheel scrolls it rather than zooming
+        // Preserve native scrolling inside HUD scroll regions.
         if (e.target instanceof Element && e.target.closest('[data-scroll]')) {
           return;
         }
@@ -153,7 +150,7 @@ export class Input<C extends string> {
     return clamp(keys + this.analog(pos) - this.analog(neg), -1, 1);
   }
 
-  /** How far the stick pushes toward one of its controls, 0..1. */
+  /** Return the stick component for a direction, or zero for an unrelated control. */
   private analog(c: C): number {
     const s = this.stick;
     if (c === s.right) {
@@ -175,19 +172,19 @@ export class Input<C extends string> {
     return 0;
   }
 
-  /** Touch stick: x to the right, y forward, each -1..1 (0, 0 when let go). */
+  /** Set touch stick components in [-1, 1]: x points right and y points forward. Use (0, 0) on release. */
   setStick(x: number, y: number): void {
     this.stickX = x;
     this.stickY = y;
   }
 
-  /** Look around by this many pixels, as if the mouse moved (touch drag). */
+  /** Accumulate pointer movement in pixels, including touch drags. */
   look(dx: number, dy: number): void {
     this.mouseX += dx;
     this.mouseY += dy;
   }
 
-  /** Zoom by wheel steps: positive zooms out (pinch). */
+  /** Accumulate zoom steps. Positive values zoom out. */
   zoom(steps: number): void {
     this.wheel += steps;
   }
@@ -205,7 +202,7 @@ export class Input<C extends string> {
 
       this.dragging = true;
 
-      // older browsers return nothing here; newer ones reject if the user backs out of the capture
+      // Support both void and Promise results, including rejected pointer lock requests.
       if (document.pointerLockElement !== el) {
         void Promise.resolve(el.requestPointerLock()).catch(() => undefined);
       }
@@ -216,7 +213,7 @@ export class Input<C extends string> {
         return;
       }
 
-      // Chrome can report one huge jump right after the capture starts
+      // Limit spurious movement reported when pointer lock begins.
       this.mouseX += clamp(e.movementX, -200, 200);
       this.mouseY += clamp(e.movementY, -200, 200);
     });
@@ -249,8 +246,8 @@ export class Input<C extends string> {
   }
 
   /**
-   * A press from outside the keyboard (a tap on a key cap, a test, the debug console), routed like a key: open layers
-   * first. Takes key codes ('KeyW'), not controls.
+   * Inject a key press through the focus stack. Accept a KeyboardEvent code such as 'KeyW', not a control name.
+   * Unconsumed presses last until endFrame() and do not change held-key state.
    */
   press(code: string): void {
     if (this.focus.route(code, { repeat: false, shift: false })) {

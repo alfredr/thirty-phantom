@@ -1,8 +1,7 @@
 import { mkdirSync } from 'node:fs';
 
-// Dev helper: headless screenshots of scripted game states.
-// usage: node tools/shot.mjs <url> <outdir> [scenario...]
-// Scenarios run __game.debug helpers, advance frames, then capture.
+// Capture screenshots of scripted game states using debug helpers and manual frame stepping.
+// Usage: node tools/shot.mjs <url> <outdir> [scenario...]
 import { chromium } from 'playwright-core';
 
 const url = process.argv[2] ?? 'http://localhost:4173/?manual=1';
@@ -19,7 +18,7 @@ const logs = [];
 page.on('console', (m) => logs.push(`[${m.type()}] ${m.text()}`));
 page.on('pageerror', (e) => logs.push(`[pageerror] ${e.message}`));
 
-// advance the game by hand: with ?manual nothing else drives it, so every run steps the same way
+// Use ?manual so only this helper advances the simulation.
 const step = async (n, dt = 1 / 30) => {
   await page.evaluate(
     ([n, dt]) => {

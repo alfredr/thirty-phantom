@@ -1,4 +1,4 @@
-/** A point or vector as three numbers, x y z. */
+/** A point or vector in x, y, z order. */
 export type V3 = [number, number, number];
 
 export const TAU = Math.PI * 2;

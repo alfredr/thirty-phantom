@@ -4,18 +4,16 @@ import { clamp } from '@/engine/core/math';
 const E = TUNING.audio.engines;
 
 /**
- * An engine's state, for its sound (the physics knows nothing of gears): revs from road speed through a gearbox, and
- * load from the throttle. In a gear the revs rise in step with the speed, so while it pulls they only ever rise; at the
- * top of a gear it shifts up and they drop, and slowing through a lower gear's range it shifts down and they come up
- * again. Stopped, it idles. The revs move at most so fast either way, like an engine with a flywheel.
+ * Derive engine sound controls from vehicle speed and throttle. Simulated gear shifts change the target RPM; rate
+ * limits smooth acceleration and deceleration. This gearbox affects audio only.
  */
 export class EngineState {
-  /** 0 idle to 1 redline. */
+  /** Normalized RPM: 0 at idle, 1 at redline. */
   rpm = 0;
-  /** How hard it's pulling: 0 coasting or braking, 1 flat out. */
+  /** Smoothed engine load: 0 while coasting or braking, 1 at full throttle. */
   load = 0;
   gear = 1;
-  /** Where each gear tops out, as a share of top speed: the low gears short, the top one long. */
+  /** Upper speed limit for each gear, expressed as a fraction of vehicle top speed. */
   private readonly tops: number[];
 
   constructor(gears: number) {
@@ -23,8 +21,8 @@ export class EngineState {
   }
 
   /**
-   * `speed`: a share of top speed; `throttle` -1..1 (below 0 brakes); `free`: the wheels aren't on the road (in the
-   * air, or tumbling).
+   * Update RPM and load. `speed` is relative to top speed; `throttle` ranges from -1 to 1. Set `free` when the wheels
+   * are airborne or the vehicle is tumbling.
    */
   update(dt: number, speed: number, throttle: number, free: boolean): void {
     const s = clamp(Math.abs(speed), 0, 1);
@@ -38,7 +36,7 @@ export class EngineState {
     }
 
     let target = (E.shift * s) / (tops[this.gear - 1] ?? 1);
-    // pulling away from a stop the clutch slips, and with the wheels off the road it revs free
+    // Allow RPM to rise under throttle at low speed and when the wheels have no traction.
     if (throttle > 0) {
       target = Math.max(target, free ? 0.55 + 0.4 * throttle : E.launch * throttle);
     }

@@ -12,7 +12,7 @@ const [{ Crowd }, { Rng }, { NavJob, NAV }, { Polyline }] = await loadModules(
   '/src/engine/nav/polyline.ts',
 );
 
-/** One person standing by their parked car, on a level with nowhere to run to. */
+/** Create one pedestrian with a parked car and overridable navigation services. */
 function onePerson({
   nav = { spotNear: () => null, standable: () => null, heightAt: () => null },
   planner = { request: () => null },

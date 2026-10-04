@@ -14,43 +14,37 @@ import { type Berth, type DriveAction, DriverJob, DriveTo, type DriveWorld, halt
 import type { Drivers } from './drivers';
 import type { Fleet } from './fleet';
 
-/** A car within this of a stall's middle (m, and this height) has it. */
+/** Horizontal and vertical tolerances for stall occupancy, in meters. */
 const TAKEN = 2.5;
 const SAME_LEVEL = 1.5;
-/**
- * A visitor starts on a lane at least this far from the view (out of sight), with this much room from other cars,
- * picked from this many lane points.
- */
+/** Minimum spawn distance from the view and vehicle spacing in meters, followed by the lane sample count. */
 const SPAWN_DIST = 55;
 const SPAWN_GAP = 9;
 const LANE_TRIES = 40;
-/** The route's ready but its start is in view or blocked: wait this long (s) for that to change, then forget it. */
+/** Timeout in seconds while a planned spawn remains too close to the view or obstructed. */
 const START_WAIT = 4;
-/** Speed it turns up at on the lane (m/s), so it isn't sitting stopped in the traffic. */
+/** Initial lane speed in m/s. */
 const START_SPEED = 6;
-/** Leaving: drives to a lane point this far from the stall (m), the one furthest from the view. */
+/** Minimum and maximum departure target distance from the stall, in meters. */
 const LEAVE_MIN = 15;
 const LEAVE_MAX = 50;
-/** Joins the lane's traffic once this close to its line (m) and lined up with it (cosine of the heading difference). */
+/** Lane re-entry offset in meters and minimum heading cosine. */
 const JOIN_OFFSET = 0.4;
 const JOIN_ALIGN = 0.95;
-/**
- * Parked cars close the ground out to their body plus this (m), so routes pass with room; a stall stays open this far
- * across and along from its middle.
- */
+/** Parked-car padding and stall-region half extents in meters. */
 const BLOCK_PAD = 1.1;
 const STALL_ACROSS = 2.6;
 const STALL_ALONG = 3.2;
-/** Regions run from just under a floor to above car height. */
+/** Region extent below and above the floor, in meters. */
 const BELOW = 0.3;
 const ABOVE = 2;
-/** A parked visitor's car that has moved this far (m) isn't where they left it. */
+/** Maximum displacement in meters before a visitor loses track of its parked car. */
 const MOVED = 0.5;
 
 const _p = new Vector3();
 const _d = new Vector3();
 
-/** A point on a traffic lane: where, heading which way, on which loop (its index too, for traffic) and how far round. */
+/** A traffic-loop position, heading, path index, and arc length. */
 interface LanePoint {
   pos: Vector3;
   yaw: number;
@@ -59,10 +53,7 @@ interface LanePoint {
   s: number;
 }
 
-/**
- * Someone on their way to a stall whose car hasn't turned up yet: waiting on the route from `lane`, then for its start
- * to be out of sight and clear.
- */
+/** Pending arrival waiting for a route, then for a distant clear spawn position. */
 interface Coming {
   bay: Berth;
   lane: LanePoint;
@@ -71,7 +62,7 @@ interface Coming {
   wait: number;
 }
 
-/** A stall's region: its middle, STALL_ACROSS by STALL_ALONG each way (turned with it), floor to car height. */
+/** Build axis-aligned bounds around the rotated stall, including its vertical extent. */
 function stallZone(center: Vector3, yaw: number): ZoneDef {
   const s = Math.abs(Math.sin(yaw));
   const c = Math.abs(Math.cos(yaw));
@@ -83,18 +74,15 @@ function stallZone(center: Vector3, yaw: number): ZoneDef {
   };
 }
 
-/** What a visitor's job needs from Visitors when it's over. */
+/** Callbacks for arrival and departure job completion. */
 interface VisitorHooks {
-  /** In its stall: the driver gets out to join the crowd. */
+  /** Register parking and spawn the pedestrian driver. */
   parked(car: Vehicle): void;
-  /** No route, or wedged twice. */
+  /** Handle a failed arrival or departure route. */
   giveUp(car: Vehicle, coming: boolean): void;
 }
 
-/**
- * A visitor drives in from a lane to a stall, eases in, and gets out. Spooked by phantom Cody, they steer clear of him
- * like anyone.
- */
+/** Follow an arrival route, avoid reported threats, and interpolate into the stall before notifying the visitor system. */
 export class Arrive extends DriverJob {
   constructor(
     readonly p: {
@@ -152,7 +140,7 @@ export class Arrive extends DriverJob {
   }
 }
 
-/** A visitor back at their car backs out and drives to a lane, joining its traffic once lined up on it. */
+/** Drive from a parked stall to a traffic lane and rejoin when aligned. */
 export class Leave extends DriverJob {
   constructor(
     readonly p: {
@@ -187,24 +175,22 @@ export class Leave extends DriverJob {
       return done;
     }
 
-    // On the lane's line and lined up with it, or (at the end of the route) wherever it got to: it's traffic now.
+    // At route completion, allow traffic to finish alignment even if normal re-entry checks fail.
     return join(car, lane, 'done' in result) ? done : running;
   }
 }
 
 /**
- * Townsfolk who drive. A newcomer to the crowd turns up in a car on a lane out of sight and drives (the same planner,
- * autopilot and driving actions as everyone else) to a free stall in a lot near the view, eases in, and gets out to
- * join the crowd. Later, back at the car, they back out and drive off to join the traffic. Their cars are 'visitor'
- * while driven and 'parked' in the stall; at the wheel they're among the game's drivers.
+ * Coordinate visitor arrivals, parked-car ownership, and departures. Plan arrivals before spawning distant cars, then
+ * release drivers into the crowd after parking. Departing drivers return their cars to traffic.
  */
 export class Visitors {
   private readonly bays: Berth[];
   private coming: Coming[] = [];
   private arrivals: Arrive[] = [];
-  /** Cars visitors left in stalls, and where, while their drivers are out and about. */
+  /** Parked visitor vehicles and their recorded parking positions. */
   private readonly parked = new Map<Vehicle, Vector3>();
-  /** Of those, the ones whose drivers aren't in the crowd yet (the level's own cars): someone can come back for one. */
+  /** Parked vehicles available to associate with a newly spawned pedestrian. */
   private readonly unclaimed = new Set<Vehicle>();
   private readonly view = new Vector3();
   private readonly hooks: VisitorHooks = {
@@ -219,9 +205,9 @@ export class Visitors {
     private readonly traffic: Traffic,
     private readonly drivers: Drivers,
     private readonly rng: Rng,
-    /** Where visitors never drive (the deck: they park in the lots). */
+    /** Regions excluded from visitor routes, including the deck. */
     private readonly keepOut: readonly ZoneDef[],
-    /** A visitor's car is parked in its stall: the driver gets out. */
+    /** Notify the crowd when a visitor parks. */
     private readonly arrive: (car: Vehicle) => void,
   ) {
     this.bays = bays.map((b) => ({ center: new Vector3(...b.pos), yaw: b.yaw }));
@@ -231,15 +217,12 @@ export class Visitors {
     return this.bays.length > 0;
   }
 
-  /** Cars on their way in, each bringing someone to the crowd. */
+  /** Pending and active arrivals that will add pedestrians. */
   get incoming(): number {
     return this.coming.length + this.live().length;
   }
 
-  /**
-   * Send someone in by car to a free stall near `near`. False if no stall is free there, or there's nowhere out of
-   * sight to start.
-   */
+  /** Queue an arrival to an available stall near `near`. Return false if no stall or distant clear lane point is found. */
   send(near: Vector3): boolean {
     const free = this.bays.filter((b) => b.center.distanceTo(near) < TUNING.crowd.bayReach && this.isFree(b));
     if (free.length === 0) {
@@ -259,7 +242,7 @@ export class Visitors {
     return true;
   }
 
-  /** The cars already sitting in stalls belong to people out in town, who'll come back for them in time. */
+  /** Register existing parked lot vehicles for future pedestrian ownership. */
   adopt(): void {
     for (const v of this.fleet.vehicles) {
       if (v.role !== 'parked' || v.gone || v.insideDeck || !this.bays.some((b) => this.holds(b, v))) {
@@ -271,7 +254,7 @@ export class Visitors {
     }
   }
 
-  /** A car in a stall near `near` whose driver can come back for it (and free the stall), or null. It's theirs now. */
+  /** Assign a random nearby unclaimed parked car, or return null. */
   claim(near: Vector3): Vehicle | null {
     const nearby: Vehicle[] = [];
     for (const v of this.unclaimed) {
@@ -291,14 +274,14 @@ export class Visitors {
     return car;
   }
 
-  /** Nobody came for it after all. */
+  /** Make a still-parked car available for another pedestrian assignment. */
   unclaim(car: Vehicle): void {
     if (this.waiting(car)) {
       this.unclaimed.add(car);
     }
   }
 
-  /** Is `car` still parked where its visitor left it (not stolen, towed or knocked about)? */
+  /** Test whether the car remains parked near its recorded position; discard invalid records. */
   waiting(car: Vehicle): boolean {
     const at = this.parked.get(car);
     if (!at) {
@@ -320,8 +303,8 @@ export class Visitors {
   }
 
   /**
-   * The visitor's back in `car`: drive it off to join the traffic. False if it can't (it's gone, or there's nowhere to
-   * go).
+   * Start departure toward a sampled traffic-lane point. Return false if the car is unavailable, no target exists, or
+   * the driver job cannot start.
    */
   leave(car: Vehicle): boolean {
     if (!this.waiting(car)) {
@@ -345,7 +328,7 @@ export class Visitors {
     );
   }
 
-  /** Its visitor is gone for good: the car goes once nobody's looking. */
+  /** Mark a still-parked car for distant removal after its owner is lost. */
   orphan(car: Vehicle): void {
     if (!this.waiting(car)) {
       return;
@@ -355,7 +338,10 @@ export class Visitors {
     this.fleet.abandon(car);
   }
 
-  /** `view`: where the camera is. Cars on their way in turn up once their route's ready and their start is out of sight. */
+  /**
+   * Update pending spawns using the current view target. Spawn only after planning succeeds and the start is distant
+   * and clear.
+   */
   update(dt: number, view: Vector3): void {
     this.view.copy(view);
     const waiting: Coming[] = [];
@@ -368,7 +354,7 @@ export class Visitors {
     this.coming = waiting;
   }
 
-  /** One frame of waiting for a newcomer's car to turn up; true once it has, or they've given up. */
+  /** Advance a pending arrival; return true when it spawns or is discarded. */
   private turnUp(c: Coming, dt: number): boolean {
     if (!c.job.settled) {
       return false;
@@ -407,8 +393,8 @@ export class Visitors {
   }
 
   /**
-   * No route, or wedged twice. Out of sight, the car just goes. Otherwise, coming in, they park where they are and get
-   * out (it's towed once out of sight); going out, they sit in it, and it goes the same way.
+   * Remove failed visitor cars immediately when distant. Nearby arrivals release their pedestrian driver; departures
+   * stop in place. Mark retained cars for distant removal.
    */
   private giveUp(car: Vehicle, coming: boolean): void {
     if (car.pos.distanceTo(this.view) > SPAWN_DIST) {
@@ -427,8 +413,8 @@ export class Visitors {
   }
 
   /**
-   * Leaving: on the lane's line and heading its way (or, with `force`, wherever it got to), it becomes traffic there.
-   * True if it did.
+   * Rejoin the selected traffic loop when aligned, or unconditionally when forced. Return whether the handover
+   * occurred.
    */
   private join(car: Vehicle, lane: LanePoint, force: boolean): boolean {
     const s = lane.line.project(car.pos);
@@ -440,7 +426,7 @@ export class Visitors {
       return false;
     }
 
-    // eased onto the line from wherever it got to, rather than snapped there
+    // Let traffic blend the car onto the lane from its current position.
     this.traffic.join(car, lane.path, s);
     car.cruise = Traffic.cruiseFor(this.rng);
     return true;
@@ -454,7 +440,7 @@ export class Visitors {
     });
   }
 
-  /** What a visitor's route keeps out of: the deck, and every parked car outside it. */
+  /** Combine excluded regions with padded obstacles for parked cars outside the deck. */
   private blocks(): ZoneDef[] {
     const out = [...this.keepOut];
     for (const o of this.fleet.vehicles) {
@@ -474,7 +460,7 @@ export class Visitors {
     );
   }
 
-  /** Is `v` standing in stall `b`? */
+  /** Test whether a live vehicle occupies the stall’s horizontal and vertical range. */
   private holds(b: Berth, v: Vehicle): boolean {
     return (
       !v.gone &&
@@ -487,7 +473,7 @@ export class Visitors {
     return !this.fleet.vehicles.some((v) => !v.gone && v.pos.distanceTo(p) < gap);
   }
 
-  /** The best-scoring of LANE_TRIES random points on the traffic lanes that pass `ok`, or null. */
+  /** Return the highest-scoring valid point among LANE_TRIES random lane samples, or null. */
   private lanePoint(ok: (p: Vector3) => boolean, score: (p: Vector3) => number): LanePoint | null {
     const paths = this.traffic.paths;
     if (paths.length === 0) {

@@ -4,26 +4,26 @@ import { TUNING } from '@/config';
 import type { CollisionWorld } from '@/engine/physics/collision';
 import type { VehicleParams } from '@/engine/physics/vehicle-params';
 
-/** Mass per cubic metre of a vehicle's box (kg): a sedan comes out about 1.3 t, the truck about 7. */
+/** Effective vehicle density in kg/m³, applied to the collision box volume. */
 const DENSITY = 100;
 /** Centre of mass, as a share of the body's height above the ground. */
 const COM_HEIGHT = 0.4;
 /** Bounce and grip against the ground and walls. */
 const BOUNCE = 0.18;
 const GRIP = 0.7;
-/** Substep length (s): short enough that a corner can't skip through a curb or a wall. */
+/** Target integration step in seconds. A frame uses at most eight substeps. */
 const SUBSTEP = 1 / 120;
-/** Settled: this slow (m/s, rad/s) for this long (s). */
+/** Linear speed, angular speed, and duration thresholds for settling, in m/s, rad/s, and seconds. */
 const REST_SPEED = 0.35;
 const REST_SPIN = 0.4;
 const REST_TIME = 0.4;
-/** Upright enough to drive off again: body up dotted with world up. */
+/** Minimum body-up/world-up dot product required to resume driving. */
 const UPRIGHT = 0.85;
 /** Corrects this share of a penetration per substep. */
 const PUSH_OUT = 0.6;
-/** On its wheels, friction only bites this share of the slip along its heading: wheels roll. */
+/** Retain this fraction of forward slip in wheel friction, allowing wheels to roll. */
 const ROLLING = 0.04;
-/** Wheels count as on the ground with the body at least this upright. */
+/** Minimum body-up/world-up dot product for treating lower-corner contacts as wheels. */
 const WHEELS_DOWN = 0.5;
 
 const _r = new Vector3();
@@ -48,10 +48,8 @@ export function vehicleMass(P: Pick<VehicleParams, 'radius' | 'length' | 'height
 }
 
 /**
- * A vehicle's body while it crashes: a box with mass and full 3D spin, tumbling on the collision world. Its sample
- * points (corners, edge middles) are pushed out of the ground, walls and ceilings with an impulse that has bounce and
- * friction, so it spins out, rolls and flips. Allocated once per vehicle, the first time it crashes; a step allocates
- * nothing.
+ * Simulate a vehicle as a rotating rigid box during crashes. Corner and edge samples generate contact impulses with
+ * restitution and friction against world solids. Reuse the body between crashes of the same vehicle form.
  */
 export class CrashBody {
   /** Orientation (body: +X right, +Y up, +Z forward), centre of mass, angular velocity (world). */
@@ -59,9 +57,9 @@ export class CrashBody {
   readonly com = new Vector3();
   readonly spin = new Vector3();
   readonly mass: number;
-  /** Centre of mass above the wheels' contact. */
+  /** Center-of-mass height above the wheel contact plane, in meters. */
   readonly comY: number;
-  /** Seconds it has been settled. */
+  /** Seconds below both motion thresholds. */
   rest = 0;
   private readonly invI: Vector3;
   /** Body-frame sample points, relative to the centre of mass: x, y, z per point. */
@@ -93,12 +91,12 @@ export class CrashBody {
     this.pts = new Float32Array(pts);
   }
 
-  /** World up of the body. */
+  /** Write the body’s up direction in world coordinates. */
   up(out: Vector3): Vector3 {
     return out.set(0, 1, 0).applyQuaternion(this.q);
   }
 
-  /** Forward of the body. */
+  /** Write the body’s forward direction in world coordinates. */
   forward(out: Vector3): Vector3 {
     return out.set(0, 0, 1).applyQuaternion(this.q);
   }
@@ -125,7 +123,7 @@ export class CrashBody {
     _iw.premultiply(_m);
   }
 
-  /** Push at world point (px,py,pz) with impulse j, from outside a step (another car). */
+  /** Apply an external impulse in kg·m/s at a world-space point and reset the settling timer. */
   push(vel: Vector3, px: number, py: number, pz: number, jx: number, jy: number, jz: number): void {
     this.rest = 0;
     this.inertia();
@@ -161,7 +159,7 @@ export class CrashBody {
     wheel = false,
   ): number {
     _r.set(px - this.com.x, py - this.com.y, pz - this.com.z);
-    // velocity of the point
+    // Contact velocity includes rotation about the center of mass.
     _p.crossVectors(this.spin, _r).add(vel);
     _n.set(nx, ny, nz);
     const vn = _p.dot(_n);
@@ -173,7 +171,7 @@ export class CrashBody {
     const kn = invM + _a.crossVectors(_r, _n).applyMatrix3(_iw).cross(_r).dot(_n);
     const jn = (-(1 + bounce) * vn) / kn;
     this.applyImpulse(vel, px, py, pz, nx * jn, ny * jn, nz * jn);
-    // friction against the sliding left over (a wheel rolls, so mostly its sideways slide)
+    // Apply tangential friction after restitution, reducing forward friction for wheel contacts.
     _p.crossVectors(this.spin, _r).add(vel);
     _t.copy(_p).addScaledVector(_n, -_p.dot(_n));
 
@@ -204,12 +202,12 @@ export class CrashBody {
     this.inertia();
   }
 
-  /** Feet position for the body's current pose (where the wheels' contact would be). */
+  /** Write the origin of the wheel contact plane for the current body orientation. */
   feet(out: Vector3): Vector3 {
     return out.copy(this.com).addScaledVector(this.up(_a), -this.comY);
   }
 
-  /** Tumble for dt. Returns the hardest impact (impulse per unit mass, m/s), for shake and damage. */
+  /** Advance by `dt` seconds. Return the largest normal impulse divided by mass, in m/s. */
   step(dt: number, vel: Vector3, world: CollisionWorld): number {
     let hardest = 0;
     const n = Math.min(8, Math.ceil(dt / SUBSTEP));
@@ -235,11 +233,11 @@ export class CrashBody {
           continue;
         }
 
-        // the first four points are the bottom corners, where the wheels are
+        // Only the four bottom corners qualify as wheel contacts.
         const wheel = wheelsDown && i < 12 && _hit.ny > 0.7;
         const j = this.contact(vel, px, py, pz, _hit.nx, _hit.ny, _hit.nz, BOUNCE, GRIP, wheel);
         hardest = Math.max(hardest, j / this.mass);
-        // the deepest push along each axis, so contacts on one face don't add up
+        // Use the largest correction per axis so contacts on one face do not accumulate.
         const dx = _hit.nx * _hit.depth;
         const dy = _hit.ny * _hit.depth;
         const dz = _hit.nz * _hit.depth;
@@ -273,12 +271,13 @@ export class CrashBody {
 }
 
 /**
- * Is (x,y,z) inside the ground (below street level, or a pit's floor) or a solid? Fills _hit with the shallowest way
- * out: over the top (a ramp's slope tilts that normal), under a slab, or out a side. Allocates nothing.
+ * Test penetration into the ground plane or enabled solids. Write the smallest candidate depth and its outward normal
+ * to exitHit; consume that shared result before another call. Ramp-top candidates use a slope normal and vertical
+ * depth. Return false when no penetration is found.
  */
 export function penetration(world: CollisionWorld, x: number, y: number, z: number): boolean {
   _hit.depth = Infinity;
-  // the ground plane: street level, or a pit's floor (the basement under the deck)
+  // Pit footprints replace street level with the pit floor.
   const plane = world.groundPlane(x, z);
   if (y < plane) {
     take(plane - y, 0, 1, 0);
@@ -318,7 +317,7 @@ export function penetration(world: CollisionWorld, x: number, y: number, z: numb
   return _hit.depth < Infinity;
 }
 
-/** Keep the shallower of the current way out and this one. */
+/** Retain the contact with the smallest candidate penetration depth. */
 function take(d: number, nx: number, ny: number, nz: number): void {
   if (d >= _hit.depth) {
     return;

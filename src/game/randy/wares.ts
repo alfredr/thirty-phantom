@@ -1,9 +1,6 @@
 import { ITEM_BREEDS, type ItemKind } from '@/game/items/item-breeds';
 
-/**
- * What Randy carries in his coat, slot by slot: the burner phone he gives Cody, then a lot of brisket (five stacks of
- * 128). What each costs is its breed's price.
- */
+/** Initial shop slots: one burner phone and five brisket stacks. Prices come from item metadata. */
 export const RANDY_STOCK: readonly { kind: ItemKind; count: number }[] = [
   { kind: 'burner', count: 1 },
   ...Array.from({ length: 5 }, () => ({ kind: 'brisket' as ItemKind, count: 128 })),
@@ -15,7 +12,7 @@ export interface WareSlot {
   count: number;
 }
 
-/** A slot as the shop menu shows it. */
+/** Shop slot data prepared for display. */
 export interface WareView {
   id: string;
   kind: ItemKind;
@@ -23,11 +20,11 @@ export interface WareView {
   icon?: string;
   count: number;
   price: number;
-  /** Cody can buy one now: it isn't empty and he can pay. */
+  /** Whether selling is enabled and at least one unit is available and affordable. */
   can: boolean;
 }
 
-/** Randy's coat as a shop: slots of goods that go down as Cody buys. */
+/** Track shop stock by stable slot ID. */
 export class Wares {
   readonly slots: WareSlot[];
 
@@ -39,15 +36,12 @@ export class Wares {
     return ITEM_BREEDS[kind].price ?? 0;
   }
 
-  /** The first slot holding `kind`, if any is left. */
+  /** Return the first nonempty slot of the requested kind, or null. */
   slotOf(kind: ItemKind): WareSlot | null {
     return this.slots.find((s) => s.kind === kind && s.count > 0) ?? null;
   }
 
-  /**
-   * The slots for the menu, given what Cody has to spend, and whether Randy's selling (the shop's open) or only showing
-   * them.
-   */
+  /** Build display data and purchase eligibility from the current balance and selling state. */
   view(cash: number, selling: boolean): WareView[] {
     return this.slots.map((s) => ({
       id: s.id,

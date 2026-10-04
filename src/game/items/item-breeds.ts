@@ -2,27 +2,24 @@ import type { PartKind } from '@/actors/models/junk';
 import type { SoundOf } from '@/audio/cues';
 import { ITEM_ICONS } from '@/ui/item-icons';
 
-/**
- * What Cody can carry: car parts picked up after smashes, Randy's brisket, what's left of his badge, and the burner
- * phone Randy gives him.
- */
+/** Item kinds supported by the inventory and pickup systems. */
 export type ItemKind = PartKind | 'brisket' | 'badge' | 'burner';
 
-/** One kind of thing Cody can carry: everything that differs from one kind to the next. */
+/** Display, audio, and shop metadata for an item kind. */
 export interface ItemBreed {
-  /** What the HUD calls it. */
+  /** HUD display name. */
   readonly name: string;
-  /** A line about it, shown when he picks it up, for the ones that have one. */
+  /** Optional pickup notification detail. */
   readonly note?: string;
-  /** What picking it up sounds like. */
+  /** Pickup sound cue. */
   readonly sound: SoundOf<'item'>;
-  /** Its icon (inline SVG) on the HUD's tags and in Randy's wares, for the ones that have one. */
+  /** Optional inline SVG for inventory and shop displays. */
   readonly icon?: string;
-  /** What Randy sells one for (dollars), for what he sells. */
+  /** Unit price in dollars, when sold by Randy. */
   readonly price?: number;
 }
 
-/** A car part: its name, and the clank of picking one up. */
+/** Create metadata for a part using the shared pickup sound. */
 const part = (name: string): ItemBreed => ({ name, sound: 'item-part' });
 
 export const ITEM_BREEDS: Readonly<Record<ItemKind, ItemBreed>> = {
@@ -35,7 +32,7 @@ export const ITEM_BREEDS: Readonly<Record<ItemKind, ItemBreed>> = {
   plate: part('LICENSE PLATE'),
   brisket: { name: 'BRISKET', sound: 'item-gift', icon: ITEM_ICONS.brisket, price: 10 },
   badge: { name: 'UNREADABLE BADGE', note: 'COVERED IN BBQ SAUCE', sound: 'item-gift' },
-  // on the house
+
   burner: {
     name: 'BURNER PHONE',
     note: "RANDY'S NUMBER'S THE ONLY ONE IN IT",
@@ -45,7 +42,7 @@ export const ITEM_BREEDS: Readonly<Record<ItemKind, ItemBreed>> = {
   },
 };
 
-/** Whether a name (from the HUD, say) is one of the items. */
+/** Test whether a string names a supported item kind. */
 export function isItemKind(k: string): k is ItemKind {
   return Object.hasOwn(ITEM_BREEDS, k);
 }

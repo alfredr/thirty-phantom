@@ -1,16 +1,13 @@
 import type { ItemKind } from './item-breeds';
 
-/**
- * What Cody can do with a thing he's carrying (the HUD offers these on its tag); `give` only when there's someone by
- * who wants it.
- */
+/** Inventory action identifiers. Availability is resolved by the interaction system. */
 export type ItemActionId = 'eat' | 'give';
 
 export function isItemAction(a: string): a is ItemActionId {
   return a === 'eat' || a === 'give';
 }
 
-/** Cody's pockets (and arms): how many of each thing he has, in the order he first got them. */
+/** Track item counts in insertion order. Removing the last item also removes its position in that order. */
 export class Inventory {
   private readonly counts = new Map<ItemKind, number>();
 
@@ -26,7 +23,7 @@ export class Inventory {
     this.counts.set(kind, this.count(kind) + n);
   }
 
-  /** Takes up to `n` (all of them by default); returns how many it took. */
+  /** Remove up to `n` items, or all by default, and return the amount removed. */
   take(kind: ItemKind, n = Infinity): number {
     const got = Math.min(n, this.count(kind));
     if (got <= 0) {
@@ -43,7 +40,7 @@ export class Inventory {
     return got;
   }
 
-  /** What he's holding, as (kind, count) pairs. */
+  /** Return the current item counts in insertion order. */
   list(): [ItemKind, number][] {
     return [...this.counts];
   }

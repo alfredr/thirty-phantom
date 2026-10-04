@@ -10,26 +10,26 @@ import type { Messages } from './messages';
 
 import './phone.css';
 
-/** Real milliseconds the phone stays up after coming up by itself (a text) before it slides back to the edge. */
+/** Wall-clock delay in milliseconds before an automatic notification retracts to the screen edge. */
 const HOLD = 9000;
-/** How far an app's screen scrolls for each up or down (px). */
+/** Vertical scroll distance per menu control press, in CSS pixels. */
 const SCROLL = 48;
 /** The keys that open apps from the home screen, in order. */
 const APP_KEYS: readonly Control[] = ['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6', 'slot7', 'slot8', 'slot9'];
 
-/** An app on the phone: a screen of its own, built once and redrawn while it's showing. */
+/** Phone application lifecycle: mount once, receive selection changes, and update while the phone is raised. */
 export interface PhoneApp {
   readonly id: string;
   readonly name: string;
-  /** Its icon on the home screen (HTML: an inline SVG). */
+  /** Home-screen icon as HTML markup, typically inline SVG. */
   readonly icon: string;
   /** Builds its screen inside `root`, once. */
   mount(root: HTMLElement): void;
-  /** Its screen came up (true) or went away (false). */
+  /** Notify selection or deselection of this app, independently of the phone’s raised state. */
   shown?(on: boolean): void;
-  /** Its screen is up this frame: redraw what changed. */
+  /** Refresh the selected app while the phone is raised. */
   update?(): void;
-  /** How many things on it Cody hasn't seen yet (new texts), for a badge on its icon. */
+  /** Unread count shown in the app’s home-screen badge. */
   unseen?(): number;
 }
 
@@ -42,13 +42,12 @@ export interface PhoneStatus {
 }
 
 /**
- * Cody's phone: Randy's burner. ~ (or the phone button) brings it up on its home screen of apps; it also comes up by
- * itself when Randy texts or calls, and slides back to a strip at the edge after (click or tap that to bring it back).
- * Up in Cody's hand, its keys are its own: 1 to 9 open an app, the arrows or Tab move between them and Enter opens one,
- * Esc goes back and then puts it away. The task right now sits in a line under the clock, phone up or not.
+ * Manage the burner phone’s applications, notifications, and call screen. Manual opening holds the phone onscreen and
+ * reserves navigation controls. Automatic notifications retract to an edge tab after HOLD; calls remain raised until
+ * ended. The current task appears separately beneath the HUD clock.
  */
 export class Phone {
-  /** It sounds off (for the game's 'phone' event): starts ringing, stops ringing, a text lands. */
+  /** Notify the game when ringing starts, ringing stops, or a text arrives. */
   onBuzz: ((what: 'ring' | 'hangup' | 'text') => void) | null = null;
   private readonly frame: HTMLDivElement;
   private readonly badges = new Map<PhoneApp, HTMLElement>();
@@ -61,11 +60,11 @@ export class Phone {
   private app: PhoneApp | null = null;
   /** The home screen's highlighted app. */
   private pick = 0;
-  /** Cody has it up (he opened it): it stays till he puts it away, and its keys are its own. */
+  /** Whether manually opened; held phones reserve controls and do not retract automatically. */
   private held = false;
   private unfocus: (() => void) | null = null;
   private lower = 0;
-  /** Its apps, home screen order: Randy's texts first. */
+  /** Applications in home-screen order, with messages first. */
   readonly apps: readonly PhoneApp[];
 
   constructor(
@@ -106,7 +105,7 @@ export class Phone {
       back.addEventListener('click', () => this.go(null));
       el('span', 'title', head, app.name);
       const body = el('div', 'phone-body', page);
-      // the wheel scrolls it, not the camera (core/input.ts)
+      // engine/input/input.ts preserves wheel scrolling inside data-scroll elements.
       body.dataset.scroll = '';
       this.bodies.set(app, body);
       app.mount(body);
@@ -124,7 +123,7 @@ export class Phone {
         goal.innerHTML = task ? keyText(task) : '';
       },
     });
-    // back up from the edge for another look
+    // Tapping the retracted tab manually opens the previously selected app.
     this.frame.addEventListener('click', () => {
       if (this.frame.classList.contains('peek')) {
         this.open(this.app?.id);
@@ -133,7 +132,7 @@ export class Phone {
     this.showScreen();
   }
 
-  /** Up (on the home screen, or on app `id`) if it's away, or away if it's up. */
+  /** Close a held phone when no app is requested or that app is selected; otherwise open the requested screen. */
   toggle(id?: string): void {
     if (this.held && (!id || this.app?.id === id)) {
       this.putAway();
@@ -142,7 +141,7 @@ export class Phone {
     }
   }
 
-  /** Cody brings it up, on app `id` or the home screen. It stays up till he puts it away. */
+  /** Raise and hold the phone on app `id`, or home when the ID is absent or unknown. Reserve phone controls. */
   open(id?: string): void {
     this.held = true;
     this.raise(false);
@@ -153,7 +152,7 @@ export class Phone {
     });
   }
 
-  /** Cody puts it away: off the screen, and its keys go back to the world. */
+  /** Hide the phone, cancel automatic retraction, and release reserved controls. */
   putAway(): void {
     this.held = false;
     this.unfocus?.();
@@ -162,7 +161,7 @@ export class Phone {
     this.frame.classList.remove('up', 'peek');
   }
 
-  /** Shows app `id` (a text came in): up by itself for a while if Cody hasn't got it up, then back to the edge. */
+  /** Show a notification app temporarily unless the phone is manually held. */
   notify(id: string): void {
     if (this.held) {
       return;
@@ -172,10 +171,7 @@ export class Phone {
     this.raise();
   }
 
-  /**
-   * A text from Randy: up comes the phone on his thread (if Cody hasn't got it up), he types, it lands. HTML is
-   * allowed, and `{action}` becomes its key cap.
-   */
+  /** End any call, optionally raise Messages, and queue HTML text with `{action}` key-cap placeholders. */
   text(msg: string): void {
     this.hangUp();
     this.notify('messages');
@@ -189,14 +185,14 @@ export class Phone {
     }
   }
 
-  /** Randy ringing: the incoming-call screen, the phone up and buzzing, till endCall. */
+  /** Raise the incoming-call screen and start ringing without automatic retraction. */
   call(): void {
     this.frame.classList.add('calling');
     this.onBuzz?.('ring');
     this.raise(false);
   }
 
-  /** The call's over: back to what was on screen, and (unless Cody has it up) back to the edge. */
+  /** End ringing and restore the previous screen. Retract to the edge unless the phone is manually held. */
   endCall(): void {
     this.hangUp();
 
@@ -205,7 +201,7 @@ export class Phone {
     }
   }
 
-  /** It buzzes in his hand (a text landed). */
+  /** Restart the visual vibration animation and emit the text sound event. */
   buzz(): void {
     this.frame.classList.remove('buzz');
     void this.frame.offsetWidth;
@@ -219,7 +215,7 @@ export class Phone {
     this.putAway();
   }
 
-  /** Once a frame: the status bar, the badges, and the app on screen. */
+  /** Refresh status bindings and unread badges, then update the selected app if the phone is raised. */
   update(): void {
     this.views.update();
 
@@ -241,7 +237,7 @@ export class Phone {
     return this.app?.id === id && this.frame.classList.contains('up');
   }
 
-  /** The app body for app `id` (where it draws), whether or not it's showing. */
+  /** Return the mounted content element for an app ID, or null if unknown. */
   body(id: string): HTMLElement | null {
     const app = this.apps.find((a) => a.id === id);
     return app ? (this.bodies.get(app) ?? null) : null;
@@ -283,7 +279,7 @@ export class Phone {
     }
   }
 
-  /** App `app` on screen, or the home screen. */
+  /** Select an app or home and notify applications whose selection state changes. */
   private go(app: PhoneApp | null): void {
     if (app === this.app) {
       return;
@@ -320,7 +316,7 @@ export class Phone {
     this.onBuzz?.('hangup');
   }
 
-  /** Pan the phone in, and (unless `lower` is off) back to the edge after a while. */
+  /** Raise the phone and optionally schedule edge retraction after HOLD milliseconds. */
   private raise(lower = true): void {
     this.frame.classList.remove('peek');
     this.frame.classList.add('up');

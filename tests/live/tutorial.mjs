@@ -1,14 +1,14 @@
-// The tutorial, played through from the roof chat to the end. Each case runs in the page (see tools/scenarios.mjs).
-// Dialogues are talked through with real key presses, times of day are set on the clock, cars are
-// boarded for real, and an escape is handed to the game as a crossing (as if off a kicker).
+// Tutorial browser scenarios, from the roof conversation through completion (see tools/scenarios.mjs).
+// Advance dialogue with input events, set the clock directly, and board vehicles through the game API.
+// Inject escape crossings to test tutorial progression without reproducing the jump physics.
 
-/** Run these with the tutorial on. */
+/** Enable the tutorial when the scenario runner starts each case. */
 export const tutorial = true;
 
-/** The goal under the clock, as shown. */
+/** Read the currently displayed goal beneath the clock. */
 const goal = () => document.querySelector('.burner-goal.on')?.textContent?.trim() ?? '';
 
-/** The objective markers up, by label, sorted. */
+/** Return the visible objective labels in sorted order. */
 const marks = () =>
   window.__game.objectives.list
     .map((o) => o.label)
@@ -16,8 +16,8 @@ const marks = () =>
     .join(',');
 
 /**
- * Frames on, talking through any dialogue or sign that comes up (F), until `done()` or `seconds` pass. Returns whether
- * it got there.
+ * Advance at 30 FPS, pressing F through dialogue and signs until done() succeeds or the time limit expires. Return
+ * whether done() succeeded.
  */
 const playUntil = (done, seconds) => {
   const g = window.__game;
@@ -36,7 +36,7 @@ const playUntil = (done, seconds) => {
   return done();
 };
 
-/** The whole tutorial: each beat in order, and the goal it leaves under the clock. Reports how far it got. */
+/** Complete each tutorial stage in sequence and report its goal, markers, and any failed checkpoint. */
 export function playsThrough() {
   const g = window.__game;
   const sim = window.__sim;
@@ -48,7 +48,7 @@ export function playsThrough() {
 
   const result = () => ({ ok: reached.every((r) => r.ok) && reached.at(-1)?.step === 'done', reached });
 
-  // the roof: Randy at the window, the clock waiting at half past five, then out to find the badge
+  // Verify the opening scene holds Randy at the window and the clock at 17:30 before introducing the badge objective.
   g.start();
   const truck = g.vehicles.find((v) => v.role === 'player');
   const randy = g.npcs.find('randy');
@@ -71,7 +71,7 @@ export function playsThrough() {
     return result();
   }
 
-  // seven o'clock: Randy's gone in a puff, rings to say sorry, then texts him back to the pickup
+  // Advance to sunset and wait for the call that sends Cody back to the pickup.
   g.clock.hours = 18.99;
 
   if (
@@ -83,14 +83,14 @@ export function playsThrough() {
     return result();
   }
 
-  // back in: the jump
+  // Board the pickup and verify that the jump objective clears the map markers.
   g.board(truck);
 
   if (!at('jump', sim.playUntil(() => /OFF THE ROOF/.test(sim.goal()), 5) && sim.marks() === '')) {
     return result();
   }
 
-  // off a kicker: the first phantom; it idles, Randy rings, the camera shows the imprint, then the joyride
+  // Inject the first escape and advance through the phantom explanation to the driving objective.
   g.onCrossing({ vehicle: truck, kind: 'escaped' });
 
   if (
@@ -103,14 +103,14 @@ export function playsThrough() {
     return result();
   }
 
-  // ten o'clock: the call, and down to the basement with wheels
+  // Advance to 22:00 and wait for the tire objective and Randy’s marker.
   g.clock.hours = 21.99;
 
   if (!at('basement', sim.playUntil(() => /FIND TIRES/.test(sim.goal()), 40) && sim.marks() === 'RANDY')) {
     return result();
   }
 
-  // no tires: sent back out for some
+  // Visit Randy without tires and verify that the tire objective remains active.
   g.alight();
   sim.run(10);
   const P = g.player.pos.constructor;
@@ -127,7 +127,7 @@ export function playsThrough() {
     return result();
   }
 
-  // with tires: the brisket, paid for the tires as they go in
+  // Trade a tire and verify payment before the next objective appears.
   g.inventory.add('tire', 1);
   const brisketBefore = g.inventory.count('brisket');
   sim.run(3);
@@ -138,7 +138,7 @@ export function playsThrough() {
     return result();
   }
 
-  // out under the moon: phantom Cody, and the first lessons
+  // Move outside and wait for Cody’s night form and the scare objective.
   const road = g.traffic.paths[0].sample(0, g.player.pos.clone());
   g.player.place(road, 0);
 
@@ -146,7 +146,7 @@ export function playsThrough() {
     return result();
   }
 
-  // a real scare, then raise the dead
+  // Trigger a scare, then summon skeletons to advance to possession.
   sim.playUntil(() => g.debug.scare(6) >= 0 && /RAISE THE DEAD/.test(sim.goal()), 60);
 
   if (!at('raise', /RAISE THE DEAD/.test(sim.goal()))) {
@@ -161,7 +161,7 @@ export function playsThrough() {
     return result();
   }
 
-  // possess one in the deck and get it out
+  // Possess a deck car and inject its escape crossing.
   const inDeck = g.vehicles.find((v) => v.role === 'parked' && v.insideDeck && v.form === 'car');
   if (!inDeck) {
     return { ok: false, why: 'no car in the deck', reached };
@@ -172,8 +172,8 @@ export function playsThrough() {
   g.onCrossing({ vehicle: inDeck, kind: 'escaped' });
   sim.run(30);
 
-  // morning: the day job. Steal one, badge it in, park it upstairs and get out
-  // (sunrise is at half past seven)
+  // Advance through sunrise at 07:30, then steal, register, and park a street car.
+
   g.clock.hours = 7.49;
 
   if (
@@ -229,9 +229,9 @@ export function playsThrough() {
     return result();
   }
 
-  // night again: possess, out, and that's the whole racket
+  // Complete the second night’s possession and escape sequence.
   g.clock.hours = 18.99;
-  // (and phantom Cody again once his outfit's changed: only he possesses)
+  // Wait for Cody’s night transformation to finish before boarding.
   sim.playUntil(() => /POSSESS A CAR/.test(sim.goal()) && g.player.form === 'night' && !g.transform, 30);
   const second = g.vehicles.find((v) => v.role === 'parked' && v.insideDeck && v.form === 'car');
   if (!second) {
@@ -418,5 +418,5 @@ export function restoresPreviousRulesAfterFirstNight() {
   return { ok: woke && !g.sleepAfterEating && !g.tires.enabled && g.keepEscaped && !g.cody.holdForm };
 }
 
-/** Steps shared by this set's cases, installed on window.__sim before each one. */
+/** Shared browser scenario helpers installed on window.__sim before each case. */
 export const steps = { goal, marks, playUntil, reachScene };

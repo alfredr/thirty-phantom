@@ -3,16 +3,13 @@ import { Vector3 } from 'three';
 import { RouteCursor } from '@/engine/nav/polyline';
 import type { NavJob, NavPlanner, NavProfile, NavQuery } from '@/world/nav-grid';
 
-/** Replan when the goal changes, when the driver strays this far, or this often anyway. */
+/** Route deviation threshold in meters, refresh interval in seconds, and look-ahead distance in meters. */
 const STRAY = 7;
 const REFRESH = 6;
 const LOOK_AHEAD = 10;
 const NO_QUERY: NavQuery = {};
 
-/**
- * The HUD arrow's route: planned with the shared planner and followed with a cursor, so it points along the real way
- * there (up the right ramp, through the entry gate) instead of straight at the goal.
- */
+/** Provide a route target for the HUD arrow using the shared navigation planner. */
 export class RouteGuide {
   private job: NavJob | null = null;
   private cursor: RouteCursor | null = null;
@@ -22,7 +19,7 @@ export class RouteGuide {
 
   constructor(private readonly planner: NavPlanner) {}
 
-  /** Point to aim at. Until the first plan lands it aims straight at the goal. */
+  /** Return a point ahead on the route, or the goal until a route is available. Change `key` to reset the route. */
   update(dt: number, from: Vector3, goal: Vector3, key: string, p: NavProfile, q: NavQuery = NO_QUERY): Vector3 {
     this.age += dt;
 
@@ -53,7 +50,7 @@ export class RouteGuide {
     return this.cursor.ahead(LOOK_AHEAD, this.out);
   }
 
-  /** Drop the route (no goal right now). */
+  /** Cancel pending planning and clear the current route. */
   reset(): void {
     this.job?.cancel();
     this.job = null;

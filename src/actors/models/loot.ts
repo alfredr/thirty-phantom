@@ -2,13 +2,13 @@ import type { Group } from 'three';
 
 import { box, build, model, NO_CAST, solid } from './part';
 
-/** Money people drop: a banded stack of bills, or a wallet with bills peeking out. */
+/** Collectible money models: a banded cash stack or a wallet. */
 export type LootKind = 'cash' | 'wallet';
 
 const BILL = '#6fbf5e';
 const BAND = '#efe0a8';
 const LEATHER = '#5a3424';
-/** Bills glow a little so a drop reads at night. */
+/** Emissive intensity that keeps dropped bills visible at night. */
 const BILL_GLOW = 0.35;
 
 /** A stack of bills with a paper band, resting on y=0, long side along z. */

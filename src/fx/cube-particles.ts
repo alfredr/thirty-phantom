@@ -27,7 +27,7 @@ const _q = new Quaternion();
 const _s = new Vector3();
 const _e = new Vector3();
 
-/** Instanced cube particles: slime splats, concrete debris. They bounce on the floor they spawned over. */
+/** Reuse instanced cubes for debris and slime particles. Each particle bounces against a fixed floor height. */
 export class CubeParticles {
   readonly mesh: InstancedMesh;
   private readonly ps: P[] = [];
@@ -59,7 +59,7 @@ export class CubeParticles {
     }
   }
 
-  /** One particle. Its color goes straight into the instance colors: it never changes after this. */
+  /** Initialize the next pooled particle, replacing its previous contents. Color stays fixed for its lifetime. */
   spawn(pos: Vector3, vel: Vector3, size: number, life: number, color: Color, floor = pos.y): void {
     const i = this.cursor;
     const p = this.ps[i] as P;

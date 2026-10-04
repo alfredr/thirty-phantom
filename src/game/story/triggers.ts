@@ -2,16 +2,15 @@ import type { Inventory, ItemActionId } from '@/game/items/inventory';
 import type { ItemKind } from '@/game/items/item-breeds';
 import type { NpcDef } from '@/world/level-data';
 
-/** Something Cody did with an item: picked it up (or was handed it), used it, gave it to someone. */
+/** An inventory event recording acquisition, use, or transfer. */
 export type ItemDeed =
   | { how: 'got'; kind: ItemKind; n: number }
   | { how: 'used'; kind: ItemKind; action: ItemActionId }
   | { how: 'gave'; kind: ItemKind; n: number; to: NpcDef['id'] };
 
 /**
- * What a trigger waits for. `has` is a state: met as soon as Cody holds `count` (default 1) of the item. The others
- * count deeds: `count` of them (default 1) from when the trigger was set, or from the start of the game with `past`.
- * `gave` without `to` takes anyone.
+ * Inventory milestone conditions. `has` tests the current count; other conditions accumulate matching quantities or
+ * uses. Counts default to one. Set `past` to include prior deeds; omit `to` to accept any recipient.
  */
 export type ItemTrigger =
   | { has: ItemKind; count?: number }
@@ -22,11 +21,11 @@ export type ItemTrigger =
 interface Live {
   when: ItemTrigger;
   fire: () => void;
-  /** Matching deeds counted so far. */
+  /** Accumulated matching quantity or use count. */
   seen: number;
 }
 
-/** How much deed `d` counts toward trigger `t` (0 if it's not what it waits for). */
+/** Return the quantity or use count contributed by a matching deed, or zero. */
 function counts(t: ItemTrigger, d: ItemDeed): number {
   if ('got' in t) {
     return d.how === 'got' && d.kind === t.got ? d.n : 0;
@@ -43,19 +42,15 @@ function counts(t: ItemTrigger, d: ItemDeed): number {
   return 0;
 }
 
-/**
- * Triggers on what Cody carries and does with it, for scripts to hang milestones on: "has the badge", "gave Randy
- * tires", "ate a brisket". Each fires once, when it's met; the game reports every deed here and checks again whenever
- * the inventory changes.
- */
+/** Fire inventory milestone callbacks once. Report deeds here and call check() after other inventory changes. */
 export class Triggers {
-  /** Every deed so far, for triggers that count from the start. */
+  /** Recorded deeds used when a trigger includes past activity. */
   readonly history: ItemDeed[] = [];
   private readonly live: Live[] = [];
 
   constructor(private readonly inventory: Inventory) {}
 
-  /** Run `fire` once `when` is met (straight away if it already is). Returns a function that calls it off. */
+  /** Register a callback and check it immediately. Return a function that cancels it. */
   on(when: ItemTrigger, fire: () => void): () => void {
     const past = 'past' in when && when.past === true;
     const t: Live = { when, fire, seen: past ? this.history.reduce((n, d) => n + counts(when, d), 0) : 0 };
@@ -70,7 +65,7 @@ export class Triggers {
     };
   }
 
-  /** Cody did something with an item: count it toward every trigger it matches, then fire the ones that are met. */
+  /** Record a deed, update matching trigger counts, and check for completion. */
   deed(d: ItemDeed): void {
     this.history.push(d);
 
@@ -81,7 +76,7 @@ export class Triggers {
     this.check();
   }
 
-  /** Fire every trigger that's met now. */
+  /** Fire and remove all currently satisfied triggers. */
   check(): void {
     for (const t of [...this.live]) {
       // An earlier callback may have cancelled this trigger or fired it in a nested check.

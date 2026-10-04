@@ -17,7 +17,7 @@ const nearestFirst = (a: Scored, b: Scored): number => a.d - b.d;
 /**
  * A fixed number of real point lights reassigned every frame to the emitters nearest the camera focus. Keeps shader
  * light count constant (no recompiles) while lamps near the action still light vehicles and characters. Intensities
- * fade toward the cut-off so lights never pop.
+ * fade near the selection distance to soften changes in light assignment.
  */
 export class LightPool {
   readonly root = new Group();
@@ -37,7 +37,7 @@ export class LightPool {
   }
 
   update(focus: Vector3): void {
-    // dead lamps (knocked over) never take a light
+    // Exclude disabled emitters from light assignment.
     for (const s of this.scored) {
       s.d = s.e.strength > 0 ? s.e.pos.distanceToSquared(focus) : Infinity;
     }

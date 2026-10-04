@@ -11,17 +11,17 @@ import type { ItemKind } from './item-breeds';
 
 const J = TUNING.junk;
 
-/** Parts fly out from about bumper height, tumbling (rad/s), under this gravity. */
+/** Launch height in meters, maximum angular speed in rad/s, and gravity in m/s². */
 const BUMPER = 0.6;
 const TUMBLE = 9;
 const GRAVITY = 14;
-/** Thrown this far either side of straight out from the car (rad). */
+/** Maximum angular deviation from the outward launch direction, in radians. */
 const SPREAD = 1.1;
-/** A part bounces off the ground once with this share of its speed, then lies flat. */
+/** Fraction of velocity and spin retained for the single ground bounce. */
 const BOUNCE = 0.3;
-/** It shrinks away over its last few seconds. */
+/** Shrink duration before expiry, in seconds. */
 const FADE = 2;
-/** The ground under a flying part is looked for this far above it (m), so one sailing off a deck finds the street. */
+/** Height allowance in meters for finding the ground beneath a descending part. */
 const LOOK_UP = 0.5;
 const _g = new Vector3();
 
@@ -34,13 +34,13 @@ interface Part {
   bounced: boolean;
   landed: boolean;
   age: number;
-  /** Something that matters (Cody's badge): it stays till he picks it up, marked so it's seen. */
+  /** Keep this item until collection and show a highlight. */
   keep: boolean;
   highlight: Highlight | null;
   root: Object3D;
 }
 
-/** What a car has shed so far, and when it last did. */
+/** Per-vehicle part and tire counts, with the last shedding time in seconds. */
 interface Shed {
   parts: number;
   tires: number;
@@ -48,10 +48,8 @@ interface Shed {
 }
 
 /**
- * Things lying about for Cody to pick up on foot. Mostly car parts knocked off in smashes: tires, hubcaps, mirrors,
- * bumpers and the like fly out from the hit, tumble, bounce once and lie where they land until he walks over them (or
- * they're old). Each car only has so much to lose, and only as many tires as it has wheels. Anything else that ends up
- * on the ground (his badge, where Randy threw it) can be laid down here to stay till he picks it up.
+ * Manage collectible debris with per-car part limits and a global debris limit. Parts tumble, bounce once, and expire
+ * unless collected. Items placed with `lay` remain highlighted until collection.
  */
 export class Junk {
   private readonly parts: Part[] = [];
@@ -64,7 +62,7 @@ export class Junk {
     private readonly rng: Rng,
   ) {}
 
-  /** `car` took a hit at `at` that changed its speed by `dv` (m/s): bits come off, if it was hard enough. */
+  /** Shed parts when the impact velocity change `dv`, in m/s, exceeds the configured threshold. */
   hit(car: Vehicle, at: Vector3, dv: number): void {
     if (dv < J.crashDv) {
       return;
@@ -73,14 +71,14 @@ export class Junk {
     this.lose(car, at, Math.min(J.perHit, 1 + Math.floor((dv - J.crashDv) / J.perDv)));
   }
 
-  /** `car` was flattened: a pile of parts at once, out of whatever it has left. */
+  /** Request the configured number of parts for a crushed car, subject to shedding limits. */
   crushed(car: Vehicle): void {
     this.lose(car, car.pos, J.crushed);
   }
 
   /**
-   * `item` (already in the scene, where it lies) is `kind`, there to pick up from the ground at `floor` for as long as
-   * it takes.
+   * Register an item at its current position as a permanent pickup. Attach it to the scene and highlight the ground at
+   * `floor`.
    */
   lay(kind: ItemKind, item: Object3D, floor: number): void {
     if (item.parent !== this.scene) {
@@ -105,7 +103,7 @@ export class Junk {
     });
   }
 
-  /** Walk along: returns what Cody (on foot at `pos`, or null) picked up this frame. */
+  /** Advance debris and return items collected near `pos`. A null position disables collection. */
   update(dt: number, pos: Vector3 | null): ItemKind[] {
     this.t += dt;
     const got: ItemKind[] = [];
@@ -142,7 +140,7 @@ export class Junk {
   }
 
   private lose(car: Vehicle, at: Vector3, n: number): void {
-    // the phantom truck is made of sterner stuff
+    // Monster trucks do not shed collectible parts.
     if (car.form === 'truck') {
       return;
     }
@@ -157,7 +155,7 @@ export class Junk {
     }
 
     s.at = this.t;
-    // straight out from the car through the hit
+    // Launch outward through the impact point.
     const out = Math.atan2(at.x - car.pos.x, at.z - car.pos.z);
     for (let k = 0; k < n && s.parts < J.perCar; k++) {
       const tire = s.tires < car.rig.wheels.length && this.rng.next() < J.tireShare;
@@ -170,7 +168,7 @@ export class Junk {
       this.throw(kind, at, out + this.rng.range(-SPREAD, SPREAD));
     }
 
-    // too much lying about: the oldest junk goes (never what's kept)
+    // Remove the oldest temporary debris first; permanent pickups are exempt.
     for (let i = 0, n = this.parts.length; n > J.max && i < this.parts.length;) {
       if ((this.parts[i] as Part).keep) {
         i++;
@@ -207,7 +205,7 @@ export class Junk {
     });
   }
 
-  /** In the air: arc and tumble; on the ground, bounce once, then lie flat (turned however it came down). */
+  /** Integrate flight and spin, bounce once, then settle flat while preserving yaw. */
   private fly(p: Part, dt: number): void {
     p.vel.y -= GRAVITY * dt;
     p.pos.addScaledVector(p.vel, dt);

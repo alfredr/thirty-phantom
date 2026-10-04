@@ -1,4 +1,4 @@
-/** A vehicle's handling and size, as its physics and anything simulating it (planners, rollouts) read them. */
+/** Shared handling and dimensions for vehicle physics, route planning, and predictive simulation. */
 export interface VehicleParams {
   maxSpeed: number;
   reverseSpeed: number;
@@ -13,11 +13,11 @@ export interface VehicleParams {
   radius: number;
   length: number;
   height: number;
-  /** Max ledge the vehicle can roll up without being blocked. */
+  /** Maximum climbable ledge height, in meters. */
   stepUp: number;
-  /** Vertical impulse for the hop (Space). */
+  /** Vertical velocity added by a hop, in m/s. */
   hop: number;
-  /** Minimum speed to smash breakable parapets (Infinity = can't). */
+  /** Minimum speed in m/s for breaking parapets. Infinity disables this capability. */
   smashSpeed: number;
   /** Two-wheelers lean into turns, up to this angle (radians); cars just roll a little on their springs. */
   lean?: number;
@@ -37,7 +37,7 @@ export function bodyHalf(params: Pick<VehicleParams, 'length' | 'radius'>): numb
   return params.length / 2 - params.radius;
 }
 
-/** At top speed the wheels turn this much less than at a crawl (less twitchy at speed). */
+/** Reduce available steering lock by this fraction at maximum speed. */
 const STEER_FADE = 0.45;
 
 /**

@@ -1,4 +1,4 @@
-/* Scripted conversations (ui/dialogue.ts): portraits either side, the line between. Palette from hud.css :root. */
+/* Style scripted conversations from ui/dialogue.ts using the :root palette in hud.css. */
 
 .dialogue {
   position: fixed;
@@ -63,7 +63,7 @@
 .dialogue-portrait.has-img .silhouette {
   display: none;
 }
-/* stand-in until a portrait arrives: head and shoulders in ink */
+/* Show a silhouette until a portrait image is supplied. */
 .dialogue-portrait .silhouette {
   position: absolute;
   inset: 0;
@@ -121,7 +121,7 @@
   }
 }
 
-/* phones on their side: smaller portraits and type */
+/* Reduce portraits and typography for short viewports. */
 @media (max-height: 540px) {
   .dialogue {
     bottom: 10px;

@@ -24,7 +24,7 @@ export const PALETTE = {
   hoodie: '#2f8f2a',
 } as const;
 
-/** Muted civilian car colors so the monster trucks pop. */
+/** Muted civilian car colors keep monster trucks visually distinct. */
 export const CAR_COLORS = [
   '#5b5470',
   '#3d4a5c',

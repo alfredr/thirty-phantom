@@ -2,22 +2,22 @@ import { el } from '@/engine/ui/dom';
 import type { ObjectiveKind } from '@/game/story/objectives';
 import type { BoxDef, LevelData, V3 } from '@/world/level-data';
 
-/** What the minimap shows this frame. */
+/** Dynamic state required to draw one map frame. */
 export interface MapView {
-  /** Cody (or his ride), and the way he faces (yaw: forward = (sin, cos)). */
+  /** Player or vehicle position and heading; forward is (sin yaw, cos yaw) in x/z. */
   x: number;
   z: number;
   yaw: number;
-  /** The world direction that's up on screen: the map turns to match the camera. */
+  /** Ground-plane camera-up direction used to rotate the map. */
   upX: number;
   upZ: number;
   driving: boolean;
   marks: readonly { x: number; z: number; kind: ObjectiveKind }[];
 }
 
-/** The baked city: pixels per metre. */
+/** Resolution of the static city image, in pixels per meter. */
 const BAKE = 2;
-/** Shown: CSS px per metre, on foot and driving (wider). */
+/** Display scale in CSS pixels per meter for walking and driving. */
 const ZOOM = { foot: 1.5, drive: 0.85 };
 const COLORS = {
   road: '#26212f',
@@ -31,14 +31,13 @@ const COLORS = {
   me: '#efe6ff',
   compass: '#2a1d3f',
 };
-/** The compass's radius (CSS px); it sits this far in from the map's top corner, with room for its pointer. */
+/** Compass radius in CSS pixels; placement includes additional room for the north pointer. */
 const COMPASS = 13;
 
 /**
- * Top-down map (desktop): the city baked once from the level's boxes, turned so up on the map is up on screen. A 16:10
- * screen in a plate in the corner on foot; while driving, the middle of the dash unit, between the speedometer and
- * GhASt pods. Objectives show as slime (primary) and lilac (optional), pinned to the rim when out of range. Not on
- * touch screens: there's no room beside the controls.
+ * Draw a camera-aligned city map using a static image baked from level geometry. Center on the player and overlay fixed
+ * landmarks, objective markers, and a north compass. Clamp distant objectives to the map edge. The HUD can dock this
+ * view in the dashboard, phone, or desktop corner.
  */
 export class Minimap {
   readonly root: HTMLDivElement;
@@ -49,7 +48,7 @@ export class Minimap {
   private readonly z0: number;
   private readonly marks: readonly { x: number; z: number; label: string; color: string }[];
 
-  /** `share`: another map of the same level, whose baked city this one draws too (one bake for both). */
+  /** Reuse `share`’s city image and static markers when supplied. Both views must represent the same level. */
   constructor(parent: HTMLElement, level: LevelData, share?: Minimap) {
     this.root = el('div', 'hud-map', parent);
     this.canvas = el('canvas', 'map-canvas', this.root);
@@ -102,7 +101,7 @@ export class Minimap {
 
     const ctx = this.ctx;
     const k = v.driving ? ZOOM.drive : ZOOM.foot;
-    // turn the world so the camera's up points up the map
+    // Rotate the map into the camera’s ground-plane orientation.
     const turn = -Math.PI / 2 - Math.atan2(v.upZ, v.upX);
     const cos = Math.cos(turn);
     const sin = Math.sin(turn);
@@ -119,7 +118,7 @@ export class Minimap {
     ctx.drawImage(this.city, this.x0, this.z0, this.city.width / BAKE, this.city.height / BAKE);
     ctx.restore();
 
-    // map points: from world to the canvas, kept inside the screen
+    // Clamp marker positions to an inset rectangle while preserving their direction.
     const hx = cw / 2 - 9;
     const hz = ch / 2 - 9;
     const toMap = (x: number, z: number): { x: number; y: number; out: boolean } => {
@@ -151,13 +150,13 @@ export class Minimap {
       ctx.fillText(m.label, p.x, p.y + 0.5);
     }
 
-    // optional first, so the primary sits on top
+    // Draw primary objectives last so they remain visible over optional markers.
     for (const m of [...v.marks].sort((a, b) => (a.kind === b.kind ? 0 : a.kind === 'optional' ? -1 : 1))) {
       const p = toMap(m.x, m.z);
       const primary = m.kind === 'primary';
       const color = primary ? COLORS.slime : COLORS.optional;
       if (p.out) {
-        // a pointer on the rim, toward it
+        // Use a directional edge pointer for objectives beyond the visible area.
         const a = Math.atan2(p.y - ch / 2, p.x - cw / 2);
         ctx.save();
         ctx.translate(p.x, p.y);
@@ -178,13 +177,13 @@ export class Minimap {
       }
     }
 
-    // a compass in the top corner: N where world north (-z, the deck's north face) lies on the turned map
+    // World north is -z; rotate its direction with the map.
     const nx = sin;
     const ny = -cos;
     ctx.save();
     ctx.translate(cw - COMPASS - 8, COMPASS + 8);
     dot(ctx, 0, 0, COMPASS, COLORS.edge, COLORS.compass);
-    // a pointer on the rim, toward north, and the N just inside it
+    // Keep the north label inside the compass and its arrow at the rim.
     ctx.beginPath();
     ctx.moveTo(nx * (COMPASS + 3), ny * (COMPASS + 3));
     ctx.lineTo(nx * (COMPASS - 3) - ny * 3.5, ny * (COMPASS - 3) + nx * 3.5);
@@ -199,7 +198,7 @@ export class Minimap {
     ctx.fillStyle = COLORS.me;
     ctx.fillText('N', nx * 3, ny * 3 + 0.5);
     ctx.restore();
-    // Cody: a chevron the way he faces
+    // Rotate the centered player chevron independently from the map.
     const fx = Math.sin(v.yaw);
     const fz = Math.cos(v.yaw);
     const a = Math.atan2(fx * sin + fz * cos, fx * cos - fz * sin);
@@ -220,7 +219,7 @@ export class Minimap {
     ctx.restore();
   }
 
-  /** Moves it into `parent`: the dash unit's screen while driving, the phone's Map app, or the screen's corner. */
+  /** Move the map into `parent` and select dashboard, phone, or corner styling. */
   dock(parent: HTMLElement, as: 'dash' | 'phone' | 'corner'): void {
     if (this.root.parentElement !== parent) {
       parent.appendChild(this.root);
@@ -231,7 +230,7 @@ export class Minimap {
   }
 }
 
-/** The city from above: ground, walks and grass, then buildings by height, and the deck in slime. */
+/** Rasterize visible level boxes by height and overlay the deck footprint with a green outline. */
 function bake(level: LevelData, x0: number, z0: number, w: number, d: number): HTMLCanvasElement {
   const c = document.createElement('canvas');
   c.width = Math.ceil(w * BAKE);
@@ -280,7 +279,7 @@ function bake(level: LevelData, x0: number, z0: number, w: number, d: number): H
   return c;
 }
 
-/** Boxes worth drawing from above: not the invisible ones, the paint, or lamp posts and other slivers. */
+/** Exclude invisible surfaces, markings, lamps, lines, and footprints below four square meters. */
 function shown(b: BoxDef): boolean {
   if (b.mat === 'invisible' || b.mat === 'marking' || b.mat.startsWith('lamp') || b.mat.startsWith('line')) {
     return false;

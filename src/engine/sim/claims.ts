@@ -1,6 +1,6 @@
 import { type Owner, Relation } from './relation';
 
-/** How many holders one target may have for a kind of claim, and how many targets one holder may hold. */
+/** Capacity limits for a claim kind. Omit perHolder to allow unlimited targets per holder. */
 export interface ClaimRule {
   readonly perTarget: number;
   readonly perHolder?: number;
@@ -19,7 +19,7 @@ export interface Claim<K extends string> {
 
 export interface TakeOptions {
   readonly owner: Owner;
-  /** Takes the claim from its current holder when it's full. The holder's owner is told through lostBy() and `lost`. */
+  /** Evict the oldest conflicting claim when a capacity is full. Report the loss through lostBy() and `lost`. */
   readonly preempt?: boolean;
 }
 
@@ -76,7 +76,7 @@ export class Claims<K extends string> {
     return this.rows.where({ kind, holder, target })[0]?.slot ?? null;
   }
 
-  /** Whether another holder could take `target` for `kind` without preempting. */
+  /** Return whether the target has capacity for this claim kind. Holder limits are not checked. */
   free(kind: K, target: object): boolean {
     return this.rows.where({ kind, target }).length < this.table[kind].perTarget;
   }
@@ -88,12 +88,12 @@ export class Claims<K extends string> {
     }
   }
 
-  /** Ends every claim `owner` holds. */
+  /** Release every claim belonging to `owner`. */
   release(owner: Owner): void {
     this.rows.end(owner);
   }
 
-  /** The claim on `target` for `kind` outlives `from`: `to` owns it now. */
+  /** Transfer matching claims from `from` to `to` without releasing their slots. */
   handOn(from: Owner, to: Owner, kind: K, target: object): void {
     this.rows.handOn(from, to, (c) => c.kind === kind && c.target === target);
   }

@@ -1,13 +1,13 @@
 import { type Action, resolveFully } from './action';
 
-/** Something that might be done with a control: the action, and how strongly it claims the control. */
+/** An action proposed for a control, with its selection priority. */
 export interface Candidate<C extends string, S, W extends S> {
   readonly control: C;
   readonly rank: number;
   readonly action: Action<S, W>;
 }
 
-/** The action a control would perform now, resolved, with the label to show for it. */
+/** A resolved action and its display label for a control. */
 export interface Offer<C extends string, S, W extends S> {
   readonly control: C;
   readonly rank: number;
@@ -15,7 +15,7 @@ export interface Offer<C extends string, S, W extends S> {
   readonly label: string;
 }
 
-/** What each control offers, and why the ones that offer nothing were refused. */
+/** Selected actions and refusal reasons for controls without an available action. */
 export interface Offers<C extends string, S, W extends S> {
   readonly offers: ReadonlyMap<C, Offer<C, S, W>>;
   /** The reason from the highest-ranked refused candidate of each control that has no offer. */

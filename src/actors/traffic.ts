@@ -8,28 +8,22 @@ import type { PathDef } from '@/world/level-data';
 
 import type { Vehicle } from './vehicle';
 
-/** Spawning gives up after this many random tries; a new car needs this much room from others (m). */
+/** Spawn attempt limit and minimum separation from other vehicles, in meters. */
 const SPAWN_TRIES = 30;
 const SPAWN_GAP = 9;
-/**
- * A car eases off over this stretch (m) before where it has to stop: TUNING.traffic.impatience `gap` short of traffic
- * in its lane, `room` short of anything else.
- */
+/** Braking approach distance in meters before the anger-dependent gap in TUNING.traffic.impatience. */
 const EASE = 5;
-/** Only things within this of the lane line, and this height of the car, are in the way (m). */
+/** Lateral and vertical tolerances for obstacles ahead, in meters. */
 const LANE_HALF = 2.4;
 const SAME_LEVEL = 2.5;
-/** Another traffic car is only in the lane if it heads this much the same way (dot of headings). */
+/** Minimum heading dot product for treating another traffic car as part of the same lane. */
 const SAME_HEADING = 0.3;
-/** Speed eases down at BRAKE_RATE and back up at ACCEL_RATE (damp rates). */
+/** Exponential braking and acceleration rates, in inverse seconds. */
 const BRAKE_RATE = 6;
 const ACCEL_RATE = 1.5;
-/** Cars face the lane this far ahead of where they are (m). */
+/** Lane look-ahead distance for heading, in meters. */
 const STEER_AHEAD = 2.5;
-/**
- * A car joining a lane off its line eases onto it at this rate (1/s), sideways no faster than MERGE_MAX (m/s); within
- * MERGED (m) it's on it.
- */
+/** Lane merge decay rate in 1/s, maximum lateral speed in m/s, and completion tolerance in meters. */
 const MERGE_RATE = 2.5;
 const MERGE_MAX = 1.5;
 const MERGED = 0.01;
@@ -38,8 +32,8 @@ const _p = new Vector3();
 const _d = new Vector3();
 
 /**
- * How far ahead in `v`'s lane (heading fx, fz) `o` is, out to `reach` (m), or Infinity when it isn't in the way. With
- * `sameLaneOnly`, something heading (ofx, ofz) the other way doesn't count.
+ * Return forward distance to an obstacle within the vehicle’s lane corridor and `reach`, or Infinity when excluded.
+ * sameLaneOnly also requires the obstacle heading to align within SAME_HEADING.
  */
 function ahead(
   v: Vehicle,
@@ -69,18 +63,12 @@ function ahead(
   return along;
 }
 
-/**
- * Someone at the wheel going about their business (traffic, a visitor, a valet): a car behind it queues, it isn't
- * stuck.
- */
+/** Classify active traffic, visitors, and valets as queue participants rather than static blockages. */
 function underway(o: Vehicle): boolean {
   return !o.crashing && (o.role === 'traffic' || o.role === 'visitor' || o.role === 'valet');
 }
 
-/**
- * A traffic car fed up with waiting behind something in its lane: a car (`by`), or someone on foot (null), at `at`; and
- * how angry its driver is (0..1).
- */
+/** Passing request identifying the blocked car, obstacle position, optional obstacle vehicle, and driver anger. */
 export interface Jam {
   car: Vehicle;
   by: Vehicle | null;
@@ -88,13 +76,13 @@ export interface Jam {
   anger: number;
 }
 
-/** How a driver is taking the traffic. */
+/** Driver impatience and horn timing. */
 interface Mood {
-  /** 0 calm, 1 fuming (TUNING.traffic.impatience). */
+  /** Normalized impatience from 0 to 1 (TUNING.traffic.impatience). */
   anger: number;
   /** Seconds since they last honked. */
   sinceHonk: number;
-  /** Asked to pull round since that honk. */
+  /** Whether a passing request has been emitted since the last honk. */
   asked: boolean;
 }
 
@@ -103,14 +91,11 @@ interface Fright {
   left: number;
   /** Seconds held up while panicking. */
   held: number;
-  /** This frame, staying on the road would carry them toward what frightened them, so they stop instead. */
+  /** Whether this frame’s scare requires stopping because the lane approaches the threat. */
   cornered: boolean;
 }
 
-/**
- * Whether staying on the road would carry a driver toward what frightened them: somewhere along `ahead` comes closer to
- * `from` than the driver is now, and within `within` of it.
- */
+/** Return whether any sampled road point is closer to `from` than `at` and within the threat’s clearance radius. */
 export function roadLeadsToward(at: Vector3, ahead: readonly Vector3[], from: Vector3, within: number): boolean {
   const now = Math.hypot(at.x - from.x, at.z - from.z);
   return ahead.some((p) => {
@@ -120,40 +105,34 @@ export function roadLeadsToward(at: Vector3, ahead: readonly Vector3[], from: Ve
 }
 
 /**
- * Lane-following AI: cruise along loops, brake for whatever is ahead. A driver who sees ghost Cody up close floors it,
- * unless their road would carry them toward him: then they brake, for as long as it does. Held up while panicking, they
- * leave the car where it stands and run. New frights are reported (`scared`), and every frame, drivers whose road leads
- * toward the fright (`cornered`), so the game can offer them another way out (the deck, when its turn-in is just
- * ahead). Drivers get angry held up, and calm down on the move: an angry one creeps up closer on what's in front, honks
- * (`honks`), sooner and more often the angrier, and asks to pull round (`fedUp`) what's in the way: something that
- * isn't traffic (a parked car, a wreck, Cody) soon after honking, a queue only once fuming.
+ * Move traffic kinematically along closed lanes, braking for nearby obstacles and easing lane merges. Frightened
+ * drivers accelerate away or stop when their lane approaches a threat; sustained blockage makes them abandon the car.
+ * Impatience reduces following distance and produces horn and passing requests. Expose reaction events in queues that
+ * the caller must consume and clear.
  */
 export class Traffic {
-  /** Lane loops: closed polylines, the same type planned routes use. */
+  /** Closed polylines defining traffic lanes. */
   readonly paths: Polyline[];
-  /** Cars whose drivers gave up and ran, since the caller last emptied this. */
+  /** Abandoned vehicles. The caller consumes and clears this event queue. */
   readonly abandoned: Vehicle[] = [];
-  /**
-   * Drivers who just took fright (a new scare, not one still going), and where it came from, since the caller last
-   * emptied this.
-   */
+  /** New fright events and their source positions. The caller consumes and clears this queue. */
   readonly scared: { car: Vehicle; from: Vector3 }[] = [];
-  /** Frightened drivers whose road leads toward the fright this frame, since the caller last emptied this. */
+  /** Drivers whose lane approaches a threat. The caller consumes and clears this event queue. */
   readonly cornered: { car: Vehicle; from: Vector3 }[] = [];
-  /** Drivers who just leaned on the horn, since the caller last emptied this. */
+  /** Vehicles that honked. The caller consumes and clears this event queue. */
   readonly honks: Vehicle[] = [];
-  /** Drivers who've waited long enough and want to pull round what's in the way, since the caller last emptied this. */
+  /** Passing requests from impatient drivers. The caller consumes and clears this event queue. */
   readonly fedUp: Jam[] = [];
   private readonly fright = new WeakMap<Vehicle, Fright>();
   private readonly moods = new WeakMap<Vehicle, Mood>();
-  /** Cars that joined a lane off its line: how far off they still are. */
+  /** Remaining horizontal offsets while vehicles merge onto lane centerlines. */
   private readonly merging = new WeakMap<Vehicle, Vector3>();
 
   constructor(defs: PathDef[]) {
     this.paths = defs.map((d) => new Polyline(d.points, true));
   }
 
-  /** A spawn location on a random path, away from `avoid`. */
+  /** Try random lane positions with clearance from `avoid` and other vehicles. Return null after SPAWN_TRIES failures. */
   spawnPoint(rng: Rng, avoid: Vector3, minDist: number, others: Vehicle[]): { path: number; s: number } | null {
     for (let tries = 0; tries < SPAWN_TRIES; tries++) {
       const path = rng.int(0, this.paths.length - 1);
@@ -180,8 +159,8 @@ export class Traffic {
   }
 
   /**
-   * A driver sees something frightening at `from` this frame (the reactions table decides who and when). A new fright
-   * is reported through `scared`, and a road that leads toward it through `cornered`.
+   * Refresh panic for a non-crashing traffic driver. Queue new scares once and report a threat-facing lane at most once
+   * per traffic update. The reactions system determines when this is called.
    */
   frighten(v: Vehicle, from: Vector3): void {
     if (v.role !== 'traffic' || v.crashing) {
@@ -206,7 +185,7 @@ export class Traffic {
 
   /** Whether staying on its lane would carry `v` toward `from`, closer than a frightened driver's berth. */
   leadsToward(v: Vehicle, from: Vector3): boolean {
-    // A driver sees `from` within panicReach, so anywhere within a berth of it is within this of them.
+    // Include the threat’s clearance radius beyond the driver’s perception range.
     const { panicReach, berth } = TUNING.traffic;
     return roadLeadsToward(v.pos, this.roadAhead(v, panicReach + berth), from, berth);
   }
@@ -233,7 +212,7 @@ export class Traffic {
     return out;
   }
 
-  /** Whether `v` is out on its lane: outside the deck and on the lane's line, give or take a lane's width. */
+  /** Return whether the vehicle is outside the deck and within LANE_HALF meters of its assigned lane. */
   onRoad(v: Vehicle): boolean {
     const path = this.paths[v.pathIndex];
     if (!path || v.insideDeck) {
@@ -244,7 +223,7 @@ export class Traffic {
     return Math.hypot(v.pos.x - _p.x, v.pos.z - _p.z) < LANE_HALF;
   }
 
-  /** A car driving itself near its lane goes back to being traffic on it, frightened by `from`. */
+  /** Rejoin the assigned lane at its nearest projection and register a fright from `from`. */
   rejoin(v: Vehicle, from: Vector3): void {
     const path = this.paths[v.pathIndex];
     if (!path) {
@@ -255,10 +234,7 @@ export class Traffic {
     this.frighten(v, from);
   }
 
-  /**
-   * How far along its lane `v` is: where traffic has it, or the nearest point to where it stands for a car driving
-   * itself.
-   */
+  /** Use stored lane progress for traffic and nearest projection for independently driven vehicles. */
   private laneS(v: Vehicle, path: Polyline): number {
     return v.role === 'traffic' ? v.pathS : path.project(v.pos);
   }
@@ -266,7 +242,7 @@ export class Traffic {
   update(dt: number, vehicles: Vehicle[], obstacles: readonly Vector3[]): void {
     const T = TUNING.traffic;
     for (const v of vehicles) {
-      // crashing, or something happening to the car itself (changing form, crushed): off the lane
+      // Suspend lane placement during crash physics and lifecycle transitions.
       if (v.role !== 'traffic' || v.crashing || v.status) {
         this.merging.delete(v);
         continue;
@@ -278,7 +254,7 @@ export class Traffic {
       }
 
       const fright = this.fright.get(v);
-      // Frightened, they floor it, or stop while the road leads toward the fright.
+      // A cornered fright overrides panic acceleration for this frame.
       const cruise = !fright ? v.cruise : fright.cornered ? 0 : v.cruise * T.panicBoost;
       if (fright) {
         fright.cornered = false;
@@ -286,8 +262,8 @@ export class Traffic {
 
       const fx = Math.sin(v.yaw);
       const fz = Math.cos(v.yaw);
-      // the nearest thing ahead in the lane, as room left before having to stop for it (an angry driver stops shorter);
-      // `front` if it's a car, `stuck` if it isn't traffic going about its business
+      // Find the limiting obstacle using anger-dependent stopping gaps. Track whether it belongs to a queue
+      // so passing requests can distinguish traffic from a static blockage.
       const I = T.impatience;
       const anger = this.angerOf(v);
       const room = lerp(I.room[0], I.room[1], anger);
@@ -333,7 +309,7 @@ export class Traffic {
         fright.held = v.speed < T.stuckSpeed ? fright.held + dt : 0;
 
         if (fright.held > T.stuckTime) {
-          // boxed in with a ghost outside: abandon ship
+          // Sustained panic blockage transfers the vehicle to parked state.
           this.fright.delete(v);
           v.role = 'parked';
           v.speed = 0;
@@ -388,12 +364,12 @@ export class Traffic {
     }
   }
 
-  /** How angry `v`'s driver is: 0 calm, 1 fuming. */
+  /** Return normalized driver impatience, or zero when no mood is stored. */
   angerOf(v: Vehicle): number {
     return this.moods.get(v)?.anger ?? 0;
   }
 
-  /** Something got to `v`'s driver: `amount` more anger. */
+  /** Increase driver impatience by `amount`, capped at one. */
   provoke(v: Vehicle, amount: number): void {
     const m = this.mood(v);
     m.anger = Math.min(1, m.anger + amount);
@@ -409,10 +385,8 @@ export class Traffic {
   }
 
   /**
-   * Anger rises while stopped behind `at` (`front`, a car, or someone on foot), faster when it's `stuck` (not traffic
-   * going about its business), and fades on the move. Angry enough, the driver honks (the driver in front hears it),
-   * again and again, and asks to pull round: behind something stuck, a moment after honking; in a queue, only once past
-   * `queueJump`.
+   * Update impatience while blocked and decay it while moving freely. Emit honks at anger-dependent intervals and
+   * provoke traffic ahead. Request passing after a honk when blocked by a static obstacle or above queueJump anger.
    */
   private fume(v: Vehicle, at: Vector3 | null, front: Vehicle | null, stuck: boolean, dt: number): void {
     const I = TUNING.traffic.impatience;

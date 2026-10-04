@@ -7,21 +7,20 @@ import { ghostTexture } from '@/render/textures';
 import type { ZoneDef } from '@/world/level-data';
 
 const _to = new Vector3();
-/** Risen ghosts (out of townsfolk the skeletons killed): at most this many, the oldest going to make room. */
+/** Maximum active ghosts spawned from casualties. Reuse the oldest when the limit is reached. */
 const RISEN_MAX = 12;
-/** A risen one fades in over this long (s), and haunts this far around where it rose (m). */
+/** Fade-in time in seconds and horizontal roaming radius in meters for casualty ghosts. */
 const RISE_IN = 1.5;
 const HAUNT = 4;
 /**
- * Sucked in (the monster truck's GhASt intake): pulled toward the mouth at SUCK_SPEED (m/s) plus SUCK_ACCEL more each
- * second it's held, shrinking to nothing within SWALLOW (m) of it. An ambient one comes back out of its zone RESPAWN
- * seconds later.
+ * Intake motion uses an initial speed in m/s and acceleration in m/s². Collect ghosts within SWALLOW meters of the
+ * intake; ambient ghosts return after RESPAWN visible simulation seconds.
  */
 const SUCK_SPEED = 3;
 const SUCK_ACCEL = 14;
 const SWALLOW = 0.8;
 const RESPAWN = 25;
-/** A ghost no longer pulled sheds this many seconds of pull per second as it eases back into shape. */
+/** Rate at which accumulated pull time decays after the intake releases a ghost. */
 const RELAX = 2;
 
 interface Ghost {
@@ -32,28 +31,28 @@ interface Ghost {
   phase: number;
   size: number;
   flip: number;
-  /** Seconds since it rose out of a body (risen ones only). */
+  /** Visible simulation time since spawning from a casualty, in seconds. */
   age?: number;
-  /** Seconds it's been pulled toward an intake this time (0: free). */
+  /** Accumulated intake pull time in seconds; zero means normal drifting. */
   pulled: number;
   /** Whether suck() pulled it since the last update(). */
   held: boolean;
-  /** Swallowed: seconds until it drifts back (ambient), or gone for good (risen: Infinity). */
+  /** Remaining visible simulation seconds before respawning. Collected casualty ghosts use Infinity. */
   gone: number;
 }
 
-/** Ambient sheet ghosts drifting around the deck and graveyard. They only come out at night. */
+/** Animate ambient and casualty ghosts, with visibility controlled by night intensity and fade(). */
 export class Ghosts {
   readonly root = new Group();
   private readonly list: Ghost[] = [];
   private t = 0;
   private readonly rng = new Rng(66);
-  /** How many are about, 0..1 (night still decides when), easing toward `target` at `rate` per second. */
+  /** Visibility multiplier approaching `target` at `rate` per second, combined with night intensity. */
   private presence = 1;
   private target = 1;
   private rate = Infinity;
   private readonly tex = [ghostTexture(1), ghostTexture(2), ghostTexture(3)];
-  /** Ghosts that rose out of bodies, oldest first. */
+  /** Active casualty ghosts in spawn order. */
   private readonly risen: Ghost[] = [];
 
   constructor(zones: ZoneDef[], count = 26) {
@@ -94,7 +93,7 @@ export class Ghosts {
     }
   }
 
-  /** A new spot in its zone to drift toward. */
+  /** Choose a random target inside the ghost's roaming zone. */
   private pick(g: Ghost): void {
     const z = g.zone;
     const rng = this.rng;
@@ -102,8 +101,8 @@ export class Ghosts {
   }
 
   /**
-   * A ghost rising out of someone just killed at `at`: straight up out of the body, fading in, then haunting the spot.
-   * Night and fade() rule it like the rest.
+   * Spawn a ghost rising from a casualty at `at`, then roaming nearby. Global night intensity and fade() still control
+   * visibility.
    */
   rise(at: Vector3): void {
     const rng = this.rng;
@@ -153,9 +152,8 @@ export class Ghosts {
   }
 
   /**
-   * An intake at `at` (the monster truck's) pulls in every ghost that's out and within `reach`: they stretch toward it,
-   * faster the longer they're held, and shrink away into it. Returns how many it swallowed this frame. Only while
-   * they're showing (night).
+   * Pull available ghosts within `reach` meters toward the intake and return the number collected this frame. Pull
+   * speed increases with accumulated pull time. Do nothing while the ghost group is hidden.
    */
   suck(at: Vector3, reach: number, dt: number): number {
     if (!this.root.visible) {
@@ -191,7 +189,7 @@ export class Ghosts {
     return swallowed;
   }
 
-  /** Gone into an intake: an ambient ghost drifts back later, a risen one is spent. */
+  /** Hide a collected ghost. Ambient ghosts respawn later; casualty ghosts remain inactive. */
   private swallow(g: Ghost): void {
     g.pulled = 0;
     g.s.visible = false;
@@ -204,7 +202,10 @@ export class Ghosts {
     }
   }
 
-  /** Clear them out, or bring them back, over `seconds` (0: at once). */
+  /**
+   * Set the target visibility. `seconds` is the duration of a full fade between 0 and 1; zero applies on the next
+   * update.
+   */
   fade(on: boolean, seconds = 0): void {
     this.target = on ? 1 : 0;
     this.rate = seconds > 0 ? 1 / seconds : Infinity;
@@ -222,7 +223,7 @@ export class Ghosts {
 
     for (const g of this.list) {
       if (g.gone > 0) {
-        // swallowed: an ambient one comes back out of its zone in a while
+        // Advance respawn timers only while the ghost group is visible.
         g.gone -= dt;
 
         if (g.gone > 0) {
@@ -245,7 +246,7 @@ export class Ghosts {
       g.held = false;
 
       if (g.pulled > 0) {
-        // being sucked in: thinning toward the intake (suck() moves it)
+        // Stretch and narrow the ghost while suck() controls its position.
         const k = Math.max(0.15, 1 - g.pulled * 1.5);
         g.s.scale.set(g.size * k * g.flip, g.size * (2 - k), 1);
         g.s.material.opacity = nightness * 0.8;

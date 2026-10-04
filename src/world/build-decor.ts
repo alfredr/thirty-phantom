@@ -12,17 +12,17 @@ import type { PropKind, PropSpec } from './props';
 const GLOW: EmissiveChannel = 'neon';
 
 export interface BuiltDecor {
-  /** Every piece, baked: one mesh per material, however many there are. */
+  /** Static decor geometry batched by material. */
   root: Group;
-  /** Pieces vehicles knock over or smash (DECOR[kind].hit), for the world's Props. */
+  /** Breakable decor registered with the world's Props system. */
   props: PropSpec[];
-  /** Crowns of leaves: they hide Cody from the iso camera like walls do, but stop nothing (DECOR[kind].sight). */
+  /** Visual occluders such as tree crowns, used for cutaway probes without blocking movement. */
   sight: CollisionWorld;
 }
 
 const _s = new Vector3();
 
-/** The matrix that stands a piece on its base, turned by its yaw, sized and stretched along its own x. */
+/** Write the decor's translation, yaw, scale, and local-X stretch into `out`, then return it. */
 export function decorMatrix(d: DecorDef, out = new Matrix4()): Matrix4 {
   const s = d.scale ?? 1;
   return out
@@ -31,17 +31,16 @@ export function decorMatrix(d: DecorDef, out = new Matrix4()): Matrix4 {
     .setPosition(d.pos[0], d.pos[1], d.pos[2]);
 }
 
-/** A piece's boxes (in its own frame) in the world. */
+/** Transform local decor boxes into world-space bounds, ignoring yaw for round decor. */
 function placed(list: readonly LocalBox[], d: DecorDef): LocalBox[] {
   const turn = DECOR[d.kind].round ? 0 : d.yaw;
   return list.map((b) => worldBox(b, d.pos, turn, d.scale ?? 1, d.stretch ?? 1));
 }
 
 /**
- * Level decor -> meshes and props. Every piece is baked together by material, standing. Pieces vehicles break (hitOf())
- * are props as well: their solids are made here, flagged to break, and while one is down or smashed its baked copy is
- * hidden; one that topples is drawn instanced meanwhile, and that kind's instances cost nothing while all of it stands.
- * Static pieces' collision is in the level's boxes already.
+ * Build decor meshes, visual occluders, and breakable props. Batch standing geometry by material and allocate instances
+ * for toppled pieces. Add breakable collision here; static collision must already be in the level boxes. Throw if a
+ * breakable decor definition has no collision boxes.
  */
 export function buildDecor(defs: readonly DecorDef[], mats: MaterialLibrary, collision: CollisionWorld): BuiltDecor {
   const models = new Map<DecorKind, Model<string>>();
@@ -63,7 +62,7 @@ export function buildDecor(defs: readonly DecorDef[], mats: MaterialLibrary, col
     }
   }
 
-  // the pieces that break, by kind: each one's place in the bake, by its slot
+  // Group breakable pieces by kind while retaining their indices in the static batch.
   const hits = defs.map((d) => hitOf(d.kind, d.scale ?? 1));
   const copies = new Map<DecorKind, number[]>();
   defs.forEach((d, i) => {
@@ -100,7 +99,7 @@ export function buildDecor(defs: readonly DecorDef[], mats: MaterialLibrary, col
       height: fall.height,
       wide: fall.wide,
       down: fall.down,
-      // a tree goes the way it was hit, a bench flat over
+      // Round decor can fall in any direction; other pieces fall along their local axes.
       square: !DECOR[k].round,
       shatter: hit.as === 'shatter',
       debris: hit.debris.map((c) => new Color(c)),

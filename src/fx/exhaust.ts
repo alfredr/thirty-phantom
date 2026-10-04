@@ -6,25 +6,25 @@ import { Rng } from '@/engine/core/rng';
 
 import type { SpriteFx } from './sprite-fx';
 
-/** The tailpipe: this far in from the tail (m), out to the right by this share of the body's half-width, this high (m). */
+/** Tailpipe offsets: distance inward from the rear in meters, fraction of body half-width, and height in meters. */
 const TAIL_IN = 0.2;
 const PIPE_SIDE = 0.45;
 const PIPE_UP = 0.35;
-/** A puff leaves the pipe backwards at PUSH (m/s), drifting up at DRIFT (m/s), scattered by up to SCATTER (m/s). */
+/** Puff velocity: backward speed, upward speed range, and lateral scatter range, in m/s. */
 const PUSH = 1.2;
 const DRIFT: readonly [number, number] = [0.3, 0.8];
 const SCATTER = 0.5;
-/** Not speeding up for this long (s), and the next go gets a fresh burst. */
+/** Seconds without qualifying acceleration before another full exhaust burst is available. */
 const REST = 0.4;
 
-/** A smoky car's tailpipe: its speed last frame, and its current burst. */
+/** Per-vehicle speed history and exhaust burst state. */
 interface Pipe {
   last: number;
-  /** Seconds till it may puff again. */
+  /** Seconds until the next puff is allowed. */
   wait: number;
   /** Puffs left in this burst. */
   left: number;
-  /** Seconds since it last sped up hard. */
+  /** Seconds since the last frame that qualified for smoke emission. */
   calm: number;
 }
 
@@ -32,11 +32,11 @@ const _at = new Vector3();
 const _vel = new Vector3();
 
 /**
- * Dark puffs from the tailpipes of some cars (TUNING.vehicle.exhaust.share of them, the same ones for life) as they
- * pull away or put their foot down: a few sprites a go, a moment apart. The monster truck has its own.
+ * Emit short smoke bursts when selected cars accelerate at low speed. Selection is deterministic per vehicle ID;
+ * monster-truck exhaust is handled separately.
  */
 export class Exhaust {
-  /** Each car's tailpipe, or null for a car that doesn't smoke. */
+  /** Cached emission state, or null for vehicles selected to run without smoke. */
   private readonly pipes = new WeakMap<Vehicle, Pipe | null>();
   private readonly day = new Color(TUNING.vehicle.exhaust.day);
   private readonly night = new Color(TUNING.vehicle.exhaust.night);
@@ -44,7 +44,7 @@ export class Exhaust {
 
   constructor(private readonly sprites: SpriteFx) {}
 
-  /** `nightness`: 0 by day, 1 at night (the smoke's unlit, so it darkens with the picture). */
+  /** Update exhaust bursts and interpolate unlit smoke color from day (0) to night (1). */
   update(dt: number, vehicles: readonly Vehicle[], nightness: number): void {
     if (dt <= 0) {
       return;
@@ -97,7 +97,7 @@ export class Exhaust {
     }
   }
 
-  /** One puff out of `v`'s tailpipe. */
+  /** Emit one puff at the vehicle's tailpipe position. */
   private puff(v: Vehicle): void {
     const E = TUNING.vehicle.exhaust;
     const P = v.params;
@@ -105,7 +105,7 @@ export class Exhaust {
     const fz = Math.cos(v.yaw);
     const back = P.length / 2 - TAIL_IN;
     const side = P.radius * PIPE_SIDE;
-    // the right-hand side is (-fz, fx)
+    // The local right vector is (-fz, fx).
     _at.set(v.pos.x - fx * back - fz * side, v.pos.y + PIPE_UP, v.pos.z - fz * back + fx * side);
     _vel.set(
       -fx * PUSH + (Math.random() - 0.5) * SCATTER,

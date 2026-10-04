@@ -18,98 +18,75 @@ import type { LevelData, RampDef } from '@/world/level-data';
 
 import type { Objective } from './objectives';
 
-/** Remembered once the tutorial's been through its jump, or skipped. */
+/** Persist completion when the phantom-rules lesson begins or the tutorial is skipped. */
 const DONE_KEY = '30pc.tutorial';
-/**
- * The roof chat starts at half past five (game hours), leaving an hour and a half of daylight after it to look for the
- * badge (the clock waits through the chat).
- */
+/** Opening time in game hours. The roof conversation pauses the clock, leaving 90 game minutes before nightfall. */
 const START_HOUR = 17.5;
-/**
- * At moonrise Randy's gone in a puff of smoke: this long after (s) he rings to say sorry, and this long after the call
- * his text sends Cody back to the pickup.
- */
+/** Delays in seconds from Randy’s departure to his call and from hangup to the return-to-truck text. */
 const SORRY_AFTER = 3;
 const TEXT_AFTER = 3;
 /**
- * The pickup's roof spot: pulled out of it, at least MIN_RUN (m) to the roof kicker, ideally RUN_UP. Randy stands in
- * the aisle off its nose, this far ahead (m past the spot's front) and to the driver's side; the badge lands this far
- * past the deck's edge (out in the street: from well in on the roof, a landing much closer in takes a sky-high lob to
- * clear the parapet).
+ * Opening placement distances in meters: minimum and preferred ramp approach, Randy’s offsets from the spot, and badge
+ * landing distance beyond the deck edge.
  */
 const MIN_RUN = 9;
 const RUN_UP = 14;
 const RANDY_AHEAD = 1.1;
 const RANDY_SIDE = 1.2;
 const TOSS_PAST = 12;
-/** The chat's camera: on the pair at chest height, this close (iso zoom), after this long to settle (s). */
+/** Conversation focus height in meters, isometric zoom, and dialogue start delay in seconds. */
 const TALK_HEIGHT = 1.2;
 const TALK_ZOOM = 12;
 const TALK_DELAY = 1;
-/**
- * Randy's throw: the camera follows the badge out this far (iso zoom), then holds on where it lands this long (s)
- * before going back to the pair.
- */
+/** Throw camera zoom and hold duration after the expected landing, in seconds. */
 const THROW_ZOOM = 24;
 const THROW_HOLD = 1.5;
-/** Seconds the slime and ghosts take to ooze in at the first moonrise. */
+/** Haunting emergence duration at the first moonrise, in seconds. */
 const EMERGE = 3;
-/**
- * After the jump: the truck's idling once it's on its wheels and slower than IDLE_SPEED (m/s) for IDLE_FOR (s), and
- * then Randy rings; if it never settles, he rings anyway LANDING_MAX (s) after it went over.
- */
+/** Post-jump idle threshold in m/s, required idle duration in seconds, and maximum wait before Randy calls. */
 const IDLE_SPEED = 0.5;
 const IDLE_FOR = 2;
 const LANDING_MAX = 12;
-/**
- * After the jump, the camera on the first phantom's imprint: once the truck's down (or this long, s), this close (iso
- * zoom), the sign this high over it (m), and up this long at most (s).
- */
+/** Maximum landing wait in seconds, imprint camera zoom, sign height in meters, and sign timeout in seconds. */
 const IMPRINT_LAND = 3;
 const IMPRINT_ZOOM = 16;
 const IMPRINT_SIGN = 2.4;
 const IMPRINT_HOLD = 15;
-/** The camera looks this far (m) above the imprint, so it sits low on screen with room for the sign over it. */
+/** Camera focus height above the imprint, in meters, leaving screen space for its sign. */
 const IMPRINT_ABOVE = 5;
-/** Randy calls at 10pm (game hours), the burner ringing this long (s) before he talks. */
+/** Call time in game hours and ringing delay in seconds. */
 const CALL_HOUR = 22;
 const RING = 1.6;
-/** Cody talks to Randy this close (m), the basement chat's camera this close (iso zoom). */
+/** Basement conversation range in meters and camera zoom. */
 const TALK_REACH = 3.6;
 const BASEMENT_ZOOM = 10;
-/**
- * Into the joyride, seconds before Randy points out the camera keys (keyboards only), and the ghosts (if the truck
- * hasn't swallowed one yet).
- */
+/** Joyride hint delays in seconds for keyboard camera controls and collecting the first ghost. */
 const CAMERA_HINT = 5;
 const GHOST_HINT = 14;
-/** Randy, when Cody turns up in the basement without tires (the goal stays till he brings some). */
+/** Basement dialogue used when Cody has no tires; returning to the task suppresses its repeated text. */
 const NO_WHEELS: readonly DialogueLine[] = [
   { who: 'left', say: 'NO WHEELS? GO GET ME SOME.' },
   { who: 'left', say: 'SMASH SOMETHING. THEY FALL OFF.' },
 ];
-/** Randy ringing once the truck's idling after the jump, before the camera goes back to the phantom it left. */
+/** Post-jump call introducing the first phantom before the imprint cutscene. */
 const TELL: readonly DialogueLine[] = [
   { who: 'left', say: 'OH YEAH! I NEED TO TELL YOU...' },
   { who: 'left', say: "THAT SPOT YOU PULLED OUT OF? THE GARAGE THINKS YOU'RE STILL PARKED IN IT." },
   { who: 'left', say: 'TAKE A LOOK.' },
 ];
-/** The camera modes C cycles through. */
+/** Number of keyboard camera modes required by the camera lesson. */
 const CAMERA_MODES = 3;
-/** GhASt as the dial spells it: the h and t small and below the line. */
+/** Shared GhASt markup with reduced h and t characters. */
 const GHAST = '<span class="ghast-word">G<small>h</small>AS<small>t</small></span>';
-/** Seconds the first phantom lesson stays up; the spook lesson waits on a real scare, or this long if nobody comes by. */
+/** Phantom-rules display duration and fallback timeout for the fright lesson, in seconds. */
 const LESSON = 9;
 const SPOOK_WAIT = 45;
-/** Seconds after the last text before the phone goes away. */
+/** Delay before closing the phone after the final text, in seconds. */
 const DONE_WAIT = 9;
-/**
- * The opening's objective markers: back in the pickup when the moon's up (primary), and the badge Randy threw
- * (optional, from when Cody's out till he's back in).
- */
+/** Stable objective IDs for the pickup and optional badge markers. */
 const TRUCK_MARK = 'tutorial-truck';
 const BADGE_MARK = 'tutorial-badge';
-/** After his 10pm call: Randy himself, down in the basement (the tires go to him). */
+/** Objective ID for Randy’s basement marker. */
 const RANDY_MARK = 'tutorial-randy';
 
 const _fwd = new Vector3();
@@ -117,47 +94,44 @@ const _side = new Vector3();
 const _toCamera = new Vector3();
 const _sign = new Vector3();
 
-/**
- * The tutorial's steps, in story order (roof conversation, first escape, basement visit, then lessons on phantom powers
- * and the daily parking loop), and what each holds while it lasts.
- */
+/** Tutorial states in story order, with timers and resources retained by each step. */
 type TutorialState =
-  /** Not running: before it starts, or skipped. */
+  /** Tutorial inactive or skipped. */
   | State<'off'>
-  /** The roof chat (once it's started talking). */
+  /** Roof conversation, including its start delay and scene resources. */
   | State<'scene', { t: number; talking: boolean; camera?: Cutscene; release?: () => void }>
-  /** Out of the pickup, after the badge. */
+  /** Cody searches for the badge after leaving the pickup. */
   | State<'out'>
-  /** Seven o'clock: Randy's gone in a puff. */
+  /** Wait after Randy’s moonrise departure. */
   | State<'gone', { t: number }>
-  /** His burner call, sorry he had to go. */
+  /** Ring and play Randy’s departure call. */
   | State<'sorry', { t: number; talking: boolean }>
-  /** Off the phone, his text to come. */
+  /** Wait before the return-to-truck text. */
   | State<'hangup', { t: number }>
   | State<'back'>
   | State<'jump'>
-  /** Down off the kicker: the truck settling, and the phantom it left. */
+  /** Wait for the truck to settle while retaining the first imprint details. */
   | State<'landing', { t: number; idle: number; imprint: Imprint }>
-  /** Randy rings about it. */
+  /** Play the call introducing the imprint. */
   | State<'tell', { t: number; talking: boolean; imprint: Imprint }>
-  /** The camera on the imprint, and its sign. */
+  /** Display the imprint cutscene and dismissible sign. */
   | State<'imprint', { t: number; shown: boolean; imprint: Imprint; release?: () => void }>
-  /** The joyride, with its lessons as he gets to them. */
+  /** Track camera and GhASt lessons during the joyride. */
   | State<
       'cruise',
       { t: number; cameras: Set<CamMode> | null; ghast: { hinted: boolean; fed: boolean; burned: boolean } }
     >
-  /** Ten o'clock: Randy calls. */
+  /** Play the scheduled basement invitation call. */
   | State<'call', { t: number; talking: boolean }>
   | State<'basement', { quiet?: boolean }>
   | State<'noWheels', { release?: () => void }>
-  /** The basement chat with Randy: wheels, then the brisket. */
+  /** Play the tire handover and brisket scene. */
   | State<'brisket', { release?: () => void }>
   | State<'outside'>
   | State<'rules', { t: number }>
   | State<'spook', { t: number }>
   | State<'raise'>
-  /** Possessing one; `quiet` when it's a second go, with nothing more to say. */
+  /** Wait for possession; `quiet` suppresses the repeated introductory text. */
   | State<'possess', { quiet: boolean }>
   | State<'escape'>
   | State<'rest'>
@@ -166,7 +140,7 @@ type TutorialState =
   | State<'park'>
   | State<'tonight'>
   | State<'done', { t: number }>
-  /** All done. */
+  /** Tutorial complete. */
   | State<'over'>;
 
 type Step = TutorialState['at'];
@@ -184,17 +158,17 @@ interface SceneOptions {
   pauseClock?: boolean;
 }
 
-/** The first phantom's imprint: where it hangs, and what the sign says about it. */
+/** First imprint position and sign content. */
 interface Imprint {
   at: Vector3;
   title: string;
   meta: string;
 }
 
-/** The tutorial's dialogues, so a step knows which one just finished. */
+/** Dialogue identifiers used to route completion events. */
 type Talk = 'script' | 'sorry' | 'tell' | 'call' | 'noWheels' | 'brisket';
 
-/** What the tutorial's steps react to: the game's events, and the ends of its own dialogues and sign. */
+/** Game events and local dialogue/sign completion events consumed by the tutorial. */
 type TutorialEvent =
   | MindEvent<'entered', { v: Vehicle; possessed: boolean }>
   | MindEvent<'crossing', { crossing: Crossing }>
@@ -207,15 +181,12 @@ type TutorialEvent =
   | MindEvent<'exited', { spot: SpotRuntime | null }>
   | MindEvent<'nightfall'>
   | MindEvent<'sunrise'>
-  /** A dialogue of its own finished. */
+  /** Report completion of a named tutorial dialogue. */
   | MindEvent<'talked', { which: Talk }>
-  /** The imprint's sign was dismissed. */
+  /** Report dismissal of the imprint sign. */
   | MindEvent<'signed'>;
 
-/**
- * The story, roof to Randy's lessons: eating brisket doesn't send Cody to sleep till it's over (it does outside the
- * tutorial).
- */
+/** Steps that suppress the normal sleep effect of eating brisket. */
 const STORY: ReadonlySet<Step> = new Set<Step>([
   'scene',
   'out',
@@ -238,7 +209,7 @@ const STORY: ReadonlySet<Step> = new Set<Step>([
   'raise',
 ]);
 
-/** The steps that start with a text or a goal (the rest are scenes, calls and waits). */
+/** Steps with task or text entries in STEPS. */
 type Texted = Exclude<
   Step,
   | 'off'
@@ -259,10 +230,7 @@ type Texted = Exclude<
 /** Sunrise advances the opening story and phantom lessons to the day job. */
 const FIRST_NIGHT: ReadonlySet<Step> = new Set<Step>([...STORY, 'possess', 'escape', 'rest']);
 
-/**
- * Each texted step: the task under the clock (`{action}` becomes that action's key cap), and Randy's text as it starts
- * (null when he's just said it in person).
- */
+/** Task and opening text for each texted step. Control placeholders are rendered as key caps; null omits that content. */
 const STEPS: Readonly<Record<Texted, { goal: string | null; text: string | null }>> = {
   back: {
     goal: '{interact} GET BACK IN THE PICKUP',
@@ -321,38 +289,36 @@ const STEPS: Readonly<Record<Texted, { goal: string | null; text: string | null 
   },
 };
 
-/** Where the opening plays out on the roof. */
+/** Calculated positions and directions for the roof opening. */
 interface Stage {
-  /** The pickup's spot (pulling out of it, a turn onto the kicker's run-up), where it stands and faces. */
+  /** Selected parking spot and initial pickup pose. */
   spot: SpotRuntime;
   truck: Vector3;
   yaw: number;
-  /** Which way he turns out of the spot for the kicker. */
+  /** Turn direction from the parking spot toward the ramp approach. */
   turn: 'LEFT' | 'RIGHT';
-  /** Randy in the aisle off its nose with his fire, his yaw, and the window he talks to. */
+  /** Randy’s pose and the pickup window used as his look target. */
   randy: Vector3;
   randyYaw: number;
   window: Vector3;
-  /** Where Cody's badge lands, down on the street. */
+  /** Badge landing position on the street. */
   toss: Vector3;
 }
 
-/** Night again before the day job's done: on to the good part. */
+/** Resume possession lessons if nightfall interrupts the daytime parking task. */
 const nightJob = (): StateOf<TutorialState, 'possess'> => ({ at: 'possess', quiet: false });
 
 /**
- * Runs the first-game tutorial through dialogue, cutscenes, objectives, and phone messages. Starts on the roof at 5:30
- * PM. Completing the first jump or skipping the tutorial is remembered; the title screen offers a replay. Its steps are
- * a mind (`steps`): each lists the events it waits on and returns the step that follows, says what it does each frame
- * and as it starts, and holds what it needs while it lasts. The goal under the clock and the markers come from
- * whichever step it's in (goalOf, marksOf), and each move is announced as a `step` game event.
+ * Run the tutorial through state-driven dialogue, cutscenes, objectives, and phone messages, beginning at 5:30 PM on
+ * the roof. Remember completion when the phantom-rules lesson begins or the player skips it; the title offers replay.
+ * Each transition updates rules and markers and emits a quest step event.
  */
 export class Tutorial {
-  /** Run it on the next start. */
+  /** Whether to start the tutorial on the next game start. */
   private wanted = !remembered(DONE_KEY);
   private active = false;
   private readonly dialogue: Dialogue;
-  /** Cody's phone (the game's): Randy texts and rings on it, and the goal line is its. */
+  /** Game-owned phone used for tutorial calls and messages. */
   private get phone(): Phone {
     return this.game.phone;
   }
@@ -360,14 +326,14 @@ export class Tutorial {
   private randy: Npc | null = null;
   private truck: Vehicle | null = null;
   private stage: Stage | null = null;
-  /** The camera's target while they talk. */
+  /** Mutable camera focus shared by conversation scenes. */
   private readonly talkFocus = new Vector3();
-  /** Following the badge Randy throws: seconds left (till it's landed and been seen), and the camera's target meanwhile. */
+  /** Remaining badge-follow camera time in seconds and its current focus point. */
   private throwCam: number | null = null;
   private readonly throwFocus = new Vector3();
-  /** The camera Cody had before the jump took it over, until he has it back. */
+  /** Camera preference to restore after the jump, unless the player changes it. */
   private cam: CamMode | null = null;
-  /** He's picked up the badge Randy threw, and the trigger that says so. */
+  /** Badge collection state and cancellation callback for its trigger. */
   private badgeFound = false;
   private badgeGot: (() => void) | null = null;
   private settings: TutorialSettings | null = null;
@@ -440,7 +406,7 @@ export class Tutorial {
     jump: {
       enter: (t) => t.arrive('jump'),
       tick: (t) => {
-        // off the kicker: the board drops in, in time to count him
+        // Reveal the ledger as the truck becomes airborne above the roof.
         const v = t.truck;
         if (v && t.stage && !v.grounded && v.pos.y > t.stage.truck.y + 0.5) {
           t.game.hud.showLedger(true);
@@ -450,7 +416,7 @@ export class Tutorial {
       },
       on: {
         crossing: (t, _s, { crossing }) => {
-          // off the roof and out: the board drops in and counts him (Cody's still Cody till the brisket)
+          // Ensure the ledger is visible when an unlogged exit creates the first phantom.
           if (crossing.kind === 'escaped') {
             t.game.hud.showLedger(true);
           } else if (crossing.kind === 'logged-out') {
@@ -459,7 +425,7 @@ export class Tutorial {
 
           return null;
         },
-        // let it come down and idle; then Randy rings about it, and only then the camera goes back up
+        // Wait for landing and the explanatory call before showing the imprint.
         phantom: (_t, _s, { imprint }) => ({ at: 'landing', t: 0, idle: 0, imprint }),
       },
     },
@@ -468,7 +434,7 @@ export class Tutorial {
         s.t += dt;
         const v = t.truck;
         s.idle = v && v.grounded && Math.hypot(v.vel.x, v.vel.z) < IDLE_SPEED ? s.idle + dt : 0;
-        // he's been texting all along: a call's the last thing Cody expects
+
         return s.idle > IDLE_FOR || s.t > LANDING_MAX ? { at: 'tell', t: 0, talking: false, imprint: s.imprint } : null;
       },
     },
@@ -517,7 +483,7 @@ export class Tutorial {
         return null;
       },
       on: {
-        // the joyride: ghosts in the tank, then burn it
+        // Teach collection before acknowledging the first boost.
         swallowed: (t, s) => {
           if (s.ghast.fed) {
             return null;
@@ -588,7 +554,7 @@ export class Tutorial {
           return null;
         }
 
-        // out under the moon: bam
+        // Resume normal form changes after Cody leaves the basement and deck.
         t.releaseCody();
         g.hud.toast('BAM.', 'PHANTOM CODY', '', 2.6);
         t.dialogue.setPortrait('right', g.portraits.codyNight);
@@ -601,13 +567,13 @@ export class Tutorial {
     },
     spook: {
       enter: (t) => t.arrive('spook'),
-      // a real scare, or nobody came by
+      // Advance on a fright event or after the timeout.
       tick: (_t, s, dt) => ((s.t += dt) > SPOOK_WAIT ? { at: 'raise' } : null),
       on: { spooked: () => ({ at: 'raise' }) },
     },
     raise: {
       enter: (t) => t.arrive('raise'),
-      // only a summon that raised something counts: a press can fail while driving or on cooldown
+      // Advance only on a successful summon event, since an input press can fail.
       on: { summoned: () => ({ at: 'possess', quiet: false }) },
     },
     possess: {
@@ -681,7 +647,7 @@ export class Tutorial {
 
   private readonly quest: Mind<Tutorial, TutorialState, TutorialEvent>;
 
-  /** It's running this game (decided on 'start'): a new game, so game/save.ts doesn't put the last one back. */
+  /** Whether this run is active. game/save.ts uses this to suppress normal progress restoration and writes. */
   get running(): boolean {
     return this.active;
   }
@@ -698,7 +664,7 @@ export class Tutorial {
       { at: 'off' },
       {
         on: {
-          // morning, however far the night got: back to the game's own rules, and the day job
+          // Move unfinished first-night lessons to the daytime parking task at sunrise.
           sunrise: (_t, s) => (FIRST_NIGHT.has(s.at) ? { at: 'steal' } : null),
         },
         moved: (t, _from, to) => {
@@ -725,7 +691,7 @@ export class Tutorial {
     ev.on('boosted', () => send({ type: 'boosted' }));
     ev.on('summoned', () => send({ type: 'summoned' }));
     ev.on('camera', (mode) => {
-      // his pick: the ride's chase cam doesn't get put back over it
+      // Preserve the player’s new camera choice instead of restoring the pre-jump mode.
       this.cam = null;
       send({ type: 'camera', mode });
     });
@@ -736,7 +702,7 @@ export class Tutorial {
     });
     ev.on('spooked', () => send({ type: 'spooked' }));
     ev.on('exited', ({ spot }) => {
-      // out of the phantom truck: the camera's his again
+      // Restore the pre-jump camera when Cody exits, unless already superseded.
       this.giveCamera();
       send({ type: 'exited', spot });
     });
@@ -744,7 +710,7 @@ export class Tutorial {
     ev.on('sunrise', () => send({ type: 'sunrise' }));
   }
 
-  /** On the title: skip it the first time, replay it after. Clicking also starts the game. */
+  /** Add the title’s skip/replay toggle. The click also reaches the title’s game-start handler. */
   private titleLink(): void {
     const title = document.querySelector<HTMLElement>('.hud-title');
     if (!title) {
@@ -761,7 +727,7 @@ export class Tutorial {
     });
   }
 
-  /** Set the scene: half past five, Cody in his pickup on the roof, Randy at the window. */
+  /** Start the roof scene when requested and when Randy and a suitable layout are available. */
   private begin(): void {
     const g = this.game;
     this.randy = g.npcs.find('randy');
@@ -778,7 +744,7 @@ export class Tutorial {
       sleepAfterEating: g.sleepAfterEating,
       keepEscaped: g.keepEscaped,
     };
-    // its own scenes with Randy, till it's done
+    // Reserve Randy’s dialogue for tutorial scenes.
     g.randyTalk.enabled = false;
     const r = this.randy;
     const st = this.stage;
@@ -789,12 +755,12 @@ export class Tutorial {
     g.hud.clearToasts();
     g.hud.showLedger(false);
     g.haunt(false);
-    // Keep Cody in his daytime form until the brisket scene, but allow possession and truck driving.
+    // Hold Cody’s daytime form until he leaves the basement, while granting possession and truck driving.
     g.cody.hold('truck', 'possess');
     this.holdingCody = true;
     g.sleepAfterEating = false;
     g.clock.hours = START_HOUR;
-    // parked in his spot, badged in this morning like any car he brought in
+    // Register the opening pickup as already parked and logged in.
     const truck = g.park(st.truck, st.yaw, 'pickup');
     g.garage.checkIn(st.spot, truck);
     g.board(truck, true);
@@ -805,7 +771,7 @@ export class Tutorial {
       .addVectors(st.window, st.randy)
       .multiplyScalar(0.5)
       .setY(st.randy.y + TALK_HEIGHT);
-    // a view of the pair and the pickup's nose that none of the roof's towers stands in front of
+    // Sample the pickup and speakers to choose the least-obstructed isometric view.
     _fwd.set(Math.sin(st.yaw), 0, Math.cos(st.yaw));
     _side.set(_fwd.z, 0, -_fwd.x);
     const sights: Vector3[] = [];
@@ -846,7 +812,7 @@ export class Tutorial {
     this.show();
   }
 
-  /** Send the step's text, unless it is a repeat visit. */
+  /** Send optional opening text and persist completion when the phantom-rules lesson begins. */
   private arrive(step: Texted, say = true): void {
     const s = STEPS[step];
     if (say && s.text) {
@@ -859,10 +825,9 @@ export class Tutorial {
     }
   }
 
-  /** The goal under the clock in step `s`. */
+  /** Return the task text for the current state. */
   private goalOf(s: TutorialState): string | null {
     switch (s.at) {
-      // he went after the badge, and that's what kept him till after 7
       case 'out':
       case 'gone':
       case 'sorry':
@@ -887,13 +852,13 @@ export class Tutorial {
   }
 
   /**
-   * The markers up in step `s`: the badge Randy threw (optional) till Cody's back in the pickup or has it, the pickup
-   * itself once the moon's up (primary), and Randy in the basement after his call (primary).
+   * Build state-specific markers: the uncollected badge, the pickup during the return task, and Randy during the
+   * basement errand.
    */
   private marksOf(s: TutorialState): Objective[] {
     const marks: Objective[] = [];
     const looking = s.at === 'out' || s.at === 'gone' || s.at === 'sorry' || s.at === 'hangup' || s.at === 'back';
-    // (the badge on the ground is a copy, lying right where Randy aimed)
+    // The persistent badge pickup is a copy at the calculated landing position.
     if (looking && !this.badgeFound && this.stage) {
       marks.push({ id: BADGE_MARK, label: 'YOUR BADGE', kind: 'optional', at: this.stage.toss });
     }
@@ -909,7 +874,7 @@ export class Tutorial {
     return marks;
   }
 
-  /** The goal under the clock and the markers as the current step has them. */
+  /** Refresh task text and this tutorial’s objective markers from the current state. */
   private show(): void {
     const s = this.quest.state;
     this.game.objectives.goal = this.goalOf(s);
@@ -920,7 +885,7 @@ export class Tutorial {
     this.phone.text(msg.replace('{turn}', this.stage?.turn ?? 'RIGHT'));
   }
 
-  /** The owning step hears when its dialogue completes. */
+  /** Send a named completion event when the dialogue finishes. */
   private play(which: Talk, lines: readonly DialogueLine[]): void {
     this.dialogue.play(lines, () => {
       this.quest.send({ type: 'talked', which });
@@ -928,8 +893,8 @@ export class Tutorial {
   }
 
   /**
-   * Back in the pickup before the jump (possessed: at night it turns round him): straight into the chase cam, lined up
-   * on the kicker.
+   * When possession occurs before the jump, select that vehicle, switch to chase view, and keep it after escape. Return
+   * null for ordinary boarding.
    */
   private boardedBeforeJump(
     from: 'out' | 'gone' | 'sorry' | 'hangup' | 'back',
@@ -940,10 +905,10 @@ export class Tutorial {
     }
 
     const g = this.game;
-    // the truck he jumps is whichever car he got into, his pickup or another in the deck
+    // Allow the opening jump to use any possessed car.
     this.truck = e.v;
 
-    // (sat in the pickup through 7: it turned round him before the moonrise news, same as getting back in)
+    // Possession can arrive before the nightfall event if Cody remained seated.
     if (from === 'out') {
       this.moonrise();
     }
@@ -955,7 +920,7 @@ export class Tutorial {
     return { at: 'jump' };
   }
 
-  /** Cody's stuck in the pickup and Randy "helps": Randy on the left, Cody on the right. */
+  /** Build the roof dialogue and its badge, coat, and phone cues. */
   private script(): DialogueLine[] {
     const g = this.game;
     const r = this.randy as Npc;
@@ -986,7 +951,7 @@ export class Tutorial {
         },
       },
       { who: 'right', say: 'HUH?' },
-      // the coat open on his wares: the burner, then the brisket
+
       {
         who: 'left',
         say: 'BRISKET?',
@@ -997,7 +962,7 @@ export class Tutorial {
       },
       { who: 'right', say: 'NO... I NEED MY ID.' },
       { who: 'left', say: 'SUIT YOURSELF.' },
-      // and hands him the burner through the window (how he texts him later)
+      // Transfer the burner that later calls and messages use.
       {
         who: 'left',
         say: "YOU'RE GOING TO NEED THIS.",
@@ -1009,7 +974,7 @@ export class Tutorial {
     ];
   }
 
-  /** The camera on the badge as Randy winds up and throws it, then on where it lands, then back on the pair. */
+  /** Follow the badge through wind-up and flight, hold its landing position, then restore the conversation view. */
   private followThrow(s: StateOf<TutorialState, 'scene'>, dt: number): void {
     const r = this.randy;
     const st = this.stage;
@@ -1019,7 +984,7 @@ export class Tutorial {
 
     this.throwCam -= dt;
 
-    // in his hand or in the air; once down, the one on the ground is a copy lying where he aimed
+    // After landing, track the copy’s known position rather than the restored hand rig.
     if (r.toss) {
       r.rig.badge.getWorldPosition(this.throwFocus);
     } else {
@@ -1034,7 +999,7 @@ export class Tutorial {
     }
   }
 
-  /** 7 o'clock: the slime and ghosts ooze in, and Randy's gone in a puff of smoke, back to his basement. */
+  /** Reveal the haunting and return Randy to his level-defined basement position with a departure puff. */
   private moonrise(): StateOf<TutorialState, 'gone'> {
     const g = this.game;
     const r = this.randy as Npc;
@@ -1045,8 +1010,8 @@ export class Tutorial {
   }
 
   /**
-   * The first phantom: once the truck's down, the camera goes back up to the roof where the pickup stood, and a
-   * signpost on its imprint says what it is and what it's for.
+   * After landing or a timeout, focus the first phantom and show its explanatory sign. Update the sign position each
+   * frame and dismiss it after its timeout.
    */
   private showImprint(s: StateOf<TutorialState, 'imprint'>): void {
     const g = this.game;
@@ -1075,7 +1040,7 @@ export class Tutorial {
     const sights = [-2, 0, 2].map((d) => im.at.clone().add(_side.set(d, 1, d * 0.3)));
     g.iso.azimuth = g.iso.azimuthTarget = clearView(g.world.root, sights, g.iso.azimuth);
     s.release = this.takeScene({ camera: { focus: this.talkFocus, zoom: IMPRINT_ZOOM } });
-    // the sign says it all: no toasts over it
+    // Clear competing notifications before displaying the sign.
     g.hud.clearToasts();
     s.t = 0;
     s.shown = true;
@@ -1085,7 +1050,7 @@ export class Tutorial {
     this.sign.place(null);
   }
 
-  /** In the basement, Cody can talk to Randy when he's close. The game shows and performs it like any other offer. */
+  /** Offer the basement conversation when Cody is on foot near Randy and no tutorial dialogue is open. */
   private randyOffer(): CodyAction | null {
     const g = this.game;
     const r = this.randy;
@@ -1105,7 +1070,7 @@ export class Tutorial {
     });
   }
 
-  /** The basement chat starts: Randy turns to Cody, and the camera closes in on the pair. */
+  /** Hold Randy and the camera for the basement conversation. */
   private sitDown(s: StateOf<TutorialState, 'brisket'>): void {
     const g = this.game;
     const r = this.randy;
@@ -1121,7 +1086,7 @@ export class Tutorial {
     this.play('brisket', this.brisket(r));
   }
 
-  /** The basement: wheels (if he brought the right kind), then the brisket, at last. */
+  /** Build the basement dialogue, trading carried tires when present. */
   private brisket(r: Npc): DialogueLine[] {
     const g = this.game;
     const coat = (open: boolean) => (): void => {
@@ -1143,7 +1108,7 @@ export class Tutorial {
     return lines;
   }
 
-  /** The night's over (however far he got): back to the game's own rules. */
+  /** Release the tutorial form override, restore escape behavior, reveal the ledger, and return the camera. */
   private wake(): void {
     const g = this.game;
     this.releaseCody();
@@ -1208,7 +1173,7 @@ export class Tutorial {
     this.game.transformCody();
   }
 
-  /** These overrides follow the state, including steps that have no opening text. */
+  /** Apply tire-trade and sleep overrides on every state transition. */
   private applyRules(step: Step): void {
     if (!this.settings) {
       return;
@@ -1234,7 +1199,7 @@ export class Tutorial {
     this.active = false;
   }
 
-  /** The joyride's task right now: burning the GhASt he's got, trying the cameras, or just driving. */
+  /** Prioritize the GhASt boost lesson, then camera cycling, then the general joyride task. */
   private cruiseGoal(s: StateOf<TutorialState, 'cruise'>): string | null {
     if (s.ghast.fed && !s.ghast.burned) {
       return `{boost} BURN THE ${GHAST}`;
@@ -1247,7 +1212,7 @@ export class Tutorial {
     return STEPS.cruise.goal;
   }
 
-  /** The camera Cody had before the jump, back to him (unless he's picked one since). */
+  /** Restore the saved camera mode unless a later player choice cleared it. */
   private giveCamera(): void {
     if (this.cam === null) {
       return;
@@ -1257,7 +1222,7 @@ export class Tutorial {
     this.cam = null;
   }
 
-  /** Just after he vanished: Randy on the burner, sorry he had to go. */
+  /** Build Randy’s departure apology call. */
   private sorry(): DialogueLine[] {
     return [
       { who: 'left', say: "IT'S RANDY. SORRY, I HAD TO GO." },
@@ -1266,7 +1231,7 @@ export class Tutorial {
     ];
   }
 
-  /** 10pm: Randy on the burner. */
+  /** Build Randy’s scheduled basement invitation. */
   private call(): DialogueLine[] {
     return [
       { who: 'left', say: "KID. IT'S RANDY. NICE JUMP." },
@@ -1277,17 +1242,19 @@ export class Tutorial {
 }
 
 /**
- * The opening's places: the roof kicker nearest the exit gate (over it, not through it), and the free roof spot that
- * pulls out onto its run-up, a turn and RUN_UP (m) or so from it. Randy stands in the aisle off the pickup's nose on
- * the driver's side (the side Cody gets out on), turned so his fire's clear of the car and the window's in sight; the
- * badge lands on the street past the deck edge nearest him. `ground` is the street's height.
+ * Calculate the scene layout for the opening tutorial. Select the roof ramp nearest the exit gate, then find a free
+ * parking spot aligned with its approach. Require at least MIN_RUN meters of run-up, preferring RUN_UP meters and no
+ * parked car beside the driver’s door.
+ *
+ * Calculate the pickup and Randy’s positions, the turn toward the ramp, and a badge landing point beyond the nearest
+ * deck edge. Return null if no suitable ramp or parking spot is available.
  */
 export function stageOn(level: LevelData, garage: Garage, ground: (x: number, z: number) => number): Stage | null {
   const exit = level.gates.find((g) => g.kind === 'exit');
   const { min, max } = level.deck;
   const ex = exit ? exit.hinge[0] : max[0];
   const ez = exit ? exit.hinge[2] : (min[2] + max[2]) / 2;
-  // the roof's kickers are the highest ones
+  // Treat kickers near the maximum base height as roof ramps.
   const kickers = level.ramps.filter((r) => r.kicker);
   const roof = Math.max(...kickers.map((r) => r.low));
   let kicker: RampDef | null = null;
@@ -1309,7 +1276,7 @@ export function stageOn(level: LevelData, garage: Garage, ground: (x: number, z:
   }
 
   const k = kicker;
-  // it launches along its axis from the low edge; the run-up lies across its width
+  // Separate the launch axis from the width used to test approach alignment.
   const ax = k.axis === 'x' ? 0 : 2;
   const across = ax === 0 ? 2 : 0;
   const low = k.dir > 0 ? k.min[ax] : k.max[ax];
@@ -1321,7 +1288,7 @@ export function stageOn(level: LevelData, garage: Garage, ground: (x: number, z:
       continue;
     }
 
-    // pulled out: just past the spot's front, and that has to be in the kicker's lane
+    // Require the point beyond the spot’s front to align with the ramp approach.
     const reach = Math.max(...s.def.size) / 2 + 1.5;
     const out = [s.center.x + Math.sin(s.def.yaw) * reach, s.center.z + Math.cos(s.def.yaw) * reach];
     const side = out[across === 0 ? 0 : 1] as number;
@@ -1334,7 +1301,7 @@ export function stageOn(level: LevelData, garage: Garage, ground: (x: number, z:
       continue;
     }
 
-    // Cody gets out on the driver's side: a car parked there would be the nearer one to get back into
+    // Penalize spots where another parked car would compete for interaction at the driver door.
     const door = new Vector3(
       s.center.x - Math.cos(s.def.yaw) * 2.6,
       s.center.y,
@@ -1356,7 +1323,7 @@ export function stageOn(level: LevelData, garage: Garage, ground: (x: number, z:
   const truck = spot.center.clone();
   const fx = Math.sin(yaw);
   const fz = Math.cos(yaw);
-  // the side Cody gets out on, as CodyRide.exit has it
+  // Use the same exit-side vector as CodyRide.exit.
   const sx = -Math.cos(yaw);
   const sz = Math.sin(yaw);
   const launch = ax === 0 ? [k.dir, 0] : [0, k.dir];
@@ -1364,10 +1331,10 @@ export function stageOn(level: LevelData, garage: Garage, ground: (x: number, z:
   const turn = sx * (launch[0] as number) + sz * (launch[1] as number) > 0 ? 'RIGHT' : 'LEFT';
   const ahead = Math.max(...spot.def.size) / 2 + RANDY_AHEAD;
   const randy = new Vector3(truck.x + fx * ahead + sx * RANDY_SIDE, truck.y, truck.z + fz * ahead + sz * RANDY_SIDE);
-  // facing out along the aisle, a little back toward the car: the fire's in the aisle, the window's over his shoulder
+  // Face along the aisle and slightly back toward the car to keep the fire clear.
   const randyYaw = Math.atan2(sx * 0.87 - fx * 0.5, sz * 0.87 - fz * 0.5);
   const window = new Vector3(truck.x + sx + fx * 0.4, truck.y, truck.z + sz + fz * 0.4);
-  // over the nearest edge of the deck
+  // Place the landing point beyond the deck edge nearest Randy.
   const edges: [number, number, number][] = [
     [randy.x - min[0], -1, 0],
     [max[0] - randy.x, 1, 0],
@@ -1382,9 +1349,8 @@ export function stageOn(level: LevelData, garage: Garage, ground: (x: number, z:
 }
 
 /**
- * Of the four iso views from `azimuth` round, the first that sees all of `sights` (the roof's towers, clocks and lamps
- * stand in front of some), else the one that sees most. Rays go against what's drawn, so lamps and other things with no
- * collision count too.
+ * Choose the first of four quarter-turn isometric views that leaves every sight point unobstructed, or the view with
+ * the fewest blocked points. Test visible layer-zero meshes, including objects without collision geometry.
  */
 function clearView(root: Object3D, sights: readonly Vector3[], azimuth: number): number {
   const meshes: Object3D[] = [];
@@ -1431,6 +1397,6 @@ function remember(key: string): void {
   try {
     localStorage.setItem(key, '1');
   } catch {
-    // storage blocked: the tutorial runs again next visit
+    // If storage is unavailable, completion may not persist to the next visit.
   }
 }

@@ -34,7 +34,7 @@ const NO_BOTTOM: readonly BoxFace[] = [0, 1, 2, 3, 4];
 
 /** The faces box() emits by default: all but the bottom when it sits on the ground. */
 export function boxFaces(min: V3): readonly BoxFace[] {
-  // only a box resting on the ground plane hides its underside; below ground (a basement ceiling) it's seen from beneath
+  // Keep undersides below ground because they can form visible basement ceilings.
   return Math.abs(min[1]) > 0.001 ? ALL_FACES : NO_BOTTOM;
 }
 
@@ -61,9 +61,8 @@ export interface BoxOptions {
 export const FACE_DATA = 'faceData';
 
 /**
- * A face's own mapping: the world-space u and v a quad would get, less (u0, v0) and over (su, sv), so a texture or
- * shader can lay out cells that line up with the face's edges; plus four numbers for the FACE_DATA attribute (what the
- * material makes of them is its own business).
+ * Transform world-space UVs by subtracting (u0, v0) and dividing by (su, sv). This aligns texture cells with face
+ * edges. The four FACE_DATA values have material-specific meanings.
  */
 export interface FaceMap {
   u0: number;
@@ -129,9 +128,8 @@ export function subtractRects(r: FaceRect, holes: readonly FaceRect[]): FaceRect
 const NO_DATA = [0, 0, 0, 0] as const;
 
 /**
- * Where the edge a-b crosses the CURVE_TILE grid, as fractions of the way along it (0 and 1 included). Edges along x or
- * z cut at grid lines; slanted ones in even steps; vertical ones and ones shorter than a tile not at all (they barely
- * bend).
+ * Return subdivision fractions along edge a-b, including 0 and 1. Align axis-aligned edges with the CURVE_TILE grid and
+ * divide slanted edges evenly. Leave vertical edges and edges no longer than one tile unsplit.
  */
 function gridCuts(a: V3, b: V3): number[] {
   const dx = b[0] - a[0];
@@ -139,7 +137,7 @@ function gridCuts(a: V3, b: V3): number[] {
   const t = CURVE_TILE;
   const out = [0];
   if (Math.hypot(dx, dz) <= t) {
-    // too short to split
+    // Edges no longer than one tile need no interior vertices.
   } else if (Math.abs(dz) < 1e-6 || Math.abs(dx) < 1e-6) {
     const k = Math.abs(dz) < 1e-6 ? 0 : 2;
     const d = b[k] - a[k];
@@ -176,9 +174,9 @@ function bilerp(p: readonly V3[], u: number, v: number): V3 {
   return out;
 }
 
-/** Static world geometry is batched per CHUNK x CHUNK m square (and slime sims grouped the same way). */
+/** Side length in meters for world geometry batches and slime simulation groups. */
 export const CHUNK = 48;
-/** Vertex color that leaves a material's own color as it is. */
+/** White vertex color preserves the material's base color. */
 export const NO_TINT = new Color(1, 1, 1);
 
 /**
@@ -191,14 +189,14 @@ export class GeometryBatch {
   private readonly uv: number[] = [];
   private readonly col: number[] = [];
   private readonly idx: number[] = [];
-  /** FACE_DATA per vertex, once any quad has a FaceMap (zeros before and without one). */
+  /** Per-vertex FACE_DATA, allocated when first needed and zero-filled for unmapped vertices. */
   private data: number[] | null = null;
 
   get empty(): boolean {
     return this.pos.length === 0;
   }
 
-  /** Vertices so far: the index the next quad's first vertex gets. */
+  /** Current vertex count and starting index of the next quad. */
   get vertices(): number {
     return this.pos.length / 3;
   }
@@ -236,8 +234,8 @@ export class GeometryBatch {
       return;
     }
 
-    // world curvature bends vertices only (render/curvature.ts): a big face is split on the world
-    // grid so it curves, and so neighbours split their shared edges at the same places
+    // Curvature operates on vertices (render/curvature.ts). Subdivide large faces on a shared grid so they bend
+    // consistently with adjacent faces.
     if (CURVE_TILE > 0) {
       const us = gridCuts(pts[0]!, pts[1]!);
       const vs = gridCuts(pts[0]!, pts[3]!);
@@ -265,7 +263,7 @@ export class GeometryBatch {
     this.emit(pts as [V3, V3, V3, V3], n, sh, color, uvScale, map);
   }
 
-  /** One quad's vertices, world-space (or mapped) UVs, colors and indices. */
+  /** Append one quad with its normal, UVs, colors, optional face data, and triangle indices. */
   private emit(
     pts: readonly [V3, V3, V3, V3],
     n: V3,
@@ -314,8 +312,8 @@ export class GeometryBatch {
   }
 
   /**
-   * Axis-aligned box. Bottom faces at ground level are skipped. Vertical faces get a fake contact-AO gradient.
-   * `opts.holes` leaves rectangles out of a face (coplanar overlaps, see world/coplanar.ts).
+   * Append an axis-aligned box with optional face selection, rectangular holes, and UV mappings. By default, omit the
+   * bottom at ground level and shade vertical faces with a contact-AO gradient (see world/coplanar.ts).
    */
   box(min: V3, max: V3, color: Color, uvScale: number, ao = true, opts: BoxOptions = {}): void {
     const c: V3 = [(min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2];

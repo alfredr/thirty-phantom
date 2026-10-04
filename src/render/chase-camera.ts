@@ -14,14 +14,13 @@ export interface ChaseSubject {
   kind: ChaseKind;
   pos: Vector3;
   vel: Vector3;
-  /** Vehicle heading: the boom swings in behind it. Null on foot, where the camera follows the walk instead. */
+  /** Vehicle heading in radians. Use null on foot to follow the direction of movement. */
   yaw: number | null;
 }
 
 /**
- * Third-person perspective rig. The boom hangs off a pivot at the subject's head and is shortened against the collision
- * world (walls, deck slabs, ramps), so the camera follows Cody into the parking deck instead of cutting the building
- * away like the iso view does.
+ * Follow a subject with a perspective camera mounted behind a head-height pivot. Shorten the camera boom against
+ * collision geometry and lower it under ceilings so the camera can enter enclosed spaces.
  */
 export class ChaseCamera {
   readonly camera: PerspectiveCamera;
@@ -53,7 +52,7 @@ export class ChaseCamera {
   private readonly want: V3 = [0, 0, 0];
 
   constructor() {
-    // nothing past the fog's far end is visible, so don't draw it: the sky pass paints the skyline there
+    // The sky pass supplies the distant skyline beyond the fog, allowing a shorter far plane.
     const { fov, fogFar } = TUNING.camera.chase;
     this.camera = new PerspectiveCamera(fov, 1, 0.15, fogFar + 15);
   }
@@ -74,7 +73,7 @@ export class ChaseCamera {
     this.shaker.add(t);
   }
 
-  /** Put the camera straight behind `yaw` on the next update, skipping the easing (mode switch, teleport). */
+  /** Reset the view offsets and place the camera behind `yaw` on the next update without easing. */
   snapBehind(yaw: number): void {
     this.yaw = yaw;
     this.offset = 0;
@@ -112,7 +111,7 @@ export class ChaseCamera {
     const snap = this.snap;
     this.snap = false;
 
-    // the pivot is exact in x/z so the boom always starts in the open; eased vertically over steps and hops
+    // Match the subject's horizontal position so the boom starts in clear space; ease vertical movement over steps.
     const py = s.pos.y + R.pivot;
     this.target.set(s.pos.x, snap ? py : damp(this.target.y, py, 10, dt), s.pos.z);
 
@@ -129,18 +128,18 @@ export class ChaseCamera {
       this.yaw = snap ? s.yaw : dampAngle(this.yaw, s.yaw, 3.2, dt);
       this.offset = clamp(this.offset - orbit * C.orbitRate * dt - mx, -Math.PI, Math.PI);
 
-      // let go of Q/E and the mouse for a moment and the view swings back behind the vehicle
+      // Recenter behind the vehicle after orbit and mouse input stop.
       if (settled) {
         this.offset = damp(this.offset, 0, 2.5, dt);
         this.pitchOffset = damp(this.pitchOffset, 0, 2.5, dt);
       }
     } else {
-      // on foot the view stays wherever it was left, including a look-around carried out of a vehicle
+      // Preserve the current view direction when leaving a vehicle.
       this.yaw += this.offset - orbit * C.orbitRate * dt - mx;
       this.offset = 0;
 
       if (hs > 0.5 && this.idle > C.recenterDelay) {
-        // swing in behind Cody only while he walks away from the camera; strafing and backing up leave it be
+        // Recenter only for forward movement; strafing and reversing should preserve the view direction.
         const along = (s.vel.x * Math.sin(this.yaw) + s.vel.z * Math.cos(this.yaw)) / hs;
         const rate = 2.4 * Math.max(0, along) * Math.min(1, hs / TUNING.player.walk);
         this.yaw = dampAngle(this.yaw, Math.atan2(s.vel.x, s.vel.z), rate, dt);
@@ -159,13 +158,13 @@ export class ChaseCamera {
     w[0] = p[0] - Math.sin(yaw) * flat;
     w[1] = p[1] + Math.sin(pitch) * len;
     w[2] = p[2] - Math.cos(yaw) * flat;
-    // under a deck slab, flatten the boom rather than shorten it
+    // Lower the desired camera position to fit beneath a ceiling before testing the boom for obstructions.
     const ceil = Math.min(world.ceilingAt(p[0], p[2], 0.3, p[1]), world.ceilingAt(w[0], w[2], 0.3, p[1]));
     if (w[1] > ceil - C.pad) {
       w[1] = Math.max(p[1], ceil - C.pad);
     }
 
-    // walls pull the camera in at once; it eases back out when the way clears
+    // Retract immediately at obstructions, then ease outward as clearance increases.
     const dx = w[0] - p[0];
     const dy = w[1] - p[1];
     const dz = w[2] - p[2];
@@ -182,7 +181,7 @@ export class ChaseCamera {
 
     cam.position.add(this.shaker.update(dt, this.jitter));
 
-    // look a little past the pivot so the subject sits low in frame with the road ahead visible
+    // Aim beyond the pivot to leave more of the road visible above the subject.
     const ahead = s.yaw !== null ? 3 : 1;
     this.aim.set(p[0] + Math.sin(yaw) * ahead, p[1] + 0.4, p[2] + Math.cos(yaw) * ahead);
     cam.lookAt(this.aim);
@@ -196,8 +195,8 @@ export class ChaseCamera {
   }
 
   /**
-   * `fov` spans the screen's short side, narrowed on small screens like the iso zoom; past `maxHFov` across, the
-   * vertical view is trimmed instead. The speed boost scales on top.
+   * Return the vertical field of view in degrees. Apply viewport scaling to the configured short-side field of view,
+   * cap its horizontal extent, then apply the speed-dependent increase.
    */
   private verticalFov(): number {
     const C = TUNING.camera.chase;

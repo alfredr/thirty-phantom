@@ -7,10 +7,8 @@ import type { BuildingDef, BuildingUse, DoorDef, FacadeDef, Facing, StreetFront,
 import type { LevelWriter } from './level-writer';
 
 /**
- * Building dressing (metres): what a building is used for sets its storeys, and the pieces that stand off its walls are
- * kept shallow enough to stay clear of the street lamps' line and modest in triangles. Everything here is plain level
- * boxes in existing materials (trim and awnings in the facade material), so it merges into the chunk batches and costs
- * no draw calls.
+ * Building dimensions in meters and feature-selection probabilities. Decorative parts use existing materials and remain
+ * shallow to avoid street lamps. Geometry is appended as level boxes for material/chunk batching.
  */
 export const BUILDING = {
   /** Homes over shops: storey height, ground floor height. */
@@ -18,57 +16,43 @@ export const BUILDING = {
   /** Offices: taller storeys over a lobby. */
   office: { storey: 3.6, ground: 5.0 },
   /**
-   * Buildings at least this tall (base to roof) are offices; lower ones are homes. Below `low`, a shop or two with a
-   * flat over it.
+   * Height thresholds in meters: buildings at or above `tall` use office styling, and those below `low` use low-rise
+   * shop styling.
    */
   tall: 26,
   low: 12,
   /** Bay width each window style aims for. */
   bay: { punched: 2.8, ribbon: 3.6, paired: 3.2, grid: 2.4 } as Readonly<Record<WindowStyle, number>>,
-  /** The cornice round the top: how far it stands out, how tall (under a shop sign's top edge). */
+  /** Cornice projection from the wall and vertical thickness, in meters. */
   cornice: { out: 0.35, height: 0.45 },
-  /**
-   * Ledges over the ground floor (and on some homes every storey): how far out (inside a shop sign's 0.12 m standoff),
-   * how tall.
-   */
+  /** Ledge projection and thickness in meters. Keep projection below the shop signs' 0.12-meter offset. */
   ledge: { out: 0.1, height: 0.2 },
-  /**
-   * Shop awnings: how far out, canvas thickness, the valance hanging off the front, its inset from the bay's edges; the
-   * top sits this far under the ground floor's top.
-   */
+  /** Awning depth, canvas thickness, valance height, bay-edge inset, and distance below the ground-floor top. */
   awning: { depth: 0.8, thick: 0.1, valance: 0.4, inset: 0.1, below: 0.85 },
-  /**
-   * Lobby canopy over the doors: depth, thickness, how far it runs past the door bay; its top sits this far under the
-   * ground floor's top.
-   */
+  /** Canopy depth, thickness, extension beyond the door bay, and distance below the ground-floor top. */
   canopy: { depth: 0.8, thick: 0.25, run: 0.6, below: 1.2 },
-  /** A home's front door hood: depth, thickness, how far past the door each side, how far over the door's top. */
+  /** Door-hood depth, thickness, side extension, and clearance above the doorway. */
   hood: { depth: 0.6, thick: 0.15, run: 0.3, above: 0.3 },
   /**
-   * The step up through every walk-in's doorway: its rise sits between a car's step-up (0.45) and a person's (0.55), so
-   * people walk in and cars stop at the door; it stands out from the wall, runs past the doorway each side, and goes
-   * through the shell to the room (INTERIOR.wall).
+   * Doorway stoop dimensions in meters. The rise lies between vehicle and pedestrian step limits so people can enter
+   * while cars stop. Extend the stoop through INTERIOR.wall to the interior.
    */
   stoop: { rise: 0.5, out: 0.6, side: 0.15, paint: '#8a8094' },
   /** Balconies: slab depth and thickness, railing height and bar thickness, inset from the bay's edges. */
   balcony: { depth: 0.8, slab: 0.16, rail: 1.0, bar: 0.05, inset: 0.15 },
   /**
-   * Fire escapes, over `bays` bays at one end of a street face: a grate landing at every storey with a rail round it,
-   * and a flight of `steps` treads up to the next, alternating direction; a ladder hangs from the first landing to
-   * `ladder` above the sidewalk.
+   * Fire-escape dimensions in meters. Span `bays` at one end of the facade, connect storeys with `steps` alternating
+   * treads, and end the drop ladder `ladder` meters above the base.
    */
   escape: { depth: 0.8, grate: 0.08, rail: 0.95, bar: 0.05, steps: 8, tread: 0.05, flight: 0.4, bays: 2, ladder: 2.4 },
   /**
-   * Setbacks on tall towers: a narrower block on the roof, inset by this share of the short side (at least `min`),
-   * `height` tall.
+   * Tower setback limits: footprint inset as a fraction of the shorter side, minimum inset, height range, and
+   * eligibility thresholds for tower height and side length.
    */
   setback: { inset: 0.2, min: 2.5, height: [6, 12] as const, tall: 30, side: 16 },
   /** Street lamps keep this much room round their poles, up to their caps' height above the street. */
   lampClear: { r: 0.8, top: 6.7 },
-  /**
-   * How often: a home's street face is a shop front; an office's other street faces are; homes get balconies, a fire
-   * escape, ledges every storey; towers a setback; a cornice at all.
-   */
+  /** Selection probabilities for shop fronts, balconies, fire escapes, storey ledges, setbacks, and cornices. */
   odds: { shop: 0.65, officeShop: 0.4, balconies: 0.4, escape: 0.5, ledges: 0.3, setback: 0.45, cornice: 0.85 },
 };
 
@@ -86,7 +70,7 @@ const PAINTS = {
 const AWNINGS = ['#8a2b6e', '#2b6e5e', '#6e2b8a', '#4a7a1a', '#8a2b3a'];
 const TRIM = { light: '#d8d0e0', dark: '#15101e', share: 0.35 };
 
-/** How a building looks: its walls' layout and how it's dressed. buildingLook() picks one from its size and streets. */
+/** Facade layout and decorative features selected by buildingLook from dimensions and street-facing sides. */
 export interface BuildingLook {
   /** The walls (kind 'wall'). */
   facade: FacadeDef;
@@ -193,8 +177,8 @@ function seedOf(x0: number, z0: number, x1: number, z1: number): number {
 }
 
 /**
- * Pick a building's look from its footprint, height (base to roof) and the sides that face a street: offices with
- * lobbies over a certain height, homes over shops below it, and a shop or two under a flat when it's low.
+ * Choose a deterministic facade and decorative features from footprint, height, and street-facing sides. The
+ * footprint-derived seed does not consume the city generator's random stream.
  */
 export function buildingLook(
   x0: number,
@@ -220,7 +204,7 @@ export function buildingLook(
   );
   const paint = rng.pick(PAINTS[family]);
   const use = office ? B.office : B.home;
-  // the longest street side is the front: an office's lobby
+  // Reserve the longest street-facing side for the office lobby.
   const all = sides(x0, z0, x1, z1);
   const front = [...streets].sort((a, b) => all[b].a1 - all[b].a0 - (all[a].a1 - all[a].a0))[0];
   const street: Partial<Record<Facing, StreetFront>> = {};
@@ -232,7 +216,7 @@ export function buildingLook(
     }
   }
 
-  // a home with no shop under it still has a front door
+  // Provide an entry front when no storefront was selected.
   if (front && !Object.keys(street).length) {
     street[front] = 'entry';
   }
@@ -285,15 +269,7 @@ export function buildingLook(
   };
 }
 
-/**
- * A band of trim round a footprint, standing `out` off its walls from y0 to y1 (cornices, ledges): one box round the
- * whole wall, so a slime `drip` gets the same four top edges the wall would (a cornice's top is cut away under the roof
- * by the coplanar pass, world/coplanar.ts).
- */
-/**
- * A ring of trim standing `out` off a footprint's walls from y0 to y1, outside them only (ledges: a walk-in's floors
- * run behind them).
- */
+/** Append four non-solid trim boxes outside the footprint from y0 to y1, leaving the interior unobstructed. */
 function ring(
   w: LevelWriter,
   mat: MatKey,
@@ -333,7 +309,7 @@ function band(
   });
 }
 
-/** Awnings over a shop front's bays: striped canvas with a valance, all along it or one per bay. */
+/** Append non-solid striped awnings and valances, continuously or per bay. Skip spans that conflict with street lamps. */
 function awnings(w: LevelWriter, mat: MatKey, s: Side, f: Facade, paint: string, continuous: boolean): void {
   const A = BUILDING.awning;
   const n = bayCount(s.a1 - s.a0, f.bay);
@@ -352,7 +328,7 @@ function awnings(w: LevelWriter, mat: MatKey, s: Side, f: Facade, paint: string,
   }
 }
 
-/** A flat canopy over a lobby's doors, or a hood over a home's front door. */
+/** Append a non-solid lobby canopy or entry hood if its bounds clear street lamps. */
 function canopy(w: LevelWriter, s: Side, f: Facade, front: StreetFront): void {
   const n = bayCount(s.a1 - s.a0, f.bay);
   const [a0, a1] = bayAt(s, doorBay(n), n);
@@ -374,7 +350,10 @@ function canopy(w: LevelWriter, s: Side, f: Facade, front: StreetFront): void {
   }
 }
 
-/** Balconies on every other bay of a side, a slab and three railing panels each, on every storey. */
+/**
+ * Append non-solid balcony slabs and three-sided railings on alternating bays, staggering bay parity by storey. Skip
+ * balconies that conflict with street lamps.
+ */
 function balconies(
   w: LevelWriter,
   mat: MatKey,
@@ -411,7 +390,10 @@ function balconies(
   }
 }
 
-/** A fire escape up a side: landings at every storey joined by zig-zag flights, a ladder hanging from the first. */
+/**
+ * Append a non-solid fire escape with alternating flights and a drop ladder. Require at least two storeys, enough bays,
+ * and street-lamp clearance.
+ */
 function fireEscape(w: LevelWriter, s: Side, f: Facade, storeys: number, base: number): void {
   const E = BUILDING.escape;
   const n = bayCount(s.a1 - s.a0, f.bay);
@@ -467,9 +449,8 @@ function fireEscape(w: LevelWriter, s: Side, f: Facade, storeys: number, base: n
 }
 
 /**
- * Dress a building whose walls (x0..x1, z0..z1 up to `top`) are already written with `look.facade`: ledges, shop
- * awnings and a lobby canopy on its street fronts, balconies or a fire escape, a cornice (carrying the slime `drip` if
- * it has one), and a setback block on the roof.
+ * Append decorative features for an existing facade: ledges, storefront coverings, balconies or a fire escape, cornice,
+ * and optional rooftop setback. A requested slime lip is assigned to the cornice.
  */
 export function dressBuilding(
   w: LevelWriter,
@@ -531,8 +512,8 @@ export function dressBuilding(
 }
 
 /**
- * Where something sx by sz centred on cx, cz stands on a building's roof: the roof at `top`, or the setback's roof if
- * it's wholly on that; null when it would straddle the setback's wall.
+ * Return the roof height beneath an sx-by-sz footprint centred at (cx, cz). Use the setback roof only when fully
+ * contained; return null for overlap with its walls or cornice clearance.
  */
 export function roofAt(look: BuildingLook, cx: number, cz: number, sx: number, sz: number, top: number): number | null {
   const sb = look.setback;
@@ -554,8 +535,8 @@ export function roofAt(look: BuildingLook, cx: number, cz: number, sx: number, s
 }
 
 /**
- * A building's walk-in def from its look: a doorway in each street front's door bay (where the facade paints the door),
- * what its ground floor is, a core up to the storeys above, a seed for its rooms. Null without a street front.
+ * Derive a walk-in definition with facade-aligned doors, interior use, core, paint, and deterministic seed. Prioritize
+ * a lobby doorway, otherwise the longest street front. Return null without a street front.
  */
 export function walkInDef(
   look: BuildingLook,
@@ -569,7 +550,7 @@ export function walkInDef(
   const f = { ...FACADE, ...look.facade } as Facade;
   const all = sides(x0, z0, x1, z1);
   const fronts = Object.entries(f.street ?? {}) as [Facing, StreetFront][];
-  // the main door first: a lobby's, else the longest front's
+  // Order doors so interior layout uses the lobby or longest front as its main entrance.
   fronts.sort(
     ([fa, a], [fb, b]) =>
       Number(b === 'lobby') - Number(a === 'lobby') || all[fb].a1 - all[fb].a0 - (all[fa].a1 - all[fa].a0),
@@ -610,8 +591,8 @@ export function walkInDef(
 }
 
 /**
- * Make a building walk-in when it has a street front: write its def (doors, a core, a seed for its rooms) and a stoop
- * through each doorway. Its facade box must then not collide (the shell and rooms do); returns whether it's walk-in.
+ * Append a walk-in definition, optional elevator, and doorway stoops. Return false without a street front. When true,
+ * the caller must disable facade-box collision because the generated interior supplies collision.
  */
 export function walkIn(
   w: LevelWriter,
@@ -630,7 +611,7 @@ export function walkIn(
   }
 
   const placed = w.building(def);
-  // an office lobby's core is a real elevator up to its floors (the interior draws its shaft)
+  // Register the elevator using the translated building definition; its shaft geometry comes from the interior.
   const lift = buildingLift(placed);
   if (lift) {
     w.data.elevators.push(lift);

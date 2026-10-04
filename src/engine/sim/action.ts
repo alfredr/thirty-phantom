@@ -1,11 +1,11 @@
 import type { Owner } from './relation';
 
-/** The reason an action couldn't happen, for the player to read. */
+/** A player-facing reason an action failed. */
 export interface Fail {
   readonly fail: string;
 }
 
-/** What performing an action did this frame. */
+/** The outcome of one perform() call, including continuation or replacement. */
 export type Result<A> = { readonly done: true } | Fail | { readonly instead: A } | { readonly running: true };
 
 export const done = { done: true } as const;
@@ -13,16 +13,16 @@ export const running = { running: true } as const;
 export const fail = (reason: string): Fail => ({ fail: reason });
 export const instead = <A>(action: A): { readonly instead: A } => ({ instead: action });
 
-/** Hand-offs stop after this many, so two actions that hand off to each other can't loop. */
+/** Bound action replacement chains to prevent cycles. */
 const MAX_HOPS = 8;
 
 /**
- * A request to do something, after Bob Nystrom's command objects. The action carries its participants. resolve()
- * previews what would really happen, without side effects. perform() does it, possibly over several frames, and may
- * hand off to another action instead. `S` is the read-only view of the world and `W` the view that may change it.
+ * Represent a command and its participants, following Bob Nystrom’s command objects. resolve() must preview the command
+ * without side effects. perform() may span frames or replace the command. `S` exposes the read-only world; `W` provides
+ * the mutable view used during execution.
  */
 export abstract class Action<S, W extends S> {
-  /** The larger job this action is a step of, if any. Claims taken by a step belong to the whole job. */
+  /** Parent action whose root owns this action’s claims. */
   parent: Action<S, W> | null = null;
 
   get owner(): Owner {
@@ -39,11 +39,11 @@ export abstract class Action<S, W extends S> {
 
   abstract perform(w: W, dt: number): Result<Action<S, W>>;
 
-  /** Called once when the action ends, however it ends, so it can let go of what it started (a route request, say). */
+  /** Release action-specific resources when execution ends, including cancellation and replacement. */
   stop(): void {}
 }
 
-/** Follows resolve() hand-offs to the action that would really happen. It has no side effects. */
+/** Resolve replacements without side effects. Fail if the replacement chain exceeds MAX_HOPS. */
 export function resolveFully<S, W extends S>(w: S, action: Action<S, W>): Action<S, W> | Fail {
   let current = action;
   for (let hop = 0; hop < MAX_HOPS; hop++) {
@@ -58,19 +58,19 @@ export function resolveFully<S, W extends S>(w: S, action: Action<S, W>): Action
   return fail('NOTHING HAPPENS');
 }
 
-/** What the runner needs from the world: the claim checks, and somewhere to report outcomes. */
+/** Claim lifecycle and outcome hooks required by the action runner. */
 export interface DoingHooks<S, W extends S> {
   /** Whether `owner` lost a claim earlier this frame. A running action that did stops with `lost`. */
   lost(owner: Owner): boolean;
-  /** Ends everything `owner` holds. */
+  /** Release all claims belonging to `owner`. */
   end(owner: Owner): void;
   performed?(action: Action<S, W>): void;
   failed?(action: Action<S, W>, reason: string): void;
 }
 
 /**
- * Runs actions for anyone: the player's keys and the AI hand it the same objects. Actions that take time keep running
- * until they finish, fail, or lose a claim. Whatever an action held ends with it.
+ * Execute player and AI actions through the same lifecycle. Continue running actions across frames until completion,
+ * failure, cancellation, or claim loss. Release an action’s owner claims when that action ends or is replaced.
  */
 export class Doing<S, W extends S> {
   private running: Action<S, W>[] = [];
@@ -133,12 +133,12 @@ export class Doing<S, W extends S> {
     let current = action;
     let result: Result<Action<S, W>> = this.hooks.lost(current.owner) ? fail('lost') : current.perform(w, dt);
     for (let hop = 0; 'instead' in result; hop++) {
-      // A hand-off found while doing it: the old action ends, and the new one starts if it can.
+      // Release the current action before resolving its replacement.
       this.finish(current);
       const wanted = result.instead;
       const next = hop < MAX_HOPS ? resolveFully(w, wanted) : fail('NOTHING HAPPENS');
       if ('fail' in next) {
-        // the old one's over already: it's the one asked for instead that couldn't happen
+        // Attribute resolution failure to the requested replacement.
         this.hooks.failed?.(wanted, next.fail);
         return { result: next, current: wanted };
       }
@@ -160,7 +160,7 @@ export class Doing<S, W extends S> {
     return { result, current };
   }
 
-  /** An action is over: it stops, and whatever it held ends with it. Once each. */
+  /** Release the action’s resources and its owner’s claims. */
   private finish(action: Action<S, W>): void {
     action.stop();
     this.hooks.end(action.owner);

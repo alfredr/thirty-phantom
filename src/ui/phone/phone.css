@@ -1,6 +1,6 @@
-/* The phone's home screen and its apps (ui/phone/). The frame, Randy's texts and the call screen are in ../burner.css. Palette from hud.css :root. */
+/* Style ui/phone/ applications. ../burner.css supplies the frame, messages, and calls; hud.css supplies the palette. */
 
-/* the home screen: a grid of apps */
+/* Arrange home-screen apps in three columns. */
 .phone-home {
   display: none;
   grid-template-columns: repeat(3, 1fr);
@@ -44,7 +44,7 @@
   letter-spacing: 0.12em;
   color: var(--lilac);
 }
-/* texts not yet seen */
+/* Show nonempty unread badges above app icons. */
 .phone-icon .badge {
   position: absolute;
   top: -6px;
@@ -64,7 +64,7 @@
   display: none;
 }
 
-/* one app at a time, under a bar that goes back home */
+/* Display the selected app beneath its navigation bar. */
 .phone-app {
   display: none;
   flex: 1;
@@ -99,7 +99,7 @@
   letter-spacing: 0.14em;
   color: var(--warm);
 }
-/* an app's screen scrolls (wheel, arrows, or a drag on touch), with a thin bar down its edge */
+/* Allow vertical app scrolling while containing overscroll and preserving touch panning. */
 .phone-body {
   flex: 1;
   min-height: 0;
@@ -118,13 +118,13 @@
   border-radius: 3px;
   background: var(--lilac);
 }
-/* the texts fill from the bottom, and scroll back */
+/* Let message content grow beyond the viewport so the app body can scroll its history. */
 .phone-body .burner-thread {
   flex: 1 0 auto;
   overflow: visible;
 }
 
-/* an app's text, in sections */
+/* Use shared spacing and typography for app text sections. */
 .phone-section {
   padding: 10px 16px 2px;
 }
@@ -158,7 +158,7 @@
   font-size: 0.7em;
 }
 
-/* how many spots are haunted, big */
+/* Emphasize the phantom occupancy count. */
 .phone-count {
   display: flex;
   align-items: baseline;
@@ -177,7 +177,7 @@
   color: var(--lilac);
 }
 
-/* the city map, filling the app while it's docked here */
+/* Remove the standalone map frame when it is docked in the phone. */
 .phone-map {
   padding: 10px;
 }
@@ -221,7 +221,7 @@
   color: var(--lilac);
 }
 
-/* every key, and what it does: one to a line, the caps small */
+/* Align compact control labels with their descriptions in the Help app. */
 .phone-keys {
   display: flex;
   flex-direction: column;

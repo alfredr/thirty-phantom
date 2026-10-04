@@ -2,7 +2,7 @@ import { keyCap, type StickControls } from '@/engine/input/input';
 
 const SHIFT: [string, string] = ['ShiftLeft', 'ShiftRight'];
 
-/** Every key the game reads, by control. The first code is the one the HUD shows. */
+/** Keyboard bindings by control. The HUD displays the first binding. */
 export const KEYS = {
   forward: ['KeyW', 'ArrowUp'],
   back: ['KeyS', 'ArrowDown'],
@@ -13,25 +13,25 @@ export const KEYS = {
   hop: ['Space'],
   interact: ['KeyF'],
   pay: ['KeyG'],
-  /** Opens the item menu, and steps through it while it's open. */
+  /** Open the inventory or advance its selection. */
   inventory: ['KeyI'],
-  /** Brings Cody's phone up, and puts it away again. */
+  /** Toggle the phone panel. */
   phone: ['Backquote'],
   summon: ['KeyX'],
-  /** Hold in the monster truck: burn GhASt for a boost. */
+  /** Hold to spend GhASt on a monster truck boost. */
   boost: ['KeyB'],
   rotateLeft: ['KeyQ'],
   rotateRight: ['KeyE'],
   camera: ['KeyC'],
   help: ['KeyH'],
-  /** Sound on and off (src/audio/ reads it straight off the keyboard). */
+  /** Toggle sound; src/audio/ reads this binding directly. */
   mute: ['KeyM'],
   fastForward: ['KeyT'],
   nextPhase: ['KeyN'],
   start: ['Enter', 'Space'],
-  // dev: only does anything while a code change is waiting
+  // Reload a pending development update.
   reload: ['KeyR'],
-  // Menus and panels take these while they're open, through focus layers.
+  // Focus layers reserve these controls for open menus and panels.
   menuUp: ['ArrowUp'],
   menuDown: ['ArrowDown', 'Tab'],
   cancel: ['Escape'],
@@ -47,17 +47,17 @@ export const KEYS = {
   slot9: ['Digit9'],
 } satisfies Record<string, [string, ...string[]]>;
 
-/** Something the player does with a key: walk forward, interact, open the phone. */
+/** A named keyboard action. */
 export type Control = keyof typeof KEYS;
 
 export function isControl(name: string): name is Control {
   return Object.hasOwn(KEYS, name);
 }
 
-/** The controls the touch stick pushes. */
+/** Movement actions driven by the touch stick. */
 export const STICK: StickControls<Control> = { left: 'left', right: 'right', forward: 'forward', back: 'back' };
 
-/** How the HUD names a control's key: F, SHIFT, SPACE, ~. */
+/** Return the display label for the primary binding. */
 export function keyName(control: Control): string {
   return keyCap(KEYS[control][0]);
 }

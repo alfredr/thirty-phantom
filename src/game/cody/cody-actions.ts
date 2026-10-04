@@ -9,29 +9,26 @@ import type { Elevator } from '@/world/elevators';
 
 import type { CodyState } from './cody-state';
 
-/**
- * What Cody's actions need from the game. The game provides this narrow view, and actions never reach past it, so each
- * action's dependencies are visible in one place.
- */
+/** Game state and operations available to Cody’s actions. */
 export interface Play {
   readonly cody: CodyState;
   readonly conditions: WorldConditions;
   /** The vehicle Cody is driving, or null. */
   ride(): Vehicle | null;
-  /** Whether getting into `car` would possess it (a car in the awake deck that Cody can possess). */
+  /** Test whether entering this car would trigger possession. */
   possessable(car: Vehicle): boolean;
   enter(car: Vehicle): void;
   exit(): void;
-  /** Whether an escaped truck is still rolling on its own. */
+  /** Whether the escape sequence currently prevents leaving the truck. */
   escaping(): boolean;
-  /** Whether Cody's car stands in a free deck spot, where getting out parks it. */
+  /** Test whether exiting would park the car in an available deck spot. */
   inFreeSpot(car: Vehicle): boolean;
   talkToValet(valet: Valet): void;
   talkToRandy(randy: Npc): void;
   summon(): number;
   canEat(): boolean;
   eat(): boolean;
-  /** Who would take Cody's tires right now, or null. */
+  /** Return an available tire recipient, or null. */
   tireTaker(): Npc | null;
   giveTires(to: Npc): boolean;
 }
@@ -40,10 +37,10 @@ export type CodyAction = Action<Play, Play>;
 
 export type CodyCandidate = Candidate<Control, Play, Play>;
 
-/** How strongly an offer claims its key when several are possible. Higher wins. */
+/** Priority among offers sharing a control; higher values win. */
 export const RANK = { script: 40, valet: 30, randy: 30, elevator: 20, vehicle: 10, getOut: 10 } as const;
 
-/** Getting into a vehicle: possessing it, stealing it, or simply getting in. */
+/** Shared boarding behavior for possession, theft, and ordinary entry. */
 abstract class Board extends Action<Play, Play> {
   constructor(readonly p: { car: Vehicle }) {
     super();
@@ -54,7 +51,7 @@ abstract class Board extends Action<Play, Play> {
   }
 }
 
-/** Possess a car in the awake deck. In the tutorial, the deck does it while Cody is still in his daytime form. */
+/** Label possession as ordinary entry while the tutorial keeps Cody in daytime form. */
 export class Possess extends Board {
   label({ cody }: Play): string {
     return `${cody.phantom ? 'POSSESS' : 'GET IN'} &nbsp;☾`;
@@ -73,7 +70,7 @@ export class GetIn extends Board {
   }
 }
 
-/** Interact with a vehicle: it becomes possessing, stealing or getting in, depending on the car and on Cody. */
+/** Resolve vehicle interaction according to possession eligibility, vehicle form, and Cody’s abilities. */
 export class InteractWithVehicle extends Action<Play, Play> {
   constructor(readonly p: { car: Vehicle }) {
     super();
@@ -141,7 +138,7 @@ export class CallElevator extends Action<Play, Play> {
   }
 }
 
-/** In a cab: pick the next floor up (dir 1) or down (dir -1). The down label also says where the cab is heading. */
+/** Select the next elevator stop in the requested direction. The down label also displays destination information. */
 export class PickFloor extends Action<Play, Play> {
   constructor(readonly p: { cab: Elevator; dir: 1 | -1 }) {
     super();
@@ -157,7 +154,7 @@ export class PickFloor extends Action<Play, Play> {
   }
 }
 
-/** Get out of the vehicle. In a free deck spot by day, getting out parks the car, and the prompt says so. */
+/** Exit the vehicle, showing PARK HERE when the current parking conditions allow it. */
 export class GetOut extends Action<Play, Play> {
   constructor(readonly p: { car: Vehicle }) {
     super();
@@ -168,7 +165,7 @@ export class GetOut extends Action<Play, Play> {
   }
   resolve(w: Play): CodyAction | Fail {
     const { car } = this.p;
-    // An escaped truck rolls on by itself, and nobody gets out of a car in the air.
+    // Prevent exit during an escape or while the vehicle is airborne and unsettled.
     if (w.escaping() || !(car.grounded || (car.crashing && car.resting))) {
       return fail('');
     }
@@ -182,8 +179,8 @@ export class GetOut extends Action<Play, Play> {
 }
 
 /**
- * A car on its side or roof, gone still: the hop key rocks it back over. The hop itself is a driving input; this offer
- * names it.
+ * Label the hop control for a resting overturned vehicle. Driving input performs the recovery; this action only
+ * supplies the prompt.
  */
 export class RockOver extends Action<Play, Play> {
   label(): string {
@@ -227,7 +224,7 @@ export class GiveTires extends Action<Play, Play> {
   }
 }
 
-/** An offer a script adds for a moment, such as the tutorial's talk with Randy in the basement. */
+/** Expose a script callback as a labeled interaction. */
 export class ScriptedOffer extends Action<Play, Play> {
   constructor(readonly p: { label: string; start: () => void }) {
     super();

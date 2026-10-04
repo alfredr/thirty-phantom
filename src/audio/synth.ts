@@ -1,22 +1,20 @@
 /**
- * Sound recipes. Everything the game plays is synthesized here with WebAudio (a shared buffer of noise, a few
- * oscillators and filters), so there's nothing to download and nothing to license. A recipe builds one voice into
- * `out`, starting at context time `t`, from its params in the cue table (cues.ts). A one-shot says when it's done; a
- * loop runs till it's stopped, and may take live controls (an engine's revs) and schedule its own random bits each
- * frame (a fire's crackles, birds).
+ * Web Audio recipes for synthesized effects and ambience. Each recipe connects a voice to `out` at audio context time
+ * `t`. One-shots report their end time; loops expose stop, update, and optional control methods. Recorded sounds are
+ * handled separately by the mixer.
  */
 
-/** What every recipe works with: the context, and two seconds of white noise to filter. */
+/** Shared audio context, noise buffer, and distortion curves used by synthesis recipes. */
 export interface Kit {
   readonly ctx: BaseAudioContext;
-  /** Six seconds of white noise: long enough that a bed of it doesn't audibly loop. */
+  /** Six seconds of white noise, long enough to reduce audible repetition in continuous sounds. */
   readonly noise: AudioBuffer;
   /** Waveshaper curves: gentle saturation, and a harder one for grit and crunch. */
   readonly soft: Float32Array<ArrayBuffer>;
   readonly hard: Float32Array<ArrayBuffer>;
 }
 
-/** A loop's live controls, each 0..1: an engine's revs and load, a fire's roar, a motor's speed. */
+/** Normalized controls for continuous sounds: RPM, engine load, fire intensity, and motor speed. */
 export interface Controls {
   rpm?: number;
   load?: number;
@@ -25,12 +23,12 @@ export interface Controls {
 }
 
 export interface Voice {
-  /** Context time it's done by; Infinity for a loop. */
+  /** Audio context time at which playback ends, or Infinity for a loop. */
   readonly end: number;
-  /** Stop its sources at context time `at` (the mixer fades a loop out first). */
+  /** Stop all sources at audio context time `at`. The mixer fades loop output before stopping it. */
   stop(at: number): void;
   set?(c: Controls, at: number): void;
-  /** Schedule its next random bits up to a little past context time `at` (called every frame). */
+  /** Schedule upcoming sound events from audio context time `at`. Called each frame for audible loops. */
   tick?(at: number): void;
 }
 
@@ -56,7 +54,7 @@ function curve(f: (x: number) => number): Float32Array<ArrayBuffer> {
 const rand = (a: number, b: number): number => a + (b - a) * Math.random();
 const mix = (a: number, b: number, t: number): number => a + (b - a) * t;
 
-/** A voice's sources, stopped together. */
+/** Track a voice's source nodes so they can be stopped together. */
 class Sources {
   private readonly list: AudioScheduledSourceNode[] = [];
 
@@ -72,7 +70,7 @@ class Sources {
   };
 }
 
-/** An oscillator from `t` (to `end`, if given). */
+/** Start an oscillator at context time `t`, optionally stopping it at `end`. */
 function osc(k: Kit, s: Sources | null, type: OscillatorType, f: number, t: number, end?: number): OscillatorNode {
   const o = k.ctx.createOscillator();
   o.type = type;
@@ -86,7 +84,7 @@ function osc(k: Kit, s: Sources | null, type: OscillatorType, f: number, t: numb
   return s ? s.add(o) : o;
 }
 
-/** White noise from `t` (to `end`, if given), from somewhere random in the buffer. */
+/** Start looping white noise at context time `t` from a random buffer offset. Optionally stop at `end`. */
 function noise(k: Kit, s: Sources | null, t: number, end?: number): AudioBufferSourceNode {
   const n = k.ctx.createBufferSource();
   n.buffer = k.noise;
@@ -121,7 +119,7 @@ function shape(k: Kit, c: Float32Array<ArrayBuffer>): WaveShaperNode {
   return w;
 }
 
-/** A gain that rises to `peak` over `a` seconds from `t`, then dies away over about `d`. */
+/** Create an envelope with a linear attack over `a` seconds and an exponential decay lasting roughly `d` seconds. */
 function strike(k: Kit, t: number, peak: number, a: number, d: number): GainNode {
   const g = k.ctx.createGain();
   g.gain.setValueAtTime(0, t);
@@ -138,15 +136,12 @@ function chain(...nodes: [AudioNode, ...AudioNode[]]): void {
   });
 }
 
-/** Wobble `param` up and down by `depth` with `lfo` (a slow oscillator). */
+/** Modulate an audio parameter with an oscillator scaled by `depth`. */
 function wobble(k: Kit, lfo: AudioNode, depth: number, param: AudioParam): void {
   lfo.connect(amp(k, depth)).connect(param);
 }
 
-/**
- * Make-up gain for noise through a band about `bw` Hz wide: a narrow band of noise is quiet, so every band comes out
- * about as loud.
- */
+/** Compensate for the lower energy of narrow-band noise. `bw` is the filter bandwidth in Hz. */
 function loud(k: Kit, bw: number): number {
   return Math.min(10, Math.sqrt(k.ctx.sampleRate / 2 / Math.max(bw, 20)) * 0.35);
 }
@@ -154,16 +149,16 @@ function loud(k: Kit, bw: number): number {
 // ---------------------------------------------------------------- horn
 
 export interface HornP {
-  /** Its notes (Hz): two about a third apart for a car's horn, one for a bike's. */
+  /** Horn frequencies in Hz. Car horns use two notes; the motorcycle uses one. */
   f: readonly number[];
-  /** How long each blast is held (s), how many (a bike's double toot), and the gap between (s). */
+  /** Blast duration and gap in seconds, plus the number of blasts. */
   dur: number;
   beeps?: number;
   gap?: number;
   wave: OscillatorType;
-  /** Where the horn's trumpet rings (Hz): a peak there, rolled off above twice it. */
+  /** Resonant frequency in Hz; the low-pass cutoff is twice this value. */
   tone: number;
-  /** How hard it's driven (1 clean, more is harsher: an angry driver leaning on it). */
+  /** Distortion drive. Values above 1 produce a harsher horn. */
   drive?: number;
 }
 
@@ -174,7 +169,7 @@ function horn(k: Kit, out: AudioNode, t: number, p: HornP): Voice {
   const end = t + n * (p.dur + gap);
   const drive = p.drive ?? 1;
   const pre = amp(k, (drive * 0.8) / p.f.length);
-  // driven harder it's harsher, not much louder
+  // Compensate for drive gain so distortion changes the timbre more than the volume.
   const top = 1 / Math.sqrt(drive);
   const env = amp(k, 0);
   chain(pre, shape(k, k.soft), filter(k, 'peaking', p.tone, 1.4, 9), filter(k, 'lowpass', p.tone * 2), env, out);
@@ -185,7 +180,7 @@ function horn(k: Kit, out: AudioNode, t: number, p: HornP): Voice {
 
     for (let i = 0; i < n; i++) {
       const b = t + i * (p.dur + gap);
-      // the diaphragm blats up to pitch
+      // Briefly ramp up to the target pitch to model the horn attack.
       o.frequency.setValueAtTime(f * 0.92, b);
       o.frequency.exponentialRampToValueAtTime(f, b + 0.05);
     }
@@ -205,30 +200,30 @@ function horn(k: Kit, out: AudioNode, t: number, p: HornP): Voice {
 // ---------------------------------------------------------------- foley
 
 interface Layer {
-  /** Level (0..1), how long it lasts (s), and how long after the rest it comes (s). */
+  /** Layer gain, duration in seconds, and optional start delay in seconds. */
   vol: number;
   len: number;
   at?: number;
 }
 
 /**
- * Layers of a knock, a crash or a breakage, any mix of them. All noise but the thump, so nothing rings on as a tone
- * after the hit: bigger hits want a lower thump and a darker body.
+ * Optional layers for impact sounds. A low sine-wave thump supplies weight; filtered noise supplies the remaining
+ * textures without sustained ringing.
  */
 export interface FoleyP {
-  /** The low body thump: a sine dropping from `from` to `to` (Hz), done in `len` (keep it under 120 Hz and 0.15 s). */
+  /** Low sine-wave impact, sweeping from `from` to `to` in Hz over a short envelope. */
   thump?: Layer & { from: number; to: number };
-  /** The weight of it: noise under `f` (Hz), the cutoff sweeping down fast. */
+  /** Low-frequency noise with a rapidly falling cutoff, initially `f` Hz. */
   body?: Layer & { f: number };
-  /** Crunch: noise round `f` (Hz, `q` narrow) sweeping down, clipped hard, and a smaller one hard on its heels. */
+  /** Two distorted noise bursts around `f` Hz with filter resonance `q`. */
   crunch?: Layer & { f: number; q: number };
-  /** One clean crack or knock: a click of noise round `f` (Hz), `q` narrow (wood). */
+  /** Short band-pass noise burst around `f` Hz with resonance `q`. */
   snap?: Layer & { f: number; q: number };
-  /** Glass going: a splash of hiss, and `n` shards of it over `len`. */
+  /** Initial glass break followed by `n` short noise bursts over `len` seconds. */
   glass?: Layer & { n: number };
-  /** Bits clattering down: `n` clicks round `f` (Hz) over `len`, `q` narrow (default 1.4). */
+  /** Debris impacts: `n` noise bursts around `f` Hz over `len` seconds. Default resonance is 1.4. */
   rattle?: Layer & { n: number; f: number; q?: number };
-  /** Leaves and twigs: hiss from `f` (Hz) up, and twigs snapping. */
+  /** Filtered leaf noise above `f` Hz with short twig snaps. */
   rustle?: Layer & { f: number };
 }
 
@@ -239,7 +234,7 @@ function foley(k: Kit, out: AudioNode, t: number, p: FoleyP): Voice {
     end = Math.max(end, e);
   };
 
-  /** A click of noise round `f` at `at`, done in `len`. */
+  /** Schedule a short band-pass noise burst at context time `at`, centered on `f` Hz. */
   const click = (at: number, f: number, q: number, vol: number, len: number): void => {
     chain(
       noise(k, s, at, at + len + 0.02),
@@ -250,7 +245,7 @@ function foley(k: Kit, out: AudioNode, t: number, p: FoleyP): Voice {
     upTo(at + len + 0.02);
   };
 
-  /** A filter's cutoff falling from `f` to a fraction of it over `len` from `at`. */
+  /** Sweep a filter exponentially from `f` to `f * to` Hz over `len` seconds. */
   const sweep = (b: BiquadFilterNode, at: number, f: number, to: number, len: number): void => {
     b.frequency.setValueAtTime(f, at);
     b.frequency.exponentialRampToValueAtTime(f * to, at + len);
@@ -306,7 +301,7 @@ function foley(k: Kit, out: AudioNode, t: number, p: FoleyP): Voice {
       out,
     );
 
-    // shards: short, wide bands of hiss, too broad to ring as a note
+    // Use broad noise bands so glass fragments do not produce sustained tones.
     for (let i = 0; i < glass.n; i++) {
       click(t0 + glass.len * Math.random() ** 1.5, rand(3000, 8000), 0.9, glass.vol * rand(0.2, 0.6), rand(0.01, 0.04));
     }
@@ -354,10 +349,10 @@ function foley(k: Kit, out: AudioNode, t: number, p: FoleyP): Voice {
 // ---------------------------------------------------------------- whoosh
 
 export interface WhooshP {
-  /** The band's centre (Hz) at the start, at its loudest and at the end, and how narrow (Q). */
+  /** Band-pass center frequencies at the start, peak, and end, in Hz, plus filter resonance Q. */
   f: readonly [number, number, number];
   q: number;
-  /** How long (s), when it's loudest (a share of that), its level, and a low boom under it (Hz, or none). */
+  /** Duration in seconds, peak time as a fraction of duration, gain, and optional low boom frequency in Hz. */
   len: number;
   peak: number;
   vol: number;
@@ -390,18 +385,18 @@ function whoosh(k: Kit, out: AudioNode, t: number, p: WhooshP): Voice {
 // ---------------------------------------------------------------- wail
 
 export interface WailP {
-  /** Pitch gliding from `from` to `to` (Hz) over `len` (s), wavering by `vibrato` (a share of the pitch). */
+  /** Pitch sweep from `from` to `to` Hz over `len` seconds. Vibrato depth is relative to the starting pitch. */
   from: number;
   to: number;
   len: number;
   vibrato: number;
-  /** Voices `cents` apart (a ghostly chorus), their wave, and breathy air over them (level). */
+  /** Chorus voice count, detuning interval in cents, waveform, and breath-noise gain. */
   voices: number;
   cents: number;
   wave: OscillatorType;
   air: number;
   vol: number;
-  /** Swells in over this share of `len`, fades over the rest. */
+  /** Fraction of the duration used for the attack; the remaining time is the fade. */
   rise: number;
 }
 
@@ -436,12 +431,12 @@ function wail(k: Kit, out: AudioNode, t: number, p: WailP): Voice {
 // ---------------------------------------------------------------- chime
 
 export interface ChimeP {
-  /** Its notes (Hz), `step` seconds apart, each dying away over `decay` (s). */
+  /** Note frequencies in Hz, spaced by `step` seconds, with `decay` seconds per note. */
   notes: readonly number[];
   step: number;
   decay: number;
   wave: OscillatorType;
-  /** A bell's overtone (a ratio to each note, a third as loud), or none. */
+  /** Optional overtone frequency multiplier, played at one-third gain. */
   bell?: number;
   vol: number;
 }
@@ -466,15 +461,15 @@ function chime(k: Kit, out: AudioNode, t: number, p: ChimeP): Voice {
 // ---------------------------------------------------------------- phone
 
 export interface RingP {
-  /** The two tones it warbles between (Hz), `trill` times a second, out of a tinny speaker. */
+  /** Alternating ringtone frequencies in Hz and switching rate per second. */
   f: readonly [number, number];
   trill: number;
-  /** On and off times (s), repeating: ring, pause, ring, longer pause. */
+  /** Alternating ring and pause durations in seconds, repeated until stopped. */
   pattern: readonly number[];
   vol: number;
 }
 
-/** Loop: rings in its pattern till stopped. */
+/** Repeat the ringtone pattern until stopped. */
 function ring(k: Kit, out: AudioNode, t: number, p: RingP): Voice {
   const s = new Sources();
   const o = osc(k, s, 'square', p.f[0], t);
@@ -509,12 +504,12 @@ function ring(k: Kit, out: AudioNode, t: number, p: RingP): Voice {
 }
 
 export interface BuzzP {
-  /** A phone vibrating on a table: `pulses` of `len` (s), `gap` apart, at `f` (Hz). */
+  /** Vibration frequency in Hz, pulse count, pulse duration, and gap in seconds. */
   f: number;
   pulses: number;
   len: number;
   gap: number;
-  /** And its message tone: these notes (Hz), `step` apart. */
+  /** Message-tone frequencies in Hz, spaced by `step` seconds. */
   ding: readonly number[];
   step: number;
   vol: number;
@@ -543,35 +538,33 @@ function buzz(k: Kit, out: AudioNode, t: number, p: BuzzP): Voice {
 
 // ---------------------------------------------------------------- fire
 //
-// After Andy Farnell, Designing Sound (MIT Press, 2010), practical 11 "Fire"
-// (https://aspress.co.uk/sd/practical11.html): three layers off noise. Lapping, the flames' low
-// flapping (noise through a 30 Hz band, Q 5, driven into clipping, the DC taken out); hissing
-// (highpassed noise, surging with slow noise to the fourth power); crackling (short noise bursts
-// with a random resonance, bunching as a slow activity rises). Here with clusters and the odd
-// shifting log on top, and the old lowpassed rush under it.
+// Adapted from Andy Farnell, Designing Sound (MIT Press, 2010), practical 11, "Fire":
+// https://aspress.co.uk/sd/practical11.html
+// Combines low flame movement, high-frequency hissing, and short crackles. This version
+// adds a continuous low-pass noise layer, crackle clusters, and occasional shifting logs.
 
 export interface FireP {
-  /** Crackles a second, idle and roaring (fed, or a GhASt burn). */
+  /** Crackles per second at minimum and maximum roar. */
   rate: readonly [number, number];
-  /** The flames' rush: lowpassed noise (Hz), idle and roaring. */
+  /** Noise low-pass cutoffs in Hz at minimum and maximum roar. */
   body: readonly [number, number];
   vol: number;
-  /** A wood fire's layers (0 or unset for none): lapping flames and a surging hiss (levels). */
+  /** Optional gains for low flame movement and high-frequency hissing. */
   lap?: number;
   hiss?: number;
-  /** How much its activity wanders (0..1): the rush's tone and level, and how thick the crackles come. */
+  /** Amount of variation in background tone, volume, and crackle density, from 0 to 1. */
   wander?: number;
-  /** Crackles that come as a quick cluster (a share), and logs shifting now and then (a share). */
+  /** Probabilities of a crackle cluster or a shifting-log sound at each scheduled event. */
   clusters?: number;
   shifts?: number;
 }
 
-/** A slow random wander, roughly 0..1, stepped on by `dt` seconds (an Ornstein-Uhlenbeck walk round 0.5). */
+/** Advance a random value that tends toward 0.5. `dt` is in seconds; the result is not clamped. */
 function drift(v: number, dt: number, rate: number): number {
   return v + (0.5 - v) * rate * dt + Math.sqrt(dt * rate) * 0.5 * (Math.random() * 2 - 1);
 }
 
-/** Loop. Control: roar (0 ticking over, 1 roaring). */
+/** Create a fire loop whose `roar` control adjusts intensity from 0 to 1. */
 function fire(k: Kit, out: AudioNode, t: number, p: FireP): Voice {
   const s = new Sources();
   let roar = 0;
@@ -580,13 +573,13 @@ function fire(k: Kit, out: AudioNode, t: number, p: FireP): Voice {
   const swell = amp(k, 1);
   chain(noise(k, s, t), tone, rush, swell, out);
   const wander = p.wander ?? 0;
-  // the bed drifts: two slow, unrelated wobbles in tone and level
+  // Modulate background pitch and gain at independent rates.
   if (wander > 0) {
     wobble(k, osc(k, s, 'sine', 0.11 + Math.random() * 0.05, t), p.body[0] * 0.3 * wander, tone.frequency);
     wobble(k, osc(k, s, 'sine', 0.23 + Math.random() * 0.07, t), 0.35 * wander, swell.gain);
   }
 
-  // lapping: a narrow band of noise round 30 Hz, overdriven into flapping
+  // Distort a narrow 30 Hz noise band to model low flame movement.
   const lap = amp(k, (p.lap ?? 0) * p.vol);
   if (p.lap) {
     chain(
@@ -600,17 +593,17 @@ function fire(k: Kit, out: AudioNode, t: number, p: FireP): Voice {
     );
   }
 
-  // hissing, surging now and then
+  // The scheduler controls the gain of this continuous hiss.
   const hiss = amp(k, 0);
   if (p.hiss) {
     chain(noise(k, s, t), filter(k, 'highpass', 1000, 0.7), hiss, out);
   }
 
-  // crackles are left to end on their own: they're short, and the mixer's fade covers any still to come
+  // Short crackles stop themselves; the mixer fades any remaining output when the loop ends.
   const crackles = amp(k, 1);
   crackles.connect(out);
 
-  /** One crackle (or a pop, lower and longer) at `at`. */
+  /** Schedule a crackle or a lower, longer pop at context time `at`. */
   const crack = (at: number, pop: boolean, scale: number): void => {
     const len = pop ? rand(0.03, 0.07) : rand(0.004, 0.02);
     const f = pop ? rand(350, 900) : rand(1500, 6000);
@@ -624,7 +617,7 @@ function fire(k: Kit, out: AudioNode, t: number, p: FireP): Voice {
   let activity = 0.5;
   let surge = 0.5;
   const tick = (at: number): void => {
-    // the fire's mood: how busy the crackles are, and the hiss's surges, wandering
+    // Vary crackle density and hiss intensity independently.
     const dt = Math.min(1, Math.max(0, at - last));
     last = at;
     activity = drift(activity, dt, 0.8);
@@ -645,7 +638,7 @@ function fire(k: Kit, out: AudioNode, t: number, p: FireP): Voice {
     while (next < at + 0.3) {
       const r = Math.random();
       if (r < (p.shifts ?? 0)) {
-        // a log shifting: a soft knock, then a rush of crackles
+        // Model a shifting log with a low knock followed by crackles.
         const knock = filter(k, 'lowpass', 400, 0.7);
         knock.frequency.setValueAtTime(400, next);
         knock.frequency.exponentialRampToValueAtTime(80, next + 0.25);
@@ -660,7 +653,7 @@ function fire(k: Kit, out: AudioNode, t: number, p: FireP): Voice {
           crack(next + 0.05 + Math.random() * 0.4, Math.random() < 0.3, 1);
         }
       } else if (r < (p.shifts ?? 0) + (p.clusters ?? 0)) {
-        // a pocket of sap: a quick run of crackles
+        // Model a sap pocket with a short cluster of crackles.
         const n = 3 + Math.floor(Math.random() * 5);
         const over = rand(0.05, 0.15);
         for (let i = 0; i < n; i++) {
@@ -670,7 +663,7 @@ function fire(k: Kit, out: AudioNode, t: number, p: FireP): Voice {
         crack(next, Math.random() < 0.15, 1);
       }
 
-      // busier as the activity rises (a steady rate with no wander)
+      // Vary event density with activity, or use a steady rate when variation is disabled.
       const busy = wander > 0 ? 0.25 + 1.75 * Math.min(1, Math.max(0, activity)) ** 2 : 1;
       next += -Math.log(1 - Math.random()) / (mix(p.rate[0], p.rate[1], roar) * busy);
     }
@@ -694,13 +687,13 @@ function fire(k: Kit, out: AudioNode, t: number, p: FireP): Voice {
 // ---------------------------------------------------------------- machines
 
 export interface MotorP {
-  /** Its whine (Hz) at a crawl and at full speed, through a band round `tone` (Hz). */
+  /** Motor frequencies at zero and full speed, filtered around `tone` Hz. */
   f: readonly [number, number];
   tone: number;
   vol: number;
 }
 
-/** Loop. Control: speed (0 still, silent; 1 full speed). */
+/** Create a motor loop controlled by normalized speed; zero speed is silent. */
 function motor(k: Kit, out: AudioNode, t: number, p: MotorP): Voice {
   const s = new Sources();
   const a = osc(k, s, 'sawtooth', p.f[0], t);
@@ -725,8 +718,8 @@ function motor(k: Kit, out: AudioNode, t: number, p: MotorP): Voice {
 
 export interface MorphP {
   /**
-   * The old body shuddering (s), its growl rising `from` to `to` (Hz); then the pop, a blorp falling through `blorp`
-   * (Hz) with a splash and a boom.
+   * Transformation sound: a rising growl for `shudder` seconds, followed by a pitch sweep through `blorp`, noise, and a
+   * low impact. Frequencies are in Hz.
    */
   shudder: number;
   from: number;
@@ -765,9 +758,9 @@ function morph(k: Kit, out: AudioNode, t: number, p: MorphP): Voice {
 // ---------------------------------------------------------------- moments
 
 export interface StingerP {
-  /** A gong (Hz; its bell overtones above it), ringing `len` (s). */
+  /** Gong fundamental frequency in Hz, with inharmonic overtones. */
   gong: number;
-  /** A chord swelling in over `swell` (s), dying away with the gong. */
+  /** Chord frequencies in Hz, attack time in seconds, and total sound duration in seconds. */
   chord: readonly number[];
   swell: number;
   len: number;
@@ -801,15 +794,15 @@ function stinger(k: Kit, out: AudioNode, t: number, p: StingerP): Voice {
 // ---------------------------------------------------------------- ambience
 
 export interface TownP {
-  /** The town's distant hum: noise under `hum` (Hz) at `vol`, swelling slowly. */
+  /** Low-pass cutoff in Hz and gain for the continuous town ambience. */
   hum: number;
   vol: number;
-  /** Birds: how loud, and seconds between calls (least, most). */
+  /** Bird-call gain and minimum/maximum delay between calls, in seconds. */
   birds: number;
   every: readonly [number, number];
 }
 
-/** Loop: a day in town. */
+/** Create daytime ambience with a low background hum and periodic bird calls. */
 function town(k: Kit, out: AudioNode, t: number, p: TownP): Voice {
   const s = new Sources();
   const g = p.vol * loud(k, p.hum);
@@ -825,7 +818,7 @@ function town(k: Kit, out: AudioNode, t: number, p: TownP): Voice {
     }
 
     while (next < at + 0.5) {
-      // a call: a few quick chirps, each rising
+      // Each bird call contains several rising chirps.
       const n = Math.floor(rand(2, 6));
       const base = rand(2600, 3600);
       let c = next;
@@ -845,15 +838,15 @@ function town(k: Kit, out: AudioNode, t: number, p: TownP): Voice {
 }
 
 export interface NightP {
-  /** Wind: noise round `wind` (Hz), wandering and gusting, at `vol`. */
+  /** Wind filter center in Hz and gain, with slow pitch and volume modulation. */
   wind: number;
   vol: number;
-  /** Crickets: how loud, and each one's pitch (Hz). */
+  /** Cricket gain and oscillator frequencies in Hz. */
   crickets: number;
   chirp: readonly number[];
 }
 
-/** Loop: night wind and crickets. */
+/** Create nighttime ambience with modulated wind noise and repeating cricket chirps. */
 function night(k: Kit, out: AudioNode, t: number, p: NightP): Voice {
   const s = new Sources();
   const band = filter(k, 'bandpass', p.wind, 0.8);
@@ -874,7 +867,7 @@ function night(k: Kit, out: AudioNode, t: number, p: NightP): Voice {
       }
 
       while (c.next < at + 0.5) {
-        // three quick pulses, then a rest
+        // Emit three pulses per cricket chirp, followed by a randomized pause.
         for (let i = 0; i < 3; i++) {
           const b = c.next + i * 0.045;
           c.gate.gain.setValueAtTime(0, b);
@@ -890,7 +883,7 @@ function night(k: Kit, out: AudioNode, t: number, p: NightP): Voice {
   return { end: Infinity, stop: s.stop, tick };
 }
 
-// ---------------------------------------------------------------- the recipe book
+// ---------------------------------------------------------------- recipe dispatch
 
 interface Params {
   horn: HornP;
@@ -927,10 +920,10 @@ const RECIPES: { [R in keyof Params]: Recipe<Params[R]> } = {
 };
 
 export type RecipeName = keyof Params;
-/** A recipe and its params: what a cue's sound is (`vol` trims its level). */
+/** Synthesis recipe and parameters, with an optional gain multiplier for the mixer. */
 export type Synth = { [R in RecipeName]: { synth: R; p: Params[R]; vol?: number } }[RecipeName];
 
-/** Start `s` into `out` at context time `t`. */
+/** Start the selected synthesis recipe at audio context time `t`, connected to `out`. */
 export function synthesize<R extends RecipeName>(
   k: Kit,
   out: AudioNode,

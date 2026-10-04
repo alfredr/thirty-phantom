@@ -11,15 +11,15 @@ export interface WheelRig {
 
 export interface VehicleRig {
   root: Group;
-  /** Sprung part (sways, pitches, compresses). */
+  /** Group animated by the visual suspension. */
   body: Group;
   wheels: WheelRig[];
   /** Emissive lights that switch on at night. */
   lights: MeshStandardMaterial[];
   materials: Material[];
-  /** Overall height, used for nav arrow placement etc. */
+  /** Overall model height in meters, used to place navigation markers. */
   height: number;
-  /** Root scale it was built at: wrecks squash and shrink from here. */
+  /** Original root scale, used as the baseline for wreck deformation. */
   scale: number;
   /** A motorcycle's rider, shown while someone other than Cody rides it. */
   rider?: BikeRider;
@@ -28,9 +28,9 @@ export interface VehicleRig {
 export interface BikeRider {
   root: Object3D;
   jacket: MeshStandardMaterial;
-  /** The jacket's own color, for anyone riding but a valet. */
+  /** Jacket color restored for non-valet riders. */
   ownJacket: Color;
-  /** Where a rider's hips go (rides with the leaning body): Cody sits here himself instead of this rider. */
+  /** Hip attachment point for Cody, parented to the leaning vehicle body. */
   saddle: Object3D;
 }
 
@@ -52,7 +52,7 @@ export function limb<M extends string>(name: string, b: Box, mat: M, extras: rea
   return pivot(name, [b.center[0], b.top, b.center[2]], [solid(b, mat, { receive: false }), ...extras]);
 }
 
-/** CharacterRig from a built model with body, head, armL/R and legL/R nodes (and optionally robe). */
+/** Extract the required character nodes from a built model. Missing required nodes throw; robe is optional. */
 export function characterRig<M extends string>(b: Built<M>): CharacterRig {
   return {
     root: b.root,
@@ -78,7 +78,7 @@ export interface WheelSpec {
 
 /** Wheel node names, shared with the GLB contract: wheel_ + front/rear + left/right. */
 export const WHEELS = ['wheel_fl', 'wheel_fr', 'wheel_rl', 'wheel_rr'] as const;
-/** A bike's two: wheel_ + front/rear. */
+/** Motorcycle wheel node names used by the rig contract. */
 export const BIKE_WHEELS = ['wheel_f', 'wheel_r'] as const;
 export const isFrontWheel = (name: string): boolean => name[6] === 'f';
 const isLeftWheel = (name: string): boolean => name[7] === 'l';
@@ -106,7 +106,7 @@ export function wheels<M extends string>(s: WheelSpec, tire: M, hub: M, extras: 
   );
 }
 
-/** VehicleRig from a built model that has a "body" node and wheel nodes named `names` (wheels() makes them). */
+/** Extract the body, wheel pivots, spin nodes, and light materials. Missing required nodes throw. */
 export function vehicleRig<M extends string>(
   b: Built<M>,
   lights: readonly M[],

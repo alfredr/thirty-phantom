@@ -15,7 +15,7 @@ import {
   type V3,
 } from './level-data';
 
-/** What box() takes besides the corners and material. */
+/** Optional box properties beyond bounds and material. */
 type BoxExtra = Omit<BoxDef, 'min' | 'max' | 'mat'>;
 
 /** Convenience wrapper for authoring LevelData in a local coordinate frame. */
@@ -29,7 +29,7 @@ export class LevelWriter {
     this.data = data ?? emptyLevel(name);
   }
 
-  /** Run `fn` with all coordinates offset by `o`. */
+  /** Run `fn` with `o` added to the current coordinate offset, then restore the previous offset on normal return. */
   at(o: V3, fn: () => void): void {
     const prev: V3 = [this.ox, this.oy, this.oz];
     this.ox += o[0];
@@ -109,8 +109,8 @@ export class LevelWriter {
   }
 
   /**
-   * A piece of landscaping or street furniture at `pos`, turned `yaw`; `extra` sizes it or stretches it along its own
-   * x.
+   * Append decor in the current coordinate frame. `yaw` is in radians; optional scale and stretch apply uniformly and
+   * along local X respectively. Return the appended definition.
    */
   decor(kind: DecorKind, pos: V3, yaw = 0, extra: Pick<DecorDef, 'scale' | 'stretch'> = {}): DecorDef {
     const d: DecorDef = { kind, pos: this.p(pos), yaw, ...extra };
@@ -118,7 +118,7 @@ export class LevelWriter {
     return d;
   }
 
-  /** A walk-in building (doors, core and rooms: world/interior-layout.ts), moved into the writer's frame. */
+  /** Append a building after translating its bounds, doors, and core into the current frame. Return the new definition. */
   building(def: BuildingDef): BuildingDef {
     const along = (f: Facing): number => (f === 'z+' || f === 'z-' ? this.ox : this.oz);
     const b: BuildingDef = {

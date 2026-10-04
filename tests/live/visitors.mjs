@@ -1,6 +1,6 @@
 // Townsfolk who drive into the lots and out again. Each case runs in the page (see tools/scenarios.mjs).
 
-/** Someone turns up by car out of sight, drives to a free stall, parks, and gets out to join the crowd. */
+/** Queue an arrival and verify that its car parks in a stall and adds a pedestrian. */
 export function arrivesParksAndGetsOut() {
   const g = window.__game;
   const sim = window.__sim;
@@ -39,7 +39,7 @@ export function arrivesParksAndGetsOut() {
   };
 }
 
-/** A visitor back at their car in a stall backs out, drives to a lane, and joins the traffic. */
+/** Verify that a departing visitor leaves its stall and remains in traffic after merging. */
 export function leavesAndJoinsTraffic() {
   const g = window.__game;
   const sim = window.__sim;

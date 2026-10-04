@@ -9,7 +9,7 @@ import { withCutaway, type MaterialLibrary } from '@/render/materials';
 import { facingYaw, type GateDef } from './level-data';
 import type { PropKind, Props } from './props';
 
-/** A vehicle that can snap an arm off, going through it while it's still down. */
+/** Vehicle state required to detect impacts against gate arms. */
 export interface GateCrasher {
   readonly pos: Vector3;
   readonly vel: Vector3;
@@ -23,10 +23,10 @@ export interface GateCrasher {
 const SHUT = new Color('#ff2a4a');
 const NEAR = new Color('#ffd23d');
 const SCANNED = new Color('#3dff6a');
-/** The arm lifts for any vehicle within this of the gate (m), below this height... */
+/** Horizontal opening distance in meters and maximum eligible vehicle height in world coordinates. */
 const OPEN_REACH = 10;
 const OPEN_BELOW = 3.5;
-/** ...that's slowed down for it (m/s): one speeding through finds it still down. */
+/** Maximum horizontal speed in meters per second at which a vehicle can trigger opening. */
 const OPEN_SPEED = 8;
 /** How fast the arm swings (damp rate) and how far up it goes (radians). */
 const OPEN_RATE = 5;
@@ -42,8 +42,8 @@ export interface GateRuntime {
 }
 
 /**
- * Barrier arms that lift for nearby vehicles, and the badge scanners' status lamps. The arms themselves are props (see
- * attach): the gate tips them, and a car going through one before it's up snaps it off like a lamp post.
+ * Control gate-arm poses and scanner lamps. Arms are Props instances: nearby slow vehicles trigger opening, and impacts
+ * can release an arm as a loose prop.
  */
 export class Gates {
   readonly root = new Group();
@@ -51,7 +51,7 @@ export class Gates {
   private props: Props | null = null;
   /** Each gate's arm, as a prop index. */
   private arms: readonly number[] = [];
-  /** A car went through gate `g` before its arm was up and snapped it off (the arm's prop kind). */
+  /** Called after a vehicle impact releases an arm, with the gate and arm kind. */
   onSnapped: ((g: GateRuntime, kind: PropKind) => void) | null = null;
 
   constructor(defs: GateDef[], mats: MaterialLibrary) {
@@ -76,16 +76,15 @@ export class Gates {
     }
   }
 
-  /** Hand the arms over (a prop index per gate, in order), held tipped down to start. */
+  /** Associate one Props index with each gate in list order. */
   attach(props: Props, arms: readonly number[]): void {
     this.props = props;
     this.arms = arms;
   }
 
   /**
-   * @param movers positions of all moving vehicles (arms open when one is near)
-   * @param cars all vehicles: if given, an arm only opens for one near that's slowed down for it, and one going through
-   *   it at speed while it's down snaps it off
+   * Update arms and scanner lamps over `dt` seconds. When `cars` is supplied, use vehicle state for speed-qualified
+   * opening and impacts; otherwise use `movers` positions for proximity-only opening.
    */
   update(dt: number, movers: readonly Vector3[], cars: readonly GateCrasher[] | null = null): void {
     for (let k = 0; k < this.list.length; k++) {
@@ -128,7 +127,7 @@ export class Gates {
     }
   }
 
-  /** Snap the arm off if a car at knock-down speed is going through it below its top. */
+  /** Release a standing arm when a vehicle above the knockdown speed intersects its current height and horizontal span. */
   private strike(g: GateRuntime, arm: number, cars: readonly GateCrasher[]): void {
     const a = g.open * LIFT;
     const h = g.def.hinge;
@@ -150,7 +149,7 @@ export class Gates {
       for (let c = -1; c <= 1; c++) {
         const px = v.pos.x + fx * half * c;
         const pz = v.pos.z + fz * half * c;
-        // nearest point of the arm, in plan, and how high the arm is there
+        // Project each body circle onto the arm to test horizontal and vertical overlap.
         const s = clamp((px - h[0]) * dx + (pz - h[2]) * dz, 0, reach);
         const ox = px - (h[0] + dx * s);
         const oz = pz - (h[2] + dz * s);

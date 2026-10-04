@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Set up (or update) the static host: Caddy, the deploy user, the release dirs.
-# Safe to re-run; do so after editing deploy/Caddyfile.
+# Install or update Caddy, the deployment user, and release directories.
+# Rerun after changing deploy/Caddyfile to apply the server configuration.
 #
 #   deploy/setup-server.sh [root@host]
 set -euo pipefail
@@ -23,7 +23,7 @@ if ! command -v caddy >/dev/null; then
   apt-get install -yq caddy
 fi
 
-# deploy: no sudo, owns the site, logs in with the same keys as root.
+# Create a deployment account that owns the site and uses root's authorized SSH keys.
 id deploy >/dev/null 2>&1 || useradd --create-home --shell /bin/bash deploy
 install -d -m 700 -o deploy -g deploy /home/deploy/.ssh
 install -m 600 -o deploy -g deploy /root/.ssh/authorized_keys /home/deploy/.ssh/authorized_keys

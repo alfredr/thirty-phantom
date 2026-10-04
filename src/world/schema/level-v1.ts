@@ -20,7 +20,7 @@ export const BuildingUseSchema = Type.Enum(['shop', 'diner', 'lobby', 'hall']);
 export const LampColorSchema = Type.Enum(['green', 'purple', 'warm']);
 export const LampKindSchema = Type.Enum(['street', 'ceiling', 'flood']);
 
-/** Facade dimensions are in metres. A zero ground height omits the storefront band. */
+/** Facade dimensions are in meters. A zero ground height omits the storefront band. */
 export const FacadeDefSchema = object({
   kind: FacadeKindSchema,
   paint: Type.Optional(Type.String()),

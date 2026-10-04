@@ -7,23 +7,22 @@ import { BIKE_WHEELS, vehicleRig, type VehicleRig } from './rig';
 
 export const MOTORCYCLE = {
   color: '#6a6478',
-  /** Rider's jacket: biker leather for whoever isn't Cody. */
+  /** Default jacket color for the built-in rider. */
   jacket: '#2a2230',
   wheel: { r: 0.33, w: 0.14 },
-  /** Axle to axle. */
+  /** Distance between wheel axles, in meters. */
   base: 1.5,
   /** Top of the rider's helmet. */
   height: 1.78,
-  /** Where a rider's hips go, on the back of the seat. */
+  /** Saddle attachment position for the rider’s hips, in model coordinates. */
   saddle: [0, 0.98, -0.3] as V3,
 };
 
 export type MotorcycleParams = typeof MOTORCYCLE;
 
 /**
- * Street bike with a seated rider (+Z forward). Everything, wheels included, hangs off the sprung "body" node, so the
- * whole bike leans into turns about its tire contact line. The rider is its own "rider" node, shown only while the bike
- * is ridden by someone other than Cody, who sits on the "saddle" node himself.
+ * Build a motorcycle facing +Z. Parent wheels and rider to the suspension body so the whole model leans around its
+ * ground-contact line. Keep the built-in rider separate from the saddle attachment used by Cody.
  */
 export function motorcycle(params: Partial<MotorcycleParams> = {}) {
   const p = { ...MOTORCYCLE, ...params };
@@ -35,18 +34,18 @@ export function motorcycle(params: Partial<MotorcycleParams> = {}) {
         solid(box(w * 1.1, r * 0.55, r * 0.55), 'hub'),
       ]),
     ]);
-  // forks rake back from the front axle up to the bars
+  // Tilt the forks backward toward the handlebars.
   const rake = -0.32;
   const rider = group({ name: 'rider' }, [
     ...SIDES.flatMap((s) => [
       solid(box(0.15, 0.14, 0.46).at(s * 0.16, 0.95, -0.12), 'pants'),
       solid(box(0.13, 0.48, 0.14).at(s * 0.2, 0.68, 0.12), 'pants', { rot: [-0.25, 0, 0] }),
       solid(box(0.14, 0.1, 0.26).at(s * 0.2, 0.43, 0.16), 'boots'),
-      // arms reach forward and down to the grips
+      // Align the rider’s arms with the handlebar grips.
       solid(box(0.11, 0.11, 0.5).at(s * 0.24, 1.17, 0.2), 'jacket', { rot: [0.35, 0, 0] }),
       solid(box(0.12, 0.1, 0.12).at(s * 0.3, 1.05, 0.47), 'boots', NO_CAST),
     ]),
-    // hunched over the tank
+    // Lean the rider’s torso forward over the fuel tank.
     solid(box(0.44, 0.58, 0.28).at(0, 1.24, -0.2), 'jacket', { rot: [0.4, 0, 0] }),
     solid(box(0.32, 0.32, 0.34).at(0, 1.6, -0.02), 'helmet'),
     solid(box(0.26, 0.12, 0.04).at(0, 1.6, 0.16), 'visor', NO_CAST),

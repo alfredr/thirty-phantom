@@ -5,13 +5,13 @@ import { box, build, group, model, NO_CAST, pivot, SIDES, solid } from './part';
 import { BODY } from './person';
 import { type CharacterRig, characterRig, limb } from './rig';
 
-/** Bone sizes, on the city person's proportions (BODY) so gaits and ragdolls fit. */
+/** Bone dimensions matching BODY proportions for shared gait and ragdoll support. */
 export const SKELETON = {
   bone: 0.09,
   knob: 0.15,
   pelvis: [0.44, 0.14, 0.22] as V3,
   spine: [0.09, 0.62, 0.09] as V3,
-  /** Ribs: how many, each this size, stacked up the chest from `ribsFrom` (m above the hip). */
+  /** Rib count and dimensions, with the lowest rib ribsFrom meters above the hip. */
   ribs: 4,
   rib: [0.52, 0.05, 0.32] as V3,
   ribsFrom: 0.28,
@@ -26,7 +26,7 @@ export const SKELETON = {
  */
 export function skeleton(p = SKELETON) {
   const b = BODY;
-  // the space a person's torso fills: bones hang off it, but it isn't drawn
+  // Use the shared torso bounds for attachments without rendering a solid torso.
   const torso = box(...b.torso).on(b.hip);
   const pelvis = box(...p.pelvis).on(b.hip - p.pelvis[1] / 2);
   const spine = box(...p.spine).on(b.hip);

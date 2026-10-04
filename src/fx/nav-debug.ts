@@ -6,7 +6,7 @@ import { PALETTE } from '@/render/palette';
 
 const COLORS: Record<string, string> = { car: PALETTE.slime, truck: PALETTE.purpleHot, person: PALETTE.foxy };
 
-/** ?nav: draws the last few planned routes, lifted a little off the ground. */
+/** Display the most recent planned routes when navigation debugging is enabled. */
 export class NavDebug {
   readonly root = new Group();
   private readonly lines: Line[] = [];

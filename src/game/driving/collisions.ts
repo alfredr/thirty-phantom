@@ -3,26 +3,25 @@ import { Vector3 } from 'three';
 import type { Vehicle } from '@/actors/vehicle';
 import { bodyHalf } from '@/engine/physics/vehicle-params';
 
-/** Bounce between bodies: low, it's crumpling metal. */
+/** Restitution coefficient for vehicle impacts. */
 const BOUNCE = 0.2;
-/** A hit that changes a car's speed by more than this (m/s) sends it tumbling; less just shoves it. */
+/** Velocity-change threshold in m/s for starting a crash. */
 const CRASH_DV = 5;
-/** A parked or traffic car takes a bump softer than this (m/s) like a wall: only the car that hit it gives. */
+/** Minimum velocity change in m/s required to displace an anchored parked or traffic car. */
 const BUDGE_DV = 1.5;
-/** Bodies further apart in height than this (m) pass over or under each other. */
+/** Maximum vertical separation for vehicle contacts, in meters. */
 const LEVELS = 2.2;
-/** Contact height above the lower car's wheels (m): about bumper height. */
+/** Contact height above the lower vehicle’s wheel plane, in meters. */
 const BUMPER = 0.6;
 
 const _va = new Vector3();
 const _vb = new Vector3();
 
 /**
- * Car against car, as rigid bodies: each is three circles along its heading in plan, and the deepest overlap between
- * two cars takes an impulse along its normal, split by mass, landing where they touch so an off-centre hit spins them.
- * A car knocked hard enough crashes (tumbles); a parked or traffic car only nudged holds its ground. `crush` may take
- * the other car out first (a truck flattening it) by returning true; `struck` hears about any car `v` moved. Returns
- * the hardest speed change `v` itself took (m/s).
+ * Resolve each vehicle pair using the deepest overlap among their three body circles. Apply mass-weighted impulses at
+ * contact points and separate overlapping bodies. Parked and traffic cars remain anchored below BUDGE_DV. A successful
+ * `crush` skips ordinary contact resolution; `struck` reports impulses applied to other cars. Return the greatest
+ * velocity change applied to `v`, in m/s.
  */
 export function carContacts(
   v: Vehicle,
@@ -48,7 +47,7 @@ export function carContacts(
       continue;
     }
 
-    // deepest overlap among the 3 x 3 circle pairs
+    // Choose the deepest contact among all nine circle pairs.
     const vfx = Math.sin(v.yaw);
     const vfz = Math.cos(v.yaw);
     const ofx = Math.sin(o.yaw);
@@ -75,7 +74,7 @@ export function carContacts(
         depth = pen;
         nx = dx / d;
         nz = dz / d;
-        // on the other car's skin, toward this one
+        // Place contact on the other car’s circle surface.
         qx = bx + nx * op.radius;
         qz = bz + nz * op.radius;
       }
@@ -90,13 +89,13 @@ export function carContacts(
     }
 
     const qy = Math.min(v.pos.y, o.pos.y) + BUMPER;
-    // closing speed along the normal (from o toward v)
+    // Project relative contact velocity onto the normal from `o` to `v`.
     v.pointVelocity(qx, qy, qz, _va);
     o.pointVelocity(qx, qy, qz, _vb);
     const vn = (_va.x - _vb.x) * nx + (_va.z - _vb.z) * nz;
     const ma = v.mass;
     const mb = o.mass;
-    // a parked or traffic car only budges for a real hit; a crashing one is already loose
+    // Parked and traffic cars resist small impacts unless already crashing.
     const anchored = (o.role === 'parked' || o.role === 'traffic') && !o.crashing;
     let j = vn < 0 ? (-(1 + BOUNCE) * vn) / (1 / ma + 1 / mb) : 0;
     let dvo = j / mb;
@@ -110,13 +109,13 @@ export function carContacts(
     if (j > 0) {
       v.hit(qx, qy, qz, nx * j, 0, nz * j, dvv > CRASH_DV);
 
-      // a loosened parked or traffic car goes physical, so it can be knocked about at all
+      // Enable physical motion when an anchored car is displaced.
       if (budge) {
         o.hit(qx, qy, qz, -nx * j, 0, -nz * j, dvo > CRASH_DV || anchored);
       }
     }
 
-    // pull them apart, the lighter one further (all of it on `v` if `o` held)
+    // Separate in inverse proportion to mass, or move only `v` when `o` remains anchored.
     const share = budge ? mb / (ma + mb) : 1;
     v.shift(nx * depth * share, nz * depth * share);
 

@@ -15,7 +15,7 @@ export const TRUCK = {
   /** Livery lettering along the sides, and the roundel number. */
   name: 'ROADIE',
   number: '30',
-  /** Drip layout. */
+  /** Seed for deterministic slime drip placement. */
   seed: 303,
   /** Lower tub [width, height, length]; the livery is painted on its sides. */
   tub: [2.7, 0.9, 5.3] as V3,
@@ -78,7 +78,7 @@ export function monsterTruck(params: Partial<TruckParams> = {}) {
       ),
     ),
     ...SIDES.map((s) => solid(beam.z((s * W.base) / 2), 'metal')),
-    // shocks with glowing rings
+    // Emissive rings accent the suspension shocks.
     ...SIDES.flatMap((sx) =>
       SIDES.flatMap((sz) => {
         const shock = box(0.18, 0.95, 0.18).at(sx * 1.1, 1.75, (sz * W.base) / 2 - 0.25);
@@ -97,11 +97,11 @@ export function monsterTruck(params: Partial<TruckParams> = {}) {
     solid(cab, ['cab', 'cab', 'base', 'base', 'base', 'base']),
     solid(windows, 'glass'),
     solid(cab.sized(2.2, 0.55, 0.08).onFace(cab, '+z', 0.02).y(windows.center[1]), 'glass'),
-    // bed with glowing slime
+    // Recess the emissive slime inside the bed walls.
     ...SIDES.map((s) => solid(bed.sized(0.16, 0.32, 2.05).inside(tub, s > 0 ? '+x' : '-x'), 'base')),
     solid(tailgate, 'base'),
     solid(bed.sized(2.36, 0.12, 1.9).on(tub), 'slime', NO_CAST),
-    // bumpers, grille, lights
+    // Front and rear exterior details.
     ...(['+z', '-z'] as const).map((f) =>
       solid(
         box(2.9, 0.34, 0.36)
@@ -136,7 +136,7 @@ export function monsterTruck(params: Partial<TruckParams> = {}) {
         solid(stack.sized(0.24, 0.1, 0.24).on(stack), 'lightG', NO_CAST),
       ];
     }),
-    // roof light bar
+    // Space roof lights evenly along the support bar.
     solid(bar, 'metal'),
     ...[0, 1, 2, 3].map((i) =>
       solid(
@@ -150,7 +150,7 @@ export function monsterTruck(params: Partial<TruckParams> = {}) {
     ),
   ];
 
-  // slime drips off the tub, cab and tailgate edges
+  // Use the seeded generator for repeatable edge drips.
   const drips: Part<'slime'>[] = [];
   for (const s of SIDES) {
     const f: Face = s > 0 ? '+x' : '-x';
@@ -169,7 +169,7 @@ export function monsterTruck(params: Partial<TruckParams> = {}) {
     drips.push(...drip(tailgate, '-z', x, rng.range(0.15, 0.7), rng.range(0.1, 0.2)));
   });
 
-  // fat tires with lugs and glowing rims
+  // Distribute tread lugs around each tire and rims on both sides.
   const tread = Array.from({ length: p.lugs }, (_, i) => {
     const a = (i / p.lugs) * TAU;
     return solid(box(W.w * 1.02, 0.22, 0.32).at(0, Math.cos(a) * W.r, Math.sin(a) * W.r), 'tire', { rot: [a, 0, 0] });
@@ -204,7 +204,7 @@ export function buildTruckRig(params: Partial<TruckParams> = {}): VehicleRig {
   return rig;
 }
 
-/** The truck's green underglow: additive, on the FX layer so it never gets an ink outline. */
+/** Attach additive green underglow on FX_LAYER to exclude it from ink outlines. */
 export function addUnderglow(rig: VehicleRig): void {
   const ug = new Mesh(
     new PlaneGeometry(7.5, 9),

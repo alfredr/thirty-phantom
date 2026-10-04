@@ -9,7 +9,7 @@ import { addNoise, makeCanvas, toTexture, type Ctx } from './textures';
 
 /** Truck body paint, behind and between the livery art. */
 const BODY = '#1c0d2c';
-/** Slime as it goes into the emissive maps: darker, so it glows instead of blowing out. */
+/** Reduced slime intensity for emissive maps prevents overexposed highlights. */
 const SLIME_GLOW = '#4bb80c';
 /** Off-white lettering and number roundel. */
 const LETTERING = '#f4ffe8';
@@ -43,7 +43,7 @@ export interface LiveryText {
 
 const cache = new Map<string, Livery>();
 
-/** Monster truck paint: purple-black body, slime pouring over the top, name + number. */
+/** Return cached color and emissive textures for the truck's side, hood, and cab, keyed by name and number. */
 export function truckLivery(text: LiveryText = { name: 'ROADIE', number: '30' }): Livery {
   const key = `${text.name}|${text.number}`;
   const hit = cache.get(key);
@@ -53,7 +53,7 @@ export function truckLivery(text: LiveryText = { name: 'ROADIE', number: '30' })
 
   const rng = new Rng(30);
 
-  // body side: 5.3 x 0.9 world units
+  // Match the side texture aspect ratio to a 5.3 by 0.9 world-unit panel.
   const W = 1024;
   const H = 176;
   const a = makeCanvas(W, H);
@@ -67,7 +67,7 @@ export function truckLivery(text: LiveryText = { name: 'ROADIE', number: '30' })
   a.ctx.fillRect(0, 0, W, H);
   e.ctx.fillStyle = '#000';
   e.ctx.fillRect(0, 0, W, H);
-  // big slime blobs flowing down the panel (ink outline first, then slime)
+  // Draw wider ink shapes before slime so each drip retains a border.
   const blobs: [number, number, number, number][] = [];
   for (let i = 0; i < 26; i++) {
     const y = rng.range(0, H * 0.75);

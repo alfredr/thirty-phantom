@@ -95,133 +95,125 @@ export type { CamMode, CamView } from './camera-controller';
 
 const BONE = new Color('#efe6ff');
 const DIRT = new Color('#3a2a22');
-/** Spectral truck exhaust, and the hotter plume while it burns GhASt. */
+/** Particle colors for ordinary and boosted spectral exhaust. */
 const EXHAUST = new Color(0.35, 1.3, 0.15);
 const BOOST_FLAME = new Color(0.9, 1.6, 1.4);
-/** The truck's GhASt intake, in its body's frame: up front over the cab. */
+/** GhASt intake position in the truck body’s local coordinates, in meters. */
 const INTAKE: V3 = [0, 2.6, 1.4];
-/** Cody's outfit swap at moonrise / sunrise. */
+/** Particle color for Cody’s form-change animation. */
 const OUTFIT_PUFF = new Color(0.6, 0.3, 1.4);
-/** Black smoke and embers (glowing, so past 1) off Randy's fire when a tire goes in. */
+/** Tire-fire smoke and emissive ember colors; ember channels exceed one for glow. */
 const TIRE_SMOKE = new Color('#221c28');
 const EMBER = new Color(2.4, 0.9, 0.2);
 const _v = new Vector3();
 const _w = new Vector3();
 const _s = new Vector3();
 const _up = new Vector3();
-/** What the iso view shows, for fitting the sun's shadow box to it. */
+/** Reusable isometric view corners used to fit the shadow bounds. */
 const _shadowPts: Vector3[] = [];
-// ambient drip splashes reuse these rather than allocating per drop
+// Reuse splash parameters to avoid allocations per ambient drip.
 const _splat = new Vector3();
 const _splatSize: [number, number] = [0, 0];
 const SPLAT_LIFE: [number, number] = [0.25, 0.5];
 const _prev = new Vector3();
-/** Where an AI-driven car was before this step, for its gate crossings. */
+/** Previous AI vehicle position used for gate-crossing detection. */
 const _drivePrev = new Vector3();
 const _at = new Vector3();
-/** Where two cars met, hardest this frame. */
+/** Midpoint of the strongest impact dealt to another car during a contact pass. */
 const _met = new Vector3();
 const NONE: readonly Vector3[] = [];
 
-/** A truck flattens a car outside the deck above this speed (m/s); the hit jolts the truck's body. */
+/** Minimum truck speed in m/s for crushing a civilian car outside the deck. */
 const CRUSH_SPEED = 4;
 /**
- * A driver pulling round only knocks another driven car loose (its driver out) with a bump this hard (m/s); softer is a
- * shove.
+ * Velocity-change threshold in m/s for AI contact to dislodge a visitor car. Displaced traffic cars are always released
+ * from their lane.
  */
 const NUDGE_LOOSEN = 2.5;
-/** A car slower than this (m/s) in a deck spot is standing in it: the spot isn't free. */
+/** Maximum speed in m/s for a physically present vehicle to block a parking spot. */
 const STANDING = 0.5;
 const CRUSH_KICK = 2.5;
 /**
- * Dozing off after a big meal: the picture dims to DOZE.dim of itself over `down` seconds, the clock jumps to the next
- * nightfall or sunrise while it's dark, and it comes back up over `up`. The toast stays `toast` seconds.
+ * Doze timing in seconds and minimum exposure multiplier. Skip toward the next phase boundary after dimming and
+ * holding, then restore exposure.
  */
 const DOZE = { down: 1.4, hold: 0.6, up: 1.6, dim: 0.04, toast: 3 };
-/** Seconds a picked-up money (or car part) toast stays, and a longer one (Randy's brisket, a find with a note to read). */
+/** Pickup and extended trade notification durations, in seconds. */
 const MONEY_TOAST = 1.1;
 const TRADE_TOAST = 2.6;
 /** How long a refusal such as "THE DEAD NEED A MOMENT" stays up, in seconds. */
 const FAIL_TOAST = 1.4;
-/** People on foot keep this far from Randy and from the middle of his trash can fire (m). */
+/** Obstacle radii for Randy and his fire, in meters. */
 const NPC_ROOM = 0.4;
 const FIRE_ROOM = 0.45;
 
 type Mode = 'title' | 'play';
-/** What happens in play, for the tutorial (and anything else that follows along). */
+/** Events shared by gameplay, tutorial, audio, and visual effects. */
 export type GameEvents = RideEvents & {
   start: null;
-  /** A play frame finished; the payload is dt. */
+  /** The play update completed; payload is elapsed seconds. Shared simulation and rendering follow afterward. */
   frame: number;
-  /**
-   * A driver took fright at phantom Cody (or the monster truck), once each time a fright starts; near the deck they may
-   * run for it.
-   */
+  /** Report a new traffic-driver fright response to phantom Cody or the truck. */
   spooked: { car: Vehicle };
-  /** Cody got, used or gave away an item (game.triggers is the easier way to wait on one). */
+  /** Report an inventory deed. Use game.triggers for accumulated item milestones. */
   item: ItemDeed;
-  /** The player picked a camera mode with C. */
+  /** Report a player-selected camera mode. */
   camera: CamMode;
-  /** The monster truck sucked in ghosts at its intake (`at`): how many, and the GhASt tank after (0..1). */
+  /** Report collected ghosts, the resulting normalized GhASt fill, and the world-space intake position. */
   swallowed: { n: number; tank: number; at: Vector3 };
-  /** Cody started burning GhASt. */
+  /** Report the start of GhASt burning. */
   boosted: null;
   /** Emitted after a successful summon, with the number of skeletons raised. */
   summoned: { n: number };
   /**
-   * A truck got out unseen and left its phantom imprint: where it hangs and which way it faces (its spot, if it went
-   * back to one), which number it is, and when.
+   * Report a new phantom imprint after an unlogged exit, including placement, optional home spot, total count, and game
+   * time.
    */
   phantom: { at: Vector3; yaw: number; spot: SpotRuntime | null; n: number; hours: number; day: number };
-  /**
-   * A driver held up behind something leaned on the horn (for the horn sound): the car, where it was (a copy, at road
-   * level), and how angry they are (0 calm to 1 fuming: angrier honks can sound longer or harsher). Once a honk; they
-   * honk again after TUNING.traffic.impatience `again` seconds, sooner the angrier.
-   */
+  /** Report a horn event with a copied car position and normalized impatience for audio and visual intensity. */
   honk: { car: Vehicle; at: Vector3; anger: number };
   /**
-   * A vehicle hit something (for the crash sounds): another car, a wall (anything solid, the ground too while it
-   * tumbles), or the ground coming down from the air. `dv` is how hard (m/s: the speed it changed by, or fell at;
-   * against another car, the harder of what it took and what it dealt). `took` is how hard `v` itself was hit. Contact
-   * that grinds on comes every frame.
+   * Report a vehicle impact for effects. `dv` is the velocity change or landing speed in m/s; for car contacts it is
+   * the larger of the changes received and dealt. `took` measures the reporting vehicle’s change. Continuing contacts
+   * may emit each frame.
    */
   impact: { v: Vehicle; at: Vector3; dv: number; took: number; against: 'car' | 'wall' | 'ground' };
   /**
-   * Street furniture went: knocked over (by a vehicle, `by`, when one did it), smashed to bits (a hedge, a bus shelter:
-   * the box it filled, `min` to `max`), or a falling lamp hitting the ground (`light`: the colour its lamp was).
+   * Report prop knockdown, shattering, or lamp landing. Shattering includes debris bounds; lamp landing includes its
+   * light color.
    */
   prop:
     | { how: 'knocked'; kind: PropKind; at: Vector3; by: Vehicle | null }
     | { how: 'shattered'; kind: PropKind; at: Vector3; by: Vehicle | null; min: Vector3; max: Vector3 }
     | { how: 'landed'; kind: PropKind; at: Vector3; light: Color };
-  /** A monster truck (`by`) broke through a parapet; `at` is the piece's middle. */
+  /** Report a broken parapet at its center and the responsible truck. */
   smashed: { at: Vector3; by: Vehicle };
-  /** A monster truck (`by`) flattened a car. */
+  /** Report a crushed car and the responsible truck. */
   crushed: { car: Vehicle; by: Vehicle };
-  /** A tire went into Randy's fire and it roared up. */
+  /** Report a tire entering Randy’s fire. */
   stoked: { at: Vector3 };
-  /** A puff of smoke (game.puff): someone vanishing in one, or turning up. */
+  /** Request smoke at a character’s ground position through game.puff. */
   puff: { at: Vector3 };
-  /** Cody picked up money: cash or a wallet off the ground, or cash out of a glovebox. */
+  /** Report collected cash, wallet contents, or glovebox money in dollars. */
   money: { kind: 'cash' | 'wallet' | 'glovebox'; amount: number };
-  /** Cody's outfit swap is starting (moonrise, sunrise, or the tutorial's): what he's turning into, and where he is. */
+  /** Report the start of Cody’s form-change effect with the target phase and position. */
   outfit: { form: Phase; at: Vector3 };
-  /** Someone on foot took fright and ran (or a driver bailed out), from where they stood. */
+  /** Report a new pedestrian fright response, including a driver leaving a vehicle. */
   fright: { at: Vector3 };
-  /** Randy's burner: ringing, the call over, a text landing. */
+  /** Phone notification events for ringing, hangup, and incoming text. */
   phone: 'ring' | 'hangup' | 'text';
   crossing: Crossing;
   nightfall: null;
   sunrise: null;
-  /** A quest moved on to another step (the tutorial is quest 'tutorial'): for whatever follows along. */
+  /** Report a quest transition; the tutorial uses the tutorial quest ID. */
   step: { quest: string; step: string };
-  /** One of Cody's actions happened: the action itself, for whatever waits on one (a quest step, an NPC's mind). */
+  /** Report a performed Cody action to interested systems. */
   performed: { action: CodyAction };
-  /** One of Cody's actions couldn't happen, and why. */
+  /** Report an action failure and its reason. */
   failed: { action: CodyAction; reason: string };
 };
 
-/** A cutscene takes the camera to `focus` (iso view, zoom `zoom`) and the controls from the player. */
+/** Override the isometric camera target and zoom while muting player controls. */
 export interface Cutscene {
   focus: Vector3;
   zoom: number;
@@ -236,9 +228,9 @@ export class Game {
   readonly input = new Input(KEYS, STICK);
   readonly mats = new MaterialLibrary();
   readonly world: BuiltWorld;
-  /** Pathfinding over the collision world, shared by every agent that plans a route. */
+  /** Shared navigation grid built from level and collision data. */
   readonly nav: NavGrid;
-  /** All route requests (valets, pedestrians, the guidance arrow) queue here. */
+  /** Shared queue for actor and guidance route requests. */
   readonly planner: NavPlanner;
   private readonly guide: RouteGuide;
   private readonly navDebug: NavDebug | null = urlFlag('nav') ? new NavDebug() : null;
@@ -257,70 +249,67 @@ export class Game {
   private readonly sprites: SpriteFx;
   private readonly valet: ValetService;
   private readonly crowd: Crowd;
-  /** Townsfolk driving in to park in the lots, and back out to the traffic. */
+  /** Visitor arrivals, parking ownership, and departures to traffic. */
   private readonly visitors: Visitors;
-  /** Drivers phantom Cody frightens near the deck, running for it (and leaving him cars to possess). */
+  /** Frightened traffic drivers diverting into the deck. */
   private readonly refuge: Refuge;
   private readonly driveWorld: DriveWorld;
   private readonly drivers: Drivers;
-  /** Drivers fed up with waiting behind something in their lane, pulling round it. */
+  /** Traffic detours around lane obstructions. */
   private readonly detours: Detours;
-  /** "HONK!" over a honking car's roof. */
+  /** World-space horn captions. */
   private readonly honks = new Honks();
-  /** Dark puffs from some cars' tailpipes as they pull away. */
+  /** Civilian exhaust particle emission. */
   private readonly exhaust: Exhaust;
-  /** Phantom Cody on foot, or the monster truck, this frame: what frightens people (null by day). */
-  /** Who's where this frame, for people on foot to steer around. */
+
+  /** Current obstacle data used by pedestrian steering. */
   private readonly avoid = new Avoidance();
   private readonly blood: BloodSim;
   private readonly casualties: Casualties;
-  /** Phantom Cody's risen skeletons, hunting townsfolk by night. */
+  /** Summoned skeleton population and hunting behavior. */
   private readonly skeletons: Skeletons;
-  /** Traffic cars knocked loose, and where from: their drivers bail once they stop. */
+  /** Cars awaiting a driver escape after their crash settles, with the threat position. */
   private readonly shaken = new Map<Vehicle, Vector3>();
   readonly money: Money;
-  /** What Cody's carrying: car parts picked up after smashes, Randy's brisket. */
+  /** Cody’s carried item counts. */
   readonly inventory = new Inventory();
-  /** Script triggers on items: has, got, used, gave (see triggers.ts). */
+  /** Inventory milestone callbacks; see story/triggers.ts. */
   readonly triggers = new Triggers(this.inventory);
-  /** What the objective markers and the minimap point at (scripts set them; see objectives.ts). */
+  /** Task text and marker sources; see story/objectives.ts. */
   readonly objectives = new Objectives();
-  /** Car parts knocked off in smashes, lying about. */
+  /** Temporary debris and persistent world pickups. */
   private readonly junk: Junk;
-  /**
-   * Eating brisket makes Cody doze off till the next nightfall or sunrise. The tutorial switches it off for its own
-   * brisket.
-   */
+  /** Enable a time skip after eating brisket. Tutorial story steps temporarily disable it. */
   sleepAfterEating = true;
-  /** Seconds into a doze, or -1. */
+  /** Elapsed doze time in seconds, or -1 when inactive. */
   private doze = -1;
-  /** GhASt in the monster truck's tank, 0..1: ghosts it swallowed, burned for boosts. Gone at sunrise. */
+  /** Normalized GhASt fuel, filled by ghosts and consumed by boosting. Cleared at sunrise. */
   ghast = 0;
   private boosting = false;
-  /** Burning GhASt this frame (boost held in the monster truck, with some in the tank). */
+  /** Whether the current truck update is burning GhASt. */
   get burning(): boolean {
     return this.boosting;
   }
-  /** What Randy sells out of his coat, and how much of it is left. */
+  /** Randy’s persistent shop slots and stock counts. */
   readonly wares = new Wares();
-  /** A scene (the tutorial's coat flash) has his wares up, Cody near or not. */
+  /** Force shop stock to display during a scripted scene without enabling purchases. */
   waresShown = false;
-  /** Randy takes tires for his fire and pays in brisket (the tutorial can run it, or switch it off). */
+  /** Tire exchange and feeding animation, also callable by the tutorial. */
   readonly tires: TireTrade;
   private readonly shop: Shop;
-  /** Talking to Randy at his fire (off while the tutorial runs). */
+  /** Ordinary Randy conversation, disabled while the tutorial controls him. */
   readonly randyTalk: RandyTalk;
-  /** Saved progress in quests besides the tutorial. */
+  /** Persisted quest progress, excluding the tutorial. */
   readonly quests: Quests;
   private readonly haunting: Haunting;
-  /** Cody's phone: Randy's burner, with its apps. */
+  /** Shared phone UI and installed apps. */
   readonly phone: Phone;
-  /** Randy Rolsen and anyone else hanging about to be talked to (the tutorial finds them here). */
+  /** NPC instances available for conversations and scripted scenes. */
   readonly npcs: Npcs;
-  /** The elevators' cabs and doors (the deck's, beside the stair tower). */
+  /** Elevator cab movement and door control. */
   readonly elevators: Elevators;
   private readonly interactions: Interactions;
-  /** Who the cabs carry: Cody, while he's on foot (a list kept, so the per-frame call doesn't allocate). */
+  /** Reusable list of on-foot passenger position references for elevator movement. */
   private readonly riders: readonly Vector3[];
   readonly events = new Emitter<GameEvents>();
   /** While set, the camera is the cutscene's and the controls are muted. */
@@ -328,23 +317,23 @@ export class Game {
   private portraitSet: Portraits | null = null;
   /** Cody's form, abilities, and presence. Scripts can hold his form and grant extra abilities here. */
   readonly cody: CodyState;
-  /** What the time of day means for each rule (deck awake, valets on shift, parking, daylight). */
+  /** Time-dependent game rules with script overrides. */
   readonly conditions: WorldConditions;
-  /** Who holds what: driver's seats, spots on the way to being parked in, the deck's room for diversions. */
+  /** Reservations for driver seats, parking spots, diversions, and skeleton quarry. */
   readonly claims = new Claims<ClaimKind>(CLAIMS);
-  /** Where everything that perceives or is perceived is, indexed once at the start of each frame. */
+  /** Perception index rebuilt during frame sensing. */
   private readonly space = new Space<Thing>(8, LEVEL.person);
   private readonly things: Thing[] = [];
   private readonly reactions: readonly Reaction[];
-  /** This frame's space and things, and line of sight through the collision world, floors included. */
+  /** Current indexed actors and line-of-sight checks against solids and floors. */
   private readonly perception: Perception = {
     space: this.space,
     things: this.things,
     sees: (a, b) => !this.world.collision.segmentBlocked(eyeOf(a), eyeOf(b), true),
   };
-  /** An escaped truck stays Cody's to drive (the tutorial's first ride) instead of rolling to a stop and vanishing. */
+  /** Keep an escaped vehicle under player control instead of starting its disappearance sequence. */
   keepEscaped = false;
-  /** Trucks already counted as phantoms: a kept one going out again isn't another. */
+  /** Vehicles already counted as phantoms, preventing repeat escapes from scoring again. */
   private readonly counted = new WeakSet<Vehicle>();
   private readonly ghosts: Ghosts;
   private readonly bats: Bats;
@@ -374,28 +363,28 @@ export class Game {
   private exhaustTimer = 0;
   private codyFx = -1;
   private readonly fpsAcc = { t: 0, n: 0 };
-  /** Headless simulation (tests): advance the game without drawing it. */
-  /** Drawing frames (`?render=0` starts without, for headless tests: no shaders to compile). */
+
+  /** Enable frame rendering. ?render=0 allows simulation tests to skip rendering and shader compilation. */
   private rendering = urlParam('render') !== '0';
   private readonly talk: ValetTalk;
   private readonly valetFrame: ValetFrame;
-  /** The exit gate's zone: routes that should badge in through the entry gate go around it. */
+  /** Exit-gate regions blocked by routes that require a logged entry. */
   private readonly exitBlocks: ZoneDef[];
   private readonly entryQuery: NavQuery;
-  // per-frame lists, refilled in place rather than reallocated
-  /**
-   * Everyone and everything taking up room this frame (filled in sense()), and where those in traffic's way and in the
-   * AI drivers' way are.
-   */
+
+  /** Bodies registered during sensing and reusable obstacle lists for traffic, drivers, and player movement. */
   private readonly bodies = new Bodies();
   private readonly trafficObstacles: Vector3[] = [];
   private readonly valetObstacles: Obstacle[] = [];
   private readonly movers: Vector3[] = [];
   private readonly blockers: { pos: Vector3; r: number }[] = [];
-  /** Background transformations (sunrise reverting trucks to cars). */
+  /** Vehicle transformations running outside Cody’s active ride, including sunrise reversions. */
   private readonly morphs: TransformSequence[] = [];
 
-  /** The dialogue portraits, rendered on first use (a few offscreen renders: ask before a conversation, not during one). */
+  /**
+   * Lazily render and cache dialogue portraits. Request them before a conversation to avoid rendering work mid-
+   * dialogue.
+   */
   get portraits(): Portraits {
     return (this.portraitSet ??= makePortraits(this.gfx.renderer, () => this.assets.character()));
   }
@@ -419,8 +408,8 @@ export class Game {
     this.nav = NavGrid.build(this.world.collision, level);
     this.nav.elevators = this.elevators;
     this.world.interiors.attach(this.elevators);
-    // Headless tests step the frames themselves (?manual): there a plan finishes by the next frame
-    // however busy the machine is, so a run doesn't depend on its speed.
+    // Manual tests use an unlimited planner budget so route completion does not depend on machine speed.
+
     this.planner = urlFlag('manual') ? new NavPlanner(this.nav, Infinity) : new NavPlanner(this.nav);
     this.guide = new RouteGuide(this.planner);
     console.info(`[nav] ${this.nav.nx}x${this.nav.nz} cells in ${this.nav.buildMs.toFixed(0)} ms`);
@@ -466,7 +455,7 @@ export class Game {
     this.exhaust = new Exhaust(this.sprites);
     this.exitBlocks = level.gates.filter((g) => g.kind === 'exit').map((g) => ({ min: g.min, max: g.max }));
     this.entryQuery = { blocks: this.exitBlocks };
-    // Every AI driver's job at the wheel runs on one runner, driving through the game the same way.
+    // Expose shared movement, collision, and garage operations to AI driving jobs.
     this.driveWorld = {
       claims: this.claims,
       planner: this.planner,
@@ -496,7 +485,7 @@ export class Game {
     this.money = new Money(this.scene, this.nav, this.rng);
     this.money.scatter();
     this.junk = new Junk(this.scene, this.nav, this.rng);
-    // Randy only ever throws Cody's badge: it lies where it lands, sauced, till he picks it up
+    // Register Randy’s thrown badge as a persistent collectible.
     this.npcs = new Npcs(level.npcs, this.scene, {
       landed: (item, floor) => this.junk.lay('badge', item, floor),
       ground: (x, z, below) => this.world.collision.groundAt(x, z, below, 0),
@@ -506,7 +495,7 @@ export class Game {
         this.debris.burst(_at, 14, 2.5, [0.03, 0.07], [0.6, 1.3], EMBER, 2.2, at.y);
         this.events.emit('stoked', { at: at.clone() });
       },
-      // the brisket was his the moment he handed the tires over; the toast waits for the show
+      // Award brisket at handover, but delay its notification until feeding completes.
       fed: (n) =>
         this.hud.toast(`+${n} BRISKET`, n > 1 ? 'NOW THAT IS A FIRE' : 'NOW WE ARE COOKING', 'purple', TRADE_TOAST),
     });
@@ -515,7 +504,7 @@ export class Game {
       gave: (n, to) => this.deed({ how: 'gave', kind: 'tire', n, to: to.def.id }),
       paid: (n) => this.gain('brisket', n),
     });
-    // people cars hit: ragdolls, and the blood they leave
+
     this.blood = new BloodSim(this.world.collision);
     this.scene.add(this.blood.root);
     this.casualties = new Casualties(this.world.collision, this.blood);
@@ -532,7 +521,7 @@ export class Game {
       drivers: { frighten: (v, from) => this.frightenDriver(v, from) },
     });
     this.crowd.onFright = (at) => this.events.emit('fright', { at: at.clone() });
-    // skeletons: dirt as they climb out, bones as they fall apart, a ghost from everyone they kill
+    // Connect skeleton rise, removal, and kill callbacks to world effects.
     this.skeletons = new Skeletons(this.world.collision, this.nav, this.planner, this.crowd, this.claims);
     this.scene.add(this.skeletons.root);
 
@@ -550,7 +539,7 @@ export class Game {
       this.ghosts.rise(at);
     };
 
-    // they park in the lots, never in the deck
+    // Exclude the deck from ordinary visitor parking routes.
     const keepOut = [{ min: level.deck.min, max: level.deck.max }];
     this.visitors = new Visitors(
       level.bays,
@@ -562,13 +551,13 @@ export class Game {
       keepOut,
       (car) => this.crowd.arrive(car),
     );
-    // frightened drivers run for the deck through its entry gate (or, in a level without one, its middle)
+    // Use the entry gate as the diversion target, falling back to the deck center.
     const gate = level.gates.find((g) => g.kind === 'entry');
     const entry = gate
       ? new Vector3((gate.min[0] + gate.max[0]) / 2, gate.min[1], (gate.min[2] + gate.max[2]) / 2)
       : this.deckCenter.clone();
     this.garage.bookedBy = (s) => this.claims.holder('spot', s);
-    // a car standing still in a spot holds it too, parked or not (Cody sitting in it at the wheel)
+    // Treat a stationary vehicle as occupying its spot even before its driver exits.
     this.garage.standingIn = (spot) =>
       this.vehicles.find((v) => !v.gone && Math.abs(v.speed) < STANDING && inSpot(spot, v.pos)) ?? null;
     this.refuge = new Refuge(this.drivers, this.driveWorld, entry);
@@ -647,7 +636,7 @@ export class Game {
       }
     };
 
-    // whoever smashed it, it flies apart from all through the room it filled
+    // Copy shatter bounds because the prop system reuses its event data.
     props.onBroken = () => {
       const lo = props.brokenMin;
       const hi = props.brokenMax;
@@ -675,7 +664,7 @@ export class Game {
     });
 
     for (const p of level.parked) {
-      // one already sitting in a deck spot was badged in like any other
+      // Count initial cars in available deck spots as logged entries.
       const v = this.fleet.spawnCar('parked', new Vector3(...p.pos), p.yaw);
       const s = this.garage.spotAt(v.pos);
       if (s && this.garage.isFree(s)) {
@@ -683,7 +672,7 @@ export class Game {
       }
     }
 
-    // the cars in the lots belong to people in town, who come back for them
+    // Associate initial lot cars with future returning pedestrians.
     this.visitors.adopt();
 
     for (let i = 0; i < TUNING.traffic.dayCars; i++) {
@@ -691,7 +680,7 @@ export class Game {
     }
 
     this.hud = new Hud(container, this.input.focus);
-    // what the status displays show, read each frame
+    // Supply live getters for HUD state.
     this.hud.bind({
       mode: () => (this.mode === 'title' ? 'title' : this.driving || this.transform ? 'drive' : 'foot'),
       summon: () => this.mode === 'play' && this.onFoot && this.cody.can('summon'),
@@ -707,7 +696,7 @@ export class Game {
         phantom: this.garage.phantomOccupancy(this.vehicles),
         max: TUNING.garage.spots,
       }),
-      // tumbling in a crash isn't flying: no AIRBORNE badge for it
+      // Exclude crash tumbling from the AIRBORNE indicator.
       dash: () => {
         const v = this.driving;
         if (v) {
@@ -716,10 +705,10 @@ export class Game {
 
         return this.transform ? { speed: 0, form: 'truck', label: VEHICLE_BREEDS.truck.label, airborne: false } : null;
       },
-      // the GhASt dial (and the touch BOOST button) while he's driving the monster truck
+      // Show GhASt controls only for the current monster truck.
       ghast: () => (this.driving?.form === 'truck' ? { fill: this.ghast, burning: this.boosting } : null),
     });
-    // Cody's phone, Randy's burner, and its apps; it rings, hangs up and buzzes as the game's 'phone' event
+    // Build the shared phone and connect its notifications to game events.
     this.phone = new Phone(
       this.hud.root,
       this.input.focus,
@@ -740,7 +729,7 @@ export class Game {
     this.events.on('entered', ({ possessed, from, quiet }) => {
       if (from === null) {
         return;
-      } // already at the wheel when moonrise transformed the car
+      } // A null previous role denotes transformation while already seated.
 
       this.iso.zoomTarget = Math.max(this.iso.zoomTarget, TUNING.camera.driveZoom);
       this.hud.setPrompt(null);
@@ -826,7 +815,7 @@ export class Game {
     this.quests = new Quests([this.haunting]);
     this.events.on('phantom', ({ n }) => this.haunting.mind.send({ type: 'phantom', n }));
 
-    // attract mode: the deck at night, slowly orbiting
+    // Initialize the title’s nighttime orbit with the clock paused.
     this.clock.hours = 21.5;
     this.clock.paused = true;
     this.player.setForm('night');
@@ -857,7 +846,7 @@ export class Game {
     requestAnimationFrame(loop);
   }
 
-  /** The chase camera is on screen this frame. */
+  /** Whether chase view is currently active. */
   private get chaseActive(): boolean {
     return this.cameras.view === 'chase';
   }
@@ -866,22 +855,22 @@ export class Game {
     return this.chaseActive ? this.chase : this.iso;
   }
 
-  /** What Cody is driving, if anything. */
+  /** Current drivable vehicle, or null. */
   private get driving(): Vehicle | null {
     return this.codyRide.driving;
   }
 
-  /** The car turning into the monster truck round him, while it is. */
+  /** Active vehicle transformation, or null. */
   private get transform(): TransformSequence | null {
     return this.codyRide.transform;
   }
 
-  /** He got away unseen, and the truck's rolling on to dissolve. */
+  /** Whether the current ride is in its post-escape sequence. */
   private get escaping(): boolean {
     return this.codyRide.escaping;
   }
 
-  /** What Cody is driving, or the car turning into a truck around him. */
+  /** Current vehicle, including one undergoing transformation. */
   private get ride(): Vehicle | null {
     return this.codyRide.vehicle;
   }
@@ -906,32 +895,29 @@ export class Game {
     return this.cameras.mode;
   }
 
-  /**
-   * Cody gets in `v` as if he'd walked up to it and pressed F (scripted scenes), out of whatever he was driving first.
-   * `own`: it's his own car, with nothing in the glovebox for him to find.
-   */
+  /** Board a vehicle for a script, quietly leaving the previous ride. Set `own` to prevent glovebox rewards. */
   board(v: Vehicle, own = false): void {
     this.codyRide.board(v, own);
   }
 
-  /** A parked civilian car (scripted scenes): `kind` picks one, else the usual mix. */
+  /** Spawn a parked civilian vehicle using the supplied kind or normal weighted selection. */
   park(pos: Vector3, yaw: number, kind?: CarKind): Vehicle {
     return this.fleet.spawnCar('parked', pos, yaw, kind);
   }
 
-  /** Cody gets out of whatever he's driving, if anything (scripted: quietly, no PARKED toast). */
+  /** Exit the current vehicle without a parking notification. */
   alight(): void {
     if (this.driving) {
       this.codyRide.exit(true);
     }
   }
 
-  /** Cody's outfit change, now, to suit the time of day. */
+  /** Begin the timed effect that changes Cody to the current clock phase. */
   transformCody(): void {
     this.codyFx = 0;
   }
 
-  /** Ghosts and slime: cleared out (the tutorial's first evening), or oozing back in over `seconds`. */
+  /** Set ghost and slime presence, optionally animating their return over `seconds`. */
   haunt(on: boolean, seconds = 0): void {
     this.ghosts.fade(on, seconds);
 
@@ -999,15 +985,14 @@ export class Game {
     this.events.emit('start', null);
   }
 
-  /** The day's title card. */
+  /** Display the current day and daytime task. */
   announceDay(): void {
     this.hud.toast(`DAY ${this.clock.day}`, 'STEAL CARS. BADGE THEM IN. PARK THEM IN THE DECK.', '', 3.2);
   }
 
   /**
-   * Put back a phantom from a save (game/save.ts). A car parked in its spot again gives way, and that car's badge-in
-   * stays on the log as the phantom's; any other phantom is one more entry nobody scanned out. Either way the phantom
-   * occupancy goes up by one, as it did in play.
+   * Restore a phantom from game/save.ts. Remove any occupant of its available home spot while retaining that entry
+   * count; otherwise add an unmatched logged entry. Create the imprint at the home spot or saved position.
    */
   restorePhantom(spotId: number | null, at: Vector3, yaw: number): void {
     const spot = spotId !== null ? (this.garage.spots[spotId] ?? null) : null;
@@ -1022,31 +1007,27 @@ export class Game {
     this.garage.addPhantom(at, yaw, home);
   }
 
-  // ---------------------------------------------------------------- title
-
   private updateTitle(dt: number): void {
     this.iso.azimuthTarget += dt * 0.12;
     this.iso.update(dt, _v.set(this.deckCenter.x, 7, this.deckCenter.z), null, 2);
     this.traffic.update(dt, this.vehicles, NONE);
-    // nobody honks or pulls round under the title
+    // Discard horn and detour requests during the title sequence.
     this.traffic.honks.length = 0;
     this.traffic.fedUp.length = 0;
     this.cutaway.off();
 
-    // after the orbit nudge, so it can't undo start()'s camera snap
+    // Handle start after the orbit update so its camera setup remains effective.
     if (this.input.wasPressed('start')) {
       this.start();
     }
   }
 
-  // ---------------------------------------------------------------- play
-
-  /** Whether Cody is on his feet: not driving, and not inside a car that's turning into the truck. */
+  /** Whether Cody is outside both driving and transformation states. */
   private get onFoot(): boolean {
     return this.codyRide.onFoot;
   }
 
-  /** Indexes everything that perceives or is perceived, where it stands at the start of the frame. */
+  /** Rebuild perception entries and obstacle bodies before movement. */
   private sense(): void {
     const things = this.things;
     things.length = 0;
@@ -1076,7 +1057,7 @@ export class Game {
     this.senseBodies();
   }
 
-  /** Who and what takes up room this frame, each system adding its own. */
+  /** Collect current bodies from each actor system. */
   private senseBodies(): void {
     const b = this.bodies;
     b.clear();
@@ -1091,7 +1072,7 @@ export class Game {
       }
     }
 
-    // walkers steer round skeletons (cars don't brake for them: knocking them flying is the point)
+    // Register skeletons for walker avoidance; vehicle braking queries exclude them.
     for (const pos of this.skeletons.threats) {
       b.add({ kind: 'skeleton', pos, r: PERSON_RADIUS });
     }
@@ -1107,10 +1088,7 @@ export class Game {
     }
   }
 
-  /**
-   * A driver sees phantom Cody or the phantom truck at `from` this frame: one doing a job at the wheel, one pulling
-   * round, or one in traffic.
-   */
+  /** Deliver a threat sighting to the active driver job, detour, or traffic controller. */
   private frightenDriver(v: Vehicle, from: Vector3): void {
     if (this.drivers.sees(v, from)) {
       return;
@@ -1172,25 +1150,25 @@ export class Game {
       this.view.zoomBy(wheel);
     }
 
-    // read every frame so movement made in the iso view can't jump the chase camera later
+    // Consume mouse movement even in isometric view to prevent a jump when chase view resumes.
     const [mx, my] = inp.consumeMouse();
 
     // Index bodies before movement for this frame's proximity queries.
     this.claims.newFrame();
     this.sense();
 
-    // the cabs move first, carrying Cody if he's standing in one
+    // Move elevators before Cody so standing passengers follow the cab.
     this.elevators.update(dt, this.driving || this.transform ? NONE : this.riders);
     this.codyRide.tick(dt);
 
     this.updateMorphs(dt);
     this.updateCodyFx(dt);
-    // Phantom Cody and the phantom truck frighten pedestrians and drivers. The reactions table
-    // decides who takes fright; pedestrians flee, and drivers accelerate or abandon their cars if blocked.
+    // Evaluate visibility-based fright reactions for indexed pedestrians and drivers.
+
     const seen = this.cody.presence(this.driving, !!this.transform);
     const ghost = seen && FRIGHTENING.has(seen.kind) ? seen.at : null;
     react(this.perception, this.reactions);
-    // traffic brakes for Cody and for people under way or down in the road
+    // Traffic brakes for Cody, moving pedestrians, and fallen bodies.
     const obstacles = this.bodies.points(
       (b) => b.kind === 'cody' || b.kind === 'down' || (b.kind === 'person' && b.moving),
       this.trafficObstacles,
@@ -1202,7 +1180,7 @@ export class Game {
       this.fleet.abandon(v);
     }
 
-    // A frightened driver whose road leads toward the fright may turn off for the deck, if it's just ahead.
+    // Report new frights, then offer deck diversions to cornered drivers.
     for (const { car } of this.traffic.scared.splice(0)) {
       this.events.emit('spooked', { car });
     }
@@ -1211,7 +1189,7 @@ export class Game {
       this.refuge.take(car, from);
     }
 
-    // held up behind something going nowhere: they honk, then pull round it
+    // Process horn requests and detours from impatient traffic.
     for (const v of this.traffic.honks.splice(0)) {
       this.honk(v);
     }
@@ -1230,7 +1208,7 @@ export class Game {
       visitors: this.visitors,
     });
 
-    // skeletons keep near Cody (on foot, or in whatever he's driving); daylight finishes them
+    // Remove skeletons during daylight; otherwise follow Cody’s current position.
     if (this.conditions.daylight() && this.skeletons.count) {
       this.skeletons.crumbleAll();
     }
@@ -1238,7 +1216,7 @@ export class Game {
     this.skeletons.update(dt, this.driving ? this.driving.pos : this.player.pos, this.vehicles);
     this.collectMoney(dt);
     this.shop.update(this.onFoot && this.mode === 'play' && !this.cutscene ? this.player.pos : null);
-    // what whoever Cody's talking to says, over their head
+    // Project the active conversation bubble above its speaker.
     const me = (this.driving ?? this.player).pos;
     const said = this.talk.update(dt, me) ?? this.randyTalk.update(dt, me);
     const head = said && this.toScreen(said.at);
@@ -1246,11 +1224,10 @@ export class Game {
     this.fleet.update(dt, this.dayNight.nightness);
     this.fleet.maintain(dt, this.view.target, this.conditions.daylight());
 
-    // focus, cutaway, camera
     const focusV = this.ride;
     const cut = this.cutscene;
     const focus = cut ? cut.focus : focusV ? focusV.pos : this.player.pos;
-    // the iso rig keeps tracking under the chase camera, so switching back with C doesn't swoop
+    // Keep isometric tracking current while chase view is active to avoid a large transition on return.
     const lead =
       focusV && !cut ? _w.set(clamp(focusV.vel.x * 0.35, -7, 7), 0, clamp(focusV.vel.z * 0.35, -7, 7)) : null;
     if (cut) {
@@ -1266,9 +1243,9 @@ export class Game {
       this.chase.update(dt, subject, inp.axis('rotateLeft', 'rotateRight'), this.world.collision);
     }
 
-    // a chase camera pulled in close goes through Cody rather than staring at his back
+    // Fade Cody when the on-foot chase camera approaches his body.
     this.player.seenFrom(this.chaseActive && !focusV ? this.chase.camera.position : null, dt);
-    // the ghost pass draws a faded Cody and the phantom trucks over the sky band
+    // Enable the ghost pass for faded Cody or phantom imprints above the sky band.
     this.gfx.ghost.enabled = this.player.faded || this.garage.phantoms > 0;
 
     if (this.chaseActive) {
@@ -1284,7 +1261,7 @@ export class Game {
     this.events.emit('frame', dt);
   }
 
-  /** Who's where for people on foot to steer around: the bodies, each as walkers dodge it. */
+  /** Translate registered bodies into pedestrian avoidance inputs. */
   private fillAvoidance(): void {
     const a = this.avoid;
     a.clear();
@@ -1301,7 +1278,10 @@ export class Game {
     });
   }
 
-  /** Money Cody walks or drives over is his; car parts he walks over go in his inventory. */
+  /**
+   * Collect money on foot or while driving, and collectible items only on foot. Disable collection during
+   * transformation.
+   */
   private collectMoney(dt: number): void {
     const M = TUNING.money;
     const me = this.driving ? this.driving.pos : this.transform ? null : this.player.pos;
@@ -1316,10 +1296,7 @@ export class Game {
     }
   }
 
-  /**
-   * Randy hands Cody one `kind` out of his coat for nothing (the burner, in the tutorial): out of his wares, into the
-   * inventory. False if he has none.
-   */
+  /** Transfer one free item from Randy’s stock and show its pickup notification. Return false when unavailable. */
   handOver(kind: ItemKind): boolean {
     if (!this.shop.gift(kind)) {
       return false;
@@ -1329,13 +1306,13 @@ export class Game {
     return true;
   }
 
-  /** The toast for one `kind` come by: its name, and its line if it has one. */
+  /** Display the item name and optional note, extending duration when there is a note. */
   private gotToast(kind: ItemKind): void {
     const { name, note } = ITEM_BREEDS[kind];
     this.hud.toast(`+ ${name}`, note ?? '', '', note ? TRADE_TOAST : MONEY_TOAST);
   }
 
-  /** Cody buys `n` from a slot of Randy's wares: as many as there are, and as he can pay for. */
+  /** Buy up to the requested stock quantity, limited by availability and balance, and announce the transfer. */
   private buy(slot: string, n: number): void {
     const got = this.shop.buy(slot, n);
     if (!got) {
@@ -1345,13 +1322,13 @@ export class Game {
     this.hud.toast(`+${got.n} ${ITEM_BREEDS[got.kind].name}`, `-$${got.cost}`, '', MONEY_TOAST);
   }
 
-  /** Cody comes by `n` of an item (picked up, or handed it). */
+  /** Add inventory items and report their acquisition. */
   private gain(kind: ItemKind, n: number): void {
     this.inventory.add(kind, n);
     this.deed({ how: 'got', kind, n });
   }
 
-  /** Something Cody did with an item: for the triggers and anyone listening. */
+  /** Publish the inventory deed and update milestone triggers. */
   private deed(d: ItemDeed): void {
     this.events.emit('item', d);
     this.triggers.deed(d);
@@ -1370,7 +1347,7 @@ export class Game {
       b.r = v.params.length * 0.42;
     }
 
-    // Randy and his trash can fire stand in Cody's way wherever the tutorial puts them
+    // Use current NPC and fire positions so scripted relocation also moves their obstacles.
     for (const npc of this.npcs.list) {
       const b = (blockers[n++] ??= { pos: npc.pos, r: 0 });
       b.pos = npc.pos;
@@ -1395,7 +1372,7 @@ export class Game {
     return this.interactions.addOffer(source);
   }
 
-  /** The game as Cody's actions see it: what they may ask and what they may do. */
+  /** Adapt game services to the interface used by Cody’s actions. */
   private makePlay(): Play {
     return {
       cody: this.cody,
@@ -1465,7 +1442,7 @@ export class Game {
       this.onCrossing(c);
     }
 
-    // spectral exhaust: twice as thick, and roaring, while it burns GhASt
+    // Double the spectral emission rate and use larger, brighter particles while boosting.
     if (v.form === 'truck') {
       this.exhaustTimer -= dt;
 
@@ -1505,9 +1482,9 @@ export class Game {
     this.interactions.update();
   }
 
-  /** CSS-pixel screen position of a world point, or null when it's behind the camera. */
+  /** Project a world point into CSS pixels, returning null when its projected depth is at or beyond one. */
   toScreen(p: Vector3): { x: number; y: number } | null {
-    // where the curved iso view draws it (render/curvature.ts)
+    // Apply render curvature before camera projection; see render/curvature.ts.
     this.gfx.bend(_v.copy(p)).project(this.view.camera);
 
     if (_v.z >= 1) {
@@ -1519,8 +1496,8 @@ export class Game {
   }
 
   /**
-   * `v` against every other car: impulses with spin, crashes when hard enough (see collisions.ts). A visitor's car it
-   * moves is knocked loose (its driver gets out) only by a hit that changes its speed by `loosen` (m/s) or more.
+   * Resolve vehicle contacts through collisions.ts, emit an impact event, and request debris. Dislodge visitor drivers
+   * only at or above `loosen`, in m/s; displaced traffic drivers always lose lane control.
    */
   private vehicleContacts(v: Vehicle, loosen = 0): void {
     let dealt = 0;
@@ -1529,12 +1506,12 @@ export class Game {
       this.vehicles,
       (o) => this.crushes(v, o),
       (o, odv) => {
-        // a traffic car moved at all is loose (it's tumbling), whatever the threshold
+        // Displaced traffic cars have entered physical motion regardless of the visitor threshold.
         if (o.role === 'traffic' || odv >= loosen) {
           this.knocked(o, v);
         }
 
-        // a hard hit knocks bits off both of them, out from where they met
+        // Request debris from both vehicles at their approximate contact midpoint.
         _at.lerpVectors(v.pos, o.pos, 0.5);
         this.junk.hit(o, _at, odv);
         this.junk.hit(v, _at, odv);
@@ -1545,7 +1522,7 @@ export class Game {
         }
       },
     );
-    // one bang for the sound: the harder of what it took and what it dealt
+    // Emit one impact event using the strongest received or dealt velocity change.
     if (dv > 0 || dealt > 0) {
       this.events.emit('impact', {
         v,
@@ -1557,7 +1534,7 @@ export class Game {
     }
   }
 
-  /** A monster truck at speed flattens a car outside the deck instead of bumping it. */
+  /** Crush a civilian car outside the deck when the contacting truck exceeds CRUSH_SPEED. */
   private crushes(v: Vehicle, o: Vehicle): boolean {
     if (v.form !== 'truck' || o.form !== 'car' || o.insideDeck || Math.abs(v.speed) <= CRUSH_SPEED) {
       return false;
@@ -1567,7 +1544,7 @@ export class Game {
     return true;
   }
 
-  /** A traffic car knocked off its lane: left where it ends up, and its driver gets out and runs once it stops. */
+  /** Abandon a traffic or visitor car and schedule its driver to flee after settling. */
   private knocked(o: Vehicle, by: Vehicle): void {
     if (o.role !== 'traffic' && o.role !== 'visitor') {
       return;
@@ -1578,7 +1555,7 @@ export class Game {
     this.shaken.set(o, by.pos.clone());
   }
 
-  /** Crashing cars nobody stepped this frame tumble on their own (valets' too), and knock into others. */
+  /** Step unhandled non-player crashes and release waiting drivers once their cars settle. */
   private updateWrecks(dt: number): void {
     for (const v of this.vehicles) {
       if (!v.crashing || v.role === 'player' || v.gone || v.steppedThisFrame) {
@@ -1586,7 +1563,7 @@ export class Game {
       }
 
       this.drove(v, v.drive(dt, null, this.world.collision));
-      // tumbled into or out of the deck: it's there now, though nobody drove it through a gate
+      // Update physical deck presence without adding a badge-log crossing for a tumbling wreck.
       v.insideDeck = this.garage.inFootprint(v.pos);
     }
 
@@ -1604,9 +1581,8 @@ export class Game {
   }
 
   /**
-   * What one step of a vehicle did, whoever is driving (Cody, an AI driver, or nobody: a wreck): the props it knocked
-   * over and the parapets it broke, its bangs, and its contacts with other cars (a car it nudges is knocked loose only
-   * past `loosen`; a wreck at rest pushes nothing).
+   * Process a vehicle step’s broken props, parapets, impacts, and car contacts. `loosen` controls visitor-driver
+   * displacement. Resting crashes do not push other vehicles.
    */
   private drove(v: Vehicle, ev: DriveEvents, loosen = 0): void {
     for (const s of ev.smashed) {
@@ -1695,9 +1671,8 @@ export class Game {
   }
 
   /**
-   * Ran into a lamp, a fence panel, a bench or (in the truck) a street tree: it goes over the way the car was heading,
-   * kicked off toward the side it was struck on (so a lamp doesn't come down on the car), and the car loses some speed.
-   * A hedge or a bus shelter the truck hits flies apart instead (props.onBroken).
+   * Apply prop knockdown with a lateral impulse away from the vehicle and reduce vehicle velocity. Shattering props
+   * report through props.onBroken; other knockdowns emit a prop event here.
    */
   private knockProp(s: Solid, v: Vehicle): void {
     const fx = Math.sin(v.yaw);
@@ -1713,7 +1688,7 @@ export class Game {
     v.vel.x *= k;
     v.vel.z *= k;
 
-    // one that shatters has gone to bits already (props.onBroken)
+    // Shattering already emitted its event through props.onBroken.
     if (kind.shatter) {
       return;
     }
@@ -1727,15 +1702,13 @@ export class Game {
   }
 
   private crush(o: Vehicle, by: Vehicle): void {
-    // nobody drives it on: whoever had the wheel has lost it
+    // Remove driver control before starting the crushed-car animation.
     o.role = 'parked';
     o.setStatus('crushed');
     this.events.emit('crushed', { car: o, by });
     this.junk.crushed(o);
     by.kick(-CRUSH_KICK);
   }
-
-  // ---------------------------------------------------------------- phases
 
   private onNightfall(): void {
     this.hud.toast('THE MOON IS UP', this.cody.holdForm ? 'THE DECK WAKES UP' : 'PHANTOM CODY RISES', '', 3.2);
@@ -1752,7 +1725,7 @@ export class Game {
 
   private onSunrise(): void {
     this.hud.toast(`DAY ${this.clock.day}`, 'SUN UP. BACK TO WORK.', 'warn', 3);
-    // the souls slip away at dawn
+    // Clear remaining GhASt at sunrise.
     this.ghast = 0;
     this.money.scatter();
 
@@ -1769,7 +1742,7 @@ export class Game {
     this.world.props.repair();
     this.skeletons.crumbleAll();
 
-    // monster trucks fall back asleep as cars
+    // Start civilian-form transformations for trucks without an active status.
     for (const v of this.vehicles) {
       if (v.form !== 'truck' || v.status) {
         continue;
@@ -1784,12 +1757,12 @@ export class Game {
       );
     }
 
-    // last, so listeners see the repaired deck (and can switch off what isn't built yet)
+    // Notify listeners after world repair and sunrise transformations are initialized.
     this.events.emit('sunrise', null);
   }
 
   private updateMorphs(dt: number): void {
-    // finished ones drop out in place, keeping the rest in order
+    // Compact unfinished transformations in place while preserving order.
     let n = 0;
     for (const m of this.morphs) {
       m.update(dt);
@@ -1802,14 +1775,14 @@ export class Game {
     this.morphs.length = n;
   }
 
-  /** Cody's outfit swap at moonrise / sunrise. */
+  /** Animate smoke, switch Cody’s form at 0.6 seconds, and finish the effect after one second. */
   private updateCodyFx(dt: number): void {
     if (this.codyFx < 0) {
       return;
     }
 
     const before = this.codyFx;
-    // where Cody is: on foot, or inside whatever he's in
+    // Anchor the effect to the current ride when Cody is inside a vehicle.
     const p = (this.ride ?? this.player).pos;
     if (before === 0) {
       this.events.emit('outfit', { form: this.clock.phase, at: p.clone() });
@@ -1835,14 +1808,12 @@ export class Game {
     }
   }
 
-  // ---------------------------------------------------------------- shared
-
   private updateShared(dt: number): void {
     const nightness = this.dayNight.nightness;
     this.planner.update();
 
     if (this.mode === 'play') {
-      // the AI drivers keep clear of the cars as well
+      // Include vehicle body circles in AI braking obstacles.
       const obstacles = this.bodies.obstacles(
         (b) => b.kind === 'car' || b.kind === 'cody' || b.kind === 'down' || (b.kind === 'person' && b.moving),
         this.valetObstacles,
@@ -1853,7 +1824,7 @@ export class Game {
       this.drivers.update(dt);
       this.detours.update(dt, obstacles);
 
-      // a car crashed pulling round: its driver gets out and runs once it stops
+      // Defer driver escape from detour crashes until the car settles.
       for (const v of this.detours.stranded.splice(0)) {
         this.shaken.set(v, v.pos.clone());
       }
@@ -1889,7 +1860,7 @@ export class Game {
     this.bats.update(dt, nightness);
     this.pool.update(focus);
 
-    // top-down, the shadow box fits what the view shows; the chase view sees too far for that
+    // Fit isometric shadows to visible corners; use a local focus for the longer chase view.
     if (this.chaseActive) {
       this.lights.follow(this.chase.shadowFocus(_s), this.dayNight.sunDir);
     } else {
@@ -1902,7 +1873,7 @@ export class Game {
     (this.gfx.grade.uniforms.flashColor!.value as Color).copy(this.flashColor);
   }
 
-  /** How the haunting's going, for the phone's Phantoms app. */
+  /** Build the ledger and haunted-spot report for the phone’s Phantoms app. */
   private phantomReport(): PhantomReport {
     const haunted = this.garage.spots.filter((s) => s.phantom);
     return {
@@ -1916,8 +1887,8 @@ export class Game {
   }
 
   /**
-   * Objective markers over their targets (none under a cutscene), and the minimap around Cody, in the dash or the
-   * phone.
+   * Update objective projections and map state around Cody. Hide world markers during cutscenes while retaining map
+   * markers.
    */
   private updateObjectives(): void {
     const me = this.ride ?? this.player;
@@ -1938,7 +1909,7 @@ export class Game {
     );
   }
 
-  /** The arrow over Cody's ride points along a planned route to the current objective. */
+  /** Guide civilian cars to free parking and trucks inside the deck toward an unbroken parapet. */
   private updateNav(dt: number): void {
     const v = this.driving;
     let goal: Vector3 | null = null;
@@ -1946,7 +1917,7 @@ export class Game {
     let profile: NavProfile = NAV.car;
     let query: NavQuery | undefined;
     if (v && this.conditions.parking() && v.form === 'car') {
-      // by day: a free spot, entering through the badge gate
+      // When parking is enabled, route to a free spot through the entry gate if outside.
       const s = this.garage.nearestFree(v.pos, null);
       if (s) {
         goal = s.center;
@@ -1959,7 +1930,7 @@ export class Game {
 
       this.arrow.setColor(PALETTE.slime);
     } else if (v && v.form === 'truck' && v.insideDeck && !this.escaping) {
-      // at night: the nearest unbroken parapet, preferring this floor
+      // Prefer the nearest unbroken parapet on the current floor.
       const floor = this.garage.floorOf(v.pos.y);
       let best: BreakablePiece | null = null;
       let bd = Infinity;
@@ -1994,7 +1965,7 @@ export class Game {
     this.arrow.update(dt, v ? v.pos : null, v?.rig.height ?? 2, target);
   }
 
-  /** A point on the deck floor a few metres in from a parapet: where to aim the truck. */
+  /** Return a target three meters inward from the parapet, at its base height. */
   private insideOf(b: BreakablePiece, out: Vector3): Vector3 {
     const { min, max } = b.solid;
     const alongX = max[0] - min[0] > max[2] - min[2];
@@ -2010,8 +1981,8 @@ export class Game {
   }
 
   /**
-   * The monster truck at night: ghosts near its intake get sucked in and fill the GhASt tank; holding boost burns it
-   * (into `di`).
+   * Collect ghosts near the truck intake, update GhASt fuel, and set boost input while fuel is available and the truck
+   * is not crashing.
    */
   private ghastIntake(v: Vehicle, di: DriveInput, dt: number): void {
     const G = TUNING.ghast;
@@ -2042,7 +2013,7 @@ export class Game {
     this.ghast = Math.max(0, this.ghast - G.burn * dt);
   }
 
-  /** A driver leans on the horn: the 'honk' event (the sound's cue), the word over the roof, a flash of the headlights. */
+  /** Emit the horn event, display its caption, and flash the headlights using current impatience. */
   private honk(car: Vehicle): void {
     const anger = this.traffic.angerOf(car);
     this.events.emit('honk', { car, at: car.pos.clone(), anger });
@@ -2050,7 +2021,7 @@ export class Game {
     this.fleet.flash(car);
   }
 
-  /** A puff of smoke at `at` (someone's feet): for a character vanishing, or appearing, in one. */
+  /** Emit a smoke request using a copied ground position. */
   puff(at: Vector3): void {
     this.events.emit('puff', { at: at.clone() });
   }
@@ -2060,7 +2031,7 @@ export class Game {
     return !this.driving && !this.transform && !this.cutscene && this.doze < 0;
   }
 
-  /** Cody eats a brisket from his items. True if he did. */
+  /** Consume one brisket when allowed, report its use, and optionally begin dozing. Return whether one was eaten. */
   private eat(): boolean {
     if (!this.canEat || !this.inventory.take('brisket', 1)) {
       return false;
@@ -2076,7 +2047,7 @@ export class Game {
     return true;
   }
 
-  /** A doze under way: dim the picture after the day-night grade, skip the clock at the darkest, brighten again. */
+  /** Modulate exposure after day/night grading and schedule a phase skip at the end of the dark hold. */
   private dozing(dt: number): void {
     if (this.doze < 0) {
       return;
@@ -2104,7 +2075,7 @@ export class Game {
   }
 }
 
-/** The point a thing sees from, or is seen at: its position raised to its eye height. */
+/** Return the actor’s world-space sight point using its configured eye-height offset. */
 function eyeOf(thing: Thing): [number, number, number] {
   return [thing.pos.x, thing.pos.y + EYE_HEIGHT[thing.kind], thing.pos.z];
 }

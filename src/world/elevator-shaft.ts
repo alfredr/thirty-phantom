@@ -4,8 +4,8 @@ import type { ElevatorDef, Facing, V3 } from './level-data';
 import type { LevelWriter } from './level-writer';
 
 /**
- * Elevator geometry shared by the shaft (written into the level here), the cab and doors (built at runtime,
- * world/elevators.ts) and the nav's ride links (world/nav-grid.ts).
+ * Dimensions shared by static shaft generation, runtime cabins and doors in world/elevators.ts, and navigation links in
+ * world/nav-grid.ts. Distances are in meters.
  */
 export const LIFT = {
   /** Shaft walls. */
@@ -49,9 +49,9 @@ export function shaftCenter(def: ElevatorDef, y: number, out: V3 = [0, 0, 0]): V
 }
 
 /**
- * A point on stop i's landing door's center line, at its floor: `out` metres out from the shaft's inside face
- * (LIFT.wall is the outside face of the wall, LIFT.wall + LIFT.landing where someone waits for the cab; negative is
- * into the cab).
+ * Write a point on stop i's door centreline into `p` and return it. `out` is the distance from the shaft's inner face,
+ * positive outward and negative into the cabin. The point lies at the stop's floor height. Throw if the stop does not
+ * exist.
  */
 export function doorPoint(def: ElevatorDef, i: number, out: number, p: V3 = [0, 0, 0]): V3 {
   const s = def.stops[i];
@@ -70,10 +70,7 @@ export function landingPoint(def: ElevatorDef, i: number, p: V3 = [0, 0, 0]): V3
   return doorPoint(def, i, LIFT.wall + LIFT.landing, p);
 }
 
-/**
- * A piece of an elevator's shaft: a box (walls, sill, lintel, trim, the call plate, the pit's floor, the roof), or the
- * ELEVATOR sign over a door.
- */
+/** A box forming part of the elevator shaft, including structural walls, slabs, trim, or call-button plates. */
 export interface ShaftPart {
   min: V3;
   max: V3;
@@ -89,10 +86,9 @@ export interface ShaftSign {
 }
 
 /**
- * The shaft round an elevator (`def`, its stops lowest first): walls round its footprint from the pit up, with a
- * doorway at each stop on the side it faces (a sill level with the floor, door trim, a call button plate, an ELEVATOR
- * sign), the pit's floor, and a roof over the top stop. In def's own frame; writeElevator writes them into a level, a
- * walk-in building draws them only while Cody is near (world/interior-layout.ts).
+ * Generate shaft boxes and sign placements in `def` coordinates. Stops must be ordered from lowest to highest. Include
+ * a doorway at each landing, the pit floor, and a roof with a lamp above the top stop. Consumers decide whether to
+ * render these parts permanently or with an active interior.
  */
 export function shaftParts(def: ElevatorDef): { boxes: ShaftPart[]; signs: ShaftSign[] } {
   const L = LIFT;
@@ -199,8 +195,8 @@ export function shaftParts(def: ElevatorDef): { boxes: ShaftPart[]; signs: Shaft
 }
 
 /**
- * The shaft of an elevator, written into the level (shaftParts), a pit dug below street level for it, and the elevator
- * itself (`def`, in the writer's local frame).
+ * Append shaft geometry, signs, and the elevator definition in the writer's coordinate frame. Add a pit cutout when the
+ * definition's pit floor is below local Y=0.
  */
 export function writeElevator(w: LevelWriter, def: ElevatorDef): void {
   const { boxes, signs } = shaftParts(def);
@@ -212,7 +208,7 @@ export function writeElevator(w: LevelWriter, def: ElevatorDef): void {
     w.sign(s.pos, LIFT.sign.size, s.facing, 'neonPurple', ['ELEVATOR']);
   }
 
-  // no street underfoot over the pit's whole footprint (the walls fill the rest)
+  // Remove ground beneath the shaft and its surrounding walls when the pit is below street level.
   const [ix0, pitFloor, iz0] = def.min;
   const [ix1, , iz1] = def.max;
   const t = LIFT.wall;

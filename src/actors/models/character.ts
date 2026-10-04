@@ -8,11 +8,11 @@ import type { CharacterRig } from './rig';
 
 export type CodyForm = 'day' | 'night';
 
-/** What the Player needs from a character, whether it is a GLB or the procedural fallback. */
+/** Player-facing interface shared by imported and procedural character models. */
 export interface CharacterModel {
   readonly root: Object3D;
   setForm(form: CodyForm): void;
-  /** Astride a bike, hands on the bars, his hips at the root (so the root goes where he sits); or back on his feet. */
+  /** Select a riding pose with hips at the root, or restore the standing pose. */
   seat(on: boolean): void;
   /** @param speed horizontal speed in m/s */
   animate(dt: number, speed: number, grounded: boolean): void;
@@ -28,7 +28,7 @@ export class GltfCharacter implements CharacterModel {
   private readonly actions: Partial<Record<Clip, AnimationAction>> = {};
   private readonly outfits: Record<CodyForm, Object3D[]> = { day: [], night: [] };
   private readonly inner: Object3D;
-  /** Height of his hips (the "hips" bone) standing. */
+  /** Standing hip height used to align the riding pose with the saddle. */
   private readonly hip: number;
   private form: CodyForm = 'day';
   private seated = false;
@@ -95,7 +95,7 @@ export class GltfCharacter implements CharacterModel {
       return;
     }
 
-    // blend weights by speed, and match cadence to ground speed so feet don't skate
+    // Match gait blend and playback rate to ground speed to reduce foot sliding.
     const w = grounded ? clamp((speed - 0.4) / 2.5, 0, 1) : 0.3;
     const r = grounded ? clamp((speed - 7) / 3, 0, 1) : 0;
     idle?.setEffectiveWeight(1 - w);
@@ -108,7 +108,7 @@ export class GltfCharacter implements CharacterModel {
   }
 }
 
-/** Seated on a bike (the box rig has no knees): legs out level, arms forward to the bars. */
+/** Riding limb angles in radians for the procedural rig, which has no knee joints. */
 const SIT_LEGS = -1.45;
 const SIT_ARMS = -1.2;
 

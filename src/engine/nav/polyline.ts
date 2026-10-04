@@ -5,10 +5,8 @@ import { clamp, lerp, mod, type V3 } from '@/engine/core/math';
 const _a = new Vector3();
 const _d = new Vector3();
 /**
- * Height counts this many times over horizontal distance when matching a point to the line, so a route that doubles
- * back on another floor (ramps, stairs) never captures a follower from the floor below. Up to LEVEL_SLACK of it doesn't
- * count: feet on a landing or a tread sit that far off the route's straight line down a flight, and weighing that
- * pinned a walker's cursor at a stair corner.
+ * Weight vertical separation to distinguish overlapping routes on different floors. Ignore the first LEVEL_SLACK meters
+ * so differences between stair treads and the route’s slope do not prevent cursor advancement.
  */
 const LEVEL_WEIGHT = 8;
 const LEVEL_SLACK = 0.5;
@@ -20,7 +18,7 @@ const LEVEL_SLACK = 0.5;
 export class Polyline {
   readonly points: Vector3[];
   readonly closed: boolean;
-  /** Arc length at each point (and, closed, back at the first one). */
+  /** Cumulative arc lengths, including the closing segment for a closed path. */
   private readonly cum: number[] = [0];
   readonly total: number;
 
@@ -66,7 +64,7 @@ export class Polyline {
     return new Polyline(rest);
   }
 
-  /** Point (and unit direction of travel) at arc length s. */
+  /** Write the position and optional unit tangent at arc length `s`. Return `pos`. */
   sample(s: number, pos: Vector3, dir?: Vector3): Vector3 {
     if (this.points.length < 2) {
       dir?.set(0, 0, 1);
@@ -97,8 +95,9 @@ export class Polyline {
   }
 
   /**
-   * Arc length of the point on the line nearest to p, considering only the stretch [from, from + window]: followers
-   * pass their current cursor so progress never jumps to a stacked or looping part of the route.
+   * Find the nearest segment projection using height-weighted distance. For open paths, search segments intersecting
+   * [from, from + window] and clamp the result to at least `from`; a projection may extend past the window. Closed
+   * paths search every segment.
    */
   project(p: Vector3, from = 0, window = Infinity): number {
     let best = from;
@@ -130,15 +129,15 @@ export class Polyline {
 }
 
 /**
- * Something following a Polyline: an arc-length cursor that only moves forward, and a look-ahead point to steer at.
- * Shared by the guidance arrow, the car autopilot and walkers.
+ * Track progress and sample look-ahead targets on a polyline. The guidance arrow, autopilot, and walkers share this
+ * cursor. Progress is monotonic on open paths; closed paths wrap.
  */
 export class RouteCursor {
   s = 0;
 
   constructor(readonly path: Polyline) {}
 
-  /** Move the cursor to where `pos` is along the route (never backwards, searching `window` ahead). */
+  /** Project `pos` onto the route. Open routes advance monotonically using the segment search window. */
   track(pos: Vector3, window = 12): number {
     this.s = this.path.project(pos, this.s, window);
     return this.s;

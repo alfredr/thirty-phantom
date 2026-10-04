@@ -3,10 +3,10 @@ import { Vector3 } from 'three';
 import type { Focus } from '@/engine/input/input';
 import type { Control } from '@/game/controls';
 
-/** Speech bubbles hang from this high above a speaker's feet. */
+/** Speech bubble height above the speaker’s feet, in meters. */
 const SPEAKER_HEAD = 2.5;
 
-/** Something Cody can say: its key, its label, whether he can't just now (he can't pay, say), and what it does. */
+/** A conversation choice with its binding, display label, disabled flag, and action payload. */
 export interface Choice<D> {
   action: Control;
   label: string;
@@ -14,20 +14,14 @@ export interface Choice<D> {
   does: D;
 }
 
-/**
- * How long a conversation lasts: till they're `breakAt` apart (m), `timeout` seconds in, or `lineTime` seconds after
- * the last line.
- */
+/** Conversation limits: separation in meters, total duration in seconds, and final-line duration in seconds. */
 export interface Pacing {
   readonly breakAt: number;
   readonly timeout: number;
   readonly lineTime: number;
 }
 
-/**
- * What a conversation shows this frame: who's speaking and from where (over their head), their line, and Cody's
- * choices.
- */
+/** Current speech bubble content, anchor position, and player choices. */
 export interface Said {
   at: Vector3;
   who: string;
@@ -36,14 +30,12 @@ export interface Said {
 }
 
 /**
- * A conversation between Cody and someone: an encounter, open from when Cody starts it until one of them walks off, it
- * times out, or they've said their last line. While it's open its choices are a focus layer, so their keys go to the
- * talk and not the world. The game shows what's said; a subclass says what's said, what each choice does, and what the
- * other side is told when it starts and ends.
+ * Manage a conversation’s lifetime and input focus. Close on separation, timeout, completion, or subclass cancellation.
+ * Subclasses supply dialogue, choices, and participant notifications.
  */
 export abstract class Conversation<Who, D> {
   private talk: { who: Who; t: number; line: string; closing: number } | null = null;
-  /** Takes the choices' layer away again. */
+  /** Remove the conversation’s input focus layer. */
   private unfocus: (() => void) | null = null;
   private readonly head = new Vector3();
 
@@ -56,7 +48,7 @@ export abstract class Conversation<Who, D> {
     return this.talk !== null;
   }
 
-  /** One frame of it; `me` is where Cody is. What's said, or null with no conversation open. */
+  /** Advance the conversation and return its display state, or null when closed. `me` is Cody’s position. */
   update(dt: number, me: Vector3): Said | null {
     const talk = this.talk;
     if (!talk) {
@@ -80,7 +72,7 @@ export abstract class Conversation<Who, D> {
     return { at: this.head.copy(at).setY(at.y + SPEAKER_HEAD), who: this.name(talk.who), line: talk.line, choices };
   }
 
-  /** Ends it now. */
+  /** Close the conversation, release focus, and notify the participant. */
   close(): void {
     const talk = this.talk;
     if (!talk) {
@@ -93,7 +85,7 @@ export abstract class Conversation<Who, D> {
     this.ended(talk.who);
   }
 
-  /** Opens a conversation with `who`, who says `line`. */
+  /** Replace any open conversation and capture controls for enabled choices. */
   protected open(who: Who, line: string): void {
     this.close();
     this.talk = { who, t: 0, line, closing: -1 };
@@ -106,7 +98,7 @@ export abstract class Conversation<Who, D> {
     });
   }
 
-  /** They say `line`, then the conversation ends. */
+  /** Display the final line and close after the configured delay. */
   protected lastLine(line: string): void {
     if (!this.talk) {
       return;
@@ -116,23 +108,23 @@ export abstract class Conversation<Who, D> {
     this.talk.closing = this.pacing.lineTime;
   }
 
-  /** Where they stand. */
+  /** Return the participant’s world position. */
   protected abstract where(who: Who): Vector3;
-  /** What the bubble calls them. */
+  /** Return the participant’s display name. */
   protected abstract name(who: Who): string;
-  /** What Cody can say to them now. */
+  /** Return available and disabled choices for the participant. */
   protected abstract choices(who: Who): Choice<D>[];
-  /** Cody said the choice that does `does`. */
+  /** Handle the selected action payload. */
   protected abstract chose(who: Who, does: D): void;
-  /** It's over: whatever they're to be told. */
+  /** Notify the participant that the conversation has ended. */
   protected abstract ended(who: Who): void;
 
-  /** Whether it can go on (a valet's stand closes at nightfall). */
+  /** Allow subclasses to end a conversation when its context becomes invalid. */
   protected goingOn(_who: Who): boolean {
     return true;
   }
 
-  /** Cody's choices now: none once they're saying their last line. */
+  /** Return no choices while the final line is displayed. */
   private offered(): Choice<D>[] {
     const talk = this.talk;
     return talk && talk.closing < 0 ? this.choices(talk.who) : [];

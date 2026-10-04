@@ -19,14 +19,11 @@ import { TUNING } from '@/config';
 import { urlChoice } from '@/engine/core/url-flags';
 
 /**
- * World curvature, an experiment (TUNING.camera.curve): in the top-down view every material's vertex shader bends the
- * world onto a small planet, so the ground curves away into a real horizon. Cody's own level lies on a sphere resting
- * under the view's focus, a point's distance from the focus going round it as arc length; heights above or below that
- * level stand up from it, straight up or (with `lean`) out along the sphere's radius. Round Cody it's drawn as it is.
+ * Render the isometric world on a sphere centred beneath the camera focus. Horizontal distance becomes arc length;
+ * height extends vertically or along the sphere's radius according to `lean`.
  *
- * It's visual only: collision, physics and the game see the flat world. Lighting, shadows and textures use flat
- * positions too, so they stay put on the bent surfaces. Off (or in the chase view, radius 0) everything is as before;
- * with the switch off nothing is patched or tiled.
+ * This affects rendering and culling only. Physics, lighting, shadows, and texture coordinates use flat positions. A
+ * zero radius disables the bend for a render; disabling CURVE_ON also skips material patches and subdivision.
  */
 
 /** Whether the world can curve (TUNING.camera.curve.on, or ?curve=0 / ?curve=1). */
@@ -35,16 +32,15 @@ export const CURVE_ON = ((): boolean => {
   return flag ? flag === '1' : TUNING.camera.curve.on;
 })();
 
-/** Grid (m) big faces are split on while curvature is on (render/geometry.ts), else 0. */
+/** Subdivision grid spacing in meters for render/geometry.ts, or zero when curvature is disabled. */
 export const CURVE_TILE: number = CURVE_ON ? TUNING.camera.curve.tile : 0;
 
 /**
- * How far round the planet (radians) things go before they sink into it: past the farthest the view sees on its near
- * side (90 degrees plus the view's 55 from straight down), so it's all behind that. Without it the far city would wrap
- * round the back and come up again under Cody.
+ * Maximum bend angle in radians. Sink geometry near this limit to prevent the distant city from wrapping around the
+ * sphere and reappearing beneath the focus.
  */
 const PHI_MAX = 2.6;
-/** Over this much of a turn before PHI_MAX things sink toward the middle. */
+/** Angular interval in radians over which geometry sinks before PHI_MAX. */
 const SINK = 0.25;
 
 export const curveUniforms = {
@@ -55,9 +51,8 @@ export const curveUniforms = {
 };
 
 /**
- * The iso frame's planet, as uCurve packs it (w 0 when there's none), and its lean. The shaders only get it while
- * curveCull arms the iso render, so anything else drawn with the same materials (portraits, the phone's avatar) stays
- * flat; HUD markers and culling read it from here.
+ * Current isometric bend parameters for HUD projection and culling. curveCull activates these uniforms only during the
+ * isometric render so other renders using shared materials remain flat. A zero w disables curvature.
  */
 export const curveFrame = { planet: new Vector4(), lean: 0 };
 
@@ -74,7 +69,7 @@ vec3 curveBend(vec3 p) {
   phi = min(phi, ${PHI_MAX.toFixed(3)});
   vec2 dir = o / max(d, 1e-5);
   vec3 n = vec3(dir.x * sin(phi), cos(phi), dir.y * sin(phi));
-  // Cody's level on the sphere, and the height up from it
+  // Place the focus-height surface on the sphere and offset elevation along the blended up direction.
   vec3 q = R * n - vec3(0.0, R, 0.0) + (p.y - uCurve.y) * normalize(mix(vec3(0.0, 1.0, 0.0), n, uCurveLean));
   return uCurve.xyz + mix(q, vec3(0.0, -R, 0.0), sink);
 }
@@ -93,9 +88,9 @@ const WORLD = /* glsl */ `
 `;
 
 /**
- * Patches a vertex shader to draw bent: after project_vertex, gl_Position is redone from the bent world position
- * (mvPosition stays flat, for lighting). `bent` names a vec3 to declare with the bent position, for the cutaway.
- * Sprites bend their centre. Returns false if there was nothing to patch.
+ * Patch supported mesh or sprite shaders to project curved world positions. Mesh lighting retains flat mvPosition;
+ * sprites bend at their centres. If provided, `bent` names an existing vec3 receiving the mesh's bent position. Return
+ * false when neither supported shader pattern is present.
  */
 export function curveVertex(shader: WebGLProgramParametersWithUniforms, bent = ''): boolean {
   const vs = shader.vertexShader;
@@ -123,8 +118,8 @@ export function curveVertex(shader: WebGLProgramParametersWithUniforms, bent = '
 const curved = new WeakSet<Material>();
 
 /**
- * Bends a material that the cutaway patch doesn't cover (sprites, depth twins, lines). A no-op with curvature off.
- * Idempotent, like withCutaway (clones don't carry it).
+ * Install the curvature shader patch once per material and return it. Skip patching when CURVE_ON is false. Cloned
+ * materials must be patched separately because cloning does not preserve onBeforeCompile.
  */
 export function withCurve<T extends Material>(mat: T): T {
   if (!CURVE_ON || curved.has(mat)) {
@@ -143,14 +138,14 @@ export function withCurve<T extends Material>(mat: T): T {
   return mat;
 }
 
-/** Marks a material the cutaway patch bent (it calls curveVertex itself), so the sweep leaves it be. */
+/** Record a material already patched by the cutaway code so curveSweep does not patch it again. */
 export function markCurved(mat: Material): void {
   curved.add(mat);
 }
 
 /**
- * Bends whatever under `root` still draws flat: materials made after a clone, or anywhere that didn't ask. Run now and
- * then; a material caught after it's compiled is rebuilt once.
+ * Patch all unregistered materials under `root` and request shader recompilation. Call again after adding objects or
+ * cloning materials. Do nothing when curvature is disabled.
  */
 export function curveSweep(root: Object3D): void {
   if (!CURVE_ON) {
@@ -202,9 +197,8 @@ export function curvePoint(p: Vector3): Vector3 {
 }
 
 /**
- * How far up the screen (world units from its centre, as flat) a curved view `halfH` high reaches at its top edge: the
- * ground there is farther off than flat, up to the horizon. For fitting the sun's shadow box. `elevation` is the view's
- * (radians).
+ * Return the flat-world screen height needed to cover ground visible at the curved viewport's top edge. `halfH` is the
+ * viewport half-height in world units and `elevation` is the camera elevation in radians.
  */
 export function curveTop(halfH: number, elevation: number): number {
   const R = curveFrame.planet.w;
@@ -212,7 +206,7 @@ export function curveTop(halfH: number, elevation: number): number {
     return halfH;
   }
 
-  // a ground point phi round the planet shows R (cos(phi - elevation) - cos(elevation)) up the screen
+  // A surface point at angle phi projects R * (cos(phi - elevation) - cos(elevation)) above the focus.
   const phi = elevation - Math.acos(Math.min(1, Math.cos(elevation) + halfH / R));
   return R * phi * Math.sin(elevation);
 }
@@ -225,10 +219,8 @@ function smooth(a: number, b: number, x: number): number {
 // ---------------------------------------------------------------- culling
 
 /**
- * Three culls by each object's flat bounding sphere, but bent, towers past the horizon stand up into view and the rest
- * of the far city tucks in behind the planet. While `cull.camera` is set, objects are tested against its frustum where
- * they're drawn: the sphere's centre bent, its radius grown by the most the bend stretches it, and hidden if it's
- * wholly behind the planet.
+ * Curvature-aware culling state for the active isometric camera. Test each object's bent bounding sphere against the
+ * view frustum and the planet horizon, expanding its radius to account for height-dependent stretching.
  */
 const cull = {
   camera: null as OrthographicCamera | null,
@@ -244,8 +236,8 @@ const _c = new Vector3();
 const _spriteCentre = new Vector2(0.5, 0.5);
 
 /**
- * Arms the frame's planet (curveFrame) for `camera`'s render. The optional cutaway opening uses bent world coordinates.
- * null disarms it, flat again for anything else drawn.
+ * Activate curveFrame for an isometric render and configure its culling frustum. The optional cutaway centre uses bent
+ * world coordinates. Pass null to restore flat rendering for subsequent passes.
  */
 export function curveCull(camera: OrthographicCamera | null, cutCenter?: Vector3, cutRadius = 0): void {
   const u = curveUniforms;
@@ -269,7 +261,7 @@ export function curveCull(camera: OrthographicCamera | null, cutCenter?: Vector3
   camera.getWorldDirection(cull.toCam).negate();
 }
 
-/** The renderer's frustum is its own object, so it's told apart from the shadow map's (and a pass's quad) by its planes. */
+/** Compare planes to identify the main camera frustum without relying on object identity. */
 function isMain(f: Frustum): boolean {
   const a = f.planes;
   const b = cull.frustum.planes;
@@ -289,11 +281,11 @@ function isMain(f: Frustum): boolean {
   return true;
 }
 
-/** Whether the flat sphere `_s` (world space) shows once bent. */
+/** Bend and expand the world-space sphere `_s`, then test its visibility against the frustum and horizon. */
 function bentVisible(): boolean {
   const c = curveFrame.planet;
   const R = c.w;
-  // the ground maps without stretching; leaning out, heights fan out by up to lean * height / R
+  // Bound the radial expansion caused by leaning geometry above or below the focus height.
   const tall = Math.max(Math.abs(_s.center.y + _s.radius - c.y), Math.abs(_s.center.y - _s.radius - c.y));
   const stretch = 1 + (curveFrame.lean * tall) / R;
   curvePoint(_s.center);
@@ -314,7 +306,7 @@ function bentVisible(): boolean {
     }
   }
 
-  // behind the street's sphere (Cody's, dropped to the street), seen along the view: hidden by the ground on its near side
+  // Reject spheres fully hidden behind the curved street surface.
   _c.set(_s.center.x - c.x, _s.center.y + R, _s.center.z - c.z);
   const along = _c.dot(cull.toCam);
   const perp = Math.sqrt(Math.max(_c.lengthSq() - along * along, 0)) + _s.radius;

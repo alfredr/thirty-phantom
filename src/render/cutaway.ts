@@ -18,18 +18,21 @@ const _side = new Vector3();
 const _a: V3 = [0, 0, 0];
 const _b: V3 = [0, 0, 0];
 
-/** Opens a window through whatever stands between the iso camera and Cody (or his ride). */
+/** Open a cutaway around Cody or his vehicle when geometry obstructs the isometric camera. */
 export class Cutaway {
   private radius = 0;
   private ceil = 1e9;
 
-  /** Nothing cut: the title orbit, or the chase boom, which stays inside the building with Cody. */
+  /** Disable the cutaway immediately for views that do not need it. */
   off(): void {
     this.radius = 0;
     cutUniforms.uCutRadius.value = 0;
   }
 
-  /** `sight` holds what hides the focus without being solid (tree crowns): it opens the window too. */
+  /**
+   * Update cutaway uniforms from visibility probes and ceiling height. Optional `sight` geometry can obstruct the view
+   * without participating in physical collision, as with tree crowns.
+   */
   update(
     dt: number,
     focus: Vector3,
@@ -59,7 +62,7 @@ export class Cutaway {
 
     const want = blocked ? TUNING.cutaway[kind] : 0;
     this.radius = damp(this.radius, want, 8, dt);
-    // the slab overhead goes everywhere in the window, not just in front of the focus
+    // Remove the overhead slab throughout the opening, including portions behind the focus.
     const height = v ? v.params.height : TUNING.player.height;
     const ceil = collision.ceilingAt(focus.x, focus.z, 0.2, focus.y + height - 0.2);
     const ceilWant = Number.isFinite(ceil) ? ceil - 0.05 : focus.y + 200;

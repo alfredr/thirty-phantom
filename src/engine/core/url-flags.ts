@@ -4,13 +4,13 @@
  */
 const params = new URLSearchParams(globalThis.location?.search ?? '');
 
-/** `?name` is present, with or without a value. */
+/** Return whether the query includes `name`, regardless of its value. */
 export const urlFlag = (name: string): boolean => params.has(name);
 
-/** `?name=value`, or null. */
+/** Return the first query value for `name`, or null if absent. */
 export const urlParam = (name: string): string | null => params.get(name);
 
-/** `?name=` one of `options`, else null. */
+/** Return the query value only if it matches one of `options`; otherwise return null. */
 export function urlChoice<const T extends string>(name: string, options: readonly T[]): T | null {
   const v = params.get(name);
   return v !== null && (options as readonly string[]).includes(v) ? (v as T) : null;

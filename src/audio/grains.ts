@@ -1,59 +1,46 @@
 import type { Controls, Kit, Voice } from './synth';
 
 /**
- * An engine, sounding as a function of its state (revs and load) and nothing else: no stretch of the recording is ever
- * played through in time, so none of its own rev-ups and spin-downs come through. Three state-driven sources:
- *
- * - Grains of recorded engine cycles (the base). The recording is cut into cycles offline (tools/engine-grains.py), each
- *   tagged with its firing rate, whether the engine was pulling or falling, and its level. Each grain is a cycle or two
- *   picked by the firing rate the revs ask for (and the load), centred on its firing pulse and fired on a grid at the
- *   target period (pitch-synchronous overlap-add), so the pitch is set by the revs alone and holds steady while they
- *   do. A grain is barely resampled (a few percent): the spacing does the rest, so the exhaust's and the body's
- *   resonances stay where they are as the firing rate climbs, as they do on a real engine, and a recording's range
- *   stretches past what it covers.
- * - Breath: the intake and exhaust under load, noise in a band rising with the revs.
- * - Burble: pops in the exhaust on the overrun, when the throttle's shut at speed.
- *
- * Granular synthesis from a recording was rated the most realistic engine sound for games in a listening test (af
- * Malmborg, "Evaluation of Car Engine Sound Design Methods in Video Games", Luleå University of Technology, 2021),
- * ahead of crossfaded pitched loops and a physical model.
+ * Synthesize engine audio from recorded cycles selected by RPM and load. Schedule grains on the requested firing
+ * period, with limited resampling, so playback follows game state rather than the recording's original acceleration.
+ * Add filtered intake noise under load and exhaust pops after the throttle closes.
  */
 
 /**
- * A tagged cycle: [time in the file (s), firing rate (Hz, the recording's units), pulling 1 / steady 0.5 / falling 0,
- * level].
+ * Recorded cycle metadata: time in seconds, firing rate in Hz, load class (1 accelerating, 0.5 steady, 0 decelerating),
+ * and level.
  */
 export type Mark = readonly [number, number, number, number];
 
 export interface EngineP {
-  /** The firing rate at idle and at the redline, in the grain table's units. */
+  /** Target firing rates at idle and redline, in the grain table's units. */
   idle: number;
   top: number;
-  /** Grains a second at most: above it each grain is more cycles (traffic, further off, gets fewer). */
+  /** Target scheduling limit in grains per second. Group more cycles per grain as the firing rate rises. */
   rate: number;
-  /** Lowpass (Hz) coasting and flat out, and the level it all comes out at (recordings differ). */
+  /** Low-pass cutoff at zero and full load, in Hz, and gain compensation for the recording. */
   tone: readonly [number, number];
   gain: number;
-  /** An uneven idle (0..1, the truck's lope): each cycle's level in a pattern of `cyl`, gone by a third of the revs. */
+  /** Idle amplitude variation from 0 to 1, repeated over `cyl` steps and faded out by one-third RPM. */
   lope?: number;
   cyl?: number;
-  /** The intake and exhaust under load: noise in a band (Hz, at idle and the redline), at most this loud. */
+  /** Intake noise filter frequencies at idle and redline, in Hz, and maximum gain. */
   breath: { band: readonly [number, number]; vol: number };
-  /** Overrun pops: up to `rate` a second (at the redline) for `fade` seconds after the throttle shuts, this loud. */
+  /** Exhaust pop rate at redline, fade duration after throttle release in seconds, and gain. */
   burble: { rate: number; fade: number; vol: number };
 }
 
-/** A grain's window: a raised cosine, so grains overlapping by half on the grid add up to a steady level. */
+/** Hann amplitude envelope for blending overlapping grains. */
 const HANN = Float32Array.from({ length: 32 }, (_, i) => Math.sin((Math.PI * i) / 31) ** 2);
-/** How far a grain may be resampled toward the target (a share either way): the grid does the rest. */
+/** Maximum fractional resampling adjustment. Grain spacing supplies the remaining pitch change. */
 const NUDGE = 0.06;
-/** Grains are scheduled this far ahead (s), so the first half of each is never in the past. */
+/** Scheduling lead time in seconds, allowing grains to begin before their central firing pulse. */
 const LEAD = 0.07;
 
 const rand = (a: number, b: number): number => a + (b - a) * Math.random();
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
 
-/** A grain table, ready to search: the marks sorted by firing rate, and each one's level made even. */
+/** Index recorded cycles by firing rate and calculate gain corrections relative to the median level. */
 class Table {
   readonly byHz: number[];
   readonly norm: number[];
@@ -65,7 +52,10 @@ class Table {
     this.norm = marks.map((m) => clamp((mid / Math.max(m[3], 1e-4)) ** 0.7, 0.4, 2.5));
   }
 
-  /** A cycle to centre a grain of 2k cycles on: firing near `hz`, its load near `load`, with whole cycles either side. */
+  /**
+   * Choose a cycle near the requested firing rate and load with `k` contiguous neighbors on each side. Return -1 if no
+   * candidate fits.
+   */
   pick(hz: number, load: number, k: number): number {
     const order = this.byHz;
     const m = this.marks;
@@ -91,7 +81,7 @@ class Table {
         continue;
       }
 
-      // the cycles either side must run on from it (not across a cut between stretches)
+      // Reject grains that cross a gap between recorded segments.
       if (b[0] - a[0] > (2.6 * k) / c[1]) {
         continue;
       }
@@ -107,12 +97,12 @@ class Table {
   }
 }
 
-/** Grain tables, worked out once per set of marks. */
+/** Cache the search index and gain corrections for each set of cycle marks. */
 const tables = new WeakMap<readonly Mark[], Table>();
 
 /**
- * Loop: the engine in `buf`, its cycles in `marks` (see above). Controls: rpm (0 idle, 1 redline), load (0 coasting, 1
- * flat out).
+ * Create a recorded-cycle engine voice controlled by normalized RPM and load. The caller must tick the voice to
+ * schedule grains and stop it when playback ends.
  */
 export function engine(k: Kit, out: AudioNode, t: number, buf: AudioBuffer, marks: readonly Mark[], p: EngineP): Voice {
   const ctx = k.ctx;
@@ -128,7 +118,7 @@ export function engine(k: Kit, out: AudioNode, t: number, buf: AudioBuffer, mark
   const level = ctx.createGain();
   level.gain.value = p.gain * 0.6;
   tone.connect(level).connect(out);
-  // breath: noise in a band, rising with the revs, as loud as the load
+  // Model intake noise with a band-pass filter controlled by RPM and load.
   const hiss = ctx.createBufferSource();
   hiss.buffer = k.noise;
   hiss.loop = true;
@@ -161,10 +151,8 @@ export function engine(k: Kit, out: AudioNode, t: number, buf: AudioBuffer, mark
 
     while (next < at + LEAD + 0.1) {
       const hz = p.idle + (p.top - p.idle) * rpm;
-      // within the recording's range a grain can be several cycles; pitched past it, its cycles
-      // would fight the grid, so then it's one (overlap-add proper)
-      // fewer cycles a grain where the recording has no unbroken run that long at this rate; and
-      // one, if the nearest cycle is further off than a nudge (its cycles would fight the grid)
+      // Group cycles to limit scheduling work. Shorten the grain if it crosses a recording gap
+      // or its firing rate differs too much from the requested period.
       let n = Math.max(1, Math.ceil(hz / p.rate));
       let i = tab.pick(hz, load, n);
       while (i < 0 && n > 1) {
@@ -185,7 +173,7 @@ export function engine(k: Kit, out: AudioNode, t: number, buf: AudioBuffer, mark
         src.playbackRate.value = r;
         const start = next - (c[0] - a[0]) / r;
         const dur = (b[0] - a[0]) / r;
-        // spaced wider than its cycles (pitched up past the recording), grains pile up: keep the level even
+        // Reduce gain when faster scheduling increases grain overlap.
         const lope = 1 - (p.lope ?? 0) * clamp(1 - rpm * 3, 0, 1) * (beat[cycle % beat.length] ?? 0);
         const g = ctx.createGain();
         g.gain.value = 0;
@@ -203,7 +191,7 @@ export function engine(k: Kit, out: AudioNode, t: number, buf: AudioBuffer, mark
       next += n / hz;
     }
 
-    // overrun: the odd pop in the exhaust, dying away as it coasts on
+    // Fade exhaust pops after the throttle closes; higher RPM produces more frequent pops.
     const burble = p.burble.rate * rpm * Math.max(0, 1 - coasting / p.burble.fade);
     if (popAt < at) {
       popAt = at;

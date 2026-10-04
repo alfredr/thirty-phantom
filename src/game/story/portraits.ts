@@ -14,8 +14,8 @@ export interface Portraits {
 const SIZE = 256;
 
 /**
- * The dialogue portraits, as PNG data URLs: Randy (coat closed, on the left, looking right) and Cody by day and by
- * night (on the right, looking left). `cody` makes a fresh Cody model to pose (the game's assets.character()).
+ * Render PNG data URLs for Randy facing right and both Cody forms facing left. `cody` must supply a fresh model that
+ * can be posed.
  */
 export function makePortraits(renderer: WebGLRenderer, cody: () => CharacterModel): Portraits {
   const randy = buildRandy();

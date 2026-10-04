@@ -2,7 +2,7 @@ import type { Group } from 'three';
 
 import { box, build, cylinder, group, model, NO_CAST, solid, torus } from './part';
 
-/** Bits that come off cars in a smash, for Cody to pick up. */
+/** Collectible vehicle parts released by crashes. */
 export type PartKind = 'tire' | 'hubcap' | 'mirror' | 'bumper' | 'headlight' | 'muffler' | 'plate';
 export const PART_KINDS: readonly PartKind[] = ['tire', 'hubcap', 'mirror', 'bumper', 'headlight', 'muffler', 'plate'];
 

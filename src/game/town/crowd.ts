@@ -20,63 +20,61 @@ import { type Town, Townsperson } from './town-mind';
 
 const C = TUNING.crowd;
 
-/** Townsfolk keep to street level: spots no higher than this (m). */
+/** Maximum destination height for street pedestrians, in meters. */
 const STREET_LEVEL = 0.6;
-/** One newcomer at most this often (s). */
+/** Minimum interval between pedestrian spawns, in seconds. */
 const SPAWN_EVERY = 0.4;
-/** A scared runner bolts straight away from the threat this far (m, checked every DASH_STEP) while a route is planned. */
+/** Initial escape distance and terrain sampling interval, in meters, while a longer route is planned. */
 const DASH = 5;
 const DASH_STEP = 0.5;
-/** Places to run to tried; the one furthest from the threat wins. */
+/** Number of escape destinations sampled before choosing the farthest from the threat. */
 const FLEE_TRIES = 6;
-/** A car Cody drives at someone: they're in its way within this far either side of its line (m). */
+/** Lateral and vertical range in meters for vehicle threat checks. */
 const IN_THE_WAY = 2;
-/** Clipped by a car's body (closer than its radius plus this, m): shoved this far aside. */
+/** Extra vehicle contact radius and horizontal shove distance, in meters. */
 const CLIP = 0.4;
 const SHOVE = 1.2;
-/** Moving faster than this (m/s) counts as walking about (traffic brakes for them). */
+/** Speed threshold in m/s for registering a pedestrian as moving traffic. */
 const MOVING = 0.2;
-/** Newcomers who drive in: one car sent at most this often (s). */
+/** Minimum interval between visitor arrival requests, in seconds. */
 const SEND_EVERY = 1.5;
-/** Places tried for someone coming back to their car to turn up, out of sight. */
+/** Maximum attempts to find a distant spawn for a returning car owner. */
 const COME_BACK_TRIES = 6;
-/** Someone lying in the road: walkers keep this far from where they lie (m). */
+/** Obstacle radius for fallen pedestrians, in meters. */
 const LYING = 0.8;
 
 export interface CrowdFrame {
-  /** Where the view is: people come and go around it. */
+  /** View target used for pedestrian population management. */
   near: Vector3;
   day: boolean;
   /** The car Cody is driving, or null. */
   driving: Vehicle | null;
-  /** Every vehicle: any of them can run someone down. */
+  /** Vehicles considered for pedestrian collision checks. */
   vehicles: readonly Vehicle[];
-  /** Everyone and everything people on foot steer around, or null to walk routes blind. */
+  /** Dynamic walking avoidance; null disables obstacle steering. */
   avoid: Avoidance | null;
-  /** Townsfolk driving in to park and out again; null: newcomers just turn up on the sidewalk. */
+  /** Visitor arrival and departure service; null permits direct pedestrian spawning. */
   visitors: Visitors | null;
 }
 
 const _a = new Vector3();
 const _b = new Vector3();
-/** Clawed below this much health (of 100), a person goes down injured; at none, dead. */
+/** Health threshold for being knocked down by claws; zero health is fatal. */
 const MAULED = 50;
-/** Clawed off their feet, they're flung this fast (m/s) away from the blow. */
+/** Horizontal launch speed from a claw knockdown, in m/s. */
 const CLAW_FLING = 3;
 
 /**
- * Townsfolk: they drive in near the view, park in a lot and get out (see Visitors), stroll between random spots (routes
- * from the planner, like the valets'), giving way to each other and to traffic, and after a while walk back to their
- * car and drive off. They run when ghost Cody comes close or Cody drives at them, sometimes dropping cash or a wallet
- * as they go. Drivers who abandon their cars join them, running. What each one does is their mind's (town-mind.ts);
- * this is the town they share.
+ * Manage pedestrian population, visitor drivers, navigation requests, and physical threats. Townsperson state machines
+ * in town-mind.ts control individual behavior. Expose living or fallen victims to skeletons and register bodies for
+ * steering.
  */
 export class Crowd implements Prey, Town {
   private readonly people: Townsperson[] = [];
   private spawnIn = 0;
-  /** Someone at `at` took fright and started running (a driver bailing out too). */
+  /** Notify the game when a pedestrian begins a fresh fright response. */
   onFright: ((at: Vector3) => void) | null = null;
-  /** Every vehicle, as of the last frame (parked ones are what walking routes go round). */
+  /** Vehicles from the current frame, used to block walking routes. */
   private vehicles: readonly Vehicle[] = [];
   avoid: Avoidance | null = null;
   visitors: Visitors | null = null;
@@ -86,9 +84,9 @@ export class Crowd implements Prey, Town {
     private readonly planner: NavPlanner,
     readonly nav: NavGrid,
     readonly rng: Rng,
-    /** Someone at `at` drops money as they run from `from`. */
+    /** Emit a money drop with its kind and threat position. */
     private readonly drop: (at: Vector3, kind: LootKind, from: Vector3) => void,
-    /** Who's been hit, ragdolls and blood; without it, cars only shove people aside. */
+    /** Optional ragdoll and injury simulation; without it, vehicle contacts only shove pedestrians. */
     readonly casualties: Casualties | null = null,
   ) {}
 
@@ -96,10 +94,7 @@ export class Crowd implements Prey, Town {
     return this.people.length;
   }
 
-  /**
-   * Skeletons' prey (skeletons.ts): the nearest person within `reach` of `at`, on its level, not dead yet, that `may`
-   * allow.
-   */
+  /** Return the nearest eligible living victim within horizontal reach and vertical tolerance, or null. */
   victimNear(at: Vector3, reach: number, sameLevel: number, may: (v: object) => boolean): object | null {
     let best: Townsperson | null = null;
     let bd = reach * reach;
@@ -138,8 +133,8 @@ export class Crowd implements Prey, Town {
   }
 
   /**
-   * A skeleton's blow from `from`: standing, they bleed and run (down injured under MAULED health, dead at none);
-   * lying, every blow makes it worse, until they're dead.
+   * Apply a claw attack. Standing victims lose health and may flee or fall; fallen victims escalate one injury level.
+   * Return the resulting hit category.
    */
   maul(v: object, from: Vector3, damage: number): 'hit' | 'downed' | 'killed' {
     const p = this.people.find((q) => q === v);
@@ -180,17 +175,14 @@ export class Crowd implements Prey, Town {
     return p.hp <= 0 ? 'killed' : 'downed';
   }
 
-  /** The driver of `car` gets out on the street side and runs from `from`. */
+  /** Spawn the driver at the driver door and make them flee from `from`. */
   bail(car: Vehicle, from: Vector3): void {
     const door = driverDoor(car, TUNING.valet.doorGap, new Vector3());
     door.y = this.nav.heightAt(door.x, car.pos.y, door.z) ?? car.pos.y;
     this.add(door, car.yaw - Math.PI / 2).mind.send({ type: 'frightened', from });
   }
 
-  /**
-   * The driver of `car`, just parked by a visitor trip, gets out and goes about their business, coming back for it
-   * later.
-   */
+  /** Spawn a visitor’s pedestrian driver and associate the parked car for a later return. */
   arrive(car: Vehicle): void {
     const door = driverDoor(car, TUNING.valet.doorGap, new Vector3());
     door.y = this.nav.heightAt(door.x, car.pos.y, door.z) ?? car.pos.y;
@@ -199,17 +191,17 @@ export class Crowd implements Prey, Town {
     p.stay = this.rng.range(C.stay[0], C.stay[1]);
   }
 
-  /** The people on their feet, who can see and react to what's around them. */
+  /** Return pedestrians without an active casualty for perception processing. */
   living(): readonly Townsperson[] {
     return this.people.filter((p) => !p.hurt);
   }
 
-  /** Someone takes fright at something at `from` (the reactions table decides who and when). */
+  /** Deliver a fright event selected by the reaction system. */
   frighten(p: Townsperson, from: Vector3): void {
     p.mind.send({ type: 'frightened', from });
   }
 
-  /** People on the move, and people lying in the road, for traffic and autopilots to brake for. */
+  /** Register upright and fallen pedestrians for steering and braking queries. */
   addBodies(bodies: Bodies): void {
     for (const p of this.people) {
       const w = p.walker;
@@ -258,8 +250,6 @@ export class Crowd implements Prey, Town {
       }
     }
   }
-
-  // ---------------------------------------------------------------- the town, as people's minds use it
 
   pause(): number {
     return this.rng.range(C.pause[0], C.pause[1]);
@@ -331,8 +321,6 @@ export class Crowd implements Prey, Town {
     this.drop(at, this.rng.chance(C.walletShare) ? 'wallet' : 'cash', from);
   }
 
-  // ---------------------------------------------------------------- what happens to them
-
   private threats(p: Townsperson, f: CrowdFrame): void {
     const w = p.walker;
     if (this.struck(p, f)) {
@@ -344,7 +332,7 @@ export class Crowd implements Prey, Town {
       return;
     }
 
-    // a car coming at them fast
+    // Only sufficiently fast approaching player vehicles trigger anticipatory fright.
     if (Math.abs(v.speed) < C.carSpeed) {
       return;
     }
@@ -361,8 +349,8 @@ export class Crowd implements Prey, Town {
   }
 
   /**
-   * Hit by a vehicle's body: hard enough and they go down (a casualty, maybe knocking their money loose), else shoved
-   * aside and off they go. True if hit.
+   * Test vehicle-circle contacts. Knock the pedestrian down if the impact causes injury; otherwise shove and frighten
+   * them. Return whether a contact was handled.
    */
   private struck(p: Townsperson, f: CrowdFrame): boolean {
     const w = p.walker;
@@ -385,7 +373,7 @@ export class Crowd implements Prey, Town {
           continue;
         }
 
-        // how hard: the body's speed toward them
+        // Measure vehicle velocity toward the pedestrian along the contact normal.
         const impact =
           d > 1e-3 ? (v.vel.x * (w.pos.x - _a.x) + v.vel.z * (w.pos.z - _a.z)) / d : Math.hypot(v.vel.x, v.vel.z);
         const harm = this.casualties ? Casualties.harmFor(impact, v.mass) : null;
@@ -413,7 +401,7 @@ export class Crowd implements Prey, Town {
     return false;
   }
 
-  /** A walking route's query: round parked cars. */
+  /** Build a walking query that excludes parked vehicle footprints. */
   private around(): NavQuery {
     return { blocks: parkedBlocks(this.vehicles) };
   }
@@ -427,7 +415,7 @@ export class Crowd implements Prey, Town {
     return p;
   }
 
-  /** Keep the day or night count around the view: newcomers out at the edge of it, far ones gone. */
+  /** Remove distant pedestrians and replenish toward the day/night target, including pending visitor arrivals. */
   private maintain(dt: number, f: CrowdFrame): void {
     for (let i = this.people.length - 1; i >= 0; i--) {
       const p = this.people[i];
@@ -435,7 +423,7 @@ export class Crowd implements Prey, Town {
         continue;
       }
 
-      // gone for good: their car goes too, once nobody's looking
+      // Mark an associated car for distant removal when its owner despawns.
       if (p.car) {
         f.visitors?.orphan(p.car);
       }
@@ -449,11 +437,11 @@ export class Crowd implements Prey, Town {
       return;
     }
 
-    // newcomers drive in and park; only a level without lots has them turn up on foot
+    // Use vehicle arrivals when parking bays exist; otherwise spawn pedestrians directly.
     if (v?.hasBays) {
       this.spawnIn = SEND_EVERY;
 
-      // no stall free: someone who parked earlier comes back for their car, freeing one
+      // If arrival cannot be queued, try returning an owner to an existing parked car.
       if (!v.send(f.near)) {
         this.comeBack(v, f.near);
       }
@@ -468,7 +456,7 @@ export class Crowd implements Prey, Town {
     }
   }
 
-  /** Someone who parked before the view got here turns up out of sight and heads back to their car, to drive off in it. */
+  /** Spawn an owner beyond the minimum view distance and associate a parked car for immediate return. */
   private comeBack(v: Visitors, near: Vector3): void {
     const car = v.claim(near);
     if (!car) {
@@ -490,7 +478,7 @@ export class Crowd implements Prey, Town {
         continue;
       }
 
-      // no stay: straight back to it
+      // Leave the stay timer at zero so the owner returns immediately.
       this.add(at, this.rng.range(0, Math.PI * 2)).car = car;
       return;
     }
@@ -505,7 +493,7 @@ export class Crowd implements Prey, Town {
     }
 
     const hurt = p.hurt;
-    // whatever they were doing ends (a route being planned is called off)
+    // Exit the active state so pending route requests are cancelled.
     if (!p.mind.in('gone')) {
       p.mind.go({ at: 'gone' });
     }

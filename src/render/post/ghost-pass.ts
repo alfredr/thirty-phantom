@@ -15,14 +15,14 @@ import { GHOST_LAYER } from '@/render/layers';
 import { FULLSCREEN_VERT } from './fullscreen';
 
 /**
- * Draws the GHOST_LAYER (a faded Cody) on top of the image after the sky pass, so a see-through figure against the sky
- * isn't painted over. The scene's depth is copied in first, so walls in front still hide it; the ghost's own depth
- * twins then keep only its nearest surface. Not drawn into the ink normals at all.
+ * Composite GHOST_LAYER after the sky so transparent characters remain visible against it. Copy scene depth first to
+ * preserve wall occlusion; ghost depth twins restrict each character to its nearest surface. These objects do not
+ * participate in the outline normal pass.
  */
 export class GhostPass extends Pass {
   camera: Camera | null = null;
   depthTexture: DepthTexture | null = null;
-  /** Lights only reach objects through the camera's layers, so they're put on the ghost layer too. */
+  /** Whether existing scene lights have been enabled on GHOST_LAYER. */
   private lit = false;
   /** Writes the scene's depth into the target, so walls in front still hide the ghost. */
   private readonly copyMat = new ShaderMaterial({
@@ -46,7 +46,7 @@ export class GhostPass extends Pass {
   constructor(private readonly scene: Scene) {
     super();
     this.needsSwap = false;
-    // off until something is faded
+    // Enable this pass only while ghost-layer objects are present.
     this.enabled = false;
   }
 
@@ -88,7 +88,7 @@ export class GhostPass extends Pass {
   }
 
   override dispose(): void {
-    // FullScreenQuad.dispose() only frees its geometry
+    // Dispose the material separately because FullScreenQuad owns only its geometry.
     this.copyDepth.dispose();
     this.copyMat.dispose();
   }

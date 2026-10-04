@@ -8,7 +8,7 @@ export type StateOf<S extends State<string>, K extends S['at']> = S & State<K>;
 /** The member of an event union with the given name. */
 export type EventOf<E extends MindEvent<string>, T extends E['type']> = E & MindEvent<T>;
 
-/** How one state reacts to one kind of event: the state to move to, or null to stay as it is. */
+/** Handle an event in a specific state. Return the next state, or null to keep the current state. */
 export type Handler<
   Self,
   S extends State<string>,
@@ -18,13 +18,13 @@ export type Handler<
 > = (self: Self, state: StateOf<S, K>, event: EventOf<E, T>) => S | null;
 
 export interface StateHandlers<Self, S extends State<string>, K extends S['at'], E extends MindEvent<string>> {
-  /** The events this state reacts to. Any other event leaves it as it is: nothing it doesn't list can preempt it. */
+  /** State-specific event handlers. Unlisted events use the handlers in MindOptions. */
   readonly on?: { readonly [T in E['type']]?: Handler<Self, S, K, E, T> };
-  /** What it does each frame (walk on, count down): the state to move to, or null to stay. */
+  /** Advance the active state. Return the next state, or null to keep it active. */
   tick?(self: Self, state: StateOf<S, K>, dt: number): S | null;
-  /** Runs on moving into the state: starts whatever it does (a walk, a timer). */
+  /** Initialize the state when it becomes active, including the initial state. */
   enter?(self: Self, state: StateOf<S, K>): void;
-  /** Runs on moving out of it: lets go of whatever it started. */
+  /** Release state-specific resources before a transition. */
   exit?(self: Self, state: StateOf<S, K>): void;
 }
 
@@ -32,15 +32,15 @@ export type MindDef<Self, S extends State<string>, E extends MindEvent<string>> 
   readonly [K in S['at']]: StateHandlers<Self, S, K, E>;
 };
 
-/** What a mind does beyond its states. */
+/** Fallback event handlers and transition notifications. */
 export interface MindOptions<Self, S extends State<string>, E extends MindEvent<string>> {
-  /** How it reacts, in any state, to events the state itself doesn't list: the state to move to, or null to stay. */
+  /** Handle events without a state-specific handler. Return null to keep the current state. */
   readonly on?: { readonly [T in E['type']]?: (self: Self, state: S, event: EventOf<E, T>) => S | null };
-  /** Called after each move, from one state to the next. */
+  /** Run after the previous state exits and the next state enters. */
   moved?(self: Self, from: S, to: S): void;
 }
 
-/** Declares a mind's states. It returns its argument, so TypeScript checks each state's handlers against it. */
+/** Type-check each state’s handlers against the state and event unions. Return the definition unchanged. */
 export function mind<Self, S extends State<string>, E extends MindEvent<string> = never>(
   def: MindDef<Self, S, E>,
 ): MindDef<Self, S, E> {
@@ -48,11 +48,9 @@ export function mind<Self, S extends State<string>, E extends MindEvent<string> 
 }
 
 /**
- * One actor's mind, or one side of it: the state it's in, holding its own data. An event moves it only if its current
- * state lists that event, and then to whatever state the handler returns, so transitions are plain functions of the
- * state and the event. Each frame tick() does what the state does and may return the next state the same way. An actor
- * can have several minds side by side (what it's doing, and whether it's paying attention to someone), each sent the
- * same events and moving on its own.
+ * Run a typed state machine for one aspect of an actor’s behavior. State handlers take precedence over fallback
+ * handlers, including when they return null. Events and ticks may request transitions; each transition runs exit,
+ * enter, and moved hooks in that order. Multiple minds on one actor can respond independently to the same events.
  */
 export class Mind<Self, S extends State<string>, E extends MindEvent<string> = never> {
   private current: S;
@@ -71,12 +69,12 @@ export class Mind<Self, S extends State<string>, E extends MindEvent<string> = n
     return this.current;
   }
 
-  /** The current state if it's `at`, else null. */
+  /** Return the current state narrowed to `at`, or null if another state is active. */
   in<K extends S['at']>(at: K): StateOf<S, K> | null {
     return isAt(this.current, at) ? this.current : null;
   }
 
-  /** Does this frame's part of the current state, and moves on if it says to. True if it moved. */
+  /** Tick the active state and apply any returned transition. Return whether a transition occurred. */
   tick(dt: number): boolean {
     const next = this.tickIn(this.current, dt);
     if (!next) {
@@ -96,7 +94,7 @@ export class Mind<Self, S extends State<string>, E extends MindEvent<string> = n
     this.options.moved?.(this.self, from, next);
   }
 
-  /** Offers `event` to the current state (or, if it doesn't list it, the mind's own handlers). True if it moved. */
+  /** Dispatch to a state-specific handler or the fallback. Return whether a transition occurred. */
   send(event: E): boolean {
     const next = this.handle(this.current, event);
     if (!next) {

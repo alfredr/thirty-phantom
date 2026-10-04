@@ -8,49 +8,46 @@ import type { SpotRuntime } from '@/game/deck/garage';
 import type { Valet, ValetDrive } from './valet';
 
 const T = TUNING.valet;
-/** Back home once within this of the podium spot. */
+/** Arrival tolerance at the podium, in meters. */
 const HOME_EPS = 0.5;
 
 const _ahead = new Vector3();
 
-/** What a valet's doing, and what each part of the job holds while it lasts. */
+/** Valet job states and their retained assignment data. */
 export type Job =
-  /** Night: the crew's inside. */
+  /** Hide the valet while off shift. */
   | State<'off'>
-  /** At the stand, waiting for keys. */
+  /** Wait for a car assignment at the stand. */
   | State<'idle'>
-  /** Walking to the car he's been handed. */
+  /** Walk to the assigned car. */
   | State<'toCar', { car: Vehicle; spot: SpotRuntime }>
-  /** At the door, getting in. */
+  /** Wait for the boarding animation delay. */
   | State<'boarding', { car: Vehicle; spot: SpotRuntime; t: number }>
-  /** At the wheel. */
+  /** Run the vehicle’s parking job. */
   | State<'driving', { car: Vehicle; spot: SpotRuntime; drive: ValetDrive }>
-  /** Walking back to the stand. */
+  /** Return to the stand after completing or abandoning a job. */
   | State<'returning'>;
 
-/** Whether he's paying anyone attention. */
+/** Conversation attention, independent of the parking job. */
 export type Attention =
   | State<'free'>
-  /** Turned to someone talking to him: he stands where he is and faces them. */
+  /** Face the position returned by the conversation target. */
   | State<'facing', { who: () => Vector3 }>;
 
-/**
- * What can happen to a valet. Either of his minds can be sent any of these; each moves only on the ones its state
- * lists.
- */
+/** Events shared by the job and attention state machines. Each state handles only its declared events. */
 export type ValetEvent =
-  /** Someone's handed him keys to park `car` in `spot`. */
+  /** Assign a car and destination spot. */
   | MindEvent<'handedCar', { car: Vehicle; spot: SpotRuntime }>
-  /** The car's gone from under him: Cody took it. */
+  /** Cancel the assignment because Cody took the car. */
   | MindEvent<'carjacked'>
-  /** Someone's started talking to him, from wherever `who` says. */
+  /** Begin facing a conversation target whose position can change. */
   | MindEvent<'talk', { who: () => Vector3 }>
-  /** They've stopped. */
+  /** Release conversation attention. */
   | MindEvent<'talkEnded'>;
 
 const returning = (): StateOf<Job, 'returning'> => ({ at: 'returning' });
 
-/** The job. Being handed a car moves him only while he's free for it: at the stand, or on his way back. */
+/** Accept assignments while idle or returning, then walk, board, drive, and return. */
 export const VALET_JOB = mind<Valet, Job, ValetEvent>({
   off: {
     enter: (v) => {
@@ -65,7 +62,7 @@ export const VALET_JOB = mind<Valet, Job, ValetEvent>({
   idle: {
     tick: (v, _s, dt) => {
       const talking = !!v.attention.in('facing');
-      // closing time: the crew goes inside, once he's done talking
+      // Wait for the conversation to end before hiding the off-shift valet.
       if (!v.crew.day && !talking) {
         return { at: 'off' };
       }
@@ -122,7 +119,7 @@ export const VALET_JOB = mind<Valet, Job, ValetEvent>({
     enter: (v) => {
       v.walker.rig.root.visible = false;
     },
-    // out of the car, in its spot or not: he's beside it
+    // Restore the visible walker beside the car on every driving exit.
     exit: (v, s) => {
       v.walker.place(v.crew.doorOf(s.car), s.car.yaw + Math.PI / 2);
       v.walker.rig.root.visible = true;
@@ -170,19 +167,19 @@ export const VALET_JOB = mind<Valet, Job, ValetEvent>({
         return { at: 'idle' };
       }
 
-      // stopped short (a conversation, a replan): head home again
+      // Resume the return route after an interruption.
       if (!w.planning && !w.walking) {
         w.plan(v.crew.walkTo(v, v.home), T.jogPace);
       }
 
       return null;
     },
-    // a bribe turns him round
+
     on: { handedCar: (_v, _s, { car, spot }) => ({ at: 'toCar', car, spot }) },
   },
 });
 
-/** His attention, side by side with the job: a talk turns him to face someone without touching what he's doing. */
+/** Track conversation facing independently; a new car assignment releases that attention. */
 export const VALET_ATTENTION = mind<Valet, Attention, ValetEvent>({
   free: {
     on: { talk: (_v, _s, { who }) => ({ at: 'facing', who }) },

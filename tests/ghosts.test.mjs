@@ -7,7 +7,7 @@ import { loadModules } from './modules.mjs';
 
 const [{ Ghosts }] = await loadModules('/src/fx/ghosts.ts');
 
-// Ghost textures are drawn on a 2D canvas when the ghosts are built; these tests never look at them.
+// Provide the canvas API needed to construct ghost textures for movement tests.
 function withCanvas(make) {
   const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
   const gradient = { addColorStop() {} };

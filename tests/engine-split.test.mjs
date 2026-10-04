@@ -25,7 +25,7 @@ test('the engine imports only three and itself, never the game', () => {
         continue;
       }
 
-      // '@/x' is src/x; './x' is beside the file
+      // Resolve @/ imports from src and relative imports from the importing file.
       const target = spec.startsWith('@/')
         ? resolve(SRC, spec.slice(2))
         : spec.startsWith('.')

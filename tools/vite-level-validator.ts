@@ -6,7 +6,10 @@ import { LevelV1Schema } from '../src/world/schema/level-v1.ts';
 
 const ID = 'virtual:level-validator';
 
-/** Compile at build/dev-server startup; the browser receives standalone validation code. */
+/**
+ * Compile the level schema into a standalone validator when Vite starts. Expose the generated code through a virtual
+ * module so Ajv is not bundled for the browser.
+ */
 export function levelValidator(): Plugin {
   const ajv = new Ajv({ strict: true, useDefaults: true, code: { source: true, esm: true } });
   const code = standaloneCode(ajv, ajv.compile(LevelV1Schema));

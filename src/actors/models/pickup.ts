@@ -14,7 +14,7 @@ export const PICKUP = {
   /** Body underside above the ground (rides higher than the sedan). */
   clearance: 0.46,
   cab: [1.74, 0.68, 1.5] as V3,
-  /** Cab center ahead of the body's middle, leaving a short hood and a long bed. */
+  /** Forward cab offset from the lower-body center, in meters. */
   cabForward: 0.38,
   /** Bed side and tailgate: thickness and height above the bed floor. */
   bedWall: [0.08, 0.36] as const,
@@ -24,7 +24,7 @@ export const PICKUP = {
 
 export type PickupParams = typeof PICKUP;
 
-/** Work pickup (+Z forward): cab up front, open bed behind. Same muted paint as the sedans. */
+/** Build a pickup facing +Z with an open bed and muted default paint. */
 export function pickup(params: Partial<PickupParams> = {}) {
   const p = { ...PICKUP, ...params };
   const lower = box(...p.body).on(p.clearance);
@@ -53,7 +53,7 @@ export function pickup(params: Partial<PickupParams> = {}) {
         solid(cab.grow(0.03, -0.1, -0.2), 'glass'),
         solid(cab.sized(1.56, 0.4, 0.08).onFace(cab, '+z'), 'glass'),
         solid(cab.sized(1.4, 0.3, 0.08).onFace(cab, '-z').move(0, 0.06), 'glass'),
-        // open bed: sides and tailgate on the body, a dark liner between them
+        // Separate walls and a recessed liner leave the cargo bed open.
         ...SIDES.map((s) =>
           solid(
             box(wall, wallH, bedLen)

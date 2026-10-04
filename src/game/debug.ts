@@ -22,7 +22,7 @@ interface DebugControls {
   navDebug: NavDebug | null;
   refuge: Pick<Refuge, 'entry'>;
   roadAt(car: Vehicle, meters: number): Vector3 | null;
-  /** A driver sees phantom Cody at `from` this frame, as the reactions table would have it. */
+  /** Simulate the driver seeing phantom Cody at `from`. */
   frighten(car: Vehicle, from: Vector3): void;
 }
 
@@ -89,7 +89,7 @@ export function createGameDebug(game: DebugGame, controls: DebugControls) {
     },
     /** Summon skeletons using the same rules as the X key; return the number raised. */
     summon: (): number => game.summon(),
-    /** Car `id`'s driver sees phantom Cody at (x, y, z) this frame. False if there's no such car. */
+    /** Simulate a sighting of phantom Cody for the specified car. Return false if the car does not exist. */
     frighten: (id: number, x: number, y: number, z: number): boolean => {
       const car = game.vehicles.find((v) => v.id === id);
       if (car) {
@@ -99,8 +99,8 @@ export function createGameDebug(game: DebugGame, controls: DebugControls) {
       return !!car;
     },
     /**
-     * A driver (car `id`'s, or the traffic car's nearest the deck's entry) sees phantom Cody `meters` along their road
-     * (negative is behind them) this frame. Returns the car's ID, or -1.
+     * Simulate a sighting `meters` along the car’s road; negative distances are behind it. Default to the traffic car
+     * nearest the deck entry. Return its ID, or -1 if no car or road position is available.
      */
     scare: (meters = 6, id?: number): number => {
       const car =
@@ -138,7 +138,7 @@ export function createGameDebug(game: DebugGame, controls: DebugControls) {
   };
 }
 
-/** The accepted vehicle nearest `to` (Cody, unless given). */
+/** Return the nearest matching vehicle, measured from `to` or Cody’s position. */
 function nearest(
   game: DebugGame,
   accepts: (vehicle: Vehicle) => boolean,

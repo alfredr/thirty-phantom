@@ -3,21 +3,21 @@ import { type Camera, Vector3 } from 'three';
 import { el } from '@/engine/ui/dom';
 import type { Objective } from '@/game/story/objectives';
 
-/** How high over its target a marker hangs (m). */
+/** Marker height above its world target, in meters. */
 const LIFT = 2.4;
-/** Keep-outs for edge arrows (CSS px): under the clock plate, clear of the sides, the dash and the touch buttons. */
+/** Viewport margins in CSS pixels that keep edge arrows clear of HUD and touch controls. */
 const INSETS = { top: 108, right: 44, bottom: 44, left: 44 };
 const TOUCH_INSETS = { top: 84, right: 130, bottom: 34, left: 40 };
-/** Edge labels sit this far in from the screen edge, past their arrow (px). */
+/** Inward label offset from edge arrows, in CSS pixels. */
 const LABEL_IN = 36;
 
 const _p = new Vector3();
 const _c = new Vector3();
 
 /**
- * Objective markers (game/story/objectives.ts): a chevron over each target, big and slime for the primary, small and
- * lilac for optional ones. Off screen, or behind the camera, the chevron sits on the screen's edge pointing the way,
- * with the distance.
+ * Render objectives from game/story/objectives.ts as labeled chevrons with distances. Primary markers are larger and
+ * green; optional markers are smaller and lilac. Clamp targets outside the visible area to directional edge markers,
+ * including targets behind the camera.
  */
 export class ObjectiveMarks {
   readonly root: HTMLDivElement;
@@ -31,8 +31,8 @@ export class ObjectiveMarks {
   }
 
   /**
-   * Place this frame's markers. `project` maps a world point to the screen (null behind the camera); `from` is Cody,
-   * for distances.
+   * Update marker positions, labels, and distances, and remove objectives absent from `list`. `project` returns CSS
+   * pixel coordinates or null behind the camera; measure world-space distances from `from`.
    */
   update(
     list: readonly Objective[],
@@ -56,9 +56,9 @@ export class ObjectiveMarks {
       m.el.classList.toggle('edge', edge);
       m.el.style.translate = `${at.x.toFixed(1)}px ${at.y.toFixed(1)}px`;
 
-      // on target the chevron points down at it; on the edge, the way to go
+      // Edge arrows rotate toward the target; in-view arrows retain their downward orientation.
       if (at.angle !== null) {
-        // the label goes inward of the arrow: right-aligned on the right edge, under it on the top...
+        // Offset and align the label inward so it stays within the viewport.
         const cos = Math.cos(at.angle);
         const sin = Math.sin(at.angle);
         const s = m.el.style;

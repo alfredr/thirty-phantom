@@ -4,26 +4,26 @@ import type { V3 } from '@/engine/core/math';
 import type { Rng } from '@/engine/core/rng';
 import type { GeometryBatch } from '@/render/geometry';
 
-/** What placing drips needs to know about the geometry around them. */
+/** Geometry queries required to place slime lips, drips, and landing pools. */
 export interface DripWorld {
   /** Visible geometry at a point. */
   occupied(x: number, y: number, z: number): boolean;
   /** Boxes slime must not cut through (signs). */
   blocked(min: V3, max: V3): boolean;
   /**
-   * Where a drop falling from (x, y, z) lands: the surface height, and the puddle it feeds, spreading around (px, pz).
-   * Pool -1 where a puddle can't lie (a ramp, a narrow top).
+   * Return the landing height and receiving pool for a drop at (x, y, z). Pool placement uses (px, pz); return pool -1
+   * for surfaces that cannot support a puddle.
    */
   land(x: number, y: number, z: number, px: number, pz: number): { y: number; pool: number };
   /** A fresh id for a run of underside slime. */
   run(): number;
 }
 
-/** A lump of underside slime: nothing above feeds it, so it drains into its run's drips. */
+/** Underside slime volume that drains into the drips assigned to its run. */
 export interface FilmSpec {
   min: V3;
   max: V3;
-  /** The under edge it slides down to. */
+  /** Height of the lower edge toward which the film contracts. */
   edge: number;
   run: number;
 }
@@ -41,11 +41,11 @@ export interface DripSpec {
   face: number;
   top: number;
   w: number;
-  /** How far it creeps down with the face behind it. */
+  /** Maximum wall-supported strand length, in meters. */
   reach: number;
-  /** How far it hangs free past the end of the face, at its heaviest; 0 for drips that stay on the wall. */
+  /** Maximum nominal unsupported length in meters; zero keeps the drip on the wall. */
   hang: number;
-  /** Heavy enough that drops pinch off at full stretch, rather than just hanging there. */
+  /** Whether a full hanging bulb detaches as a falling drop. */
   drops: boolean;
   /** Where its drops land, and the puddle they feed (-1 for none). */
   landY: number;
@@ -55,9 +55,8 @@ export interface DripSpec {
 }
 
 /**
- * Bulb at the end of a drip of width w, filled f (0..1): `across` = w * (base + grow * f), wider as it wells up; `tall`
- * = across * (1 + stretch * f), more so hanging free (gravity) than stuck to a wall; `depth` off the face = depth +
- * bulge * across * f when free, flat against a wall. It sits `below` of its height under the strand's end.
+ * Bulb dimensions depend on drip width and fill fraction. Free bulbs stretch and bulge more than wall-supported bulbs.
+ * `below` is the fraction of bulb height extending below the strand endpoint.
  */
 export const BULB = {
   base: 1.05,
@@ -94,7 +93,7 @@ interface Edge {
   out: 1 | -1;
 }
 
-/** Mostly short drips, some medium, the odd long one. */
+/** Choose a drip length in meters, favouring short drips with less frequent medium and long drips. */
 function dripLength(rng: Rng, maxLong: number): number {
   const r = rng.next();
   if (r < 0.55) {
@@ -112,15 +111,10 @@ function dripLength(rng: Rng, maxLong: number): number {
 const DRIP_DENSITY = 0.6;
 
 /**
- * Slime oozing over the top edge of a box (or stuck under its bottom edge): runs of a lumpy lip along the edge.
- * Stretches that butt against other geometry are skipped so seams between coplanar slabs and columns stay clean.
- *
- * A top lip is a source, with dense drips of varied length. A drip creeps down while there is a face behind it, down as
- * far as the face goes. Where it runs out of face it hangs free a short way, and a heavy one sheds drops onto the
- * surface below. Nothing reaches through a sign or a ledge in its way.
- *
- * Underside slime has nothing above feeding it: its lumps are returned as films that slide to the under edge and
- * collect in drips there until they fall. Top lips go into `batch`; drips and films are returned for the sim.
+ * Place slime along exposed box edges, avoiding adjacent geometry and sign bounds. Append top-edge lips to `batch`;
+ * return drip specifications and underside films for SlimeSim. Limit strands and bulbs to available wall and obstacle
+ * clearance, and associate falling drops with suitable landing pools. Underside films supply finite volume through
+ * their assigned runs.
  */
 export function addDrips(
   batch: GeometryBatch,
@@ -193,7 +187,7 @@ export function addDrips(
   };
 
   const drip = (e: Edge, along: number, w: number, top: number, L: number): void => {
-    // walk the column down: how far the face behind it goes, and the first thing in the way
+    // Scan downward to find the continuous supporting wall and the first obstruction.
     const depth = L + 1.2;
     let wall = 0;
     let limit = depth;
@@ -229,15 +223,15 @@ export function addDrips(
       });
     };
 
-    // free stretch at full weight; it wobbles a little past this
+    // Reserve clearance for a full bulb and stretch oscillation.
     const hang = L > wall ? Math.min(rng.range(0.15, 0.45), (limit - wall - bulbBelow(w, true)) / 1.2) : 0;
     if (hang < 0.06) {
-      // no room to hang under an underside run: it has nowhere to collect
+      // Reject underside drips without enough room for a hanging bulb.
       if (mode === 'bottom') {
         return;
       }
 
-      // stays on the wall: as long as it likes, short of the end of the face and anything in the way
+      // Limit wall-supported drips by the desired length, wall end, and obstacle clearance.
       const reach = Math.min(L, wall, limit - bulbBelow(w, false));
       if (reach > 0.03) {
         spec(reach);
@@ -246,13 +240,13 @@ export function addDrips(
       return;
     }
 
-    // a light one just hangs there (underside drips get all their run has, so they always fall)
+    // Short top-fed drips retain a hanging bulb; underside drips must be able to shed their finite supply.
     if (mode === 'top' && L - wall <= hang) {
       spec(wall, L - wall);
       return;
     }
 
-    // a heavy one sheds drops from the end of the stretch onto the floor, or a sign on the way down
+    // Find the landing surface, checking for signs and ledges above the ground query result.
     const from = top - wall - hang;
     const [cx, cz] = xz(e, along, 0.035);
     const [px, pz] = xz(e, along, 0.3);
@@ -284,7 +278,7 @@ export function addDrips(
         run = world.run();
       }
 
-      // lumpy lip in short segments of varying height; `lipped` keeps the stretches that got one
+      // Record successfully placed lip segments so drips receive a visible source.
       const lipped: number[] = [];
       let s = t;
       while (s < runEnd - 0.05) {
@@ -308,7 +302,7 @@ export function addDrips(
         s += seg;
       }
 
-      // a drip needs slime above it: the lip it hangs from, or the underside run it collects
+      // Require the drip position to lie beneath a successfully placed lip or film.
       const underLip = (along: number): boolean => {
         for (let i = 0; i < lipped.length; i += 2) {
           if (along >= (lipped[i] as number) && along <= (lipped[i + 1] as number)) {
@@ -319,7 +313,7 @@ export function addDrips(
         return false;
       };
 
-      // drips hanging from the lip, or along the under edge where an underside run collects
+      // Place drips along the exposed portions of this run.
       let d = t + rng.range(0.02, 0.2);
       while (d < runEnd - 0.06) {
         const w = mode === 'top' ? rng.range(0.07, 0.26) : rng.range(0.06, 0.13);

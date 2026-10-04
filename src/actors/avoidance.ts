@@ -5,40 +5,34 @@ import type { ZoneDef } from '@/world/level-data';
 
 import type { Vehicle } from './vehicle';
 
-/** A person's room: shoulders plus a little space. */
+/** Pedestrian collision radius including personal space, in meters. */
 export const PERSON_RADIUS = 0.35;
-/**
- * Walking routes keep out of a standing car's body plus this (m): short of a driver's door spot, so the door stays
- * reachable.
- */
+/** Route clearance beyond a stationary vehicle footprint, in meters. Keep driver-door positions reachable. */
 const ROUTE_ROOM = 0.25;
-/** A vehicle slower than this (m/s) is standing still: something to route round. */
+/** Speed threshold in m/s for treating a vehicle as a static route obstacle. */
 const STANDING = 0.3;
-/** A vehicle's region runs from just under its floor to above its roof. */
+/** Vertical extents of vehicle avoidance regions relative to the vehicle origin, in meters. */
 const ZONE_BELOW = 0.3;
 const ZONE_ABOVE = 2;
-/** Extra room people keep from a vehicle's body (still short of a driver's door spot). */
+/** Extra pedestrian clearance around vehicle collision circles, in meters; keep door access reachable. */
 const CAR_ROOM = 0.15;
-/** Only things within this height of a walker are on its floor. */
+/** Maximum vertical separation for local avoidance, in meters. */
 const SAME_LEVEL = 1.5;
-/** Collisions further off than this (s) don't count yet. */
+/** Prediction horizon for collision penalties, in seconds. */
 const HORIZON = 2.5;
-/** Penalty per 1/s of time to collision with a person, and with a vehicle (people give cars a wide berth). */
+/** Collision urgency weights for people and vehicles; higher values favor earlier avoidance. */
 const URGENCY = 1.2;
 const CAR_URGENCY = 4;
-/** Penalty per m/s of change from the current velocity: keeps a choice from flickering frame to frame. */
+/** Penalty per m/s of velocity change, used to stabilize successive choices. */
 const STEADY = 0.3;
-/** Times to collision below this all count as this (already touching). */
+/** Minimum collision time in seconds used to cap urgency penalties. */
 const T_MIN = 0.05;
-/**
- * Sampled velocities: rings at these shares of top speed, this many directions each, the first along the wanted
- * velocity.
- */
+/** Speed fractions and direction count for candidate velocities, with each ring aligned to the desired heading. */
 const RINGS = [1, 0.6, 0.3];
 const DIRECTIONS = 16;
-/** Slower than this (m/s) is standing still. */
+/** Speed threshold in m/s for excluding stationary obstacles during recovery. */
 const STILL = 0.1;
-/** A sampled velocity has to leave room to stand this far (s) along it, and at least a body's width. */
+/** Standing-clearance look-ahead in seconds, with a minimum distance of PERSON_RADIUS. */
 const LOOK = 0.5;
 
 interface Disc {
@@ -48,7 +42,7 @@ interface Disc {
   vx: number;
   vz: number;
   r: number;
-  /** Dodges too: only half the dodge is the other's to make. */
+  /** Whether this obstacle also participates in reciprocal avoidance. */
   reciprocal: boolean;
   urgency: number;
   owner: unknown;
@@ -56,7 +50,7 @@ interface Disc {
 
 const near: Disc[] = [];
 
-/** A region around `v`'s body grown by `pad`: the box around its turned footprint, from its floor to above its roof. */
+/** Return an axis-aligned region around the rotated vehicle footprint, expanded horizontally by `pad`. */
 export function footprint(v: Vehicle, pad: number): ZoneDef {
   const along = v.params.length / 2 + pad;
   const across = v.params.radius + pad;
@@ -71,9 +65,8 @@ export function footprint(v: Vehicle, pad: number): ZoneDef {
 }
 
 /**
- * Cars standing still (parked, or stopped: a guest's car waiting for a valet) as regions for walking routes to keep out
- * of. Local avoidance only sees a few seconds ahead, so a route straight through a car would leave a walker stuck
- * against it: the planner goes round instead.
+ * Build walking-route exclusion zones for parked or slow vehicles, skipping removed and crashing vehicles. Static
+ * routing around these footprints prevents local avoidance from repeatedly steering into an immovable blockage.
  */
 export function parkedBlocks(vehicles: readonly Vehicle[]): ZoneDef[] {
   const out: ZoneDef[] = [];
@@ -90,7 +83,7 @@ export function parkedBlocks(vehicles: readonly Vehicle[]): ZoneDef[] {
   return out;
 }
 
-/** Is p inside any of `zones`? (A route can't end in a blocked region.) */
+/** Test whether `p` lies within any blocked zone, including its boundaries. */
 export function inZones(p: Vector3, zones: readonly ZoneDef[]): boolean {
   return zones.some(
     (z) =>
@@ -99,8 +92,8 @@ export function inZones(p: Vector3, zones: readonly ZoneDef[]): boolean {
 }
 
 /**
- * Seconds until circles `r` apart along the relative position (px, pz) touch at relative velocity (wx, wz); 0 if
- * touching and closing, Infinity if never.
+ * Calculate time to overlap for relative position (px, pz), closing velocity (wx, wz), and combined radius `r`. Return
+ * zero for overlapping circles still closing, or Infinity for separating, stationary, or tangent motion.
  */
 function timeToCollision(px: number, pz: number, wx: number, wz: number, r: number): number {
   const c = px * px + pz * pz - r * r;
@@ -123,17 +116,15 @@ function timeToCollision(px: number, pz: number, wx: number, wz: number, r: numb
 }
 
 /**
- * Local collision avoidance for people on foot: reciprocal velocity obstacles (van den Berg, Lin and Manocha 2008), in
- * their sampling form. Each frame the game lists what's about: walkers, people standing, Cody, every vehicle as its
- * three body circles. A walker then tries velocities around the one its route asks for and takes the best trade between
- * keeping to it and time to collision. Another walker dodges too, so only half of that dodge is theirs (the reciprocal
- * part); Cody, people standing and vehicles don't, so all of it is.
+ * Sample pedestrian velocities using reciprocal velocity obstacles (van den Berg, Lin and Manocha 2008). Rebuild the
+ * active obstacle list each frame, then choose velocities that balance route following, stable motion, and predicted
+ * collisions. Walking pedestrians share avoidance responsibility; static obstacles, Cody, and vehicles do not.
  */
 export class Avoidance {
   private readonly discs: Disc[] = [];
   private n = 0;
 
-  /** Start this frame's list. */
+  /** Reset the active obstacle count while retaining allocated discs. */
   clear(): void {
     this.n = 0;
   }
@@ -166,17 +157,17 @@ export class Avoidance {
     d.owner = owner;
   }
 
-  /** Someone on foot; a `walking` one dodges as well. `owner` is left out when it steers itself. */
+  /** Register a pedestrian. Walking pedestrians use reciprocal avoidance; `owner` excludes self-collisions. */
   person(pos: Vector3, vel: Vector3, walking: boolean, owner: unknown): void {
     this.add(pos.x, pos.y, pos.z, vel.x, vel.z, PERSON_RADIUS, walking, URGENCY, owner);
   }
 
-  /** Something that won't move out of the way: Randy, his fire, someone lying in the road. */
+  /** Register a stationary obstacle that does not participate in avoidance. */
   still(pos: Vector3, r: number): void {
     this.add(pos.x, pos.y, pos.z, 0, 0, r, false, URGENCY, null);
   }
 
-  /** Cody on foot: moving, but not dodging anyone. */
+  /** Register a moving obstacle whose motion does not respond to avoidance, such as Cody. */
   mover(pos: Vector3, vel: Vector3, r: number): void {
     this.add(pos.x, pos.y, pos.z, vel.x, vel.z, r, false, URGENCY, null);
   }
@@ -201,10 +192,9 @@ export class Avoidance {
   }
 
   /**
-   * Velocity (x, z, into `out`) for walker `self` at `pos`, moving at `vel`, whose route asks for `want`, up to `top`
-   * m/s: the sampled velocity with the least penalty. Only velocities that leave somewhere to stand by `fits` are
-   * tried, except `want` itself (the route is walkable). With `movingOnly`, things standing still don't count (a walker
-   * pushing past after being stuck).
+   * Write the lowest-penalty ground velocity to `out` and return it. Compare desired velocity with a stop and samples
+   * up to `top` m/s, rejecting moving samples without standing clearance. Trust `want` without a clearance check.
+   * Exclude self-owned discs, other levels, and distant obstacles; movingOnly also excludes stationary obstacles.
    */
   steer(
     self: unknown,
@@ -280,11 +270,11 @@ export class Avoidance {
     return out;
   }
 
-  /** How far (vx, vz) strays from `want` and from `vel`, plus the most urgent collision it heads for. */
+  /** Score deviation from desired and current velocity plus the largest predicted collision penalty. */
   private penalty(pos: Vector3, vel: Vector3, want: Vector3, vx: number, vz: number): number {
     let worst = 0;
     for (const d of near) {
-      // a walker who dodges too: aim for the velocity halfway between this one and the current
+      // Double the proposed change when testing reciprocal obstacles, which share avoidance responsibility.
       const mx = d.reciprocal ? 2 * vx - vel.x : vx;
       const mz = d.reciprocal ? 2 * vz - vel.z : vz;
       const t = timeToCollision(d.x - pos.x, d.z - pos.z, mx - d.vx, mz - d.vz, PERSON_RADIUS + d.r);

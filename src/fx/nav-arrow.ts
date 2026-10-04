@@ -3,7 +3,7 @@ import { BoxGeometry, Group, Mesh, MeshStandardMaterial, type Vector3 } from 'th
 import { withCutaway } from '@/render/materials';
 import { PALETTE } from '@/render/palette';
 
-/** Blocky neon chevron hovering above whatever Cody is driving, pointing at the objective. */
+/** Display a floating chevron pointing from the supplied position toward an objective. */
 export class NavArrow {
   readonly root = new Group();
   private readonly mat: MeshStandardMaterial;

@@ -1,7 +1,7 @@
 import { clamp } from '@/engine/core/math';
 import { el } from '@/engine/ui/dom';
 
-/** The deck's occupancy board, the right half of the clock plate: what the badge log believes vs what is really parked. */
+/** Display logged, actual, and phantom occupancy beside the clock, with one visual cell per parking space. */
 export class OccupancySign {
   readonly root: HTMLDivElement;
   private readonly score: HTMLElement;
@@ -41,7 +41,7 @@ export class OccupancySign {
       this.stalls.style.gridTemplateColumns = `repeat(${Math.ceil(max / 2)}, 1fr)`;
     }
 
-    // phantoms fill from the left, real cars after them, so an escape visibly turns a car into a ghost
+    // Draw phantoms before actual cars so an escape visibly changes a car cell into a ghost.
     const ghosts = clamp(phantom, 0, max);
     const cars = clamp(actual, 0, max - ghosts);
     const cells = [...this.stalls.children];

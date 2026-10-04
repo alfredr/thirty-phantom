@@ -25,9 +25,8 @@ import { type Wares, WaresPanel, sameWares } from './wares';
 import './hud.css';
 
 /**
- * Key caps for actions, labelled for the device in use when drawn: the key on a keyboard, the on-screen button on a
- * touch screen, or TAP where touch has no button. Each cap carries its action, so on touch tapping it does that action
- * (touch-controls.ts).
+ * Render action key caps for the current input device. Use keyboard labels, touch button labels, or TAP when no touch
+ * button exists. data-action allows touch-controls.ts to dispatch a tap through the same control.
  */
 export const kbd = (...actions: Control[]): string =>
   actions.map((a) => `<kbd data-action="${a}">${capLabel(a)}</kbd>`).join('');
@@ -40,15 +39,15 @@ function capLabel(a: Control): string {
   return touchGlyph(a) ?? 'TAP';
 }
 
-/** `text` with each `{action}` in it, e.g. `{hop} ROCK IT OVER`, replaced by that action's key cap. */
+/** Replace recognized `{action}` placeholders with device-appropriate key caps. Preserve unknown placeholders. */
 export function keyText(text: string): string {
   return text.replace(/\{(\w+)\}/g, (m, name: string) => (isControl(name) ? kbd(name) : m));
 }
 
-/** On foot the map lives in the phone (its Map app); 'corner' puts it back in the screen's corner as well. */
+/** Choose whether walking shows a desktop corner map in addition to the phone’s Map app. */
 const MAP_ON_FOOT: 'phone' | 'corner' = 'phone';
 
-/** Every key and what it does, for the phone's Help app: made when it's shown, so the caps match the device in use. */
+/** Generate Help app rows when displayed so control labels match the active input device. */
 export const helpRows = (): [keys: string, what: string][] => [
   [kbd('forward', 'left', 'back', 'right'), 'walk'],
   [kbd('interact'), 'steal / get in / talk'],
@@ -66,7 +65,7 @@ export const helpRows = (): [keys: string, what: string][] => [
   ['<kbd>WHEEL</kbd>', 'zoom'],
   [kbd('fastForward'), 'hold to fast-forward'],
   [kbd('nextPhase'), 'skip to next phase'],
-  // no mute key when there's no sound (?sound=0)
+  // Omit the mute shortcut when audio is disabled by ?sound=0.
   ...(SOUND_ON ? [[kbd('mute'), 'sound on / off'] satisfies [string, string]] : []),
   [kbd('help'), 'this list'],
 ];
@@ -102,7 +101,7 @@ function clockCells(t: string): string {
 
 export type HudMode = 'title' | 'foot' | 'drive';
 
-/** Each camera mode's name, and a note on what it does. */
+/** Display name and optional explanatory text for each camera mode. */
 const CAM_NAMES: Readonly<Record<CamMode, readonly [name: string, note: string]>> = {
   iso: ['TOP-DOWN', ''],
   chase: ['CHASE CAM', ''],
@@ -119,11 +118,11 @@ export interface Bubble {
   choices: { action: Control; label: string; off?: boolean }[];
 }
 
-/** What the status displays show: the game's state as they read it, once a frame. */
+/** Game-state readers consumed by HUD bindings each frame. */
 export interface HudStatus {
-  /** 'title' till play starts; then 'drive' at the wheel (or turning into the truck), else 'foot'. */
+  /** Presentation mode: title before play, drive while controlling or transforming a vehicle, otherwise foot. */
   mode(): HudMode;
-  /** Cody could raise the dead now (his form allows it, and he's on foot): the touch button for it shows. */
+  /** Whether summoning is currently available, controlling visibility of its touch button. */
   summon(): boolean;
   hours(): number;
   phase(): Phase;
@@ -131,26 +130,26 @@ export interface HudStatus {
   cash(): number;
   inventory(): readonly InvItem[];
   wares(): Wares | null;
-  /** The occupancy board: the badge log, cars really in the deck, phantoms in spots, and spots in all. */
+  /** Occupancy counters and total parking capacity. */
   ledger(): { logged: number; actual: number; phantom: number; max: number };
-  /** What's on the dash while he drives; null on foot. */
+  /** Dashboard state while driving, or null on foot. */
   dash(): DashState | null;
-  /** The truck's ghost tank (0..1) and whether he's burning it, while he drives the truck; null otherwise. */
+  /** GhASt level in [0, 1] and boost state while driving the truck; null otherwise. */
   ghast(): { fill: number; burning: boolean } | null;
 }
 
-/** A toast's look: plain, purple (the deck, the badge), or a warning. */
+/** Visual toast variants for ordinary, deck-related, and warning messages. */
 export type ToastTone = '' | 'purple' | 'warn';
 
 export interface DashState {
   speed: number;
   form: VehicleForm;
-  /** What it's called (VehicleBreed.label). */
+  /** Vehicle display name from VehicleBreed.label. */
   label: string;
   airborne: boolean;
 }
 
-/** Per-frame setters only touch the DOM when what they show changes; this is what they last showed. */
+/** Cache keys for HUD values updated only when their visible state changes. */
 type Shown = 'prompt' | 'bubble' | 'form' | 'air' | 'ghast';
 
 /** The DOM overlay: clock, occupancy board and cash, prompts, speech bubbles, dash, toasts, title and victory screens. */
@@ -174,7 +173,7 @@ export class Hud {
   private readonly camEl: HTMLElement;
   private readonly marks: ObjectiveMarks;
   private map: Minimap | null = null;
-  /** The map in the phone's Map app: a second map of the same city, so the dash keeps its own. */
+  /** Separate phone map view sharing the dashboard map’s baked city image. */
   private phoneMap: Minimap | null = null;
   private camTimer = 0;
   private readonly dashForm: HTMLElement;
@@ -183,7 +182,7 @@ export class Hud {
   private readonly victory: HTMLElement;
   private readonly hudBits: HTMLElement[];
   private readonly fps: HTMLElement | null;
-  /** The game's handler for an item action picked in the inventory (eat the brisket). */
+  /** Game callback for an action selected from the inventory. */
   onItemAction: ((kind: string, actionId: string) => void) | null = null;
   /**
    * The game's handler for buying from Randy: `n` from slot `slotId` (the whole stack can be more than Cody can pay
@@ -191,7 +190,7 @@ export class Hud {
    */
   onBuy: ((slotId: string, n: number) => void) | null = null;
   private readonly shown = new Map<Shown, string | boolean>();
-  /** The status displays, each drawn when what it reads changes. */
+  /** Bindings that redraw status displays when their values change. */
   private readonly views = new Bindings();
 
   constructor(container: HTMLElement, focus: Focus<Control>) {
@@ -199,7 +198,7 @@ export class Hud {
     root.id = 'hud';
     this.root = root;
 
-    // under everything else on the HUD
+    // Add objective markers first so later HUD elements cover them.
     this.marks = new ObjectiveMarks(root);
     const logo = el('div', 'hud-logo slime-text', root);
     el('span', 'n30', logo, '30');
@@ -221,7 +220,7 @@ export class Hud {
     this.prompt = el('div', 'hud-prompt plate', root);
     this.bubble = el('div', 'hud-bubble plate', root);
 
-    // one dash unit: the minimap's screen in the middle, the speedometer and GhASt pods on its ends
+    // Keep the map between the speedometer and GhASt gauge in one dashboard unit.
     const dash = el('div', 'hud-dash', root);
     this.dashUnit = el('div', 'dash-unit', dash);
     this.gauge = new SpeedGauge(el('div', 'dash-wing left', this.dashUnit));
@@ -239,7 +238,7 @@ export class Hud {
     this.drawMode('title');
   }
 
-  /** True (and remembered) if `value` differs from what `key` last showed. */
+  /** Store the value and return true only when it differs from the cached value. */
   private changed(key: Shown, value: string | boolean): boolean {
     if (this.shown.get(key) === value) {
       return false;
@@ -258,7 +257,7 @@ export class Hud {
     });
   }
 
-  /** Hooks the status displays up to `s`; update() redraws whichever changed. */
+  /** Register state readers and display callbacks; update() redraws changed values. */
   bind(s: HudStatus): void {
     const v = this.views;
     v.add({ read: () => s.mode(), draw: (m) => this.drawMode(m) });
@@ -329,8 +328,8 @@ export class Hud {
   }
 
   /**
-   * Name the camera mode just picked, beside its key, for a moment. `flash` is for a player who hasn't found the key
-   * yet: it blinks, and says what it does.
+   * Show the selected camera mode temporarily. With `flash`, include an introductory control hint and keep the
+   * notification visible longer.
    */
   showCamera(m: CamMode, flash: boolean): void {
     const [name, note] = CAM_NAMES[m];
@@ -347,7 +346,7 @@ export class Hud {
     this.camTimer = window.setTimeout(() => c.classList.remove('show', 'flash'), flash ? 5000 : 1800);
   }
 
-  /** The minimap's city, baked once from the level (desktop only: touch screens hide it). */
+  /** Create dashboard and phone map views sharing one baked city image. */
   initMap(level: LevelData): void {
     this.map = new Minimap(this.root, level);
     this.phoneMap = new Minimap(this.root, level, this.map);
@@ -366,7 +365,7 @@ export class Hud {
       return;
     }
 
-    // touch screens have no room beside the controls for the dash's or the corner's, but the phone has
+    // On touch devices, reserve map rendering for the phone to leave room for controls.
     const touch = document.body.classList.contains('touch');
     const dash = !!v && !touch && v.driving;
     const corner = !!v && !touch && !v.driving && MAP_ON_FOOT === 'corner';
@@ -403,7 +402,7 @@ export class Hud {
     this.marks.update(list, cam, project, from);
   }
 
-  /** Cody's cash, on the coin at the clock plate's right end. It bumps when it goes up. */
+  /** Update the cash display and animate increases after the initial draw. */
   private drawCash(amount: number, was: number | undefined): void {
     const s = String(amount);
     this.cashEl.innerHTML = `<small>$</small>${s}`;
@@ -428,7 +427,7 @@ export class Hud {
 
     if (s) {
       this.prompt.innerHTML = s;
-      // touch screens tap the prompt to do it
+      // The prompt’s default touch action also applies outside its individual key caps.
       this.prompt.dataset.action = action;
     }
 
@@ -463,7 +462,7 @@ export class Hud {
     this.bubble.style.top = `${Math.round(b.y)}px`;
   }
 
-  /** The truck's ghost tank, and whether the boost is burning it; null hides the dial (and, on touch, the BOOST button). */
+  /** Update GhASt level and boost state. Null hides the dial and touch boost button and resets refill detection. */
   private drawGhast(g: { fill: number; burning: boolean } | null): void {
     const on = g !== null;
     if (this.changed('ghast', on)) {
@@ -509,7 +508,7 @@ export class Hud {
     }
   }
 
-  /** Hold the occupancy board back (the tutorial brings it in with the first phantom). */
+  /** Control occupancy-board visibility for the tutorial’s first-phantom reveal. */
   showLedger(on: boolean): void {
     this.sign.root.classList.toggle('held', !on);
   }

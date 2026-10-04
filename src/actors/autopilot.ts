@@ -11,7 +11,7 @@ import type { DriveInput, Vehicle } from './vehicle';
 export type AutopilotState = 'driving' | 'reversing' | 'arrived' | 'stuck';
 
 export interface AutopilotOpts {
-  /** Is this point inside the deck (slower, tighter)? */
+  /** Select the lower cruising speed for points inside the deck. */
   inDeck: (p: Vector3) => boolean;
   /** Clearance checks for simulated poses. */
   nav: NavGrid;
@@ -20,64 +20,64 @@ export interface AutopilotOpts {
 
 const A = TUNING.autopilot;
 
-// following the route
-/** The cursor looks this far ahead for the car's place on the route, plus a little more per m/s. */
+// Route tracking parameters.
+/** Route projection window in meters, extended in proportion to speed. */
 const TRACK_WINDOW = 6;
 const TRACK_WINDOW_PER_SPEED = 0.5;
-/** Path tracking: steer for the route this far ahead, with curvature measured from CURVE_BACK to CURVE_AHEAD. */
+/** Tracking lead and curvature sample offsets from the cursor, in meters. */
 const TRACK_LEAD = 0.6;
 const CURVE_BACK = 0.4;
 const CURVE_AHEAD = 2.1;
-/** Bends are measured every BEND_STEP metres over this stretch ahead (enough to brake from cruise to a crawl). */
+/** Curvature sampling range and interval in meters, used to anticipate braking for bends. */
 const BEND_SPAN = 18;
 const BEND_STEP = 2;
-/** Parking-lot pace: bends and heading never slow it below this (stopping and waiting still do). */
+/** Minimum speed allowed by curvature and heading corrections, in m/s. Stops may reduce it further. */
 const CRAWL = 1.5;
-/** Recovery back-ups are only considered after this long without progress (seconds). */
+/** Delay without route progress before reverse recovery is considered, in seconds. */
 const RECOVER_AFTER = 1.2;
-/** Pointing this far off the route (radians) slows it to MIN_HEADING_SPEED of what it would do. */
+/** Heading-error scale in radians and minimum speed fraction used when misaligned. */
 const HEADING_SLOWDOWN = 1.6;
 const MIN_HEADING_SPEED = 0.3;
-/** Speed control: gain from speed error to throttle, the least throttle worth applying, and the band it holds. */
+/** Throttle gain per m/s of speed error and minimum throttle when accelerating. */
 const THROTTLE_GAIN = 0.35;
 const MIN_THROTTLE = 0.15;
-/** Speed it holds within: up to UNDER_SPEED (or UNDER_SHARE of the target, when slow) under, OVER_SPEED over. */
+/** Throttle deadband in m/s. Forward acceleration uses the smaller of UNDER_SPEED and UNDER_SHARE of target speed. */
 const UNDER_SPEED = 0.4;
 const UNDER_SHARE = 0.25;
 const OVER_SPEED = 1.5;
-/** Below this it counts as stopped (to arrive); slow enough to change legs at a cusp. */
+/** Speed thresholds in m/s for ending arrival braking and switching route legs. */
 const STOPPED = 0.5;
 const CUSP_SPEED = 1;
 /** Braking throttle per m/s of speed (full brakes above 1/BRAKE_GAIN m/s). */
 const BRAKE_GAIN = 0.5;
-/** Arriving also needs the car on the end's level. */
+/** Maximum vertical separation from the route endpoint for arrival, in meters. */
 const ARRIVE_LEVEL = 1.2;
-/** A leg is done this close to its end. */
+/** Remaining route distance at which a nonfinal leg may end, in meters. */
 const LEG_END = 0.6;
-/** Progress along the route counts once it's this much. */
+/** Minimum cursor advance that resets the progress timer, in meters. */
 const PROGRESS_STEP = 0.5;
 
-// looking ahead
-/** Rollouts: how far ahead to simulate, in what steps, and how often to re-choose. */
+// Predictive simulation parameters.
+/** Simulation horizon, integration step, and candidate selection interval, in seconds. */
 const HORIZON = 2.4;
 const SIM_DT = 0.1;
 const REPLAN = 0.15;
-/** Sideways shifts of the route the rollouts try, metres; each costs OFFSET_COST per metre in the score. */
+/** Sideways shifts of the route the rollouts try, meters; each costs OFFSET_COST per meter in the score. */
 const OFFSETS = [0, -0.8, 0.8, -1.6, 1.6, -2.6, 2.6];
 const OFFSET_COST = 0.6;
-/** Rollouts run at the target speed, at least ROLLOUT_MIN, at most ROLLOUT_SPEEDUP above the current speed. */
+/** Simulation speed floor and acceleration allowance above current speed, in m/s. The floor takes precedence. */
 const ROLLOUT_MIN = 2.5;
 const ROLLOUT_SPEEDUP = 2;
-/** Recovery back-ups tried, as steering inputs, at this speed, with this handicap so forward wins when it can. */
+/** Reverse recovery steering samples, signed speed in m/s, and score penalty favoring forward motion. */
 const REVERSE_STEERS = [-1, 0, 1];
 const REVERSE_SPEED = -2.5;
 const REVERSE_HANDICAP = 4;
-/** Obstacles within this range (and on this level) are considered. */
+/** Horizontal query half-width and vertical tolerance for obstacles, in meters. */
 const OBSTACLE_RANGE = 14;
 const OBSTACLE_LEVEL = 2.5;
-/** Running into someone within this many rollout steps means stop and wait. */
+/** Brake for an obstacle predicted within this many simulation steps. */
 const WAIT_STEPS = 10;
-/** Scoring: metres of progress, minus distance from the route and misalignment at the end. */
+/** Scoring: meters of progress, minus distance from the route and misalignment at the end. */
 const W_OFFSET = 1.2;
 const W_ALIGN = 4;
 /** Penalties for hitting a wall or drop (HIT) or an obstacle (BUMP): a base, plus more the sooner it happens. */
@@ -85,10 +85,10 @@ const HIT_BASE = 30;
 const HIT_EARLY = 60;
 const BUMP_BASE = 20;
 const BUMP_EARLY = 40;
-/** Where a rollout ended up on the route: searched from a little behind the cursor, this far on. */
+/** Backward allowance and forward window for projecting a simulated endpoint onto the route, in meters. */
 const PROJECT_BACK = 3;
 const PROJECT_WINDOW = 12;
-/** Progress along the route in a rollout counts at least this share of the distance driven (when pointing off it). */
+/** Minimum simulated cursor advance as a fraction of travel distance, even when misaligned. */
 const MIN_PROGRESS = 0.2;
 
 const _p = new Vector3();
@@ -97,9 +97,9 @@ const _b = new Vector3();
 const _q = new Vector3();
 
 interface Choice {
-  /** Track the route shifted sideways by this much (positive: toward increasing yaw's side). */
+  /** Lateral route offset in meters. Positive values point toward increasing yaw. */
   offset: number;
-  /** Or reverse with this steering input. */
+  /** Fixed steering input for reverse recovery, or null to follow the route. */
   reverse: number | null;
   score: number;
   /** Rollout step at which it would run into an obstacle, or -1. */
@@ -110,17 +110,12 @@ const NO_CHOICE: Choice = { offset: 0, reverse: null, score: 0, bump: -1 };
 const IDLE: DriveInput = { throttle: 0, steer: 0, hop: false, drift: false };
 
 /**
- * Drives a Vehicle along a planned route through the real physics (Vehicle.drive), so ramps, kerbs and collisions
- * behave as they do for the player. A route is a sequence of legs, each driven forward or in reverse (the planner adds
- * reverse legs where a corner needs a three-point turn).
- *
- * Steering is a path tracker: the route's own curvature sets the wheel angle (arcs and Dubins loops are followed
- * exactly), with corrections for heading and sideways offset. Going forward it also looks ahead: every few frames it
- * simulates the car tracking the route and a few sideways shifts of it, plus a few recovery back-ups, checks each
- * against the nav grid and nearby people and cars, and keeps the best. So it eases round a parked car before reaching
- * it, waits for someone in the way, and backs up only when nothing forward works.
+ * Generate Vehicle.drive inputs for a sequence of forward and reverse route legs. Steering combines estimated route
+ * curvature with heading and lateral corrections. Periodic simulations compare lateral offsets against navigation
+ * clearance and nearby obstacles; reverse recovery becomes eligible after sustained lack of progress. Repeated stalls
+ * report `stuck`, and reaching the final endpoint starts arrival braking.
  */
-/** Something to keep clear of: a person, or one of a car's body circles, and whose it is (a car skips its own). */
+/** Obstacle position and optional owner, used to exclude the controlled vehicle’s own body. */
 export interface Obstacle {
   readonly pos: Vector3;
   readonly owner: object | null;
@@ -156,7 +151,7 @@ export class Autopilot {
     return this.leg >= this.legs.length - 1;
   }
 
-  /** Input for this frame. `obstacles` are people and other cars (their body circles) to keep clear of. */
+  /** Advance route tracking and return drive input for this frame. Obstacles represent people and vehicle body circles. */
   update(dt: number, v: Vehicle, obstacles: readonly Obstacle[]): DriveInput {
     if (this.state === 'stuck') {
       return IDLE;
@@ -165,7 +160,7 @@ export class Autopilot {
     const c = this.cursor;
     c.track(v.pos, TRACK_WINDOW + Math.abs(v.speed) * TRACK_WINDOW_PER_SPEED);
 
-    // last resort: no progress along the route for a while, again and again
+    // Repeated intervals without sufficient cursor advance exhaust recovery attempts.
     if (c.s > this.best + PROGRESS_STEP) {
       this.best = c.s;
       this.sinceProgress = 0;
@@ -178,7 +173,7 @@ export class Autopilot {
       }
     }
 
-    // end of a leg: slow right down, then take the next one (a cusp: forward to reverse or back; its throttle stops what's left)
+    // Slow before changing travel direction at a cusp.
     if (!this.lastLeg && c.remaining < LEG_END) {
       if (Math.abs(v.speed) > CUSP_SPEED) {
         return { ...IDLE, throttle: this.brake(v.speed) };
@@ -249,7 +244,7 @@ export class Autopilot {
       Math.max(CRAWL, want * clamp(1 - Math.abs(headingErr) / HEADING_SLOWDOWN, MIN_HEADING_SPEED, 1)),
     );
 
-    // even the best way forward runs into someone soon: wait for them (a long wait counts as a stall)
+    // Waiting still contributes to stall detection.
     if (ch.bump >= 0 && ch.bump < WAIT_STEPS) {
       want = 0;
     }
@@ -257,7 +252,7 @@ export class Autopilot {
     return { ...IDLE, throttle: this.throttle(v.speed, want), steer };
   }
 
-  /** A planned reverse leg: track it backwards, slowly, waiting for anyone in the way behind. */
+  /** Track a planned reverse leg and reduce speed when the simulation predicts an obstacle behind the vehicle. */
   private reverseLeg(dt: number, v: Vehicle, obstacles: readonly Obstacle[]): DriveInput {
     const c = this.cursor;
     let want: number = Math.min(A.reverseCruise, this.stopping(c.remaining));
@@ -274,7 +269,7 @@ export class Autopilot {
     }
 
     const { steer } = this.track(v.params, v.pos.x, v.pos.z, v.yaw, v.speed, c.s, 0, true);
-    // going backwards, positive throttle brakes
+    // Positive throttle opposes reverse motion.
     const sp = -v.speed;
     let throttle = 0;
     if (sp < want - UNDER_SPEED) {
@@ -298,17 +293,17 @@ export class Autopilot {
     return 0;
   }
 
-  /** Throttle that brakes against `speed`, softer as it gets slow (full brakes would flip it into the other direction). */
+  /** Brake against signed speed, reducing throttle near zero to avoid reversing direction. */
   private brake(speed: number): number {
     return -Math.sign(speed) * Math.min(1, Math.abs(speed) * BRAKE_GAIN);
   }
 
-  /** Fastest speed that can still stop in `remaining` metres. */
+  /** Calculate a braking target from remaining distance, retaining the STOPPED speed allowance. */
   private stopping(remaining: number): number {
     return Math.sqrt(2 * A.stopDecel * Math.max(0, remaining - LEG_END)) + STOPPED;
   }
 
-  /** Where the obstacles close enough to matter are, leaving out `v`'s own body. */
+  /** Collect nearby obstacle positions on this level, excluding the vehicle’s own body. */
   private near(v: Vehicle, obstacles: readonly Obstacle[]): Vector3[] {
     const out: Vector3[] = [];
     for (const { pos: o, owner } of obstacles) {
@@ -329,9 +324,8 @@ export class Autopilot {
   }
 
   /**
-   * Steering input to follow the current leg (shifted sideways by `offset`) from a pose: wheel angle from the route's
-   * curvature just ahead, plus heading and offset corrections. Reversing, the car's tail leads: the same law on the
-   * direction of travel, with the steering sign flipped.
+   * Calculate steering from route curvature, heading error, and lateral offset. Track reverse legs in the direction of
+   * travel with the steering sign reversed. Return normalized steering input and heading error in radians.
    */
   private track(
     P: VehicleParams,
@@ -350,7 +344,7 @@ export class Autopilot {
     const psi0 = Math.atan2(_a.x, _a.z);
     path.sample(s + CURVE_AHEAD, _q, _b);
     const kappa = wrapAngle(Math.atan2(_b.x, _b.z) - psi0) / (CURVE_AHEAD + CURVE_BACK);
-    // the side that increasing yaw turns toward
+    // Use the route’s right-hand normal for lateral error.
     const nx = Math.cos(psi);
     const nz = -Math.sin(psi);
     const off = (x - (_p.x + nx * offset)) * nx + (z - (_p.z + nz * offset)) * nz;
@@ -359,14 +353,14 @@ export class Autopilot {
     const delta =
       Math.atan(P.wheelBase * kappa) + A.kHeading * headingErr - Math.atan((A.kOffset * off) / (Math.abs(speed) + 1));
     const speedK = steerScale(P, speed);
-    // Vehicle.drive turns yaw by -steer going forward and by +steer backing up
+    // Match Vehicle.drive’s steering sign, which reverses with travel direction.
     const input = delta / (P.maxSteer * speedK);
     return { steer: clamp(reverse ? input : -input, -1, 1), headingErr };
   }
 
   /**
-   * Fastest speed now that still makes every bend over the stretch ahead: each bend's own speed (A.cornerGrip of
-   * sideways grip on its curvature), plus what braking at A.stopDecel sheds on the way to it.
+   * Calculate the current speed limit from sampled bends ahead, accounting for lateral grip and available braking
+   * distance. Apply the crawl floor to each bend’s target speed; return Infinity when no sampled bend limits speed.
    */
   private cornerSpeed(): number {
     const c = this.cursor;
@@ -391,7 +385,7 @@ export class Autopilot {
   private choose(v: Vehicle, speed: number, obstacles: readonly Vector3[]): Choice {
     let best: Choice = { ...NO_CHOICE, score: -Infinity };
     for (const off of OFFSETS) {
-      // a preference for the route itself, so it only eases out when that helps
+      // Penalize unnecessary lateral departures from the planned route.
       const r = this.rollout(v, off, null, speed, obstacles);
       const score = r.score - Math.abs(off) * OFFSET_COST;
       if (score > best.score) {
@@ -399,7 +393,7 @@ export class Autopilot {
       }
     }
 
-    // backing up off the plan is a last resort: only once it's stopped getting anywhere
+    // Delay unplanned reversing until forward progress has stalled.
     if (this.sinceProgress < RECOVER_AFTER) {
       return best;
     }
@@ -429,7 +423,7 @@ export class Autopilot {
   ): { score: number; bump: number } {
     const P = v.params;
     const { nav, profile } = this.opts;
-    // the body itself: plans may pass closer than the planner's margin near their ends
+    // Use the physical body margin because route endpoints may have reduced planning clearance.
     const body = bodyOf(profile);
     const c = this.cursor;
     let x = v.pos.x;
@@ -437,7 +431,7 @@ export class Autopilot {
     let z = v.pos.z;
     let yaw = v.yaw;
     let s = c.s;
-    // tracking looks no further than the leg goes (past a cusp there's nothing to follow)
+    // Limit route-following predictions to the current leg, before its next cusp.
     const horizon =
       steer === null ? Math.min(HORIZON, c.remaining / Math.max(Math.abs(speed), ROLLOUT_MIN)) : A.reverseTime;
     const steps = Math.max(1, Math.round(horizon / SIM_DT));
@@ -477,7 +471,7 @@ export class Autopilot {
       }
     }
 
-    // progress along the route, distance from it, and how lined up with it the car ends
+    // Balance route progress against lateral displacement and final heading error.
     _q.set(x, y, z);
     const sEnd = c.path.project(_q, Math.max(0, c.s - PROJECT_BACK), PROJECT_WINDOW);
     c.path.sample(sEnd, _p, _b);

@@ -12,9 +12,9 @@ import { Mixer } from './mixer';
 
 const I = TUNING.audio.impact;
 
-/** Anger from this on gets a car's fed-up horn (VehicleBreed.horn). */
+/** Driver anger threshold for selecting the louder horn variant. */
 const ANGRY = 0.6;
-/** Street furniture by PropKind.name; anything else sounds like a fence going over. */
+/** Map prop kinds to impact sounds; unknown kinds use the fence sound. */
 const PROPS: Readonly<Record<string, SoundOf<'prop'>>> = {
   lamp: 'prop-lamp',
   fence: 'prop-fence',
@@ -28,7 +28,7 @@ const PROPS: Readonly<Record<string, SoundOf<'prop'>>> = {
 };
 const MUTED_KEY = '30pc.muted';
 
-/** Whether the player muted the game last time. */
+/** Read the saved mute preference; default to unmuted if storage is unavailable. */
 function savedMuted(): boolean {
   try {
     return localStorage.getItem(MUTED_KEY) === '1';
@@ -41,7 +41,7 @@ function saveMuted(on: boolean): void {
   try {
     localStorage.setItem(MUTED_KEY, on ? '1' : '0');
   } catch {
-    // private mode and the like: it just won't be remembered
+    // Keep the current setting even if browser storage is unavailable.
   }
 }
 
@@ -49,16 +49,14 @@ const SCREAMS: readonly [SoundOf<'scream'>, ...SoundOf<'scream'>[]] = ['scream-h
 
 declare global {
   interface Window {
-    /** The sound, for the console and headless tests. */
+    /** Audio controller exposed for console debugging and browser tests. */
     __sound?: Sound;
   }
 }
 
 /**
- * The game's sound, on unless ?sound=0 (main.ts only loads this then). It listens to game.events and plays cues from
- * the cue table (cues.ts) through the mixer, and keeps the loops (engines, Randy's fire, the gate arms, ambience) in
- * step with play every frame; with ?sound the mixer logs every sound by name to the console as it starts. Audio starts
- * with the first key, click or tap (browsers, iOS above all, won't start it otherwise); M mutes, across reloads.
+ * Translate game events into sound cues and update continuous sounds each frame. Audio starts after a user gesture,
+ * suspends while the page is hidden, and remembers the mute setting across reloads.
  */
 export class Sound {
   readonly mixer = new Mixer();
@@ -66,7 +64,7 @@ export class Sound {
   /** When each vehicle last made an impact sound (game seconds). */
   private readonly lastHit = new WeakMap<Vehicle, number>();
   private time = 0;
-  /** Randy's calling (the burner's 'ring' till its 'hangup'). */
+  /** Keep the ringtone active between phone ring and hangup events. */
   private calling = false;
 
   constructor(private readonly game: Game) {
@@ -112,7 +110,7 @@ export class Sound {
     ev.on('sunrise', () => {
       this.mixer.play('dawn', 'stinger-dawn');
 
-      // the night's trucks turning back into cars
+      // Play the reverse transformation for trucks changing back at sunrise.
       for (const v of game.vehicles) {
         if (v.status === 'transforming' && v.form === 'truck') {
           this.mixer.play('morph', 'morph-car', { at: v.pos });
@@ -142,7 +140,7 @@ export class Sound {
     soundLog(`on: audio starts with the first key, click or tap; ${keyName('mute')} mutes`);
   }
 
-  /** Audio starts (and wakes) on a gesture, sleeps while the page is hidden; the mute key (remembered). */
+  /** Register user gestures, page visibility changes, and the mute shortcut. */
   private listen(): void {
     this.mixer.setMuted(savedMuted());
     const wake = (): void => this.mixer.unlock();
@@ -169,11 +167,11 @@ export class Sound {
     this.time += dt;
     const g = this.game;
     const ride = g.vehicles.find((v) => v.role === 'player' && !v.status) ?? null;
-    // heard from Cody (in his ride), or from what a cutscene looks at; panned with the camera on screen
+    // Listen from the cutscene focus or Cody's position; pan sounds using the active camera.
     this.mixer.ear.copy(g.cutscene?.focus ?? ride?.pos ?? g.player.pos);
     const cam = g.gfx.chaseView ? g.chase.camera : g.iso.camera;
     this.mixer.right.set(1, 0, 0).applyQuaternion(cam.quaternion).setY(0).normalize();
-    // he picks up when the conversation comes up (the burner keeps its call screen till it's over)
+    // Stop ringing when dialogue opens, even while the phone still shows the call screen.
     this.loops.ringing = this.calling && !document.body.classList.contains('dialogue-open');
     this.loops.update(dt, {
       cars: g.vehicles,
@@ -187,7 +185,7 @@ export class Sound {
     this.mixer.update();
   }
 
-  /** Fed up drivers lean on it longer and harder. */
+  /** Select a horn variant and volume from the driver's anger. */
   private honk({ car, at, anger }: GameEvents['honk']): void {
     const horn = car.breed.horn;
     if (!horn) {
@@ -202,7 +200,7 @@ export class Sound {
     });
   }
 
-  /** A bump, a crash or a hard landing, by how hard; each vehicle no more than every TUNING.audio.impact.again seconds. */
+  /** Select an impact cue from collision severity and surface, rate-limited per vehicle. */
   private impact({ v, at, dv, against }: GameEvents['impact']): void {
     if (dv < (against === 'ground' ? I.land : I.bump)) {
       return;

@@ -22,18 +22,15 @@ import {
 } from './drive-actions';
 import type { Drivers } from './drivers';
 
-/** Roads are looked along in steps of this (m). */
+/** Road sampling interval in meters. */
 const ROAD_STEP = 2;
-/**
- * The turn for the deck starts up to this far (m) before the road's closest approach to its entry, room to swing in
- * without backing up.
- */
+/** Preferred lead distance before the road’s closest approach to the entry, in meters. */
 const TURN_LEAD = 8;
 
 /**
- * Where a road turns off for the deck: the index in `ahead` (points `step` apart, from the car on) where the turn
- * starts, up to `lead` before the road's closest approach to `entry` but at least `room` on. Only if that approach
- * comes within `gate` of it, at least `room` on. -1 if there's nowhere to turn off.
+ * Return the index at which to leave the sampled road for the entry, or -1 if no turn is suitable. Samples begin one
+ * `step` ahead. Require the closest approach to be at least `room` ahead and within `gate` of the entry; start the turn
+ * up to `lead` meters earlier.
  */
 export function turnOff(
   ahead: readonly Vector3[],
@@ -52,7 +49,7 @@ export function turnOff(
       best = i;
     }
   });
-  // The first point at least `room` on.
+  // Convert minimum forward distance to the index of samples starting one step ahead.
   const first = Math.ceil(room / step) - 1;
   if (best < first || bd > gate) {
     return -1;
@@ -61,7 +58,7 @@ export function turnOff(
   return Math.max(first, best - Math.round(lead / step));
 }
 
-/** A drive to deck `spot`, in through the entry gate, its spot's ground open to it. */
+/** Plan entry through the badge gate while allowing the destination spot’s blocked region. */
 function toSpot(car: Vehicle, spot: SpotRuntime, more: { via?: Polyline; avoid?: Vector3 } = {}): DriveTo {
   return new DriveTo({
     car,
@@ -76,13 +73,9 @@ function toSpot(car: Vehicle, spot: SpotRuntime, more: { via?: Polyline; avoid?:
 }
 
 /**
- * A driver frightened off the road into the haunted deck. They drive on to the turn-off and in through the entry gate,
- * for the free spot nearest the gate on the lowest level. The ordinary spook rules hold all the way: each frame they
- * see phantom Cody, they take the road again if they're still on it and it no longer leads toward him; otherwise they
- * drive on in, up a level if there's a free spot above, and round him if he's in the way. Parked or parking, they get
- * out and run. Once out of his sight they park, sit a moment, then get out and run, which leaves a car in the deck for
- * phantom Cody to possess. The job holds one of the deck's diversion slots and the spot it's heading for besides the
- * seat. A crash, no route, or a second wedge and the driver gets out where they are.
+ * Divert a frightened driver into a reserved deck spot. Reserve a diversion slot, destination, and driver seat. New
+ * threats can return the car to a safe road, move its destination upstairs, or force the driver to flee. After parking,
+ * pause before the driver exits. Failed routing abandons the car; crashes use the base job’s recovery handling.
  */
 export class Divert extends DriverJob {
   private spot: SpotRuntime;
@@ -148,8 +141,8 @@ export class Divert extends DriverJob {
   }
 
   /**
-   * The spook rules, for a driver who sees phantom Cody at `at` this frame. Returns how the job ends, or null to carry
-   * on.
+   * Respond to a sighting by rejoining the road, changing destination, avoiding the threat, or abandoning the car.
+   * Return null to continue.
    */
   private flee(w: DriveWorld, at: Vector3): Result<DriveAction> | null {
     const { car } = this;
@@ -180,7 +173,7 @@ export class Divert extends DriverJob {
     return null;
   }
 
-  /** The free spot nearest the car on the lowest level above it, or null at the top. */
+  /** Return the nearest free spot on the lowest available floor above the car, or null. */
   private above(w: DriveWorld): SpotRuntime | null {
     const { car } = this;
     const floor = w.garage.floorOf(car.pos.y);
@@ -201,10 +194,7 @@ export class Divert extends DriverJob {
     return best;
   }
 
-  /**
-   * No way past, no route in time, or wedged twice: the driver gets out where they are. Out in the road, the car is
-   * towed once out of sight.
-   */
+  /** Stop and abandon the car, then make its driver flee. Mark cars outside the deck for distant removal. */
   private giveUp(w: DriveWorld): void {
     const { car } = this;
     stand(car);
@@ -217,36 +207,31 @@ export class Divert extends DriverJob {
   }
 }
 
-/**
- * Drivers who see phantom Cody want to speed away. When their road leads toward him and it passes the haunted deck's
- * entry just ahead, the deck becomes a way out: they turn off for it, of all places. Each runs a Divert job on the
- * game's drivers, which keeps to the ordinary spook rules all the way in.
- */
+/** Start and track diversions from traffic lanes into the deck when a suitable turn and parking spot are available. */
 export class Refuge {
-  /** The jobs it started; finished ones drop out as it looks. */
+  /** Active diversion jobs, pruned on access. */
   private diverts: Divert[] = [];
 
   constructor(
     private readonly drivers: Drivers,
     private readonly world: DriveWorld,
-    /** The way in (the entry gate): drivers turn off where their road passes it, and spots nearest it fill first. */
+    /** Deck entry used to select the road turn and prioritize parking spots. */
     readonly entry: Vector3,
   ) {}
 
-  /** Cars on their way in. */
+  /** Number of active diversions. */
   get count(): number {
     return this.live().length;
   }
 
-  /** Whether `car`'s driver is on their way in. */
+  /** Test whether the car has an active diversion. */
   has(car: Vehicle): boolean {
     return this.live().some((d) => d.car === car);
   }
 
   /**
-   * The driver of traffic car `car` sees phantom Cody at `from`, and their road leads toward him. If it passes the
-   * deck's entry just ahead with room to turn off, a spot is free and the deck has room for another diversion, they
-   * turn off for the deck. True if they did.
+   * Start a diversion if the traffic car can turn toward the entry and reserve an available spot. The caller determines
+   * whether its road leads toward the threat. Return whether the job started.
    */
   take(car: Vehicle, from: Vector3): boolean {
     if (car.role !== 'traffic' || car.crashing) {
@@ -280,7 +265,7 @@ export class Refuge {
     return this.diverts;
   }
 
-  /** The free spot on the lowest level, nearest the entry gate on it. */
+  /** Return a free spot on the lowest available floor, choosing the nearest to the entry. */
   private pick(): SpotRuntime | null {
     let best: SpotRuntime | null = null;
     let bd = Infinity;

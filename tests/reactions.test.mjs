@@ -42,7 +42,7 @@ test('people flee skeletons too, but plain Cody frightens nobody', () => {
   const skeleton = { kind: 'skeleton', pos: at(0, 0, 0) };
   const person = { kind: 'townsperson', pos: at(2, 0, 0), person: { name: 'p' } };
   assert.deepEqual(scene([skeleton, person]).frightened, ['p']);
-  // plain Cody isn't indexed as a frightening thing at all, so nothing reacts
+  // Omit ordinary Cody from the perception index; only the pedestrian remains.
   assert.deepEqual(scene([person]).frightened, []);
 });
 

@@ -16,9 +16,8 @@ import { withCutaway } from '@/render/materials';
 import { radialGlowTexture } from '@/render/textures';
 
 /**
- * Something that matters, marked so the eye catches it: a pulsing ring with a soft glow on the ground under it, and a
- * halo round the thing itself (in the air too, following it while it's thrown). Colour, sizes (m), how far the ring
- * breathes and how fast (rad/s), the halo's height over the item.
+ * Highlight appearance: a ground ring and glow plus a sprite halo around the item. Sizes and offsets are in meters;
+ * pulse rate is in radians per second.
  */
 const LOOK = {
   color: '#ffe27a',
@@ -68,8 +67,8 @@ export class Highlight {
   }
 
   /**
-   * The halo round the item at `item`, the ring on the ground at `ground`: under it where it lies, or where it'll land
-   * while it's in the air. Call it every frame either moves.
+   * Position the halo at the item and the ground marker at its resting or landing point. Update whenever either
+   * position changes.
    */
   place(item: Vector3, ground: Vector3): void {
     this.ground.position.copy(ground);

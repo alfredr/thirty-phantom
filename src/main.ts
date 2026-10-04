@@ -10,7 +10,7 @@ import { Tutorial } from './game/story/tutorial';
 import { TouchControls, wantsTouch } from './ui/touch-controls';
 import { loadLevel } from './world/load-level';
 
-/** Fonts must be ready before sign/livery canvases are drawn. */
+/** Load fonts before generating canvas textures for signs and vehicle livery. */
 async function loadFonts(): Promise<void> {
   await Promise.all(['64px "Creepster"', '64px "Anton"', '64px "Bangers"'].map((f) => document.fonts.load(f)));
 }
@@ -36,7 +36,7 @@ async function boot(): Promise<void> {
     void import('./audio/sound').then(({ Sound }) => new Sound(game));
   }
 
-  // ?manual: no RAF loop; frames are stepped externally (headless tests)
+  // Manual mode renders one initial frame and leaves further stepping to the caller.
   if (!urlFlag('manual')) {
     game.run();
   } else {

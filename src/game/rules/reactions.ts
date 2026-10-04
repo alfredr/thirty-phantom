@@ -7,7 +7,7 @@ import type { Townsperson } from '@/game/town/town-mind';
 
 import { LEVEL, REACH } from './reach';
 
-/** Everything that can perceive or be perceived this frame, as the space indexes it. */
+/** Actors indexed for perception during the current frame. */
 export type Thing =
   | { readonly kind: 'phantom'; readonly pos: Vector3 }
   | { readonly kind: 'phantomTruck'; readonly pos: Vector3; readonly vehicle: Vehicle }
@@ -22,7 +22,7 @@ export function isKind<K extends ThingKind>(thing: Thing, kind: K): thing is Thi
   return thing.kind === kind;
 }
 
-/** Height above a thing's position of its eyes, or of the middle of what others see, in meters. */
+/** Eye or target-center height above the actor’s position, in meters. */
 export const EYE_HEIGHT: Readonly<Record<ThingKind, number>> = {
   phantom: 1.2,
   phantomTruck: 1.6,
@@ -31,15 +31,15 @@ export const EYE_HEIGHT: Readonly<Record<ThingKind, number>> = {
   driver: 1.2,
 };
 
-/** This frame's view of the world, as reactions use it. */
+/** Spatial index and visibility query for the current frame. */
 export interface Perception {
   readonly space: Space<Thing>;
   readonly things: readonly Thing[];
-  /** Whether nothing solid, floors included, stands between the perceiver's eyes and the thing seen. */
+  /** Test whether the sight line between actor eye heights is unobstructed, including by floors. */
   sees(perceiver: Thing, seen: Thing): boolean;
 }
 
-/** What one kind of thing does when it sees certain kinds of things close enough. */
+/** Perceiver and target categories, distance limits, and the response to a visible match. */
 export interface ReactionSpec<K extends ThingKind> {
   readonly who: K;
   readonly sees: readonly ThingKind[];
@@ -48,15 +48,14 @@ export interface ReactionSpec<K extends ThingKind> {
   then(who: ThingOf<K>, seen: Thing): void;
 }
 
-/** A reaction, ready to run against a frame's perception. */
+/** A reaction evaluated against the current frame’s perception. */
 export interface Reaction {
   run(p: Perception): void;
 }
 
 /**
- * Declares a reaction from its spec. It starts from the things that cause reactions, which are few (phantom Cody, the
- * truck, a handful of skeletons), finds who is near each on its level, and tests line of sight only for those of the
- * right kind.
+ * Build a reaction that queries nearby perceivers for each eligible target. Check kind and vertical range before
+ * testing visibility.
  */
 export function reaction<K extends ThingKind>({ who, sees, within, level, then }: ReactionSpec<K>): Reaction {
   return {
@@ -76,7 +75,7 @@ export function reaction<K extends ThingKind>({ who, sees, within, level, then }
   };
 }
 
-/** The game's reactions: who takes fright at what, and how close. Only those who can see it react. */
+/** Create pedestrian and driver fright responses with their respective target kinds and ranges. */
 export function gameReactions({
   crowd,
   drivers,
@@ -102,7 +101,7 @@ export function gameReactions({
   ];
 }
 
-/** Runs every reaction against this frame's perception. */
+/** Evaluate each reaction against the current frame. */
 export function react(p: Perception, reactions: readonly Reaction[]): void {
   for (const r of reactions) {
     r.run(p);

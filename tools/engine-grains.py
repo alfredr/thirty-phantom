@@ -1,20 +1,19 @@
 """
-Engine grain tables: cut a CC0 engine recording into tagged engine cycles for src/audio/grains.ts.
+Extract tagged engine cycles for src/audio/grains.ts from a CC0 recording.
 
+Usage:
   python3 tools/engine-grains.py <name> <recording> <ref_from>-<ref_to>:<ref_hz> <from>-<to> [<from>-<to> ...]
 
-The pitch is tracked relative to a reference stretch (ref, whose firing rate in Hz is given):
-each frame's whitened log-frequency spectrum is matched against a slowly adapting template in
-pitch-normalized form, so the track is continuous and never jumps an octave, and every tag is in
-the same units as the reference. Pitch marks follow the waveform a cycle at a time (each where
-the next cycle best matches the last, near where the track says); then, in order of rate, each is
-lined up with the others of about the same rate (circular cross-correlation against a running
-template), so grains cut anywhere add up in step. Each mark is tagged with its rate (from its spacing), whether the engine was
-pulling (rising, 1), steady (0.5) or falling (0), and its level. Only the stretches given are
-kept: they're levelled, joined with short gaps and written to public/audio/<name>.mp3, the marks
-(in that file's time) to public/audio/<name>.json.
+Track pitch relative to a reference segment with a known firing rate. Compare
+whitened log-frequency spectra against an adaptive template, then locate cycle
+boundaries by matching adjacent waveforms. Align cycles with similar firing rates
+and discard poor matches.
 
-Needs numpy and ffmpeg. The recordings are Freesound previews; credit them in public/audio/CREDITS.md.
+Normalize the requested recording segments and write public/audio/<name>.mp3.
+Write cycle times, firing rates, load classes, and levels to <name>.json. Load
+classes describe rising pitch (1), steady pitch (0.5), and falling pitch (0).
+
+Requires NumPy and ffmpeg. Credit source recordings in public/audio/CREDITS.md.
 """
 
 import json
@@ -26,7 +25,7 @@ import numpy as np
 SR = 22050
 HOP = 256
 WIN = 2048
-# 25 Hz up, 1/96 octave; ENGINE_TOP (Hz) narrows it to the low firing harmonics when wind or road noise swamps the rest
+# Sample frequencies from 25 Hz in 1/96-octave steps. ENGINE_TOP limits analysis to lower harmonics in noisy recordings.
 GRID = 25 * 2 ** (np.arange(0, int(np.log2(float(__import__('os').environ.get('ENGINE_TOP', 3200)) / 25) * 96)) / 96)
 OUT = 'public/audio'
 
@@ -37,7 +36,7 @@ def load(path):
 
 
 def spectra(x):
-    """Whitened log-frequency spectra, one a hop."""
+    """Return one whitened log-frequency spectrum per HOP samples."""
     w = np.hanning(WIN)
     fr = np.fft.rfftfreq(WIN, 1 / SR)
     rows = []
@@ -49,7 +48,7 @@ def spectra(x):
 
 
 def track(S, ref):
-    """Pitch in octaves relative to the reference frames, and how sure each frame is."""
+    """Track pitch in octaves relative to the reference frames, with a confidence score per frame."""
     n = len(S)
     tpl = S[ref[0]:ref[1]].mean(axis=0)
     shifts = np.zeros(n)
@@ -82,17 +81,16 @@ def track(S, ref):
     run(range(mid, n))
     tpl = S[ref[0]:ref[1]].mean(axis=0)
     run(range(mid, -1, -1))
-    # the track is smooth: a short median takes out single-frame slips
+    # Suppress isolated pitch-tracking errors with a short median filter.
     sm = np.array([np.median(shifts[max(0, k - 3):k + 4]) for k in range(n)])
     return sm / 96, conf
 
 
 def marks(x, hz_at, t0, t1):
     """
-    Pitch marks between t0 and t1, one engine cycle apart: each next mark is where the waveform
-    best matches the cycle round the last one, searched within a fifth of a period either side of
-    where the track puts it. So the marks keep one phase of the cycle all along, and their spacing
-    is the waveform's own period. Each comes with how well it matched.
+    Locate cycle boundaries between t0 and t1, returning times and match scores.
+    Search within 20% of the predicted period for the waveform that best matches
+    the previous cycle. Actual boundary spacing determines each cycle's rate.
     """
     out = []
     per = 1 / hz_at(t0)
@@ -121,7 +119,7 @@ L = 64
 
 
 def cycle(x, t, hz):
-    """One cycle of x round t (from half a period before), resampled to L points, zero mean, unit length."""
+    """Sample one cycle centered at t as L points, normalized to zero mean and unit norm."""
     per = SR / hz
     pos = t * SR - per / 2 + np.arange(L) * per / L
     if pos[0] < 0 or pos[-1] >= len(x) - 1:
@@ -132,7 +130,7 @@ def cycle(x, t, hz):
 
 
 def shift(c, tpl):
-    """How far (a share of a cycle) c's shape sits after tpl's, by circular cross-correlation, and how well they match."""
+    """Return the phase offset as a fraction of a cycle and the circular-correlation score."""
     cc = np.fft.ifft(np.fft.fft(c) * np.conj(np.fft.fft(tpl))).real
     s = int(np.argmax(cc))
     return (s - L if s > L // 2 else s) / L, float(cc.max())
@@ -140,11 +138,9 @@ def shift(c, tpl):
 
 def consensus(y, table):
     """
-    Line up every cycle with the others of about the same rate, from wherever they were cut: walk
-    the marks in order of rate, moving each onto a template that's the running average of the last
-    ones aligned (a cycle's shape changes with the revs, so the template follows it). Grains only
-    ever overlap with others of about the same rate, so that's all that has to agree. Marks whose
-    cycle fits the template poorly are dropped.
+    Align cycles in firing-rate order against an adaptive waveform template.
+    Update mark times to preserve phase when neighboring grains overlap, and
+    discard cycles that do not match the template closely enough.
     """
     order = sorted(range(len(table)), key=lambda i: table[i][1])
     tpl = None
@@ -170,7 +166,7 @@ def consensus(y, table):
 
 def main():
     if sys.argv[1] == '--track':
-        # look before cutting: the pitch track every quarter second, and how sure it is
+        # Preview the estimated firing rate and confidence at quarter-second intervals.
         path, refspec = sys.argv[2:4]
         x = load(path)
         S = spectra(x)
@@ -189,7 +185,7 @@ def main():
     hz = rhz * 2 ** octs
     hz_at = lambda t: float(np.interp(t, ft, hz))
     conf_at = lambda t: float(np.interp(t, ft, conf))
-    # pulling, steady or falling, from how fast the pitch moves (octaves a second, over ~0.1 s)
+    # Classify engine load from the smoothed rate of pitch change in octaves per second.
     rate = np.gradient(np.convolve(octs, np.ones(9) / 9, 'same'), HOP / SR)
     load_at = lambda t: float(np.interp(t, ft, np.where(rate > 0.15, 1.0, np.where(rate < -0.15, 0.0, 0.5))))
     parts, table, at = [], [], 0.0
@@ -198,7 +194,7 @@ def main():
         seg = x[int(t0 * SR):int(t1 * SR)]
         gain = 10 ** (-16 / 20) / (np.sqrt(np.mean(seg ** 2)) + 1e-9)
         ms = marks(x, hz_at, t0, t1)
-        # its rate: the spacing of the cycles round it as followed (so tags and grains' cycles agree)
+        # Derive firing rate from actual cycle spacing so metadata matches the extracted waveform.
         ts = np.array([m[0] for m in ms])
         for k, (tk, match) in enumerate(ms):
             gaps = np.diff(ts[max(0, k - 2):k + 3])

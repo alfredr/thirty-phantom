@@ -6,7 +6,7 @@ export interface FaceSource {
   max: V3;
   /** Faces this box actually draws. */
   faces: readonly BoxFace[];
-  /** Always gives way in an overlap (breakables: smashing one must not open a hole in its neighbour). */
+  /** Yield to non-yielding faces so removing a breakable box does not expose a hole in its neighbour. */
   yields: boolean;
 }
 
@@ -18,15 +18,14 @@ interface Face {
   yields: boolean;
 }
 
-/** Faces closer than this count as coplanar. */
+/** Coordinate quantization step for grouping coplanar faces. */
 const PLANE_EPS = 1e-4;
 
 /**
- * Same-facing faces of different boxes in one plane z-fight: each draws its own texture, tint and AO gradient there
- * (columns flush with walls, slab edges flush with parapets, cubes snapped together in Blender). For every such overlap
- * the smaller face keeps it and the larger one gets it cut out.
- *
- * Returns the holes per face, keyed `box * 6 + face`.
+ * Find overlapping same-facing box faces on quantized planes and return rectangular holes keyed by `box * 6 + face`.
+ * Yielding faces lose to non-yielding faces; two yielding faces remain intact. Otherwise, remove the overlap from the
+ * larger face, breaking equal-area ties by box index. This prevents z-fighting without exposing holes when breakable
+ * boxes are removed.
  */
 export function coplanarHoles(boxes: readonly FaceSource[]): Map<number, FaceRect[]> {
   const planes = new Map<string, Face[]>();

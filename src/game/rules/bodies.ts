@@ -4,33 +4,33 @@ import type { Obstacle } from '@/actors/autopilot';
 import type { Vehicle } from '@/actors/vehicle';
 import { bodyOffsets } from '@/engine/physics/vehicle-params';
 
-/** What a body is, to whoever's steering round it. */
+/** Body categories used to filter steering obstacles. */
 export type BodyKind = 'person' | 'down' | 'still' | 'cody' | 'skeleton' | 'car';
 
 /**
- * Something taking up room this frame. `pos` and `vel` are the thing's own vectors, so a body read later in the frame
- * is where the thing is then.
+ * A body registered for the current frame. Position and velocity reference the actor’s vectors and reflect later
+ * movement.
  */
 export interface Body {
   kind: BodyKind;
   pos: Vector3;
   vel: Vector3;
-  /** Its radius (m); a car's is its body circles'. */
+  /** Collision radius in meters; vehicles use the radius of each body circle. */
   r: number;
-  /** Under way (a person walking faster than a stroll): traffic and drivers brake for them. */
+  /** Whether drivers should treat this body as moving traffic. */
   moving: boolean;
-  /** Walking a route, so it dodges too: only half of a dodge is the other's to make. */
+  /** Whether this walker also avoids others, allowing reciprocal steering to share the correction. */
   dodges: boolean;
-  /** Whose it is (a walker), to leave it out of its own view. */
+  /** Actor identity used to exclude the body from its own obstacle query. */
   owner: object | null;
-  /** The car, for a car's body. */
+  /** Vehicle represented by this body, if any. */
   vehicle: Vehicle | null;
 }
 
-/** The velocity of something that doesn't move. Never written to. */
+/** Shared zero velocity. Callers must not mutate it. */
 export const NO_VELOCITY: Readonly<Vector3> = new Vector3();
 
-/** How a body is added: `kind`, where, how fast, how big; the rest default to standing, not dodging, nobody's. */
+/** Body registration data. Optional flags default to false, identity fields to null, and velocity to zero. */
 export interface BodyOf {
   kind: BodyKind;
   pos: Vector3;
@@ -43,18 +43,16 @@ export interface BodyOf {
 }
 
 /**
- * The world's bodies this frame: everyone and everything that takes up room, filled once in the sense phase, each
- * system adding its own (people, valets, Randy and his fire, skeletons, Cody, cars). Walkers steer round them, and
- * traffic and the AI drivers brake for the ones in their way, each taking the kinds it cares about. Records are reused
- * frame to frame.
+ * Collect bodies during sensing for steering and braking queries. Reuse records between frames; each consumer filters
+ * the body categories it needs.
  */
 export class Bodies {
   private readonly pool: Body[] = [];
   private n = 0;
-  /** Obstacle records, reused frame to frame (see obstacles()). */
+  /** Reusable obstacle records overwritten by each obstacles() call. */
   private readonly marks: { pos: Vector3; owner: object | null }[] = [];
 
-  /** Starts this frame's list. */
+  /** Reset the active count while retaining pooled records. */
   clear(): void {
     this.n = 0;
   }
@@ -86,7 +84,7 @@ export class Bodies {
     body.vehicle = b.vehicle ?? null;
   }
 
-  /** Runs `fn` for every body this frame. */
+  /** Visit each body registered in the current frame. */
   each(fn: (b: Body) => void): void {
     for (let i = 0; i < this.n; i++) {
       const b = this.pool[i];
@@ -97,9 +95,8 @@ export class Bodies {
   }
 
   /**
-   * The bodies that pass `test`, as drivers keep clear of them, into `out` (emptied first): a point for each, and for a
-   * car its three body circles, so its nose and tail count as much as its middle. Each says whose it is, so a car
-   * leaves out its own. Positions are as they are now.
+   * Replace `out` with matching obstacles at their current positions. Expand vehicles into body-circle positions and
+   * include owner identities for self-exclusion. Returned records are reused by the next call.
    */
   obstacles(test: (b: Body) => boolean, out: Obstacle[]): Obstacle[] {
     out.length = 0;
@@ -136,7 +133,7 @@ export class Bodies {
     return out;
   }
 
-  /** Where the bodies that pass `test` are, into `out` (emptied first). */
+  /** Replace `out` with position references from matching bodies. */
   points(test: (b: Body) => boolean, out: Vector3[]): Vector3[] {
     out.length = 0;
     this.each((b) => {

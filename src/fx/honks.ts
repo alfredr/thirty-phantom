@@ -6,45 +6,42 @@ import { FX_LAYER } from '@/render/layers';
 import { fitFont, FONT } from '@/render/signs';
 import { makeCanvas, toTexture } from '@/render/textures';
 
-/** A honk's word: this wide at full size (m), popping up over POP (s), gone after LIFE (s), rising RISE (m) as it goes. */
+/** Honk label width and rise distance in meters, with entrance and lifetime durations in seconds. */
 const WIDTH = 2.4;
 const POP = 0.2;
 const LIFE = 1;
 const RISE = 0.5;
-/** It starts to fade this far into its life (share). */
+/** Fraction of the label's lifetime before fading begins. */
 const FADE_FROM = 0.55;
-/** A fuming driver's honk is this much bigger, and lasts this much longer. */
+/** Size and lifetime multipliers at maximum driver anger. */
 const ANGRY_SIZE = 1.35;
 const ANGRY_LIFE = 1.5;
-/** Pops at once; the oldest is reused. */
+/** Maximum concurrent labels. Reuse slots in creation order. */
 const POOL = 6;
-/** The word's canvas, and its colours: a warm white with a dark outline, like the HUD's comic lettering. */
+/** Canvas dimensions in pixels and colors for the outlined honk label. */
 const TEX_W = 256;
 const TEX_H = 128;
 const FILL = '#fff3c4';
 const INK = '#1a0830';
 const TILT = -0.12;
-/**
- * The word fills at most this share of the canvas's width (room for the outline and the tilt), and this share of its
- * height.
- */
+/** Maximum text width and height as fractions of the canvas, leaving room for outline and rotation. */
 const FIT_W = 0.8;
 const FIT_H = 0.62;
 
 interface Pop {
   s: Sprite;
   m: SpriteMaterial;
-  /** Seconds since it popped, or -1 while unused. */
+  /** Elapsed animation time in seconds, or -1 for an inactive label. */
   t: number;
   at: Vector3;
-  /** How big it gets (m) and how long it lasts (s). */
+  /** Final width in meters and total lifetime in seconds. */
   width: number;
   life: number;
 }
 
 let tex: CanvasTexture | null = null;
 
-/** "HONK!" lettered once, on first use (the comic font has loaded by then). */
+/** Create and cache the honk texture on first use, after fonts have loaded. */
 function honkTexture(): CanvasTexture {
   if (tex) {
     return tex;
@@ -65,13 +62,13 @@ function honkTexture(): CanvasTexture {
   return (tex = toTexture(c));
 }
 
-/** A driver leaning on the horn: the word pops up over the roof and floats off. */
+/** Display animated honk labels above vehicles. */
 export class Honks {
   readonly root = new Group();
   private readonly pops: Pop[] = [];
   private next = 0;
 
-  /** Pop one up with its foot at `at` (over a roof); `anger` (0..1) makes it bigger and longer. */
+  /** Show a label anchored at `at`. Driver anger from 0 to 1 increases its size and lifetime. */
   pop(at: Vector3, anger = 0): void {
     if (this.pops.length < POOL) {
       const m = withCurve(

@@ -1,15 +1,15 @@
 import type { Object3D } from 'three';
 
 /**
- * Glows, sprites and debug lines: both cameras draw this layer, but the ink-outline normal prepass
- * (post/scene-outline-pass.ts) leaves it out, so effects never get outlined.
+ * Both cameras render effects on this layer. The normal prepass in post/scene-outline-pass.ts excludes it to prevent
+ * outlines on glows, sprites, and debug lines.
  */
 export const FX_LAYER = 1;
 
-/** Objects drawn see-through, over the finished sky, instead of in the main scene pass (post/ghost-pass.ts). */
+/** Transparent objects composited over the sky by post/ghost-pass.ts. */
 export const GHOST_LAYER = 2;
 
-/** A decal lying on the world: on the FX layer (no ink outline), drawn after what it lies on. */
+/** Place a decal on the FX layer and render it after its underlying surface. Return the same object. */
 export function fxDecal<T extends Object3D>(o: T): T {
   o.layers.set(FX_LAYER);
   o.renderOrder = 2;

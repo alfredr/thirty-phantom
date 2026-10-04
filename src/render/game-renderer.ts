@@ -24,10 +24,8 @@ function shaderPass<S extends { uniforms: object }>(shader: S): TypedShaderPass<
 }
 
 /**
- * Bloom shape; its strength follows the time of day (day-night.ts). `radius` weights the widest blur levels: kept low,
- * glow stays a halo round lamps and neon instead of a haze over the whole frame. `threshold` is the scene luminance
- * where glow starts and `knee` the width it fades in over, so a surface just past the threshold glows a little rather
- * than at full strength.
+ * Bloom settings shared across times of day. Keep the broad blur levels weak to limit glare. `threshold` sets the
+ * starting luminance and `knee` controls the transition width; day-night.ts controls overall strength.
  */
 const BLOOM = { radius: 0.1, threshold: 0.9, knee: 0.6 };
 
@@ -35,8 +33,8 @@ const BLOOM = { radius: 0.1, threshold: 0.9, knee: 0.6 };
 const SWEEP_EVERY = 60;
 
 /**
- * Post stack: scene + ink outlines -> sky band -> see-through ghosts -> bloom -> grade -> tone map -> SMAA. With world
- * curvature (render/curvature.ts) the scene is bent as it's drawn, and the sky fills what it leaves empty.
+ * Render the scene and outlines, sky, ghosts, bloom, grading with tone mapping, output conversion, and SMAA in order.
+ * Isometric curvature bends scene geometry before postprocessing and fills uncovered pixels with sky.
  */
 export class GameRenderer {
   readonly renderer: WebGLRenderer;
@@ -65,7 +63,7 @@ export class GameRenderer {
   ) {
     const r = new WebGLRenderer({ antialias: false, powerPreference: 'high-performance', stencil: false });
     r.outputColorSpace = SRGBColorSpace;
-    // tone mapping happens in the grade pass (per-channel, keeps the neon saturated)
+    // The grade pass applies per-channel tone mapping to preserve neon saturation.
     r.toneMapping = NoToneMapping;
     r.shadowMap.enabled = true;
     r.shadowMap.type = PCFShadowMap;
@@ -79,14 +77,14 @@ export class GameRenderer {
     r.setPixelRatio(this.pixelRatio);
     r.setSize(w, h);
 
-    // the composer sizes its buffers from the renderer
+    // Set the renderer size before constructing the composer's buffers.
     this.composer = new EffectComposer(r);
     const pw = Math.round(w * this.pixelRatio);
     const ph = Math.round(h * this.pixelRatio);
     this.outline = new SceneOutlinePass(scene, iso.camera, pw, ph);
     this.sky = shaderPass(SkyShader);
     this.ghost = new GhostPass(scene);
-    // strength 0 until DayNight sets it, before the first frame is drawn
+    // DayNight supplies bloom strength before the first frame.
     this.bloom = new UnrealBloomPass(new Vector2(w, h), 0, BLOOM.radius, BLOOM.threshold);
     (this.bloom.highPassUniforms as { smoothWidth: { value: number } }).smoothWidth.value = BLOOM.knee;
     this.grade = shaderPass(GradeShader);
@@ -96,8 +94,7 @@ export class GameRenderer {
     this.composer.addPass(this.bloom);
     this.composer.addPass(this.grade);
     this.composer.addPass(new OutputPass());
-    // the scene is multisampled, but the ink is drawn after that from single-sample depth and
-    // normals, so its edges stair-step; SMAA on the final sRGB image smooths them
+    // Apply SMAA after output conversion to smooth outlines generated from single-sample depth and normals.
     this.composer.addPass(new SMAAPass());
     this.resize();
     window.addEventListener('resize', () => this.resize());
@@ -117,7 +114,7 @@ export class GameRenderer {
     this.outline.setThickness(Math.max(1.6, this.pixelRatio * 1.35));
   }
 
-  /** Bends a world point in place where the curved iso view draws it (HUD markers); as it is otherwise. */
+  /** Transform a HUD anchor in place for the current curved view. Return the same point, unchanged for flat views. */
   bend(p: Vector3): Vector3 {
     return this.curved ? curvePoint(p) : p;
   }
@@ -132,7 +129,7 @@ export class GameRenderer {
     this.ghost.depthTexture = this.outline.depthTexture;
     su.invViewProj.value.multiplyMatrices(cam.matrixWorld, cam.projectionMatrixInverse);
     su.isPersp.value = this.chaseView ? 1 : 0;
-    // the distant skyline is the chase view's horizon; top-down, the band is just sky
+    // Show the distant skyline only in the chase view.
     su.skylineAmount.value = this.chaseView ? 1 : 0;
 
     if (this.chaseView) {
@@ -151,7 +148,7 @@ export class GameRenderer {
       return;
     }
 
-    // the x-ray window is cut round where Cody is drawn, and culling goes by where things are drawn
+    // Transform the cutaway centre and culling bounds into the curved render space.
     const cut = cutUniforms.uCutCenter.value;
     this.cutFlat.copy(cut);
     curvePoint(cut);
@@ -161,7 +158,7 @@ export class GameRenderer {
     cut.copy(this.cutFlat);
   }
 
-  /** Sets the frame's planet (render/curvature.ts), or none, and the sky's horizon to go with it. */
+  /** Configure curvature, shadow coverage, and the matching sky horizon, or reset them for a flat view. */
   private curve(on: boolean): void {
     const u = curveFrame.planet;
     const su = this.sky.uniforms;
@@ -181,19 +178,19 @@ export class GameRenderer {
     const iso = this.iso;
     const t = iso.target;
     const h = iso.viewHeight;
-    // the planet keeps its size whatever the zoom: `radius` view heights at the default zoom
+    // Cancel zoom scaling so the planet radius depends on the default zoom and viewport fit.
     const R = (TUNING.camera.curve.radius * h * TUNING.camera.zoom) / iso.zoom;
     u.set(t.x, t.y, t.z, R);
     curveFrame.lean = TUNING.camera.curve.lean;
-    // farther ground curves into view at the top: the sun's shadow box reaches for it (next frame's)
+    // Extend the next frame's shadow bounds to include ground exposed by curvature.
     this.iso.shadowTop = curveTop(iso.camera.top, ISO_ELEVATION) + 2;
-    // the street's sphere outlined on screen: a circle of its radius, its centre R + t.y under the focus (uv)
+    // Project the street sphere into screen UV coordinates for the sky horizon.
     const cy = 0.5 - ((R + t.y) * Math.cos(ISO_ELEVATION)) / h;
     su.horizon.value.set(R / h, cy, (2 * iso.camera.right) / h, 1);
     su.planet.value.set(t.x, -R, t.z, R);
     su.toCam.value.copy(iso.viewDir);
     su.hazeFrom.value = TUNING.camera.curve.haze;
-    // the risen moon clears the horizon, as far as the screen's top allows
+    // Raise the moon above the curved horizon within the available screen height.
     const mp = su.moonPos.value;
     const hx = (MOON_X - 0.5) * su.horizon.value.z;
     const foot = cy + Math.sqrt(Math.max(su.horizon.value.x ** 2 - hx * hx, 0));
@@ -207,7 +204,7 @@ export class GameRenderer {
     su.focus.value.copy(this.iso.target);
     this.iso.screenUp(this.tmpUp);
     su.upDir.value.set(this.tmpUp.x, this.tmpUp.z);
-    // ground at screen offset s (world units) lies s / sin(ISO_ELEVATION) away
+    // Convert screen-space height to ground distance using the isometric camera elevation.
     const k = this.iso.viewHeight / Math.sin(ISO_ELEVATION);
     const band = su.bandStart.value - 0.5;
     su.fade0.value = k * (band - 0.13);

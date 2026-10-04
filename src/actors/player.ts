@@ -28,13 +28,12 @@ export interface MoveFrame {
   screenRight(out: Vector3): Vector3;
 }
 
-/** A close camera fades Cody out: fully there with it past `far` (m from his body), down to `min` opacity at `near`. */
+/** Camera distance thresholds in meters and minimum opacity used to fade Cody when the camera approaches. */
 const FADE = { near: 0.4, far: 1.6, min: 0.15 };
 
 /**
- * Faded, Cody is drawn by the ghost pass (GHOST_LAYER) over the finished image. His depth twins lay down his nearest
- * surface first (no color, pushed back a hair so that surface still passes), so only it shows; his shadow twins stay in
- * the main scene to keep casting his shadow.
+ * Faded meshes render on GHOST_LAYER. Depth copies suppress rear surfaces, with polygon offset allowing the visible
+ * front surface to pass. Separate shadow copies remain in the main scene so fading preserves cast shadows.
  */
 const DEPTH_TWIN = withCurve(
   new MeshBasicMaterial({
@@ -48,7 +47,7 @@ const DEPTH_TWIN = withCurve(
 const SHADOW_TWIN = new MeshBasicMaterial({ colorWrite: false, depthWrite: false });
 SHADOW_TWIN.userData.noInk = true;
 
-/** Cody on foot. Screen-relative movement, ledge stepping, a small hop, two outfits. */
+/** Control Cody’s screen-relative walking, jumping, model form, and camera-proximity fading. */
 export class Player {
   readonly root = new Group();
   readonly pos = new Vector3();
@@ -58,7 +57,7 @@ export class Player {
   form: CodyForm = 'day';
   private readonly up = new Vector3();
   private readonly right = new Vector3();
-  /** Every material he's drawn with, as it was before any fade. `hull` is the inverted-hull ink shell. */
+  /** Original material settings restored after fading. `hull` identifies the inverted-hull ink outline. */
   private readonly looks: {
     mat: Material;
     opacity: number;
@@ -67,9 +66,9 @@ export class Player {
     side: Side;
     hull: boolean;
   }[] = [];
-  /** His meshes and their layers; while faded they move to the ghost layer. */
+  /** Original mesh layers, restored after temporary rendering on the ghost layer. */
   private readonly meshes: { mesh: Mesh; layers: number }[] = [];
-  /** Depth-only and shadow-only copies of each mesh, shown while he's faded. */
+  /** Depth and shadow copies enabled while the visible model is faded. */
   private readonly twins: Mesh[] = [];
   private fade = 1;
   private shownFade = 1;
@@ -111,7 +110,7 @@ export class Player {
       }
 
       for (const shadow of [false, true]) {
-        // a child with no transform of its own, so it moves (and skins) exactly like the mesh
+        // Identity child transforms and shared skinning keep copies aligned with the source mesh.
         const mat = shadow ? SHADOW_TWIN : DEPTH_TWIN;
         let twin: Mesh;
         if ((mesh as SkinnedMesh).isSkinnedMesh) {
@@ -137,16 +136,15 @@ export class Player {
     }
   }
 
-  /** See-through right now: the renderer's ghost pass needs to run. */
+  /** Whether the current model opacity requires the renderer’s ghost pass. */
   get faded(): boolean {
     return this.shownFade < 1;
   }
 
   /**
-   * See-through while a camera at `eye` is right on top of him (the chase boom pulled in by a wall), so he doesn't fill
-   * the view; null fades him back in. Faded, only his nearest surface shows (the back of the hoodie, not his face
-   * through it), with no ink outline, drawn over the sky by the ghost pass (so the renderer has to run it while
-   * `faded`).
+   * Ease Cody’s opacity according to camera distance from his body; null restores full opacity. While faded, move
+   * visible meshes to the ghost pass, hide ink outlines, and enable depth and shadow copies. The renderer must run the
+   * ghost pass whenever `faded` is true.
    */
   seenFrom(eye: Vector3 | null, dt: number): void {
     let want = 1;
@@ -186,9 +184,9 @@ export class Player {
       }
 
       m.opacity = l.opacity * this.fade;
-      // the depth twins have already laid down his front surface
+      // Depth copies provide front-surface occlusion while faded.
       m.depthWrite = l.depthWrite && !see;
-      // blending and culling change the shader (OPAQUE, DOUBLE_SIDED), so only then does it need a rebuild
+      // Recompile only when blending or sidedness changes shader defines.
       const transparent = l.transparent || see;
       const side = see ? FrontSide : l.side;
       if (m.transparent !== transparent || m.side !== side) {
@@ -213,7 +211,7 @@ export class Player {
     this.model.setForm(f);
   }
 
-  /** Riding: sit astride `saddle` (a bike's, so he leans and tumbles with it), shown. */
+  /** Attach Cody to the saddle, reset his local transform, and show the riding pose. */
   mount(saddle: Object3D): void {
     saddle.add(this.root);
     this.root.position.set(0, 0, 0);
@@ -223,7 +221,7 @@ export class Player {
     this.visible = true;
   }
 
-  /** Off the bike, back into `world` (place() him next). */
+  /** Reattach Cody to the world and exit the riding pose. The caller must then place him. */
   dismount(world: Object3D): void {
     if (this.root.parent === world) {
       return;
@@ -233,7 +231,7 @@ export class Player {
     this.model.seat(false);
   }
 
-  /** While mounted: keep the riding pose moving. */
+  /** Advance the mounted character animation. */
   ride(dt: number): void {
     this.model.animate(dt, 0, true);
   }

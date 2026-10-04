@@ -16,21 +16,18 @@ import type { NavGrid, NavJob, NavPlanner, RouteLeg } from '@/world/nav-grid';
 
 import type { Fleet } from './fleet';
 
-/**
- * A frightened driver looks this far ahead (m): they see phantom Cody within panicReach, so anywhere within a berth of
- * him is within this of them.
- */
+/** Threat route look-ahead in meters, covering the perception radius plus avoidance distance. */
 export const LOOK = TUNING.traffic.panicReach + TUNING.traffic.berth;
-/** A route round phantom Cody keeps this much further off him than a frightened driver's berth (m). */
+/** Additional route clearance around a threat, in meters. */
 const AVOID_MARGIN = 1;
 /** Braking: throttle per m/s of speed, so full brakes above 1/BRAKE_GAIN m/s. */
 const BRAKE_GAIN = 0.5;
-/** Other spots' cars block their spot shrunk by this much (m), so a neighbour's edge stays drivable. */
+/** Inset for occupied spot obstacles, in meters, to preserve space beside adjacent bays. */
 const SPOT_INSET = 0.3;
-/** Parked cars outside a spot close the ground out to their body plus this (m), unless a drive says otherwise. */
+/** Default padding around parked cars outside registered spots, in meters. */
 const CAR_PAD = 0.6;
 
-/** What driving actions need from the game. The game provides it; the actions never reach past it. */
+/** World queries and operations available to AI driving actions. */
 export interface DriveWorld {
   readonly claims: Claims<ClaimKind>;
   readonly planner: NavPlanner;
@@ -39,34 +36,31 @@ export interface DriveWorld {
   readonly fleet: Fleet;
   /** Exit-lane blocks, so routes from outside badge in through the entry gate. */
   readonly entryOnly: readonly ZoneDef[];
-  /** People and cars (their body circles) to keep clear of this frame. */
+  /** Current pedestrian and vehicle-circle obstacles. */
   obstacles(): readonly Obstacle[];
-  /** Points along a car's lane ahead of where it is, `step` meters apart, up to `meters` on. */
+  /** Sample the lane ahead at `step` meter intervals through `meters`. */
   roadAhead(car: Vehicle, meters: number, step?: number): readonly Vector3[];
-  /** Whether `car` is out on its lane, outside the deck. */
+  /** Test whether the car is on its traffic lane outside the deck. */
   onRoad(car: Vehicle): boolean;
-  /** `car` goes back to being traffic on its lane, frightened by `from`. */
+  /** Return the car to traffic and apply fright from `from`. */
   rejoin(car: Vehicle, from: Vector3): void;
-  /**
-   * Drives `car` one step with `input`, bumping whatever cars it meets and logging any gate it crosses. True if it
-   * badged in.
-   */
+  /** Advance vehicle physics, resolve contacts, and track gate crossings. Return true for a logged entry. */
   steer(car: Vehicle, input: DriveInput, dt: number): boolean;
-  /** Puts `car` exactly here, for easing into a spot. */
+  /** Place the car at an exact pose, including during parking interpolation. */
   place(car: Vehicle, at: Vector3, yaw: number, dt: number): void;
-  /** Whether `car` is still in play: not towed, crushed or gone. */
+  /** Test whether the car remains available for driving. */
   alive(car: Vehicle): boolean;
-  /** The driver gets out of `car` now and runs from `from`. */
+  /** Spawn the driver fleeing from `from`. */
   bail(car: Vehicle, from: Vector3): void;
-  /** `car` crashed on the way: its driver gets out and runs from `from` once it comes to rest. */
+  /** Arrange for the driver to flee after the crashing car settles. */
   wrecked(car: Vehicle, from: Vector3): void;
-  /** A frightened driver parked `car` in deck `spot`. */
+  /** Notify the game that a diverted car reached its deck spot. */
   parked(car: Vehicle, spot: SpotRuntime): void;
 }
 
 export type DriveAction = Action<DriveWorld, DriveWorld>;
 
-/** Somewhere a car parks: a deck spot or a lot stall. It ends up at `center`, lined up with `yaw` either way round. */
+/** Parking destination and alignment. Either yaw orientation is acceptable. */
 export interface Berth {
   readonly center: Vector3;
   readonly yaw: number;
@@ -78,42 +72,41 @@ export function spotBerth(s: SpotRuntime): Berth {
 
 export interface DriveToParams {
   readonly car: Vehicle;
-  /** Where to, and facing which way. */
+  /** Destination position and yaw in radians. */
   readonly to: Vector3;
   readonly yaw: number;
-  /** Either way round will do (somewhere to park), or only facing `yaw` (a lane). */
+  /** Allow the destination yaw or its opposite; otherwise require the exact heading. */
   readonly eitherWay?: boolean;
-  /** Ground the route may cross though blocks cover it: the spot or stall it's parking in, or the one it's leaving. */
+  /** Region the route may cross despite obstacle blocks, such as the destination or departure stall. */
   readonly allow?: ZoneDef;
-  /** Into the deck: from outside it, the route keeps out of the exit lanes, to badge in at the entry gate. */
+  /** Block exit lanes when approaching the deck from outside to require entry through the badge gate. */
   readonly badgeIn?: boolean;
-  /** Ground the route keeps out of, besides parked cars (the deck, for a lot). */
+  /** Additional regions excluded from route planning. */
   readonly keepOut?: readonly ZoneDef[];
-  /** Parked cars outside a spot close the ground out to their body plus this (m). */
+  /** Obstacle padding for parked cars outside registered spots, in meters. */
   readonly pad?: number;
-  /** The road on to where it turns off, driven while the rest is planned from its end. */
+  /** Initial road segment to drive while planning onward from its endpoint. */
   readonly via?: Polyline;
-  /** Somewhere to keep well clear of: phantom Cody. */
+  /** Threat position to exclude from the planned route. */
   readonly avoid?: Vector3;
-  /** A route already planned from where the car is, to drive straight away. */
+  /** Preplanned legs to follow without an initial planning request. */
   readonly legs?: readonly [RouteLeg, ...RouteLeg[]];
-  /** Longest wait for a route (s) before giving up. */
+  /** Route-planning timeout in seconds; omitted means no timeout. */
   readonly wait?: number;
 }
 
 /**
- * Drives a car somewhere on the shared planner and autopilot. Given `via`, the road on to where it turns off, it drives
- * that while the rest is planned from its end; otherwise it brakes while the route is planned. It plans once more if it
- * wedges, and fails if there's no route in time or it wedges twice.
+ * Follow supplied or planned route legs using the shared autopilot. Drive the initial `via` segment while planning, or
+ * brake when none is supplied. Replan once after getting stuck; fail on a second blockage or unavailable route.
  */
 export class DriveTo extends Action<DriveWorld, DriveWorld> {
   private job: NavJob | null = null;
   private pilot: Autopilot | null = null;
-  /** Where on the pilot's first leg the car turns off the road: the way on starts there. */
+  /** Turn-off arc length on the initial leg, used to sample only the onward route. */
   private turnOff: { cursor: RouteCursor; s: number } | null = null;
   private replanned = false;
   private t = 0;
-  /** It badged in at the deck's entry gate on the way. */
+  /** Whether a logged deck entry occurred during this drive. */
   badged = false;
 
   constructor(readonly p: DriveToParams) {
@@ -135,7 +128,7 @@ export class DriveTo extends Action<DriveWorld, DriveWorld> {
           return fail('NO ROUTE');
         }
 
-        // Planning: drive on along the road to the turn-off, or brake where it stands.
+        // Continue the initial segment while planning, or brake without a route.
         this.steer(w, this.pilot ? this.pilot.update(dt, car, w.obstacles()) : brakes(car), dt);
         return running;
       }
@@ -174,15 +167,15 @@ export class DriveTo extends Action<DriveWorld, DriveWorld> {
       return fail('WEDGED');
     }
 
-    // One fresh route from wherever it wedged itself.
+    // Allow one replan from the blocked position.
     this.replanned = true;
     this.pilot = null;
     return running;
   }
 
   /**
-   * Points along the way on ahead of the car, from the turn-off on if it hasn't got there, `step` apart, up to `meters`
-   * on. None while it's planned.
+   * Sample points ahead on the current leg, starting beyond the turn-off if necessary. Distances use meters. Return no
+   * samples while planning.
    */
   ahead(meters: number, step = 2): Vector3[] {
     const { pilot, turnOff } = this;
@@ -200,12 +193,12 @@ export class DriveTo extends Action<DriveWorld, DriveWorld> {
     return out;
   }
 
-  /** Whether the way on passes closer to phantom Cody at `at` than a frightened driver's berth. */
+  /** Test whether the upcoming route passes within the threat’s avoidance distance. */
   inTheWay(at: Vector3): boolean {
     return roadLeadsToward(this.p.car.pos, this.ahead(LOOK), at, TUNING.traffic.berth);
   }
 
-  /** The same drive from here, routed round phantom Cody at `at`. */
+  /** Create a replacement drive around this threat, preserving the logged-entry flag. */
   around(at: Vector3): DriveTo {
     const next = new DriveTo({ ...this.p, via: undefined, legs: undefined, avoid: at.clone() });
     next.badged = this.badged;
@@ -223,7 +216,7 @@ export class DriveTo extends Action<DriveWorld, DriveWorld> {
     }
   }
 
-  /** Sets off on the route it was given, or asks for one and, with a road to drive on first, sets off along that. */
+  /** Use supplied legs on the first attempt; otherwise plan from the car or the initial segment’s endpoint. */
   private start(w: DriveWorld): void {
     this.t = 0;
     this.turnOff = null;
@@ -246,10 +239,7 @@ export class DriveTo extends Action<DriveWorld, DriveWorld> {
     );
   }
 
-  /**
-   * The rest of the road to the turn-off, run on into the planned way on, and how far along the first leg the turn-off
-   * is.
-   */
+  /** Join the remaining initial segment to the planned legs and return its turn-off distance. */
   private joined(
     pilot: Autopilot,
     first: RouteLeg,
@@ -263,8 +253,8 @@ export class DriveTo extends Action<DriveWorld, DriveWorld> {
   }
 
   /**
-   * Asks for a route from where the car is (or from the end of `lead`), round cars in spots, cars left standing outside
-   * them, and whatever it's to keep out of or avoid.
+   * Request a route around occupied spots, other parked vehicles, excluded regions, and any threat. With `lead`, plan
+   * from its endpoint and heading.
    */
   private plan(w: DriveWorld, lead: Polyline | undefined): NavJob {
     const {
@@ -320,8 +310,8 @@ export class DriveTo extends Action<DriveWorld, DriveWorld> {
 }
 
 /**
- * Eases a car into a berth, facing whichever way it points that's nearer the car's heading, and brings it to rest
- * there. Its driver's still in it.
+ * Interpolate the car into its berth using the nearer of the two valid headings, then halt it. This action does not
+ * remove the driver.
  */
 export class Park extends Action<DriveWorld, DriveWorld> {
   private from: { pos: Vector3; yaw: number; toYaw: number } | null = null;
@@ -353,7 +343,7 @@ export class Park extends Action<DriveWorld, DriveWorld> {
   }
 }
 
-/** Sits in the parked car a while. */
+/** Wait for the requested number of seconds. */
 export class Rest extends Action<DriveWorld, DriveWorld> {
   private t = 0;
 
@@ -366,7 +356,7 @@ export class Rest extends Action<DriveWorld, DriveWorld> {
   }
 }
 
-/** The driver gets out and runs from where the fright came from. */
+/** Request that the driver leave the car and flee from the supplied position. */
 export class Bail extends Action<DriveWorld, DriveWorld> {
   constructor(readonly p: { car: Vehicle; from: Vector3 }) {
     super();
@@ -379,7 +369,7 @@ export class Bail extends Action<DriveWorld, DriveWorld> {
   }
 }
 
-/** A car driving itself goes back to being traffic on its lane, and away from `from`. */
+/** Return the car to traffic with the supplied threat position. */
 export class Rejoin extends Action<DriveWorld, DriveWorld> {
   constructor(readonly p: { car: Vehicle; from: Vector3 }) {
     super();
@@ -393,18 +383,17 @@ export class Rejoin extends Action<DriveWorld, DriveWorld> {
 }
 
 /**
- * A job an AI driver does at the wheel of one car: drive somewhere, park, sit a while. It holds the driver's seat while
- * it runs, so whoever takes the car (Cody, say) ends it, and the car carries `role` meanwhile: anything else changing
- * that (a knock) ends it too. Each frame the driver sees phantom Cody, sees() says where, and drive() gets it. A crash
- * ends it by default, the driver getting out once the car comes to rest.
+ * Own an AI driver seat and sequence driving actions. End when the car is unavailable, its role changes, or the seat
+ * claim is lost. Deliver sightings to subclasses; by default, a crash ends the job and schedules the driver’s escape
+ * after settling.
  */
 export abstract class DriverJob extends Action<DriveWorld, DriveWorld> {
   private readonly driver = { name: 'driver' };
   private seated = false;
   private sighting: Vector3 | null = null;
-  /** What it's doing now. */
+  /** Current child driving action. */
   protected stage: DriveAction | null = null;
-  /** Where the driver last saw phantom Cody, if they have. */
+  /** Last reported threat position, retained after the sighting is consumed. */
   protected scare: Vector3 | null = null;
 
   constructor(
@@ -414,7 +403,7 @@ export abstract class DriverJob extends Action<DriveWorld, DriveWorld> {
     super();
   }
 
-  /** The driver sees phantom Cody at `at` this frame. */
+  /** Store a sighting for the next driving update and remember its position. */
   sees(at: Vector3): void {
     this.sighting = at.clone();
     this.scare = at.clone();
@@ -436,7 +425,7 @@ export abstract class DriverJob extends Action<DriveWorld, DriveWorld> {
       car.role = this.role;
     }
 
-    // Someone else has the car now (Cody took it, a hit knocked it loose, it was towed): the game sees to the driver.
+    // Stop if another system has taken or removed the car.
     if (!w.alive(car) || car.role !== this.role) {
       return fail('lost');
     }
@@ -454,15 +443,15 @@ export abstract class DriverJob extends Action<DriveWorld, DriveWorld> {
     this.stage?.stop();
   }
 
-  /** Takes whatever the job holds besides the seat, or says why it can't. */
+  /** Acquire additional job reservations, returning a failure when unavailable. */
   protected book(_w: DriveWorld): Fail | null {
     return null;
   }
 
-  /** One frame of the job. `seen`: where the driver sees phantom Cody this frame, or null. */
+  /** Advance the job with its pending sighting, or null if none was reported. */
   protected abstract drive(w: DriveWorld, dt: number, seen: Vector3 | null): Result<DriveAction>;
 
-  /** The car's crashing. By default the job's over: left where it lies, the driver gets out once it stops. */
+  /** Abandon a crashing car and arrange for its driver to escape after it settles. */
   protected crashed(w: DriveWorld, _dt: number): Result<DriveAction> {
     const { car } = this;
     car.role = 'parked';
@@ -475,7 +464,7 @@ export abstract class DriverJob extends Action<DriveWorld, DriveWorld> {
     return fail('wrecked');
   }
 
-  /** Moves on to `stage`, stopping the last one. */
+  /** Stop the previous child action and attach its replacement to this job. */
   protected next<A extends DriveAction>(stage: A): A {
     this.stage?.stop();
     stage.parent = this;
@@ -483,10 +472,7 @@ export abstract class DriverJob extends Action<DriveWorld, DriveWorld> {
     return stage;
   }
 
-  /**
-   * The ordinary spook rule for a driver on their way somewhere: if the way on passes closer to phantom Cody at `at`
-   * than a berth, they find a way round him. True if they turned.
-   */
+  /** Replace an obstructed DriveTo route with one avoiding the threat. Return whether a replacement was created. */
   protected steerClear(at: Vector3): boolean {
     const { stage } = this;
     if (!(stage instanceof DriveTo) || !stage.inTheWay(at)) {
@@ -498,7 +484,7 @@ export abstract class DriverJob extends Action<DriveWorld, DriveWorld> {
   }
 }
 
-/** Brakes to a stop. */
+/** Return braking input proportional to speed and opposed to travel. */
 export function brakes(car: Vehicle): DriveInput {
   return {
     throttle: -Math.sign(car.speed) * Math.min(1, Math.abs(car.speed) * BRAKE_GAIN),
@@ -508,14 +494,14 @@ export function brakes(car: Vehicle): DriveInput {
   };
 }
 
-/** Stopped dead and at rest where it is. */
+/** Clear vehicle velocity and speed and record its resting pose. */
 export function halt(car: Vehicle): void {
   car.vel.set(0, 0, 0);
   car.speed = 0;
   car.markRest();
 }
 
-/** Left standing where it is, parked, with nobody in it. */
+/** Mark the car parked and halt it at its current position. */
 export function stand(car: Vehicle): void {
   car.role = 'parked';
   halt(car);

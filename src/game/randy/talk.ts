@@ -6,23 +6,22 @@ import { type Choice, Conversation } from '@/game/story/conversation';
 
 import { NPC_NAMES, type Npc, type Npcs } from './npcs';
 
-/** Cody on foot this close to Randy (m, on his level) can talk to him. */
+/** Horizontal conversation range in meters; NPC lookup also checks level separation. */
 const TALK_REACH = 3;
-/** The talk ends with Cody this far off (m), after this long (s), or this long after Randy's last line (s). */
+/** Maximum separation in meters, conversation timeout in seconds, and final-line duration in seconds. */
 const PACING = { breakAt: 4.5, timeout: 12, lineTime: 2.4 };
 
-/** What a talk with Randy needs from the game. */
+/** Inventory and trade operations available to Randy’s conversation. */
 export interface RandyTalkHooks {
-  /** How many tires Cody's carrying. */
+  /** Return Cody’s tire count. */
   tires(): number;
-  /** Cody gives Randy his tires (the same GIVE action as the item menu's). False if he couldn't. */
+  /** Perform the shared tire-giving action and report success. */
   give(to: Npc): boolean;
 }
 
 /**
- * Talking to Randy at his fire. He turns to Cody, roasting on, and if Cody's carrying tires, Cody can give them to him
- * there and then (he pays a brisket a tire, as ever). With none, he says his piece and that's that. Off while the
- * tutorial runs, which has its own scenes with him.
+ * Offer a tire trade while talking to Randy at his fire. Without tires, display a closing line. The tutorial disables
+ * this conversation while using its own scenes.
  */
 export class RandyTalk extends Conversation<Npc, 'give'> {
   /** Set false while the tutorial runs. */
@@ -36,10 +35,7 @@ export class RandyTalk extends Conversation<Npc, 'give'> {
     super(focus, PACING);
   }
 
-  /**
-   * Who Cody (on foot at `cody`) could talk to now: Randy at his fire, close by, free (no scene has him, and he's not
-   * busy feeding it).
-   */
+  /** Return a nearby Randy who has a fire, is roasting, and is not controlled by a scene. */
   talkable(cody: Vector3): Npc | null {
     if (!this.enabled || this.active) {
       return null;
@@ -49,7 +45,7 @@ export class RandyTalk extends Conversation<Npc, 'give'> {
     return n?.fire && !n.held && n.work.in('roasting') ? n : null;
   }
 
-  /** Cody talks to him: he turns to Cody, and offers to take the tires if Cody has any. */
+  /** Hold Randy for the conversation and offer a trade when Cody has tires. */
   start(n: Npc): void {
     n.send({ type: 'held', face: null });
 
@@ -58,7 +54,6 @@ export class RandyTalk extends Conversation<Npc, 'give'> {
       return;
     }
 
-    // nothing to trade: he says his piece and that's that
     this.open(n, '');
     this.lastLine('WARM YOURSELF, KID. BRING ME WHEELS SOMETIME.');
   }
@@ -80,7 +75,7 @@ export class RandyTalk extends Conversation<Npc, 'give'> {
     this.lastLine(this.hooks.give(n) ? 'OHHH. NICE WHEELS.' : "HOLD ON, FIRE'S BUSY.");
   }
 
-  /** Done talking: back to his fire and his pitch. */
+  /** Release Randy to resume his ordinary pitch behavior. */
   protected ended(n: Npc): void {
     n.send({ type: 'released' });
   }

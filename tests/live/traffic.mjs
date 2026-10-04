@@ -1,6 +1,6 @@
 // Traffic on the city loops. Each case runs in the page (see tools/scenarios.mjs).
 
-/** A car stopped in a lane holds traffic up; the driver behind honks and pulls round it. */
+/** Verify that queued traffic honks and completes a detour around a stopped car. */
 export function pullsRoundBlockedLane() {
   const g = window.__game;
   const sim = window.__sim;
@@ -32,7 +32,7 @@ export function pullsRoundBlockedLane() {
   };
 }
 
-/** Cody takes a car while its driver is pulling round: the pull-round's over, and the seat is his. */
+/** Verify that boarding a detouring car cancels the detour and gives Cody the seat. */
 export function codyTakesAPullRound() {
   const g = window.__game;
   const sim = window.__sim;

@@ -1,11 +1,10 @@
 import { keyName } from '@/game/controls';
-// Dev only: tools/vite-reload-prompt.ts injects this so the toast works even if the game
-// fails to boot. Shows pending code changes and reloads on click or reloadIfPending(),
-// instead of Vite reloading on every save.
+// The development plugin injects this independently of game startup, so reload prompts
+// still work after a boot failure. Code updates wait for the player to reload.
 
 const files = new Set<string>();
 
-/** Reload if a code change is waiting. Call from the game's key mapping; no-op in builds. */
+/** Reload when development changes are pending. The game calls this from its reload shortcut. */
 export function reloadIfPending(): void {
   if (files.size) {
     location.reload();

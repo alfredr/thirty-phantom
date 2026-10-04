@@ -21,16 +21,14 @@ import { restTilt } from './props';
 export { DECOR_KINDS, type DecorKind } from './level-kinds';
 
 /**
- * Landscaping and street furniture models, base at the origin, facing +z. Every piece is baked into one mesh per
- * material (world/build-decor.ts). Collision is the generator's job: it writes `DECOR[kind].solids` beside each piece
- * as plain solid boxes, except for pieces vehicles break (`hit`: benches, street trees, hedges, bus shelters), which
- * are props with their own solids.
+ * Decor models use a base at the origin and face +Z. build-decor.ts batches their render geometry by material.
+ * Generators append static collision from DECOR.solids; breakable decor receives runtime collision and prop state
+ * instead.
  */
 
 /**
- * Painted stone (the fountain), garden timber (gazebo, benches), the gazebo's roof, and the fountain's water, lit from
- * below at night. The matt ones share the leaves' roughness, so static decor bakes them all into one mesh, colored per
- * vertex.
+ * Stone, timber, and roofing share foliage roughness so they can batch with vertex colors. Fountain water uses a
+ * separate reflective, emissive material.
  */
 const STONE: MatSpec = { color: '#6e677f', roughness: 0.9 };
 const TIMBER: MatSpec = { color: '#5c3d4c', roughness: 0.9 };
@@ -42,7 +40,7 @@ const WATER: MatSpec = {
   roughness: 0.1,
   metalness: 0.3,
 };
-/** A bus shelter's panes: lighter than window glass, so they read as glass and not a wall. */
+/** Reflective bus-shelter panes use a lighter tint than building glass for visibility. */
 const PANE: MatSpec = { color: '#4a3d6e', roughness: 0.15, metalness: 0.5 };
 
 /** A box part from its min and max corners. */
@@ -63,7 +61,7 @@ const column = <M extends string>(r: number, y0: number, h: number, seg: number,
 export const TREE = {
   /** Trunk: radius at the foot and under the crown, its height, sides. */
   trunk: { r0: 0.2, r1: 0.13, h: 3.3, seg: 7 },
-  /** Crown blobs (x, y, z of the middle, radius), the big one first: about 3.4 m across, topping out near 5.9 m. */
+  /** Crown spheres as (centre X, centre Y, centre Z, radius), largest first. Dimensions are in meters. */
   crown: [
     [0, 4.0, 0, 1.35],
     [0.85, 3.6, 0.3, 0.85],
@@ -97,7 +95,7 @@ export const PINE = {
   seg: 8,
 };
 
-/** A conifer: three stacked cones on a stub of trunk. */
+/** Build a conifer from a tapered trunk and stacked foliage cones. */
 export function pine(p = PINE): Model<'bark' | 'needles'> {
   const t = p.trunk;
   return model({ bark: BARK, needles: NEEDLES }, [
@@ -135,7 +133,7 @@ export const BUSH = {
   seg: [6, 4] as [number, number],
 };
 
-/** A shrub: a few blobs of leaves. Too small to stop anything. */
+/** Build a shrub from overlapping foliage spheres. Collision is defined separately in DECOR. */
 export function bush(p = BUSH): Model<'leaf'> {
   return model(
     { leaf: FOLIAGE },
@@ -180,7 +178,7 @@ export const FLOWERS = {
   twist: 0.4,
 };
 
-/** A clump of flowers whose heads glow (`petals`): a mound of leaves dotted with little diamonds of color. */
+/** Build a foliage mound with rotated box-shaped flower heads using the supplied petal material. */
 export function flowers(petals: MatSpec, p = FLOWERS): Model<'leaf' | 'petal'> {
   const head = (x: number, y: number, z: number): Part<'petal'> =>
     solid(box(p.head, p.head, p.head).at(x, y, z), 'petal', { rot: [Math.PI / 4, Math.PI / 4, 0], ...NO_CAST });
@@ -203,10 +201,7 @@ export const FOUNTAIN = {
   stem: { r: 0.18, h: 0.6 },
   top: { foot: 0.22, r: 0.55, h: 0.25 },
   jet: { r: 0.07, h: 0.5 },
-  /**
-   * Water sheets: thickness, how far above the stone they fill they lie (the drum's and bowls' tops, so they never
-   * share a plane with it), and the stone brim left showing round them in the bowl and in the top tier.
-   */
+  /** Water-disc thickness, vertical offset above stone to prevent z-fighting, and exposed brim widths for the two bowls. */
   sheet: { t: 0.03, lift: 0.02, brim: [0.1, 0.06] as [number, number] },
   /**
    * Sides round the basin and bowls (columns get half), round the lip's tube and the jet; the jet's head is this many
@@ -228,12 +223,12 @@ export function fountain(p = FOUNTAIN): Model<'stone' | 'water'> {
   const stemY = bowlY + p.bowl.h;
   const topY = stemY + p.stem.h;
   const { t, lift, brim } = p.sheet;
-  // water casts no shadow (the stone round it does)
+  // Let the stone supply shadows; omit shadow casting for water surfaces.
   const disc = (r: number, y: number): Part<'water'> => ({ ...column(r, y + lift, t, p.seg, 'water'), ...NO_CAST });
   const jetTop = topY + p.top.h + p.jet.h;
   return model({ stone: STONE, water: WATER }, [
     column(b.r, 0, b.h, p.seg, 'stone'),
-    // the lip rides just above the water, round its edge
+    // Raise the lip above the water surface to prevent overlap.
     torus(b.r - b.lip, b.lip, p.lipSeg, p.seg * 2, 'stone', { at: [0, b.water + lift, 0], rot: [Math.PI / 2, 0, 0] }),
     disc(b.r - b.lip, b.h),
     column(p.column.r, b.h, p.column.h, p.seg / 2, 'stone'),
@@ -247,7 +242,7 @@ export function fountain(p = FOUNTAIN): Model<'stone' | 'water'> {
   ]);
 }
 
-/** Overall height of the fountain, and the radius its collision must cover. */
+/** Height from the fountain base to the jet endpoint, excluding its spherical cap. */
 export const fountainHeight = (p = FOUNTAIN): number =>
   p.basin.h + p.column.h + p.bowl.h + p.stem.h + p.top.h + p.jet.h;
 
@@ -343,7 +338,7 @@ export function shelter(p = SHELTER): Model<'iron' | 'glass' | 'timber' | 'ad'> 
     [-hw, hd],
     [hw, hd],
   ];
-  // the ad glows like the purple petals and bakes with them (soft ink, no shadow)
+  // Share the purple-petal material settings so emissive ad surfaces can batch with flowers.
   return model({ iron: METAL, glass: PANE, timber: TIMBER, ad: { ...PETALS.purple, softInk: true } }, [
     ...posts.map(([x, z]) => slab([x - p.post / 2, 0, z - p.post / 2], [x + p.post / 2, p.h, z + p.post / 2], 'iron')),
     slab([-hw - p.roof.over, p.h, -hd - p.roof.over], [hw + p.roof.over, p.h + p.roof.t, hd + p.roof.over], 'iron'),
@@ -418,10 +413,7 @@ export function bench(p = BENCH): Model<'iron' | 'timber'> {
 /** A box in a piece's own frame (before its yaw and scale): min and max corners. */
 export type LocalBox = [V3, V3];
 
-/**
- * A piece's box (in its own frame) turned by `yaw`, sized by `s` and stretched along its own x, around `pos`: its
- * bounding box in the world.
- */
+/** Return world-axis-aligned bounds after applying uniform scale, local-X stretch, yaw, and translation to a local box. */
 export function worldBox(b: LocalBox, pos: V3, yaw: number, s: number, stretch: number): LocalBox {
   const [lo, hi] = b;
   const c = Math.cos(yaw);
@@ -434,7 +426,7 @@ export function worldBox(b: LocalBox, pos: V3, yaw: number, s: number, stretch: 
     for (const lz of [lo[2], hi[2]]) {
       const x = lx * s * stretch;
       const z = lz * s;
-      // three's rotation about +Y: x' = x cos + z sin, z' = z cos - x sin
+      // Match Three.js rotation about +Y: x' = x cos + z sin, z' = z cos - x sin.
       const wx = x * c + z * n;
       const wz = z * c - x * n;
       x0 = Math.min(x0, wx);
@@ -451,18 +443,16 @@ export function worldBox(b: LocalBox, pos: V3, yaw: number, s: number, stretch: 
 }
 
 /**
- * What vehicles do to a piece (world/props.ts): it topples and lies loose to be shoved about, or shatters and is gone;
- * either way it's back at sunrise. It breaks for `any` vehicle at TUNING.knockdown.speed, or only for the monster
- * `truck` at its smash speed (to the rest it's a wall). Its solids are its DECOR[kind].solids, made at build time and
- * flagged to break, not level boxes.
+ * Break behavior for decor props: topple or shatter, then remain displaced until repair. `by` selects ordinary
+ * knockdown or truck-only smash eligibility. build-decor.ts creates breakable collision from DECOR.solids.
  */
 export type DecorHit = {
   by: 'any' | 'truck';
-  /** Pieces sized past this stay put whoever hits them (the big park trees). */
+  /** Scales above this limit use static, unbreakable collision. */
   maxScale?: number;
-  /** What it breaks into: colors the debris is split between. */
+  /** Debris colors supplied to the game's break effect. */
   debris: readonly string[];
-  /** Share of its speed a vehicle keeps going through one (unset: the game's default for the vehicle). */
+  /** Fraction of vehicle speed retained after impact; undefined uses the vehicle default. */
   keep?: number;
 } & (
   | { as: 'shatter' }
@@ -472,30 +462,21 @@ export type DecorHit = {
 
 export interface DecorSpec {
   model: () => Model<string>;
-  /**
-   * The room it takes, in its own frame: what the generator keeps everything else out of (a tree's trunk low down, its
-   * crown up high).
-   */
+  /** Local-space reservation boxes used by the generator to keep other decor clear, including elevated foliage. */
   space: LocalBox[];
-  /**
-   * Its solid boxes (trunks, the fountain's basin, posts), in its own frame: the generator writes them beside a static
-   * piece; a piece vehicles break gets them at build time instead (see `hit`).
-   */
+  /** Local collision boxes. Generators append these for static decor; build-decor.ts creates them for breakable props. */
   solids: LocalBox[];
   /** Vehicles knock it over or smash it (hitOf()); otherwise it's static and its solids stop them. */
   hit?: DecorHit;
-  /** Round in plan (a tree, the fountain): its room and solids are the same however it's turned. */
+  /** Ignore yaw when transforming reservation and collision boxes for approximately round decor. */
   round?: boolean;
-  /**
-   * What hides things from the iso camera but stops nothing (a crown of leaves): sightline blockers, so the cut-away
-   * view opens its window when one is between the camera and Cody.
-   */
+  /** Local visual-occlusion boxes, such as foliage, used by cutaway probes without blocking movement. */
   sight?: LocalBox[];
 }
 
 /**
- * A roof's solid is this thick: past collision's THIN_SLAB, so it blocks a sightline and the cut-away view opens when
- * Cody is under it. Glass walls' solids are `wall` either side of the pane.
+ * Roof collision thickness exceeds THIN_SLAB so it blocks cutaway sightline probes. Glass-wall collision extends `wall`
+ * meters to either side of the pane.
  */
 const SOLID = { roof: 0.35, wall: 0.08 };
 
@@ -535,7 +516,7 @@ function gazeboSolids(p = GAZEBO): LocalBox[] {
       continue;
     }
 
-    // a rail runs from corner i-1 to corner i: two boxes along it, so a slanted one is covered in steps
+    // Approximate each diagonal rail with two axis-aligned collision boxes.
     const [ax, az] = corner(i - 1, n, p.r);
     for (const t of [0.25, 0.75]) {
       const cx = ax + (x - ax) * t;
@@ -558,8 +539,8 @@ function gazeboSolids(p = GAZEBO): LocalBox[] {
 }
 
 /**
- * Collision boxes for the fountain: a cross (its arms this share of the radius wide) over a square (this share of the
- * radius out) covers the round basin closely, and the column rises from it.
+ * Approximate the round fountain basin with two crossing rectangles and a central square. Values are fractions of basin
+ * radius; a separate box covers the central column.
  */
 const ROUND_BASIN = { arm: 0.4, square: 0.75 };
 
@@ -626,12 +607,9 @@ const around = (hx: number, y0: number, y1: number, hz = hx): LocalBox => [
 
 /** Room round a bench or shelter seat for sitting: legs stretched out in front of it. */
 const LEGROOM = 0.5;
-/**
- * Room is kept this much beyond a piece's own extent, so neighbours never quite touch; a trunk keeps `trunk` of bare
- * ground round it.
- */
+/** Reservation margin around decor, with a separate bare-ground margin around tree trunks. */
 const MARGIN = { piece: 0.1, trunk: 0.15 };
-/** A crown hides what's behind this share of its reach (its ragged rim doesn't count) for the cut-away view. */
+/** Fraction of crown radius treated as a visual occluder, excluding the irregular outer edge. */
 const SIGHT = 0.75;
 
 type Blob = readonly [number, number, number, number];
@@ -664,13 +642,12 @@ const CYPRESS_BODY = {
 const BUSH_REACH = reach(BUSH.blobs);
 const FLOWER_TOP = FLOWERS.y[1] + FLOWERS.head;
 
-/** What decor breaks into: a shade lighter than the surfaces it comes off, so the bits read against the ground. */
+/** Debris colors are lighter than source surfaces to remain visible against the ground. */
 const DEBRIS = { leaf: '#4f7a52', bark: '#5a4048', glass: '#b8b0dc', iron: '#5a5266', timber: '#7a5566' };
 
 /**
- * Every kind of decor: its model, the room it takes, its collision, and what vehicles do to it. Benches go over for
- * anything; the monster truck also fells street trees (not the big park ones), tramples hedges and wrecks bus shelters.
- * Conifers, the fountain and the gazebo stop it.
+ * Model, placement reservations, collision, and break behavior by decor kind. Benches topple for any vehicle. Trucks
+ * can topple street-sized broadleaf trees and shatter hedges and shelters; other solid decor remains static.
  */
 export const DECOR: Readonly<Record<DecorKind, DecorSpec>> = {
   tree: {
@@ -679,7 +656,7 @@ export const DECOR: Readonly<Record<DecorKind, DecorSpec>> = {
     solids: [around(TREE.trunk.r0, 0, TREE.trunk.h)],
     sight: [around(CROWN.out * SIGHT, CROWN.y0, CROWN.y1)],
     round: true,
-    // it comes to rest on the big blob of its crown
+    // Compute resting tilt from the largest crown sphere.
     hit: {
       as: 'topple',
       by: 'truck',
@@ -697,7 +674,7 @@ export const DECOR: Readonly<Record<DecorKind, DecorSpec>> = {
       around(PINE.trunk.r0 + MARGIN.trunk, 0, PINE_TIERS.y0),
       around(PINE_TIERS.out, PINE_TIERS.y0, PINE_TIERS.y1 + MARGIN.piece),
     ],
-    // solid up to the second tier: the lowest branches are too thin to stop anything
+    // Restrict collision to the trunk through the second foliage tier.
     solids: [around(PINE.trunk.r0 + MARGIN.trunk, 0, PINE.tiers[1][0])],
     sight: [around(PINE_TIERS.out * SIGHT, PINE_TIERS.y0, PINE_TIERS.y1)],
     round: true,
@@ -705,7 +682,7 @@ export const DECOR: Readonly<Record<DecorKind, DecorSpec>> = {
   cypress: {
     model: () => cypress(),
     space: [around(CYPRESS_BODY.out + MARGIN.piece, 0, CYPRESS_BODY.y1 + MARGIN.piece)],
-    // solid up to the column's middle, where it's widest
+    // End solid collision at the centre of the broad foliage body.
     solids: [around(CYPRESS_BODY.out * SIGHT, 0, CYPRESS.body.y)],
     sight: [around(CYPRESS_BODY.out * SIGHT, CYPRESS_BODY.y0, CYPRESS_BODY.y1)],
     round: true,
@@ -771,7 +748,7 @@ export const DECOR: Readonly<Record<DecorKind, DecorSpec>> = {
   },
 };
 
-/** What vehicles do to a piece of this kind and size, or null if nothing breaks it (its solids are plain level boxes). */
+/** Return the break specification for this kind and scale, or null when it has no break behavior or exceeds maxScale. */
 export function hitOf(kind: DecorKind, scale = 1): DecorHit | null {
   const h = DECOR[kind].hit;
   return h && scale <= (h.maxScale ?? Infinity) ? h : null;

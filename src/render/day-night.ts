@@ -14,7 +14,7 @@ interface Look {
   haze: string;
   hemiSky: string;
   hemiGround: string;
-  /** Sky fill: lights every surface, shadowed or not, so it sets how dark the shade gets. */
+  /** Hemisphere-light intensity, which controls brightness in shadowed areas. */
   hemi: number;
   sunColor: string;
   sun: number;
@@ -41,8 +41,7 @@ interface Look {
 type NumKey = { [K in keyof Look]: Look[K] extends number ? K : never }[keyof Look];
 type ColorKey = { [K in keyof Look]: Look[K] extends string ? K : never }[keyof Look];
 
-// Night is lit by fill and exposure more than by bloom: bloom lit the frame with haze, which
-// was tiring to look at, while the shade stayed close to black.
+// Use fill light and exposure to keep night scenes readable without excessive bloom.
 const NIGHT: Look = {
   skyTop: '#0a0318',
   skyHorizon: '#3e1766',
@@ -120,7 +119,7 @@ const DAY: Look = {
   signs: 0.35,
   slime: 0.5,
   bloom: 0.28,
-  // a little over 1: the tighter bloom no longer lifts the shaded deck walls with sunlit slime haze
+  // Raise exposure slightly to keep shaded deck walls visible with limited bloom.
   exposure: 1.1,
   stars: 0,
   clouds: 0.55,
@@ -139,7 +138,7 @@ const DUSK: Look = {
   haze: '#7a3f72',
   sunColor: '#ff9468',
   sun: 2.0,
-  // the low sun lights the ground at a graze, so dusk was the darkest hour of all without more fill
+  // Increase fill to compensate for the low sun angle.
   hemi: 2.0,
   exposure: 1.15,
   neon: 0.65,
@@ -219,7 +218,7 @@ export class DayNight {
     const dayT = invLerp(sunrise, nightfall, hours);
     const isDay = hours >= sunrise - 0.5 && hours < nightfall + 0.3;
     if (isDay) {
-      // sun arcs east -> west
+      // Move the daylight direction from east to west.
       const az = lerp(-1.9, 1.9, dayT);
       const el = 0.25 + Math.sin(dayT * Math.PI) * 0.75;
       this.sunDir.set(Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el) * 0.6 - 0.4).normalize();
@@ -252,7 +251,7 @@ export class DayNight {
     su.clouds.value = n('clouds');
     su.scroll.value = scroll;
 
-    // the moon rises at 7pm and sets at sunrise
+    // Animate the moon between the configured nightfall and sunrise times.
     const sinceDusk = hours >= nightfall ? hours - nightfall : hours + 24 - nightfall;
     const nightLen = 24 - nightfall + sunrise;
     const up = hours >= nightfall || hours < sunrise;
@@ -265,8 +264,8 @@ export class DayNight {
       ? smoothstep(sunrise - 0.4, sunrise + 0.5, hours) * (1 - smoothstep(nightfall - 0.6, nightfall, hours))
       : 0;
     su.sunPos.value.set(lerp(0.08, 0.92, dayT), 0.8 + Math.sin(dayT * Math.PI) * 0.13);
-    // chase sky: the sun disc sits where the light comes from; the moon rises in the moonlight's
-    // direction, as high above the horizon (in radians) as the iso moon sits above the sky band
+    // Align the chase-view sun with its light direction. Map the isometric moon's displacement to angular offsets
+    // from the moonlight direction.
     su.sunDirW.value.copy(this.sunDir);
     const moonAz = MOON_AZIMUTH + (mp.x - MOON_X);
     const moonEl = mp.y - su.bandStart.value;

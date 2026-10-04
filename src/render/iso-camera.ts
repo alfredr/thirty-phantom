@@ -5,14 +5,13 @@ import { clamp, damp, dampAngle } from '@/engine/core/math';
 
 import { Shake } from './shake';
 
-/** 35.264 deg: true isometric. */
+/** Camera elevation for an isometric projection, in radians (approximately 35.264 degrees). */
 export const ISO_ELEVATION = Math.atan(1 / Math.SQRT2);
 /** Each mouse-wheel step zooms by this factor (both camera rigs). */
 export const ZOOM_STEP = 1.12;
 /**
- * The sun's shadow box covers what the view shows from the ground (or the focus, if lower) up to this far above the
- * focus. Higher roofs near the bottom of the screen go without shadows; taking in the tallest towers' would stretch the
- * box far down the screen for the few that stand there.
+ * Maximum height above the focus included in the shadow bounds, in world units. Limiting this height preserves shadow
+ * resolution; taller roofs near the bottom of the view may fall outside the shadow map.
  */
 const SHADOW_RISE = 20;
 const _corner = new Vector3();
@@ -20,7 +19,7 @@ const _right = new Vector3();
 const _up = new Vector3();
 const _fwd = new Vector3();
 
-/** Share of the configured view a w x h (CSS px) screen shows, for both rigs: 1 on desktops, about 0.6 on a phone. */
+/** Return the view scale for a viewport measured in CSS pixels, capped at 1. Both camera rigs use this scale. */
 export function viewFit(w: number, h: number): number {
   const { shortSide, power } = TUNING.camera.fit;
   return Math.min(1, Math.pow(Math.min(w, h) / shortSide, power));
@@ -34,7 +33,7 @@ export class IsoCamera {
   readonly viewDir = new Vector3();
   azimuth = Math.PI / 4;
   azimuthTarget = Math.PI / 4;
-  /** World units across the screen's short side, before small screens zoom in (see viewHeight). */
+  /** World units across the viewport's shorter dimension before applying viewFit. */
   zoom: number = TUNING.camera.zoom;
   zoomTarget: number = TUNING.camera.zoom;
   private aspect = 1;
@@ -91,14 +90,14 @@ export class IsoCamera {
   }
 
   /**
-   * How far up the screen (world units from its centre, as the flat world would be drawn) the view reaches: its top, or
-   * more where world curvature brings farther ground into view.
+   * Additional upper extent for shadow fitting, measured from the screen centre in flat-world units. Curvature can
+   * expose ground beyond the camera's flat projection.
    */
   shadowTop = 0;
 
   /**
-   * What the sun's shadow box must cover: where the view's corner rays cross the lowest and highest heights it shows
-   * shadows at (SHADOW_RISE). Into `out` (8 points).
+   * Write eight shadow-bound corners into `out` and return it. Intersect the viewport corner rays with the lowest
+   * visible floor and the height limited by SHADOW_RISE.
    */
   shadowCorners(out: Vector3[]): Vector3[] {
     const cam = this.camera;

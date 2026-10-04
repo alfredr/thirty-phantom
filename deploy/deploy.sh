@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# Ship dist/ to thirty-phantom.com. Each deploy uploads into its own
-# releases/<utc timestamp> dir on the server (unchanged files are hardlinked
-# from the live release), then swaps the `current` symlink Caddy serves from.
-# The switch is atomic and the last few releases stay around for rollback.
+# Upload dist/ to a timestamped release directory on thirty-phantom.com.
+# Reuse unchanged files through hard links to the current release, then
+# atomically switch the `current` symlink served by Caddy. Keep recent
+# releases available for rollback.
 #
 #   deploy/deploy.sh                 upload dist/ and make it live
 #   deploy/deploy.sh releases        list releases, * marks the live one
 #   deploy/deploy.sh rollback [rel]  make rel live (default: the one before live)
 #
-# This ships dist/ as it is; `mise run deploy` and `npm run deploy` build first.
+# Uploads the existing dist/; `mise run deploy` and `npm run deploy` build first.
 set -euo pipefail
 
 domain=${DEPLOY_DOMAIN:-thirty-phantom.com}
