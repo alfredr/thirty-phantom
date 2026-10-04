@@ -3,7 +3,10 @@ import { test } from 'node:test';
 
 import { loadModules } from './modules.mjs';
 
-const [{ roadLeadsToward }, { turnOff }] = await loadModules('/src/actors/traffic.ts', '/src/game/driving/refuge.ts');
+const [{ roadLeadsToward }, { turnOff }] = await loadModules(
+  '/src/actors/vehicles/traffic.ts',
+  '/src/game/driving/refuge.ts',
+);
 
 const at = (x, z) => ({ x, y: 0, z });
 /** Create a 30 m road along +x with a sample every 2 m. */

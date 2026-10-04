@@ -1,7 +1,7 @@
 import { Color, type Scene, Vector3 } from 'three';
 
 import type { VehicleRig } from '@/actors/models/rig';
-import type { Vehicle, VehicleForm } from '@/actors/vehicle';
+import type { Vehicle, VehicleForm } from '@/actors/vehicles/vehicle';
 import { easeOutElastic } from '@/engine/core/math';
 import { PURPLE, SLIME, WHITE } from '@/fx/colors';
 import type { CubeParticles } from '@/fx/cube-particles';

@@ -5,23 +5,26 @@ import { Vector3 } from 'three';
 
 import { loadModules } from './modules.mjs';
 
-const [{ Shop }, { Wares }, { Inventory }] = await loadModules(
-  '/src/game/randy/shop.ts',
-  '/src/game/randy/wares.ts',
+const [{ Shop }, { Stock }, { Inventory }, { NPC_BREEDS }] = await loadModules(
+  '/src/game/items/shop.ts',
+  '/src/game/items/stock.ts',
   '/src/game/items/inventory.ts',
+  '/src/actors/npcs/breeds.ts',
 );
 
 function setup() {
   let pitch = 'pitching';
   const randy = {
     pos: new Vector3(),
+    breed: NPC_BREEDS.randy,
+    stock: new Stock(NPC_BREEDS.randy.shop.stock),
     fire: {},
     pitch: { in: (state) => pitch === state },
     send: ({ type }) => {
       pitch = type === 'browse' ? 'browsing' : 'resting';
     },
   };
-  const wares = new Wares();
+  const stock = randy.stock;
   const inventory = new Inventory();
   const money = {
     cash: 100,
@@ -35,21 +38,21 @@ function setup() {
     },
   };
   const deeds = [];
-  const shop = new Shop({ list: [randy] }, wares, inventory, money, (deed) => {
+  const shop = new Shop({ list: [randy] }, inventory, money, (deed) => {
     deeds.push({
       deed,
       cash: money.cash,
       inventory: inventory.count(deed.kind),
-      stock: wares.slotOf(deed.kind)?.count ?? 0,
+      stock: stock.slotOf(deed.kind)?.count ?? 0,
     });
   });
-  return { shop, wares, inventory, money, deeds, randy };
+  return { shop, stock, inventory, money, deeds, randy };
 }
 
 test('buying caps the count by cash and stock and reports the completed transfer', () => {
-  const { shop, wares, inventory, money, deeds } = setup();
-  const slot = wares.slotOf('brisket');
-  const price = wares.price('brisket');
+  const { shop, stock, inventory, money, deeds } = setup();
+  const slot = stock.slotOf('brisket');
+  const price = stock.price('brisket');
   money.cash = price * 2 + 1;
   shop.update(new Vector3(1, 0, 0));
   assert.deepEqual(shop.buy(slot.id, 128), { kind: 'brisket', n: 2, cost: price * 2 });
@@ -64,8 +67,8 @@ test('buying caps the count by cash and stock and reports the completed transfer
 });
 
 test('failed payment leaves stock, inventory and item deeds unchanged', () => {
-  const { shop, wares, inventory, money, deeds } = setup();
-  const slot = wares.slotOf('brisket');
+  const { shop, stock, inventory, money, deeds } = setup();
+  const slot = stock.slotOf('brisket');
   shop.update(new Vector3(1, 0, 0));
   money.spend = () => false;
   assert.equal(shop.buy(slot.id, 1), null);
@@ -75,11 +78,11 @@ test('failed payment leaves stock, inventory and item deeds unchanged', () => {
   assert.deepEqual(deeds, []);
 });
 
-test('displaying wares during a scene never opens the shop for purchases', () => {
-  const { shop, wares, inventory, deeds } = setup();
-  const slot = wares.slotOf('brisket');
+test('displaying stock during a scene never opens the shop for purchases', () => {
+  const { shop, stock, inventory, deeds, randy } = setup();
+  const slot = stock.slotOf('brisket');
   assert.equal(shop.view(), null);
-  assert.ok(shop.view(true).slots.every((s) => !s.can));
+  assert.ok(shop.view(randy).slots.every((s) => !s.can));
   assert.equal(shop.buy(slot.id, 1), null);
   shop.update(new Vector3(1, 0, 0));
   assert.equal(shop.open, true);
@@ -90,23 +93,23 @@ test('displaying wares during a scene never opens the shop for purchases', () =>
 });
 
 test('gifts and free purchases transfer finite counts without charging cash', () => {
-  const { shop, wares, inventory, money, deeds } = setup();
+  const { shop, stock, inventory, money, deeds, randy } = setup();
   money.cash = 0;
-  assert.deepEqual(shop.gift('brisket'), { kind: 'brisket', n: 1, cost: 0 });
-  assert.equal(wares.slotOf('brisket').count, 127);
-  const phone = wares.slotOf('burner');
+  assert.deepEqual(shop.gift(randy, 'brisket'), { kind: 'brisket', n: 1, cost: 0 });
+  assert.equal(stock.slotOf('brisket').count, 127);
+  const phone = stock.slotOf('burner');
   shop.update(new Vector3(1, 0, 0));
   assert.deepEqual(shop.buy(phone.id, 50), { kind: 'burner', n: 1, cost: 0 });
   assert.equal(phone.count, 0);
   assert.equal(inventory.count('burner'), 1);
-  assert.equal(shop.gift('burner'), null);
+  assert.equal(shop.gift(randy, 'burner'), null);
   assert.equal(money.cash, 0);
   assert.equal(deeds.length, 2);
 });
 
 test('invalid purchase requests and a scene taking Randy cannot move stock', () => {
-  const { shop, wares, inventory, randy, deeds } = setup();
-  const slot = wares.slotOf('brisket');
+  const { shop, stock, inventory, randy, deeds } = setup();
+  const slot = stock.slotOf('brisket');
   shop.update(new Vector3(1, 0, 0));
 
   for (const n of [0, -1, 0.5, NaN, Infinity]) {

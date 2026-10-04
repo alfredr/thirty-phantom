@@ -1,10 +1,9 @@
 import type { Vector3 } from 'three';
 
+import type { Npc, Npcs } from '@/actors/npcs/npcs';
 import type { Focus } from '@/engine/input/input';
 import type { Control } from '@/game/controls';
 import { type Choice, Conversation } from '@/game/story/conversation';
-
-import { NPC_NAMES, type Npc, type Npcs } from './npcs';
 
 /** Horizontal conversation range in meters; NPC lookup also checks level separation. */
 const TALK_REACH = 3;
@@ -42,7 +41,7 @@ export class RandyTalk extends Conversation<Npc, 'give'> {
     }
 
     const n = this.npcs.talkable(cody, TALK_REACH);
-    return n?.fire && !n.held && n.work.in('roasting') ? n : null;
+    return n?.fire && !n.held && n.work?.in('idle') ? n : null;
   }
 
   /** Hold Randy for the conversation and offer a trade when Cody has tires. */
@@ -63,7 +62,7 @@ export class RandyTalk extends Conversation<Npc, 'give'> {
   }
 
   protected name(n: Npc): string {
-    return NPC_NAMES[n.def.id];
+    return n.breed.name;
   }
 
   protected choices(): Choice<'give'>[] {

@@ -1,6 +1,6 @@
 import { Vector3 } from 'three';
 
-import type { Vehicle } from '@/actors/vehicle';
+import type { Vehicle } from '@/actors/vehicles/vehicle';
 import { TUNING } from '@/config';
 import { mind, type MindEvent, type State, type StateOf } from '@/engine/sim/mind';
 import type { SpotRuntime } from '@/game/deck/garage';

@@ -1,7 +1,7 @@
 import type { Vector3 } from 'three';
 
-import { roadLeadsToward } from '@/actors/traffic';
-import type { Vehicle } from '@/actors/vehicle';
+import { roadLeadsToward } from '@/actors/vehicles/traffic';
+import type { Vehicle } from '@/actors/vehicles/vehicle';
 import { TUNING } from '@/config';
 import { Polyline } from '@/engine/nav/polyline';
 import { done, type Fail, fail, instead, type Result, running } from '@/engine/sim/action';

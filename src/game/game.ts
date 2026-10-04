@@ -1,16 +1,17 @@
 import { Color, MeshBasicMaterial, MeshStandardMaterial, Scene, Vector3 } from 'three';
 
-import type { Obstacle } from '@/actors/autopilot';
 import { Avoidance, parkedBlocks, PERSON_RADIUS } from '@/actors/avoidance';
+import { type Npc, Npcs } from '@/actors/npcs/npcs';
 import { Player } from '@/actors/player';
-import { Traffic } from '@/actors/traffic';
-import { type DriveEvents, type DriveInput, Vehicle } from '@/actors/vehicle';
-import { type CarKind, VEHICLE_BREEDS } from '@/actors/vehicle-breeds';
+import type { Obstacle } from '@/actors/vehicles/autopilot';
+import { type CarKind, VEHICLE_BREEDS } from '@/actors/vehicles/breeds';
+import { Traffic } from '@/actors/vehicles/traffic';
+import { type DriveEvents, type DriveInput, Vehicle } from '@/actors/vehicles/vehicle';
 import type { AssetRegistry } from '@/assets/asset-registry';
 import { TUNING } from '@/config';
 import { reloadIfPending } from '@/dev/reload-prompt';
 import { Emitter } from '@/engine/core/events';
-import { clamp, smoothstep, type V3 } from '@/engine/core/math';
+import { clamp } from '@/engine/core/math';
 import { Rng } from '@/engine/core/rng';
 import { urlChoice, urlFlag, urlParam } from '@/engine/core/url-flags';
 import { Input } from '@/engine/input/input';
@@ -21,11 +22,13 @@ import { Bats } from '@/fx/bats';
 import { PURPLE, SLIME, WHITE } from '@/fx/colors';
 import { CubeParticles } from '@/fx/cube-particles';
 import { Exhaust } from '@/fx/exhaust';
+import { Fade } from '@/fx/fade';
 import { Ghosts } from '@/fx/ghosts';
 import { Honks } from '@/fx/honks';
 import { NavArrow } from '@/fx/nav-arrow';
 import { NavDebug } from '@/fx/nav-debug';
 import { SpriteFx } from '@/fx/sprite-fx';
+import { Shop } from '@/game/items/shop';
 import { ChaseCamera, type ChaseKind } from '@/render/chase-camera';
 import { Cutaway } from '@/render/cutaway';
 import { DayNight } from '@/render/day-night';
@@ -52,6 +55,7 @@ import { CameraController, type CamMode } from './camera-controller';
 import type { CodyAction, Play } from './cody/cody-actions';
 import { CodyRide, type RideEvents } from './cody/cody-ride';
 import { CodyState, FRIGHTENING } from './cody/cody-state';
+import { GhostFuel } from './cody/ghost-fuel';
 import { Interactions } from './cody/interactions';
 import { KEYS, STICK } from './controls';
 import { createGameDebug } from './debug';
@@ -70,11 +74,8 @@ import { Inventory } from './items/inventory';
 import { ITEM_BREEDS, type ItemKind } from './items/item-breeds';
 import { Junk } from './items/junk';
 import { Money } from './items/money';
-import { Npcs } from './randy/npcs';
-import { Shop } from './randy/shop';
+import { Trades } from './items/trades';
 import { RandyTalk } from './randy/talk';
-import { TireTrade } from './randy/tire-trade';
-import { Wares } from './randy/wares';
 import { RouteGuide } from './route-guide';
 import { Bodies } from './rules/bodies';
 import { CLAIMS, type ClaimKind } from './rules/claim-kinds';
@@ -95,11 +96,6 @@ export type { CamMode, CamView } from './camera-controller';
 
 const BONE = new Color('#efe6ff');
 const DIRT = new Color('#3a2a22');
-/** Particle colors for ordinary and boosted spectral exhaust. */
-const EXHAUST = new Color(0.35, 1.3, 0.15);
-const BOOST_FLAME = new Color(0.9, 1.6, 1.4);
-/** GhASt intake position in the truck body’s local coordinates, in meters. */
-const INTAKE: V3 = [0, 2.6, 1.4];
 /** Particle color for Cody’s form-change animation. */
 const OUTFIT_PUFF = new Color(0.6, 0.3, 1.4);
 /** Tire-fire smoke and emissive ember colors; ember channels exceed one for glow. */
@@ -123,8 +119,6 @@ const _at = new Vector3();
 const _met = new Vector3();
 const NONE: readonly Vector3[] = [];
 
-/** Minimum truck speed in m/s for crushing a civilian car outside the deck. */
-const CRUSH_SPEED = 4;
 /**
  * Velocity-change threshold in m/s for AI contact to dislodge a visitor car. Displaced traffic cars are always released
  * from their lane.
@@ -132,12 +126,11 @@ const CRUSH_SPEED = 4;
 const NUDGE_LOOSEN = 2.5;
 /** Maximum speed in m/s for a physically present vehicle to block a parking spot. */
 const STANDING = 0.5;
-const CRUSH_KICK = 2.5;
 /**
- * Doze timing in seconds and minimum exposure multiplier. Skip toward the next phase boundary after dimming and
- * holding, then restore exposure.
+ * Phase-skip fade timing in seconds and minimum exposure multiplier. Advance the clock after dimming and holding, then
+ * restore exposure.
  */
-const DOZE = { down: 1.4, hold: 0.6, up: 1.6, dim: 0.04, toast: 3 };
+const PHASE_SKIP = { down: 1.4, hold: 0.6, up: 1.6, dim: 0.04, toast: 3 };
 /** Pickup and extended trade notification durations, in seconds. */
 const MONEY_TOAST = 1.1;
 const TRADE_TOAST = 2.6;
@@ -280,22 +273,24 @@ export class Game {
   /** Temporary debris and persistent world pickups. */
   private readonly junk: Junk;
   /** Enable a time skip after eating brisket. Tutorial story steps temporarily disable it. */
-  sleepAfterEating = true;
-  /** Elapsed doze time in seconds, or -1 when inactive. */
-  private doze = -1;
+  skipAfterEating = true;
+  private readonly phaseFade = new Fade(PHASE_SKIP, () => this.clock.skipToNextPhase());
   /** Normalized GhASt fuel, filled by ghosts and consumed by boosting. Cleared at sunrise. */
-  ghast = 0;
-  private boosting = false;
+  private readonly fuel = new GhostFuel();
+  get ghast(): number {
+    return this.fuel.fill;
+  }
+  set ghast(value: number) {
+    this.fuel.fill = value;
+  }
   /** Whether the current truck update is burning GhASt. */
   get burning(): boolean {
-    return this.boosting;
+    return this.fuel.burning;
   }
-  /** Randy’s persistent shop slots and stock counts. */
-  readonly wares = new Wares();
   /** Force shop stock to display during a scripted scene without enabling purchases. */
-  waresShown = false;
-  /** Tire exchange and feeding animation, also callable by the tutorial. */
-  readonly tires: TireTrade;
+  waresShown: Npc | null = null;
+  /** NPC exchanges, also callable directly by tutorial scenes. */
+  readonly trades: Trades;
   private readonly shop: Shop;
   /** Ordinary Randy conversation, disabled while the tutorial controls him. */
   readonly randyTalk: RandyTalk;
@@ -360,7 +355,6 @@ export class Game {
   private flash = 0;
   private readonly flashColor = new Color();
   private readonly cutaway = new Cutaway();
-  private exhaustTimer = 0;
   private codyFx = -1;
   private readonly fpsAcc = { t: 0, n: 0 };
 
@@ -485,9 +479,9 @@ export class Game {
     this.money = new Money(this.scene, this.nav, this.rng);
     this.money.scatter();
     this.junk = new Junk(this.scene, this.nav, this.rng);
-    // Register Randy’s thrown badge as a persistent collectible.
+    // Register thrown props as persistent collectibles.
     this.npcs = new Npcs(level.npcs, this.scene, {
-      landed: (item, floor) => this.junk.lay('badge', item, floor),
+      landed: (kind, item, floor) => this.junk.lay(kind, item, floor),
       ground: (x, z, below) => this.world.collision.groundAt(x, z, below, 0),
       burned: (at) => {
         _at.copy(at).setY(at.y + 1);
@@ -496,14 +490,16 @@ export class Game {
         this.events.emit('stoked', { at: at.clone() });
       },
       // Award brisket at handover, but delay its notification until feeding completes.
-      fed: (n) =>
-        this.hud.toast(`+${n} BRISKET`, n > 1 ? 'NOW THAT IS A FIRE' : 'NOW WE ARE COOKING', 'purple', TRADE_TOAST),
+      fed: ({ kind, n }) =>
+        this.hud.toast(
+          `+${n} ${ITEM_BREEDS[kind].name}`,
+          n > 1 ? 'NOW THAT IS A FIRE' : 'NOW WE ARE COOKING',
+          'purple',
+          TRADE_TOAST,
+        ),
     });
-    this.shop = new Shop(this.npcs, this.wares, this.inventory, this.money, (deed) => this.deed(deed));
-    this.tires = new TireTrade(this.npcs, this.inventory, {
-      gave: (n, to) => this.deed({ how: 'gave', kind: 'tire', n, to: to.def.id }),
-      paid: (n) => this.gain('brisket', n),
-    });
+    this.shop = new Shop(this.npcs, this.inventory, this.money, (deed) => this.deed(deed));
+    this.trades = new Trades(this.npcs, this.inventory, (deed) => this.deed(deed));
 
     this.blood = new BloodSim(this.world.collision);
     this.scene.add(this.blood.root);
@@ -705,8 +701,8 @@ export class Game {
 
         return this.transform ? { speed: 0, form: 'truck', label: VEHICLE_BREEDS.truck.label, airborne: false } : null;
       },
-      // Show GhASt controls only for the current monster truck.
-      ghast: () => (this.driving?.form === 'truck' ? { fill: this.ghast, burning: this.boosting } : null),
+      // Show GhASt controls when the current ride can burn fuel.
+      ghast: () => (this.driving?.breed.boost ? { fill: this.ghast, burning: this.fuel.burning } : null),
     });
     // Build the shared phone and connect its notifications to game events.
     this.phone = new Phone(
@@ -756,7 +752,7 @@ export class Game {
       }
     });
     this.events.on('exited', ({ spot, quiet }) => {
-      this.boosting = false;
+      this.fuel.burning = false;
       this.iso.zoomTarget = Math.min(this.iso.zoomTarget, TUNING.camera.zoom);
       this.hud.setPrompt(null);
 
@@ -780,7 +776,7 @@ export class Game {
     });
     this.randyTalk = new RandyTalk(this.input.focus, this.npcs, {
       tires: () => this.inventory.count('tire'),
-      give: (to) => this.interactions.giveTires(to),
+      give: (to) => this.interactions.give(to, 'tire'),
     });
     this.interactions = new Interactions(
       this.makePlay(),
@@ -790,7 +786,6 @@ export class Game {
         valet: this.valet,
         randyTalk: this.randyTalk,
         elevators: this.elevators,
-        playing: () => this.mode === 'play',
         blocked: () =>
           this.mode !== 'play' || this.talk.active || this.randyTalk.active || !!this.cutscene || !!this.transform,
       },
@@ -1256,7 +1251,7 @@ export class Game {
 
     this.updateNav(dt);
     const randy = this.randyTalk.enabled ? (this.npcs.find('randy')?.pos ?? null) : null;
-    this.objectives.replace(this.tires, tireMarks(this.inventory.count('tire'), randy));
+    this.objectives.replace(this.trades, tireMarks(this.inventory.count('tire'), randy));
     this.updateObjectives();
     this.events.emit('frame', dt);
   }
@@ -1296,9 +1291,9 @@ export class Game {
     }
   }
 
-  /** Transfer one free item from Randy’s stock and show its pickup notification. Return false when unavailable. */
-  handOver(kind: ItemKind): boolean {
-    if (!this.shop.gift(kind)) {
+  /** Transfer one free item from an NPC’s stock and show its pickup notification. Return false when unavailable. */
+  handOver(from: Npc, kind: ItemKind): boolean {
+    if (!this.shop.gift(from, kind)) {
       return false;
     }
 
@@ -1389,10 +1384,14 @@ export class Game {
       talkToValet: (valet) => this.talk.start(valet),
       talkToRandy: (randy) => this.randyTalk.start(randy),
       summon: () => this.summon(),
-      canEat: () => this.canEat,
-      eat: () => this.eat(),
-      tireTaker: () => (this.onFoot ? this.tires.taker(this.player.pos) : null),
-      giveTires: (to) => this.tires.give(to, this.player.pos) > 0,
+      items: {
+        inventory: this.inventory,
+        canEat: () => this.canEat,
+        used: (kind, action) => this.deed({ how: 'used', kind, action }),
+        skipPhase: (notice) => this.skipPhase(notice),
+      },
+      tradeFor: (kind) => (this.mode === 'play' && this.onFoot ? this.trades.offer(kind, this.player.pos) : null),
+      give: (to, kind) => this.trades.give(to, kind, this.player.pos) > 0,
     };
   }
 
@@ -1428,7 +1427,7 @@ export class Game {
       di.throttle = Math.max(di.throttle, 0);
     }
 
-    this.ghastIntake(v, di, dt);
+    di.boost = this.fuel.update(v, this.input.isDown('boost'), dt, this.ghosts, this.events);
     const prev = _prev.copy(v.pos);
     const ev = v.drive(dt, di, this.world.collision);
     if (ev.hopped) {
@@ -1442,42 +1441,7 @@ export class Game {
       this.onCrossing(c);
     }
 
-    // Double the spectral emission rate and use larger, brighter particles while boosting.
-    if (v.form === 'truck') {
-      this.exhaustTimer -= dt;
-
-      if (this.exhaustTimer <= 0 && (di.throttle !== 0 || this.boosting)) {
-        this.exhaustTimer = this.boosting ? 0.025 : 0.05;
-
-        for (const s of [-1, 1]) {
-          v.rig.body.localToWorld(_v.set(s * 1.0, 4.3, -0.95));
-
-          if (this.boosting) {
-            this.sprites.emit(
-              _v,
-              _w.set((Math.random() - 0.5) * 0.8, 5, (Math.random() - 0.5) * 0.8),
-              BOOST_FLAME,
-              0.9,
-              3.4,
-              0.7,
-              'puff',
-              0.8,
-            );
-          } else {
-            this.sprites.emit(
-              _v,
-              _w.set((Math.random() - 0.5) * 0.6, 2.5, (Math.random() - 0.5) * 0.6),
-              EXHAUST,
-              0.6,
-              2.4,
-              0.9,
-              'puff',
-              0.6,
-            );
-          }
-        }
-      }
-    }
+    this.exhaust.drive(dt, v, di.throttle, this.fuel.burning);
 
     this.interactions.update();
   }
@@ -1504,7 +1468,7 @@ export class Game {
     const dv = carContacts(
       v,
       this.vehicles,
-      (o) => this.crushes(v, o),
+      (o) => v.breed.crush?.hit(v, o, this.crushed) ?? false,
       (o, odv) => {
         // Displaced traffic cars have entered physical motion regardless of the visitor threshold.
         if (o.role === 'traffic' || odv >= loosen) {
@@ -1532,16 +1496,6 @@ export class Game {
         against: 'car',
       });
     }
-  }
-
-  /** Crush a civilian car outside the deck when the contacting truck exceeds CRUSH_SPEED. */
-  private crushes(v: Vehicle, o: Vehicle): boolean {
-    if (v.form !== 'truck' || o.form !== 'car' || o.insideDeck || Math.abs(v.speed) <= CRUSH_SPEED) {
-      return false;
-    }
-
-    this.crush(o, v);
-    return true;
   }
 
   /** Abandon a traffic or visitor car and schedule its driver to flee after settling. */
@@ -1701,14 +1655,10 @@ export class Game {
     });
   }
 
-  private crush(o: Vehicle, by: Vehicle): void {
-    // Remove driver control before starting the crushed-car animation.
-    o.role = 'parked';
-    o.setStatus('crushed');
-    this.events.emit('crushed', { car: o, by });
-    this.junk.crushed(o);
-    by.kick(-CRUSH_KICK);
-  }
+  private readonly crushed = (car: Vehicle, by: Vehicle): void => {
+    this.events.emit('crushed', { car, by });
+    this.junk.crushed(car);
+  };
 
   private onNightfall(): void {
     this.hud.toast('THE MOON IS UP', this.cody.holdForm ? 'THE DECK WAKES UP' : 'PHANTOM CODY RISES', '', 3.2);
@@ -1867,7 +1817,7 @@ export class Game {
       this.lights.cover(this.iso.shadowCorners(_shadowPts), this.dayNight.sunDir, this.iso.screenUp(_s));
     }
 
-    this.dozing(dt);
+    this.fadePhaseSkip(dt);
     this.flash = Math.max(0, this.flash - dt * 1.8);
     this.gfx.grade.uniforms.flash!.value = this.flash * this.flash;
     (this.gfx.grade.uniforms.flashColor!.value as Color).copy(this.flashColor);
@@ -1980,39 +1930,6 @@ export class Game {
     return out;
   }
 
-  /**
-   * Collect ghosts near the truck intake, update GhASt fuel, and set boost input while fuel is available and the truck
-   * is not crashing.
-   */
-  private ghastIntake(v: Vehicle, di: DriveInput, dt: number): void {
-    const G = TUNING.ghast;
-    if (v.form !== 'truck') {
-      this.boosting = false;
-      return;
-    }
-
-    v.rig.body.localToWorld(_at.set(...INTAKE));
-    const n = this.ghosts.suck(_at, G.reach, dt);
-    if (n > 0) {
-      this.ghast = Math.min(1, this.ghast + n * G.perGhost);
-      this.events.emit('swallowed', { n, tank: this.ghast, at: _at.clone() });
-    }
-
-    const was = this.boosting;
-    this.boosting = this.input.isDown('boost') && this.ghast > 0 && !v.crashing;
-
-    if (!this.boosting) {
-      return;
-    }
-
-    if (!was) {
-      this.events.emit('boosted', null);
-    }
-
-    di.boost = 1;
-    this.ghast = Math.max(0, this.ghast - G.burn * dt);
-  }
-
   /** Emit the horn event, display its caption, and flash the headlights using current impatience. */
   private honk(car: Vehicle): void {
     const anger = this.traffic.angerOf(car);
@@ -2026,47 +1943,22 @@ export class Game {
     this.events.emit('puff', { at: at.clone() });
   }
 
-  /** Cody can eat only on foot, outside cutscenes, and when he is not already dozing. */
+  /** Cody can eat on foot, outside cutscenes and phase skips. */
   private get canEat(): boolean {
-    return !this.driving && !this.transform && !this.cutscene && this.doze < 0;
+    return !this.driving && !this.transform && !this.cutscene && !this.phaseFade.active;
   }
 
-  /** Consume one brisket when allowed, report its use, and optionally begin dozing. Return whether one was eaten. */
-  private eat(): boolean {
-    if (!this.canEat || !this.inventory.take('brisket', 1)) {
-      return false;
+  /** Fade through the next day/night boundary unless the tutorial has disabled meal skips. */
+  private skipPhase({ title, message }: { title: string; message: string }): void {
+    if (this.skipAfterEating && this.phaseFade.start()) {
+      this.hud.toast(title, message, 'purple', PHASE_SKIP.toast);
     }
-
-    this.deed({ how: 'used', kind: 'brisket', action: 'eat' });
-
-    if (this.sleepAfterEating && this.doze < 0) {
-      this.hud.toast('BRISKET', 'YOU ATE SO MUCH YOU FELT SLEEPY...', 'purple', DOZE.toast);
-      this.doze = 0;
-    }
-
-    return true;
   }
 
-  /** Modulate exposure after day/night grading and schedule a phase skip at the end of the dark hold. */
-  private dozing(dt: number): void {
-    if (this.doze < 0) {
-      return;
-    }
-
-    const was = this.doze;
-    this.doze += dt;
-    const { down, hold, up, dim } = DOZE;
-    if (was < down + hold && this.doze >= down + hold) {
-      this.clock.skipToNextPhase();
-    }
-
-    const k = this.doze < down ? this.doze / down : this.doze < down + hold ? 1 : 1 - (this.doze - down - hold) / up;
+  /** Apply the transition fade after normal day/night grading. */
+  private fadePhaseSkip(dt: number): void {
     const exposure = this.gfx.grade.uniforms.exposure as { value: number };
-    exposure.value *= 1 - (1 - dim) * smoothstep(0, 1, Math.max(0, k));
-
-    if (this.doze >= down + hold + up) {
-      this.doze = -1;
-    }
+    exposure.value *= this.phaseFade.update(dt);
   }
 
   private doFlash(a: number, color = '#9dff3a'): void {

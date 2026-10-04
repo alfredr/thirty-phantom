@@ -15,7 +15,7 @@ const [{ stageOn }, { generateLevel }, { emptyLevel }, { Vehicle }, { CollisionW
   '/src/game/story/tutorial.ts',
   '/src/world/generate-level.ts',
   '/src/world/level-data.ts',
-  '/src/actors/vehicle.ts',
+  '/src/actors/vehicles/vehicle.ts',
   '/src/engine/physics/collision.ts',
 ).finally(() => {
   if (originalDocument) {

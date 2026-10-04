@@ -145,7 +145,10 @@ src/
   engine/       math, input, state machines, actions, claims, collision, route search
   game/         gameplay rules, quests, tutorial, parking records, inventory, saves
   world/        city generation, navigation grid, buildings, props
-  actors/       characters, vehicles, traffic, models
+  actors/       characters, shared movement and collision helpers
+    vehicles/   vehicle instances, breeds, capabilities, traffic, autopilot
+    npcs/       NPC instances, breeds, behaviors, fire and throwing capabilities
+    models/     geometry builders and rigs
   render/       cameras, materials, lighting, post-processing
   audio/        synthesis, recorded engine cycles, mixing
   ui/           HUD, dialogue, inventory, touch controls
@@ -155,6 +158,14 @@ tools/          validation build step, browser test runner, screenshots, audio p
 deploy/         Caddy configuration and deployment scripts
 public/         models, audio, icons
 ```
+
+Actor families keep their breed definitions beside their runtime code. Breeds select
+shared models, settings, and capabilities; each instance owns its changing state.
+`engine/sim/` supplies the shared action runners, state machines, and claims.
+
+Inventory, consumption, shop stock, and exchanges live in `game/items/`. Each merchant
+owns its stock. `game/randy/` contains Randy's dialogue; his breed selects the reusable
+NPC behaviors used by his conversations and tutorial scenes.
 
 Recorded audio uses CC0 assets. See the [sound credits](public/audio/CREDITS.md).
 

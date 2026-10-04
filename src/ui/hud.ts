@@ -1,6 +1,6 @@
 import type { Camera, Vector3 } from 'three';
 
-import type { VehicleForm } from '@/actors/vehicle';
+import type { VehicleForm } from '@/actors/vehicles/vehicle';
 import { SOUND_ON } from '@/audio/flags';
 import { urlFlag } from '@/engine/core/url-flags';
 import type { Focus } from '@/engine/input/input';

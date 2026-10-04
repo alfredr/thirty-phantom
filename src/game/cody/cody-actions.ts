@@ -1,8 +1,11 @@
-import type { Vehicle } from '@/actors/vehicle';
+import type { Npc } from '@/actors/npcs/npcs';
+import type { Vehicle } from '@/actors/vehicles/vehicle';
 import { Action, done, fail, type Fail, type Result } from '@/engine/sim/action';
 import type { Candidate } from '@/engine/sim/offers';
 import type { Control } from '@/game/controls';
-import type { Npc } from '@/game/randy/npcs';
+import type { ItemKind } from '@/game/items/item-breeds';
+import type { ItemUse, ItemWorld } from '@/game/items/item-use';
+import type { Trade } from '@/game/items/trades';
 import type { WorldConditions } from '@/game/rules/world-conditions';
 import type { Valet } from '@/game/valets/valet';
 import type { Elevator } from '@/world/elevators';
@@ -26,11 +29,9 @@ export interface Play {
   talkToValet(valet: Valet): void;
   talkToRandy(randy: Npc): void;
   summon(): number;
-  canEat(): boolean;
-  eat(): boolean;
-  /** Return an available tire recipient, or null. */
-  tireTaker(): Npc | null;
-  giveTires(to: Npc): boolean;
+  readonly items: ItemWorld;
+  tradeFor(kind: ItemKind): Trade | null;
+  give(to: Npc, kind: ItemKind): boolean;
 }
 
 export type CodyAction = Action<Play, Play>;
@@ -200,27 +201,37 @@ export class Summon extends Action<Play, Play> {
   }
 }
 
-export class Eat extends Action<Play, Play> {
-  label(): string {
-    return 'EAT';
-  }
-  resolve(w: Play): CodyAction | Fail {
-    return w.canEat() ? this : fail('');
-  }
-  perform(w: Play): Result<CodyAction> {
-    return w.eat() ? done : fail('');
-  }
-}
-
-export class GiveTires extends Action<Play, Play> {
-  constructor(readonly p: { to: Npc; name: string }) {
+/** Bind an item's shared use capability to one inventory selection. */
+export class UseItem extends Action<Play, Play> {
+  constructor(
+    readonly kind: ItemKind,
+    readonly use: ItemUse,
+  ) {
     super();
   }
   label(): string {
-    return `GIVE TO ${this.p.name}`;
+    return this.use.label;
+  }
+  resolve(w: Play): CodyAction | Fail {
+    return this.use.when(w.items) ? this : fail('');
   }
   perform(w: Play): Result<CodyAction> {
-    return w.giveTires(this.p.to) ? done : fail('');
+    return this.use.use(w.items, this.kind) ? done : fail('');
+  }
+}
+
+export class GiveItem extends Action<Play, Play> {
+  constructor(
+    readonly to: Npc,
+    readonly kind: ItemKind,
+  ) {
+    super();
+  }
+  label(): string {
+    return `GIVE TO ${this.to.breed.name}`;
+  }
+  perform(w: Play): Result<CodyAction> {
+    return w.give(this.to, this.kind) ? done : fail('');
   }
 }
 

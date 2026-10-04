@@ -1,7 +1,7 @@
 import { type Object3D, type Scene, Vector3 } from 'three';
 
-import { buildJunk, PART_KINDS, type PartKind } from '@/actors/models/junk';
-import type { Vehicle } from '@/actors/vehicle';
+import { buildJunk, type PartKind } from '@/actors/models/junk';
+import type { Vehicle } from '@/actors/vehicles/vehicle';
 import { TUNING } from '@/config';
 import type { Rng } from '@/engine/core/rng';
 import { Highlight } from '@/fx/highlight';
@@ -64,16 +64,17 @@ export class Junk {
 
   /** Shed parts when the impact velocity change `dv`, in m/s, exceeds the configured threshold. */
   hit(car: Vehicle, at: Vector3, dv: number): void {
-    if (dv < J.crashDv) {
+    const drops = car.breed.drops;
+    if (!drops || dv < drops.crashDv) {
       return;
     }
 
-    this.lose(car, at, Math.min(J.perHit, 1 + Math.floor((dv - J.crashDv) / J.perDv)));
+    this.lose(car, at, Math.min(drops.perHit, 1 + Math.floor((dv - drops.crashDv) / drops.perDv)));
   }
 
   /** Request the configured number of parts for a crushed car, subject to shedding limits. */
   crushed(car: Vehicle): void {
-    this.lose(car, car.pos, J.crushed);
+    this.lose(car, car.pos, car.breed.drops?.crushed ?? 0);
   }
 
   /**
@@ -140,8 +141,8 @@ export class Junk {
   }
 
   private lose(car: Vehicle, at: Vector3, n: number): void {
-    // Monster trucks do not shed collectible parts.
-    if (car.form === 'truck') {
+    const drops = car.breed.drops;
+    if (!drops) {
       return;
     }
 
@@ -150,16 +151,16 @@ export class Junk {
       this.shed.set(car, (s = { parts: 0, tires: 0, at: -Infinity }));
     }
 
-    if (this.t - s.at < J.cooldown) {
+    if (this.t - s.at < drops.cooldown) {
       return;
     }
 
     s.at = this.t;
     // Launch outward through the impact point.
     const out = Math.atan2(at.x - car.pos.x, at.z - car.pos.z);
-    for (let k = 0; k < n && s.parts < J.perCar; k++) {
-      const tire = s.tires < car.rig.wheels.length && this.rng.next() < J.tireShare;
-      const kind = tire ? 'tire' : (this.rng.pick(PART_KINDS.filter((c) => c !== 'tire')) as PartKind);
+    for (let k = 0; k < n && s.parts < drops.perCar; k++) {
+      const tire = s.tires < car.rig.wheels.length && this.rng.next() < drops.tireShare;
+      const kind = tire ? 'tire' : this.rng.pick(drops.parts);
       if (tire) {
         s.tires++;
       }

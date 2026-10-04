@@ -1,6 +1,6 @@
 import { Color, Vector3 } from 'three';
 
-import type { Vehicle } from '@/actors/vehicle';
+import type { Vehicle } from '@/actors/vehicles/vehicle';
 import type { Emitter } from '@/engine/core/events';
 import { lerp, TAU } from '@/engine/core/math';
 import { SLIME, WHITE } from '@/fx/colors';

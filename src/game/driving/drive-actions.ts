@@ -1,9 +1,9 @@
 import { Vector3 } from 'three';
 
-import { Autopilot, type Obstacle } from '@/actors/autopilot';
 import { footprint } from '@/actors/avoidance';
-import { roadLeadsToward } from '@/actors/traffic';
-import type { DriveInput, Vehicle, VehicleRole } from '@/actors/vehicle';
+import { Autopilot, type Obstacle } from '@/actors/vehicles/autopilot';
+import { roadLeadsToward } from '@/actors/vehicles/traffic';
+import type { DriveInput, Vehicle, VehicleRole } from '@/actors/vehicles/vehicle';
 import { TUNING } from '@/config';
 import { smoothstep, wrapAngle } from '@/engine/core/math';
 import { Polyline, type RouteCursor } from '@/engine/nav/polyline';

@@ -1,6 +1,6 @@
 import { Vector3 } from 'three';
 
-import type { Vehicle } from '@/actors/vehicle';
+import type { Vehicle } from '@/actors/vehicles/vehicle';
 import { TUNING } from '@/config';
 import type { NavDebug } from '@/fx/nav-debug';
 import type { V3 } from '@/world/level-data';

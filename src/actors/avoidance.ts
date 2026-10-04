@@ -1,9 +1,8 @@
 import type { Vector3 } from 'three';
 
+import type { Vehicle } from '@/actors/vehicles/vehicle';
 import { bodyOffsets } from '@/engine/physics/vehicle-params';
 import type { ZoneDef } from '@/world/level-data';
-
-import type { Vehicle } from './vehicle';
 
 /** Pedestrian collision radius including personal space, in meters. */
 export const PERSON_RADIUS = 0.35;

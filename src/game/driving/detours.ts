@@ -1,9 +1,9 @@
 import { Vector3 } from 'three';
 
-import { Autopilot, type Obstacle } from '@/actors/autopilot';
 import { footprint } from '@/actors/avoidance';
-import type { Jam, Traffic } from '@/actors/traffic';
-import type { DriveEvents, DriveInput, Vehicle } from '@/actors/vehicle';
+import { Autopilot, type Obstacle } from '@/actors/vehicles/autopilot';
+import type { Jam, Traffic } from '@/actors/vehicles/traffic';
+import type { DriveEvents, DriveInput, Vehicle } from '@/actors/vehicles/vehicle';
 import { TUNING } from '@/config';
 import { lerp, mod } from '@/engine/core/math';
 import type { Polyline } from '@/engine/nav/polyline';

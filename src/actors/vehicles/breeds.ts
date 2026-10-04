@@ -1,12 +1,23 @@
+import { Color } from 'three';
+
+import { PART_KINDS } from '@/actors/models/junk';
+import { buildMotorcycleRig } from '@/actors/models/motorcycle';
+import { buildPickupRig } from '@/actors/models/pickup';
+import type { VehicleRig } from '@/actors/models/rig';
 import type { AssetRegistry } from '@/assets/asset-registry';
 import type { SoundOf } from '@/audio/cues';
 import { TUNING } from '@/config';
 import { bodyOffsets, type VehicleParams } from '@/engine/physics/vehicle-params';
 import { NAV, type NavProfile } from '@/world/nav-grid';
 
-import { buildMotorcycleRig } from './models/motorcycle';
-import { buildPickupRig } from './models/pickup';
-import type { VehicleRig } from './models/rig';
+import {
+  crushCars,
+  type Crush,
+  type FuelBoost,
+  type GhostIntake,
+  type PartDrops,
+  type VehicleExhaust,
+} from './capabilities';
 
 /** Civilian models available while a vehicle has the car form. */
 export const CAR_KINDS = ['sedan', 'pickup', 'motorcycle'] as const;
@@ -14,7 +25,7 @@ export type CarKind = (typeof CAR_KINDS)[number];
 /** Model identifier for a civilian vehicle or monster truck. */
 export type VehicleBuild = CarKind | 'truck';
 
-/** Handling, presentation, and spawning parameters for one vehicle model. */
+/** Handling, presentation, and capabilities shared by one vehicle kind. */
 export interface VehicleBreed {
   /** Handling and size. */
   readonly params: VehicleParams;
@@ -39,12 +50,26 @@ export interface VehicleBreed {
   readonly label: string;
   /** Spawn probability for civilian parked and traffic vehicles; civilian shares sum to one. */
   readonly share: number;
+  readonly crushable: boolean;
+  readonly crush?: Crush;
+  readonly intake?: GhostIntake;
+  readonly boost?: FuelBoost;
+  readonly exhaust?: VehicleExhaust;
+  readonly drops?: PartDrops;
   /** Builds its model in `color`. */
   model(assets: AssetRegistry, color: string): VehicleRig;
 }
 
-/** Shared civilian navigation, entry range, crash threshold, and knockdown retention. */
-const CIVILIAN = { nav: NAV.car, crashAt: 12, enterReach: 3.4, knockKeep: 0.75 } as const;
+/** Civilian handling defaults, acceleration smoke, and collectible part drops. */
+const CIVILIAN = {
+  nav: NAV.car,
+  crashAt: 12,
+  enterReach: 3.4,
+  knockKeep: 0.75,
+  crushable: true,
+  exhaust: { kind: 'smoke', smoke: TUNING.vehicle.exhaust },
+  drops: { ...TUNING.junk, parts: PART_KINDS.filter((kind) => kind !== 'tire') },
+} as const;
 
 export const VEHICLE_BREEDS: Readonly<Record<VehicleBuild, VehicleBreed>> = {
   sedan: {
@@ -85,6 +110,39 @@ export const VEHICLE_BREEDS: Readonly<Record<VehicleBuild, VehicleBreed>> = {
     model: (_, color) => buildMotorcycleRig(color),
   },
   truck: {
+    crushable: false,
+    crush: crushCars({
+      minimumSpeed: 4,
+      recoil: 2.5,
+      when: (target) => target.breed.crushable && !target.insideDeck,
+    }),
+    intake: { at: [0, 2.6, 1.4], reach: TUNING.ghast.reach, perGhost: TUNING.ghast.perGhost },
+    boost: { burn: TUNING.ghast.burn, push: TUNING.ghast.push, top: TUNING.ghast.top },
+    exhaust: {
+      kind: 'spectral',
+      ports: [
+        [-1, 4.3, -0.95],
+        [1, 4.3, -0.95],
+      ],
+      normal: {
+        every: 0.05,
+        color: new Color(0.35, 1.3, 0.15),
+        scatter: 0.6,
+        rise: 2.5,
+        size: [0.6, 2.4],
+        life: 0.9,
+        alpha: 0.6,
+      },
+      boosted: {
+        every: 0.025,
+        color: new Color(0.9, 1.6, 1.4),
+        scatter: 0.8,
+        rise: 5,
+        size: [0.9, 3.4],
+        life: 0.7,
+        alpha: 0.8,
+      },
+    },
     params: TUNING.truck,
     body: bodyOffsets(TUNING.truck),
     nav: NAV.truck,

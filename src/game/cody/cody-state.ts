@@ -2,7 +2,7 @@ import type { Vector3 } from 'three';
 
 import type { CodyForm } from '@/actors/models/character';
 import type { Player } from '@/actors/player';
-import type { Vehicle } from '@/actors/vehicle';
+import type { Vehicle } from '@/actors/vehicles/vehicle';
 
 /** Abilities available to Cody based on his current form. */
 export type CodyAbility = 'steal' | 'possess' | 'truck' | 'summon';

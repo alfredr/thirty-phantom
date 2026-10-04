@@ -1,15 +1,15 @@
 import { Color, Vector3 } from 'three';
 
+import { CrashBody, vehicleMass } from '@/actors/crash-body';
+import type { BikeRider, VehicleRig } from '@/actors/models/rig';
+import { VALET_OUTFIT } from '@/actors/models/valet';
 import { TUNING } from '@/config';
 import { clamp, damp, lerp, TAU, type V3 } from '@/engine/core/math';
 import { Rng } from '@/engine/core/rng';
 import type { CircleHit, CollisionWorld, Solid } from '@/engine/physics/collision';
 import { steerScale, type VehicleParams } from '@/engine/physics/vehicle-params';
 
-import { CrashBody, vehicleMass } from './crash-body';
-import type { BikeRider, VehicleRig } from './models/rig';
-import { VALET_OUTFIT } from './models/valet';
-import { type CarKind, VEHICLE_BREEDS, type VehicleBreed, type VehicleBuild } from './vehicle-breeds';
+import { type CarKind, VEHICLE_BREEDS, type VehicleBreed, type VehicleBuild } from './breeds';
 
 export type VehicleForm = 'car' | 'truck';
 /**
@@ -25,7 +25,7 @@ export interface DriveInput {
   steer: number;
   hop: boolean;
   drift: boolean;
-  /** GhASt boost fraction, from 0 to 1, controlling added acceleration and top speed (TUNING.ghast). */
+  /** GhASt boost fraction, from 0 to 1, controlling the breed’s added acceleration and top speed. */
   boost?: number;
 }
 
@@ -298,11 +298,13 @@ export class Vehicle {
 
     if (this.grounded) {
       const t = inp.throttle;
-      const boost = inp.boost ?? 0;
-      const top = P.maxSpeed * (1 + TUNING.ghast.top * boost);
+      const boosting = this.breed.boost;
+      const boost = boosting ? (inp.boost ?? 0) : 0;
+      const push = boosting?.push ?? 0;
+      const top = P.maxSpeed * (1 + (boosting?.top ?? 0) * boost);
       if (boost > 0 && t >= 0 && fwd > -0.5) {
         // Boost adds acceleration even with zero throttle.
-        fwd += P.accel * (Math.max(t, 0) + TUNING.ghast.push * boost) * dt * (1 - clamp(fwd / top, 0, 1) * 0.6);
+        fwd += P.accel * (Math.max(t, 0) + push * boost) * dt * (1 - clamp(fwd / top, 0, 1) * 0.6);
       } else if (t > 0) {
         if (fwd < -0.5) {
           fwd += P.brake * dt;

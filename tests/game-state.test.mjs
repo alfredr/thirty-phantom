@@ -15,6 +15,7 @@ const [{ Triggers }, { SaveGame }, { Emitter }, { Haunting, Quests, tireMarks },
 
 /** Create the game state needed to test saving and loading. */
 function stand(over = {}) {
+  const stock = [{ count: 1 }, { count: 128 }];
   const haunting = new Haunting({ needed: 30, victory: () => stand.victories++, moved() {} });
   return {
     events: new Emitter(),
@@ -23,7 +24,7 @@ function stand(over = {}) {
     inventory: { list: () => [['tire', 2]], add() {} },
     quests: new Quests([haunting]),
     haunting,
-    wares: { slots: [{ count: 1 }, { count: 128 }] },
+    npcs: { find: () => ({ stock: { slots: stock } }) },
     restorePhantom() {},
     hud: { clearToasts() {} },
     announceDay() {},
@@ -214,7 +215,7 @@ test("a won game comes back won without the victory again, with the same cash ab
   game.haunting.mind.send({ type: 'phantom', n: 31 });
   assert.equal(stand.victories, 0);
   assert.deepEqual(
-    game.wares.slots.map((s) => s.count),
+    game.npcs.find('randy').stock.slots.map((s) => s.count),
     [0, 90],
   );
   assert.deepEqual(stand.laidOut, [[3, 0, 4, 20]]);

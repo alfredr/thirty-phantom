@@ -1,6 +1,6 @@
 import { Vector3 } from 'three';
 
-import type { Vehicle } from '@/actors/vehicle';
+import type { Vehicle } from '@/actors/vehicles/vehicle';
 import { bodyHalf } from '@/engine/physics/vehicle-params';
 
 /** Restitution coefficient for vehicle impacts. */

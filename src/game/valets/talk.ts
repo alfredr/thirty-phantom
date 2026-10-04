@@ -1,6 +1,6 @@
 import type { Vector3 } from 'three';
 
-import type { Vehicle } from '@/actors/vehicle';
+import type { Vehicle } from '@/actors/vehicles/vehicle';
 import { TUNING } from '@/config';
 import type { Rng } from '@/engine/core/rng';
 import type { Focus } from '@/engine/input/input';

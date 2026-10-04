@@ -1,6 +1,7 @@
 import { type Mesh, type Object3D, Raycaster, Vector3 } from 'three';
 
-import type { Vehicle } from '@/actors/vehicle';
+import type { Npc } from '@/actors/npcs/npcs';
+import type { Vehicle } from '@/actors/vehicles/vehicle';
 import { TUNING } from '@/config';
 import { type EventOf, Mind, mind, type MindEvent, type State, type StateOf } from '@/engine/sim/mind';
 import { el } from '@/engine/ui/dom';
@@ -8,7 +9,6 @@ import { type CodyAction, ScriptedOffer } from '@/game/cody/cody-actions';
 import { type Crossing, type Garage, spotLabel, type SpotRuntime } from '@/game/deck/garage';
 import type { CamMode, Cutscene, Game } from '@/game/game';
 import { GameClock } from '@/game/game-clock';
-import type { Npc } from '@/game/randy/npcs';
 import { ISO_ELEVATION } from '@/render/iso-camera';
 import { Dialogue, type DialogueLine } from '@/ui/dialogue';
 import type { Phone } from '@/ui/phone/phone';
@@ -147,8 +147,8 @@ type Step = TutorialState['at'];
 
 interface TutorialSettings {
   randyTalk: boolean;
-  tires: boolean;
-  sleepAfterEating: boolean;
+  trades: boolean;
+  skipAfterEating: boolean;
   keepEscaped: boolean;
 }
 
@@ -740,8 +740,8 @@ export class Tutorial {
     this.active = true;
     this.settings = {
       randyTalk: g.randyTalk.enabled,
-      tires: g.tires.enabled,
-      sleepAfterEating: g.sleepAfterEating,
+      trades: g.trades.enabled,
+      skipAfterEating: g.skipAfterEating,
       keepEscaped: g.keepEscaped,
     };
     // Reserve Randy’s dialogue for tutorial scenes.
@@ -758,15 +758,15 @@ export class Tutorial {
     // Hold Cody’s daytime form until he leaves the basement, while granting possession and truck driving.
     g.cody.hold('truck', 'possess');
     this.holdingCody = true;
-    g.sleepAfterEating = false;
+    g.skipAfterEating = false;
     g.clock.hours = START_HOUR;
     // Register the opening pickup as already parked and logged in.
     const truck = g.park(st.truck, st.yaw, 'pickup');
     g.garage.checkIn(st.spot, truck);
     g.board(truck, true);
     this.truck = truck;
-    g.npcs.place(r, st.randy, st.randyYaw);
-    r.rig.phone.visible = false;
+    r.place(st.randy, st.randyYaw);
+    r.prop('burner').visible = false;
     this.talkFocus
       .addVectors(st.window, st.randy)
       .multiplyScalar(0.5)
@@ -924,13 +924,12 @@ export class Tutorial {
   private script(): DialogueLine[] {
     const g = this.game;
     const r = this.randy as Npc;
-    const npcs = g.npcs;
     const toss = (this.stage as Stage).toss;
     const coat =
       (open: boolean, phone = false) =>
       (): void => {
         r.send({ type: 'flash', open });
-        r.rig.phone.visible = phone;
+        r.prop('burner').visible = phone;
       };
 
     return [
@@ -940,14 +939,14 @@ export class Tutorial {
         who: 'left',
         say: 'BADGE TROUBLE, KID? LEMME SEE IT. I KNOW THESE SCANNERS.',
         cue: () => {
-          r.rig.badge.visible = true;
+          r.prop('badge').visible = true;
         },
       },
       {
         who: 'left',
         say: "AH MAN. YOU DON'T NEED THIS.",
         cue: () => {
-          this.throwCam = npcs.toss(r, toss, { showPath: true }) + THROW_HOLD;
+          this.throwCam = r.throwing!.throw('badge', toss, { showPath: true }) + THROW_HOLD;
         },
       },
       { who: 'right', say: 'HUH?' },
@@ -957,7 +956,7 @@ export class Tutorial {
         say: 'BRISKET?',
         cue: () => {
           coat(true)();
-          g.waresShown = true;
+          g.waresShown = r;
         },
       },
       { who: 'right', say: 'NO... I NEED MY ID.' },
@@ -968,7 +967,7 @@ export class Tutorial {
         say: "YOU'RE GOING TO NEED THIS.",
         cue: () => {
           coat(true, true)();
-          g.handOver('burner');
+          g.handOver(r, 'burner');
         },
       },
     ];
@@ -985,8 +984,8 @@ export class Tutorial {
     this.throwCam -= dt;
 
     // After landing, track the copy’s known position rather than the restored hand rig.
-    if (r.toss) {
-      r.rig.badge.getWorldPosition(this.throwFocus);
+    if (r.throwing?.active) {
+      r.prop('badge').getWorldPosition(this.throwFocus);
     } else {
       this.throwFocus.copy(st.toss);
     }
@@ -1005,7 +1004,7 @@ export class Tutorial {
     const r = this.randy as Npc;
     g.haunt(true, EMERGE);
     g.puff(r.pos);
-    g.npcs.place(r, new Vector3(...r.def.pos), r.def.yaw);
+    r.place(new Vector3(...r.def.pos), r.def.yaw);
     return { at: 'gone', t: 0 };
   }
 
@@ -1095,7 +1094,7 @@ export class Tutorial {
 
     const lines: DialogueLine[] = [];
     if (g.inventory.count('tire') > 0) {
-      lines.push({ who: 'left', say: 'OHHH. NICE WHEELS.', cue: () => void g.tires.give(r, g.player.pos) });
+      lines.push({ who: 'left', say: 'OHHH. NICE WHEELS.', cue: () => void g.trades.give(r, 'tire', g.player.pos) });
     }
 
     lines.push(
@@ -1124,7 +1123,7 @@ export class Tutorial {
     const paused = g.clock.paused;
     const wares = g.waresShown;
     const r = randyFace !== undefined ? this.randy : null;
-    const phone = r?.rig.phone.visible ?? false;
+    const phone = r?.prop('burner').visible ?? false;
     if (camera) {
       g.cutscene = camera;
     }
@@ -1153,7 +1152,7 @@ export class Tutorial {
 
       if (r) {
         r.send({ type: 'released' });
-        r.rig.phone.visible = phone;
+        r.prop('burner').visible = phone;
       }
     };
   }
@@ -1173,14 +1172,14 @@ export class Tutorial {
     this.game.transformCody();
   }
 
-  /** Apply tire-trade and sleep overrides on every state transition. */
+  /** Apply trade and phase-skip overrides on every state transition. */
   private applyRules(step: Step): void {
     if (!this.settings) {
       return;
     }
 
-    this.game.tires.enabled = this.settings.tires && step !== 'basement' && step !== 'noWheels' && step !== 'brisket';
-    this.game.sleepAfterEating = this.settings.sleepAfterEating && !STORY.has(step);
+    this.game.trades.enabled = this.settings.trades && step !== 'basement' && step !== 'noWheels' && step !== 'brisket';
+    this.game.skipAfterEating = this.settings.skipAfterEating && !STORY.has(step);
   }
 
   private finish(): void {
@@ -1191,8 +1190,8 @@ export class Tutorial {
 
     if (this.settings) {
       this.game.randyTalk.enabled = this.settings.randyTalk;
-      this.game.tires.enabled = this.settings.tires;
-      this.game.sleepAfterEating = this.settings.sleepAfterEating;
+      this.game.trades.enabled = this.settings.trades;
+      this.game.skipAfterEating = this.settings.skipAfterEating;
       this.settings = null;
     }
 

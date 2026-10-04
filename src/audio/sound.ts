@@ -1,4 +1,4 @@
-import type { Vehicle } from '@/actors/vehicle';
+import type { Vehicle } from '@/actors/vehicles/vehicle';
 import { TUNING } from '@/config';
 import { clamp } from '@/engine/core/math';
 import { KEYS, keyName } from '@/game/controls';

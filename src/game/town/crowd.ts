@@ -1,10 +1,10 @@
 import { type Scene, Vector3 } from 'three';
 
 import { type Avoidance, inZones, parkedBlocks, PERSON_RADIUS } from '@/actors/avoidance';
-import { driverDoor } from '@/actors/doors';
 import type { LootKind } from '@/actors/models/loot';
 import { buildPerson, randomOutfit } from '@/actors/models/person';
-import type { Vehicle } from '@/actors/vehicle';
+import { driverDoor } from '@/actors/vehicles/doors';
+import type { Vehicle } from '@/actors/vehicles/vehicle';
 import { Walker } from '@/actors/walker';
 import { TUNING } from '@/config';
 import type { Rng } from '@/engine/core/rng';

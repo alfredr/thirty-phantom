@@ -1,9 +1,9 @@
 import { Group, Vector3 } from 'three';
 
 import { type Avoidance, PERSON_RADIUS } from '@/actors/avoidance';
-import { driverDoor } from '@/actors/doors';
 import { buildValet } from '@/actors/models/valet';
-import type { Vehicle } from '@/actors/vehicle';
+import { driverDoor } from '@/actors/vehicles/doors';
+import type { Vehicle } from '@/actors/vehicles/vehicle';
 import { Walker } from '@/actors/walker';
 import { TUNING } from '@/config';
 import { done, type Result, running } from '@/engine/sim/action';

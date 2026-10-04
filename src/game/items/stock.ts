@@ -1,19 +1,19 @@
-import { ITEM_BREEDS, type ItemKind } from '@/game/items/item-breeds';
+import { ITEM_BREEDS, type ItemKind } from './item-breeds';
 
-/** Initial shop slots: one burner phone and five brisket stacks. Prices come from item metadata. */
-export const RANDY_STOCK: readonly { kind: ItemKind; count: number }[] = [
-  { kind: 'burner', count: 1 },
-  ...Array.from({ length: 5 }, () => ({ kind: 'brisket' as ItemKind, count: 128 })),
-];
+/** Initial counts copied into each merchant's inventory. */
+export interface StockItem {
+  readonly kind: ItemKind;
+  readonly count: number;
+}
 
-export interface WareSlot {
+export interface StockSlot {
   readonly id: string;
   kind: ItemKind;
   count: number;
 }
 
 /** Shop slot data prepared for display. */
-export interface WareView {
+export interface StockView {
   id: string;
   kind: ItemKind;
   name: string;
@@ -25,11 +25,11 @@ export interface WareView {
 }
 
 /** Track shop stock by stable slot ID. */
-export class Wares {
-  readonly slots: WareSlot[];
+export class Stock {
+  readonly slots: StockSlot[];
 
-  constructor() {
-    this.slots = RANDY_STOCK.map((s, i) => ({ id: `slot${i}`, kind: s.kind, count: s.count }));
+  constructor(stock: readonly StockItem[]) {
+    this.slots = stock.map((s, i) => ({ id: `slot${i}`, kind: s.kind, count: s.count }));
   }
 
   price(kind: ItemKind): number {
@@ -37,12 +37,12 @@ export class Wares {
   }
 
   /** Return the first nonempty slot of the requested kind, or null. */
-  slotOf(kind: ItemKind): WareSlot | null {
+  slotOf(kind: ItemKind): StockSlot | null {
     return this.slots.find((s) => s.kind === kind && s.count > 0) ?? null;
   }
 
   /** Build display data and purchase eligibility from the current balance and selling state. */
-  view(cash: number, selling: boolean): WareView[] {
+  view(cash: number, selling: boolean): StockView[] {
     return this.slots.map((s) => ({
       id: s.id,
       kind: s.kind,

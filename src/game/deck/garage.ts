@@ -11,7 +11,7 @@ import {
 
 import type { VehicleRig } from '@/actors/models/rig';
 import { buildTruckRig } from '@/actors/models/truck';
-import type { Vehicle } from '@/actors/vehicle';
+import type { Vehicle } from '@/actors/vehicles/vehicle';
 import { FX_LAYER, GHOST_LAYER } from '@/render/layers';
 import { withCutaway } from '@/render/materials';
 import { radialGlowTexture } from '@/render/textures';

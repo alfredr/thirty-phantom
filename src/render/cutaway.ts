@@ -1,6 +1,6 @@
 import { Vector3 } from 'three';
 
-import type { Vehicle } from '@/actors/vehicle';
+import type { Vehicle } from '@/actors/vehicles/vehicle';
 import { TUNING } from '@/config';
 import { damp, type V3 } from '@/engine/core/math';
 import type { CollisionWorld } from '@/engine/physics/collision';

@@ -53,13 +53,13 @@ export function paysForTiresAtOnceThenBurnsThem() {
 
   g.inventory.add('tire', 2);
   const before = g.inventory.count('brisket');
-  const taker = g.tires.taker(g.player.pos);
-  const gave = taker ? g.tires.give(taker, g.player.pos) : 0;
+  const taker = g.trades.offer('tire', g.player.pos)?.to;
+  const gave = taker ? g.trades.give(taker, 'tire', g.player.pos) : 0;
   const paidAtOnce = g.inventory.count('brisket') - before;
-  const busy = r.work.state.at === 'feeding' && g.tires.taker(g.player.pos) === null;
-  const done = sim.until(() => r.work.state.at === 'roasting', 5, []);
+  const busy = r.work.state.at === 'feeding' && g.trades.offer('tire', g.player.pos) === null;
+  const done = sim.until(() => r.work.state.at === 'idle', 5, []);
   return {
-    ok: gave === 2 && paidAtOnce === 2 && busy && done.ok && g.tires.taker(g.player.pos) === r,
+    ok: gave === 2 && paidAtOnce === 2 && busy && done.ok && g.trades.offer('tire', g.player.pos)?.to === r,
     gave,
     paidAtOnce,
     busyWhileBurning: busy,
@@ -171,8 +171,8 @@ export function shopAndInventoryFollowState() {
     return { ok: false, why: 'no Randy' };
   }
 
-  const slot = g.wares.slotOf('brisket');
-  const price = g.wares.price('brisket');
+  const slot = r.stock.slotOf('brisket');
+  const price = r.stock.price('brisket');
   g.money.cash = price * 2;
 
   if (!sim.until(() => r.pitch.state.at === 'browsing', 15, []).ok) {
@@ -208,6 +208,61 @@ export function shopAndInventoryFollowState() {
     closed,
   };
 }
+
+/** Thrown props keep their item kind through landing and collection; the original returns to its model. */
+export function throwsNamedProps() {
+  const g = window.__game;
+  const sim = window.__sim;
+  const r = sim.standBy(12);
+  if (!r) {
+    return { ok: false, why: 'no Randy' };
+  }
+
+  const phone = r.prop('burner');
+  const parent = phone.parent;
+  const pos = phone.position.clone();
+  const to = r.pos.clone();
+  to.x += 3;
+  to.z += 3;
+  r.throwing.throw('burner', to);
+  const landed = sim.until(() => !r.throwing.active, 8, []);
+  const restored = phone.parent === parent && phone.position.equals(pos) && !phone.visible;
+  const collected = g.junk.update(0, to);
+  return { ok: landed.ok && restored && collected.includes('burner'), landed: landed.ok, restored, collected };
+}
+
+/** Eating advances to the next phase, while tutorial overrides and an active fade prevent extra skips. */
+export const cases = {
+  mealSkipsPhase: {
+    inputs: ['day', 'night'],
+    run: (phase) => {
+      const g = window.__game;
+      const sim = window.__sim;
+      g.start();
+      sim.run(120);
+      g.clock.hours = phase === 'day' ? 12 : 22;
+      g.inventory.add('brisket', 3);
+      g.skipAfterEating = false;
+      g.hud.onItemAction('brisket', 'eat');
+      sim.run(120);
+      const suppressed = g.clock.phase === phase && g.inventory.count('brisket') === 2;
+      let transitions = 0;
+      g.events.on(phase === 'day' ? 'nightfall' : 'sunrise', () => transitions++);
+      g.skipAfterEating = true;
+      g.hud.onItemAction('brisket', 'eat');
+      g.hud.onItemAction('brisket', 'eat');
+      const singleMeal = g.inventory.count('brisket') === 1;
+      sim.run(150);
+      return {
+        ok: suppressed && singleMeal && g.clock.phase !== phase && transitions === 1,
+        suppressed,
+        singleMeal,
+        phase: g.clock.phase,
+        transitions,
+      };
+    },
+  },
+};
 
 /** Shared browser scenario helpers installed on window.__sim before each case. */
 export const steps = { standBy };

@@ -6,7 +6,7 @@ import { Group } from 'three';
 import { loadModules } from './modules.mjs';
 
 const [{ Vehicle }, { CollisionWorld }] = await loadModules(
-  '/src/actors/vehicle.ts',
+  '/src/actors/vehicles/vehicle.ts',
   '/src/engine/physics/collision.ts',
 );
 

@@ -99,7 +99,7 @@ export class SaveGame {
       items: g.inventory.list(),
       phantoms: this.phantoms,
       quests: g.quests.steps(),
-      stock: g.wares.slots.map((s) => s.count),
+      stock: g.npcs.find('randy')?.stock?.slots.map((s) => s.count) ?? [],
       found: g.money.foundToday(),
     };
     const json = JSON.stringify(data);
@@ -131,9 +131,10 @@ export class SaveGame {
 
     g.quests.restore(d.quests);
 
-    // Restore stock only when the saved slot count matches the current shop.
-    if (d.stock.length === g.wares.slots.length) {
-      g.wares.slots.forEach((s, i) => (s.count = d.stock[i] ?? s.count));
+    // Version 2 stores Randy's slots in order. Preserve that format now that stock belongs to the NPC.
+    const stock = g.npcs.find('randy')?.stock;
+    if (stock && d.stock.length === stock.slots.length) {
+      stock.slots.forEach((s, i) => (s.count = d.stock[i] ?? s.count));
     }
 
     if (d.found) {

@@ -1,7 +1,7 @@
 import { Color, Vector3 } from 'three';
 
-import type { Vehicle } from '@/actors/vehicle';
-import { TUNING } from '@/config';
+import type { SmokeExhaust } from '@/actors/vehicles/capabilities';
+import type { Vehicle } from '@/actors/vehicles/vehicle';
 import { Rng } from '@/engine/core/rng';
 
 import type { SpriteFx } from './sprite-fx';
@@ -33,13 +33,14 @@ const _vel = new Vector3();
 
 /**
  * Emit short smoke bursts when selected cars accelerate at low speed. Selection is deterministic per vehicle ID;
- * monster-truck exhaust is handled separately.
+ * drive() emits the current ride’s spectral exhaust.
  */
 export class Exhaust {
   /** Cached emission state, or null for vehicles selected to run without smoke. */
   private readonly pipes = new WeakMap<Vehicle, Pipe | null>();
-  private readonly day = new Color(TUNING.vehicle.exhaust.day);
-  private readonly night = new Color(TUNING.vehicle.exhaust.night);
+  private spectralWait = 0;
+  private readonly day = new Color();
+  private readonly night = new Color();
   private readonly color = new Color();
 
   constructor(private readonly sprites: SpriteFx) {}
@@ -50,14 +51,14 @@ export class Exhaust {
       return;
     }
 
-    const E = TUNING.vehicle.exhaust;
-    this.color.lerpColors(this.day, this.night, nightness);
-
     for (const v of vehicles) {
-      if (v.form !== 'car') {
+      const exhaust = v.breed.exhaust;
+      if (exhaust?.kind !== 'smoke') {
         continue;
       }
 
+      const E = exhaust.smoke;
+      this.color.lerpColors(this.day.set(E.day), this.night.set(E.night), nightness);
       let p = this.pipes.get(v);
       if (p === undefined) {
         this.pipes.set(
@@ -93,13 +94,35 @@ export class Exhaust {
 
       p.wait = E.every;
       p.left--;
-      this.puff(v);
+      this.puff(v, E);
+    }
+  }
+
+  /** Advance the current ride's spectral exhaust without resetting its clock between drives. */
+  drive(dt: number, car: Vehicle, throttle: number, burning: boolean): void {
+    const exhaust = car.breed.exhaust;
+    if (exhaust?.kind !== 'spectral') {
+      return;
+    }
+
+    this.spectralWait -= dt;
+
+    if (this.spectralWait > 0 || (throttle === 0 && !burning)) {
+      return;
+    }
+
+    const puff = burning ? exhaust.boosted : exhaust.normal;
+    this.spectralWait = puff.every;
+
+    for (const port of exhaust.ports) {
+      car.rig.body.localToWorld(_at.set(...port));
+      _vel.set((Math.random() - 0.5) * puff.scatter, puff.rise, (Math.random() - 0.5) * puff.scatter);
+      this.sprites.emit(_at, _vel, puff.color, puff.size[0], puff.size[1], puff.life, 'puff', puff.alpha);
     }
   }
 
   /** Emit one puff at the vehicle's tailpipe position. */
-  private puff(v: Vehicle): void {
-    const E = TUNING.vehicle.exhaust;
+  private puff(v: Vehicle, E: SmokeExhaust): void {
     const P = v.params;
     const fx = Math.sin(v.yaw);
     const fz = Math.cos(v.yaw);

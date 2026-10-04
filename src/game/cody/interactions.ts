@@ -1,7 +1,8 @@
 import type { Vector3 } from 'three';
 
+import type { Npc } from '@/actors/npcs/npcs';
 import type { Player } from '@/actors/player';
-import type { Vehicle } from '@/actors/vehicle';
+import type { Vehicle } from '@/actors/vehicles/vehicle';
 import { TUNING } from '@/config';
 import type { Input } from '@/engine/input/input';
 import { Doing, resolveFully } from '@/engine/sim/action';
@@ -9,7 +10,6 @@ import { bestOffers } from '@/engine/sim/offers';
 import type { Control } from '@/game/controls';
 import type { Inventory, ItemActionId } from '@/game/items/inventory';
 import { ITEM_BREEDS, type ItemKind, isItemKind } from '@/game/items/item-breeds';
-import { NPC_NAMES, type Npc } from '@/game/randy/npcs';
 import type { RandyTalk } from '@/game/randy/talk';
 import type { ValetService } from '@/game/valets/valet';
 import type { InvItem } from '@/ui/inventory';
@@ -19,9 +19,9 @@ import {
   CallElevator,
   type CodyAction,
   type CodyCandidate,
-  Eat,
+  UseItem,
   GetOut,
-  GiveTires,
+  GiveItem,
   InteractWithVehicle,
   PickFloor,
   type Play,
@@ -44,7 +44,6 @@ interface InteractionWorld {
   readonly valet: Pick<ValetService, 'talkable'>;
   readonly randyTalk: Pick<RandyTalk, 'talkable'>;
   readonly elevators: Pick<Elevators, 'cabAt' | 'landingAt'>;
-  playing(): boolean;
   blocked(): boolean;
 }
 
@@ -97,8 +96,8 @@ export class Interactions {
     }
   }
 
-  giveTires(to: Npc): boolean {
-    return 'done' in this.doing.do(this.play, new GiveTires({ to, name: NPC_NAMES[to.def.id] }));
+  give(to: Npc, kind: ItemKind): boolean {
+    return 'done' in this.doing.do(this.play, new GiveItem(to, kind));
   }
 
   inventoryView(inventory: Inventory): InvItem[] {
@@ -225,13 +224,14 @@ export class Interactions {
   /** Resolve supported inventory actions and omit any that currently fail. */
   private itemOffers(kind: ItemKind): { id: ItemActionId; action: CodyAction; label: string }[] {
     const candidates: [ItemActionId, CodyAction][] = [];
-    if (kind === 'brisket') {
-      candidates.push(['eat', new Eat()]);
+    const use = ITEM_BREEDS[kind].use;
+    if (use) {
+      candidates.push([use.id, new UseItem(kind, use)]);
     }
 
-    const taker = kind === 'tire' && this.world.playing() ? this.play.tireTaker() : null;
-    if (taker) {
-      candidates.push(['give', new GiveTires({ to: taker, name: NPC_NAMES[taker.def.id] })]);
+    const trade = this.play.tradeFor(kind);
+    if (trade) {
+      candidates.push(['give', new GiveItem(trade.to, kind)]);
     }
 
     return candidates.flatMap(([id, action]) => {

@@ -1,7 +1,7 @@
 import { Vector3 } from 'three';
 
 import type { Avoidance } from '@/actors/avoidance';
-import type { Vehicle } from '@/actors/vehicle';
+import type { Vehicle } from '@/actors/vehicles/vehicle';
 import type { Walker } from '@/actors/walker';
 import { TUNING } from '@/config';
 import type { Rng } from '@/engine/core/rng';

@@ -11,7 +11,7 @@ const [{ CodyRide }, { CodyState }, { Claims }, { CLAIMS }, { Vehicle }, { Colli
     '/src/game/cody/cody-state.ts',
     '/src/engine/sim/claims.ts',
     '/src/game/rules/claim-kinds.ts',
-    '/src/actors/vehicle.ts',
+    '/src/actors/vehicles/vehicle.ts',
     '/src/engine/physics/collision.ts',
     '/src/engine/core/events.ts',
   );

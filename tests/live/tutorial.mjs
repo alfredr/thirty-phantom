@@ -248,8 +248,8 @@ export function playsThrough() {
       sim.goal() === '' &&
       !g.cody.holdForm &&
       !g.keepEscaped &&
-      g.sleepAfterEating &&
-      g.tires.enabled &&
+      g.skipAfterEating &&
+      g.trades.enabled &&
       sim.marks() === '',
   );
   return result();
@@ -362,7 +362,7 @@ const interruptScene = (target) => {
   sim.run(60);
   const stayed = scene.step() === 'steal' && /STEAL A CAR/.test(sim.goal());
   return {
-    ok: reached && wasOpen && woke && released && closed && stayed && g.sleepAfterEating && g.tires.enabled,
+    ok: reached && wasOpen && woke && released && closed && stayed && g.skipAfterEating && g.trades.enabled,
     reached,
     wasOpen,
     woke,
@@ -409,13 +409,13 @@ export function keepsPlayersCameraChoiceAfterSunrise() {
 export function restoresPreviousRulesAfterFirstNight() {
   const g = window.__game;
   const sim = window.__sim;
-  g.sleepAfterEating = false;
-  g.tires.enabled = false;
+  g.skipAfterEating = false;
+  g.trades.enabled = false;
   g.keepEscaped = true;
   const scene = sim.reachScene('imprint');
   g.clock.hours = 7.49;
   const woke = sim.until(() => scene.step() === 'steal', 5, []).ok;
-  return { ok: woke && !g.sleepAfterEating && !g.tires.enabled && g.keepEscaped && !g.cody.holdForm };
+  return { ok: woke && !g.skipAfterEating && !g.trades.enabled && g.keepEscaped && !g.cody.holdForm };
 }
 
 /** Shared browser scenario helpers installed on window.__sim before each case. */

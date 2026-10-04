@@ -1,6 +1,6 @@
 import type { Vector3 } from 'three';
 
-import type { Vehicle } from '@/actors/vehicle';
+import type { Vehicle } from '@/actors/vehicles/vehicle';
 import { _, type Space } from '@/engine/sim/space';
 import type { Crowd } from '@/game/town/crowd';
 import type { Townsperson } from '@/game/town/town-mind';

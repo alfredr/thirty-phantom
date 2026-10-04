@@ -24,6 +24,7 @@ function setup() {
     vehicles: [],
   };
   const log = [];
+  const inventory = new Inventory();
   const play = {
     cody: { can: (a) => a === 'steal' },
     conditions: { valetsOnShift: () => true, parking: () => true },
@@ -35,13 +36,14 @@ function setup() {
     exit: () => log.push(['exit']),
     talkToValet: () => log.push(['valet']),
     talkToRandy: () => log.push(['randy']),
-    canEat: () => state.eat,
-    eat: () => {
-      log.push(['eat']);
-      return true;
+    items: {
+      inventory,
+      canEat: () => state.eat,
+      used: (_kind, action) => log.push([action]),
+      skipPhase() {},
     },
-    tireTaker: () => state.taker,
-    giveTires: (to) => {
+    tradeFor: (kind) => (kind === 'tire' && state.taker ? { to: state.taker } : null),
+    give: (to) => {
       log.push(['give', to]);
       return true;
     },
@@ -52,7 +54,6 @@ function setup() {
     valet: { talkable: () => state.valet },
     randyTalk: { talkable: () => state.randy },
     elevators: { cabAt: () => null, landingAt: () => null },
-    playing: () => true,
     blocked: () => state.blocked,
   };
   const input = {
@@ -75,7 +76,7 @@ function setup() {
     interactions.update();
   };
 
-  return { state, log, shown, interactions, press };
+  return { state, log, shown, interactions, press, inventory };
 }
 
 const car = (name, x) => ({
@@ -129,11 +130,10 @@ test('focus and scene blocking suppress keyboard offers and actions', () => {
 });
 
 test('inventory actions resolve again on selection as targets and permissions change', () => {
-  const { state, log, shown, interactions } = setup();
-  const inventory = new Inventory();
+  const { state, log, shown, interactions, inventory } = setup();
   inventory.add('tire');
   inventory.add('brisket');
-  state.taker = { def: { id: 'randy' } };
+  state.taker = { breed: { name: 'RANDY' } };
   assert.equal(interactions.inventoryView(inventory)[0].actions[0].id, 'give');
   state.taker = null;
   interactions.useItem('tire', 'give');

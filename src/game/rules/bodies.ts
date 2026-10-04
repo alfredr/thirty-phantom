@@ -1,7 +1,7 @@
 import { Vector3 } from 'three';
 
-import type { Obstacle } from '@/actors/autopilot';
-import type { Vehicle } from '@/actors/vehicle';
+import type { Obstacle } from '@/actors/vehicles/autopilot';
+import type { Vehicle } from '@/actors/vehicles/vehicle';
 import { bodyOffsets } from '@/engine/physics/vehicle-params';
 
 /** Body categories used to filter steering obstacles. */

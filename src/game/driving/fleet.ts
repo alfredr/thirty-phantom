@@ -1,8 +1,8 @@
 import { type Scene, Vector3 } from 'three';
 
-import { Traffic } from '@/actors/traffic';
-import { Vehicle } from '@/actors/vehicle';
-import { CAR_KINDS, type CarKind, VEHICLE_BREEDS } from '@/actors/vehicle-breeds';
+import { CAR_KINDS, type CarKind, VEHICLE_BREEDS } from '@/actors/vehicles/breeds';
+import { Traffic } from '@/actors/vehicles/traffic';
+import { Vehicle } from '@/actors/vehicles/vehicle';
 import type { AssetRegistry } from '@/assets/asset-registry';
 import { TUNING } from '@/config';
 import { lerp, TAU } from '@/engine/core/math';

@@ -2,10 +2,12 @@ import type { PartKind } from '@/actors/models/junk';
 import type { SoundOf } from '@/audio/cues';
 import { ITEM_ICONS } from '@/ui/item-icons';
 
+import { consume, type ItemUse } from './item-use';
+
 /** Item kinds supported by the inventory and pickup systems. */
 export type ItemKind = PartKind | 'brisket' | 'badge' | 'burner';
 
-/** Display, audio, and shop metadata for an item kind. */
+/** Presentation, price, and use capabilities shared by an item kind. */
 export interface ItemBreed {
   /** HUD display name. */
   readonly name: string;
@@ -17,6 +19,7 @@ export interface ItemBreed {
   readonly icon?: string;
   /** Unit price in dollars, when sold by Randy. */
   readonly price?: number;
+  readonly use?: ItemUse;
 }
 
 /** Create metadata for a part using the shared pickup sound. */
@@ -30,7 +33,19 @@ export const ITEM_BREEDS: Readonly<Record<ItemKind, ItemBreed>> = {
   headlight: part('HEADLIGHT'),
   muffler: part('MUFFLER'),
   plate: part('LICENSE PLATE'),
-  brisket: { name: 'BRISKET', sound: 'item-gift', icon: ITEM_ICONS.brisket, price: 10 },
+  brisket: {
+    name: 'BRISKET',
+    sound: 'item-gift',
+    icon: ITEM_ICONS.brisket,
+    price: 10,
+    use: consume({
+      id: 'eat',
+      label: 'EAT',
+      count: 1,
+      when: (w) => w.canEat(),
+      effect: (w) => w.skipPhase({ title: 'BRISKET', message: 'YOU ATE SO MUCH YOU FELT SLEEPY...' }),
+    }),
+  },
   badge: { name: 'UNREADABLE BADGE', note: 'COVERED IN BBQ SAUCE', sound: 'item-gift' },
 
   burner: {

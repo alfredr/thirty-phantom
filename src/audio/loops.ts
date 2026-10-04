@@ -1,7 +1,7 @@
-import type { Vehicle } from '@/actors/vehicle';
+import type { Npc } from '@/actors/npcs/npcs';
+import type { Vehicle } from '@/actors/vehicles/vehicle';
 import { TUNING } from '@/config';
 import { clamp, smoothstep } from '@/engine/core/math';
-import type { Npc } from '@/game/randy/npcs';
 import type { GateRuntime } from '@/world/gates';
 
 import type { SoundOf } from './cues';
@@ -206,7 +206,7 @@ export class Loops {
         this.fires.delete(n);
       }
 
-      loop?.set({ roar: n.plume });
+      loop?.set({ roar: n.fire.plume });
     }
   }
 

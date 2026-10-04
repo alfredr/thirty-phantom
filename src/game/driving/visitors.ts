@@ -1,8 +1,8 @@
 import { Vector3 } from 'three';
 
 import { footprint } from '@/actors/avoidance';
-import { Traffic } from '@/actors/traffic';
-import type { Vehicle } from '@/actors/vehicle';
+import { Traffic } from '@/actors/vehicles/traffic';
+import type { Vehicle } from '@/actors/vehicles/vehicle';
 import { TUNING } from '@/config';
 import type { Rng } from '@/engine/core/rng';
 import type { Polyline } from '@/engine/nav/polyline';

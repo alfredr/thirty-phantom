@@ -1,7 +1,7 @@
 import { type Scene, Vector3 } from 'three';
 
 import type { Player } from '@/actors/player';
-import type { Vehicle } from '@/actors/vehicle';
+import type { Vehicle } from '@/actors/vehicles/vehicle';
 import { TUNING } from '@/config';
 import type { Emitter } from '@/engine/core/events';
 import type { V3 } from '@/engine/core/math';
