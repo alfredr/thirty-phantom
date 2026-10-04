@@ -539,7 +539,8 @@ export class Vehicle {
     const targetRoll = lean
       ? // a bike leans into the turn, as far as its speed and lock call for
         clamp(Math.atan((this.speed * this.speed * Math.tan(this.steer)) / (P.wheelBase * TUNING.gravity)), -lean, lean)
-      : clamp(this.steer * this.speed * 0.012, -0.12, 0.12);
+      : // a car's body rolls the other way, out of the turn, on its springs
+        clamp(-this.steer * this.speed * 0.012, -0.12, 0.12);
     this.rollV += ((targetRoll - this.roll) * 80 - this.rollV * 9) * dt;
     this.roll += this.rollV * dt;
     this.wheelSpin += (this.speed / (this.rig.wheels[0]?.radius ?? 0.5)) * dt;
