@@ -1,0 +1,5 @@
+# Mechanical rewrites; git blame skips them (git config blame.ignoreRevsFile .git-blame-ignore-revs). GitHub reads this file itself.
+# Imports across folders moved to @/.
+a35fdebc64c4aa7643bc745d390d8236493cf31b
+# Formatted with oxfmt, braces and blank lines added.
+ccfa84ac36fbcb3e23f27dd97e7f4acfca3c447b
