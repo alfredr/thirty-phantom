@@ -1179,7 +1179,7 @@ export class Game {
   /** A monster truck at speed flattens a car outside the deck instead of bumping it. */
   private crushes(v: Vehicle, o: Vehicle): boolean {
     if (v.form !== 'truck' || o.form !== 'car' || o.insideDeck || Math.abs(v.speed) <= CRUSH_SPEED) return false;
-    this.crush(o);
+    this.crush(o, v);
     return true;
   }
 
@@ -1334,7 +1334,7 @@ export class Game {
     this.events.emit('prop', { kind, at: _v.clone(), how: 'knocked' });
   }
 
-  private crush(o: Vehicle): void {
+  private crush(o: Vehicle, by: Vehicle): void {
     o.role = 'crushed';
     o.timer = 0;
     this.events.emit('crushed', { car: o });
@@ -1342,7 +1342,7 @@ export class Game {
     this.slime.burst(o.pos, 30, 8, [0.15, 0.35], [1, 2], SLIME, 0.7, o.pos.y);
     this.debris.burst(_at.copy(o.pos).setY(o.pos.y + 0.8), 10, 6, [0.15, 0.3], [1, 2], _tint.set(o.color), 0.6, o.pos.y);
     this.shake(0.35);
-    if (this.driving) this.driving.kick(-CRUSH_KICK);
+    by.kick(-CRUSH_KICK);
   }
 
   // ---------------------------------------------------------------- phases
