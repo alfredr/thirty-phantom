@@ -127,6 +127,9 @@ export interface HudStatus {
   ghast(): { fill: number; burning: boolean } | null;
 }
 
+/** A toast's look: plain, purple (the deck, the badge), or a warning. */
+export type ToastTone = '' | 'purple' | 'warn';
+
 export interface DashState {
   speed: number;
   form: VehicleForm;
@@ -418,7 +421,7 @@ export class Hud {
     if (this.changed('air', d.airborne)) this.gauge.root.classList.toggle('air', d.airborne);
   }
 
-  toast(big: string, small = '', variant: '' | 'purple' | 'warn' = '', life = 2.2): void {
+  toast(big: string, small = '', variant: ToastTone = '', life = 2.2): void {
     const t = el('div', `toast ${variant}`, this.toasts);
     t.style.setProperty('--life', `${life}s`);
     el('div', 'big slime-text', t, big);

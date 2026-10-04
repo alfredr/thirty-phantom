@@ -2,7 +2,7 @@ import { Vector3 } from 'three';
 import { Autopilot, type Obstacle } from '../../actors/autopilot';
 import { footprint } from '../../actors/avoidance';
 import type { Jam, Traffic } from '../../actors/traffic';
-import type { DriveInput, Vehicle } from '../../actors/vehicle';
+import type { DriveEvents, DriveInput, Vehicle } from '../../actors/vehicle';
 import { TUNING } from '../../config';
 import { lerp, mod } from '../../engine/core/math';
 import type { Polyline } from '../../engine/nav/polyline';
@@ -92,7 +92,7 @@ export class Detours {
     private readonly fleet: Fleet,
     private readonly traffic: Traffic,
     /** A car pulling round against every other: real contact, shoves and knocks. */
-    private readonly bump: (car: Vehicle) => void,
+    private readonly drove: (car: Vehicle, ev: DriveEvents) => void,
   ) {}
 
   /** Cars pulling round something right now. */
@@ -210,8 +210,7 @@ export class Detours {
         return true;
       case 'driving': {
         const pilot = d.pilot as Autopilot;
-        car.drive(dt, pilot.update(dt, car, obstacles), this.collision);
-        this.bump(car);
+        this.drove(car, car.drive(dt, pilot.update(dt, car, obstacles), this.collision));
         if (this.rejoin(d, false)) return false;
         if (pilot.state === 'arrived') {
           this.rejoin(d, true);
@@ -321,7 +320,6 @@ export class Detours {
   /** Waiting: brake to a stop where it is. */
   private hold(car: Vehicle, dt: number): void {
     const input: DriveInput = { throttle: -Math.sign(car.speed) * Math.min(1, Math.abs(car.speed) * BRAKE_GAIN), steer: 0, hop: false, drift: false };
-    car.drive(dt, input, this.collision);
-    this.bump(car);
+    this.drove(car, car.drive(dt, input, this.collision));
   }
 }

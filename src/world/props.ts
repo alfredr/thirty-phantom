@@ -148,6 +148,8 @@ export class Props {
   /** A prop shattered (PropKind.shatter): what it was, and the box its solids filled. */
   onBroken: (() => void) | null = null;
   brokenKind: PropKind | null = null;
+  /** What broke it, if something knocked it (knock's `by`). */
+  brokenBy: object | null = null;
   readonly brokenMin = new Vector3();
   readonly brokenMax = new Vector3();
 
@@ -277,11 +279,11 @@ export class Props {
     return p.kind;
   }
 
-  /** Something going (vx, vz) hit the prop solid `solidId`: the kind it knocked over (or broke), or null if that's not a standing prop. */
-  knock(solidId: number, vx: number, vz: number): PropKind | null {
+  /** `by`, going (vx, vz), hit the prop solid `solidId`: the kind it knocked over (or broke), or null if that's not a standing prop. */
+  knock(solidId: number, vx: number, vz: number, by: object | null = null): PropKind | null {
     const i = this.bySolid.get(solidId);
     if (i === undefined || this.state[i] !== UP) return null;
-    this.topple(i, vx, vz);
+    this.topple(i, vx, vz, by);
     return (this.props[i] as PropSpec).kind;
   }
 
@@ -365,7 +367,7 @@ export class Props {
   }
 
   /** Prop i breaks up where it stands: gone till sunrise, the box its solids filled left for the debris (onBroken). */
-  private shatter(i: number): void {
+  private shatter(i: number, by: object | null): void {
     const p = this.props[i] as PropSpec;
     this.unstand(i);
     this.state[i] = BROKEN;
@@ -377,13 +379,14 @@ export class Props {
       this.brokenMax.max(_v.fromArray(s.max));
     }
     this.brokenKind = p.kind;
+    this.brokenBy = by;
     this.onBroken?.();
   }
 
-  private topple(i: number, vx: number, vz: number): void {
+  private topple(i: number, vx: number, vz: number, by: object | null = null): void {
     const p = this.props[i] as PropSpec;
     if (p.kind.shatter) {
-      this.shatter(i);
+      this.shatter(i, by);
       return;
     }
     const speed = Math.hypot(vx, vz);

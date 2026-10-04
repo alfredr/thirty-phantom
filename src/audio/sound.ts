@@ -96,7 +96,7 @@ export class Sound {
       // the night's trucks turning back into cars
       for (const v of game.vehicles) if (v.role === 'transforming' && v.form === 'truck') this.mixer.play('morph', 'morph-car', { at: v.pos });
     });
-    ev.on('outfit', (form) => this.mixer.play('outfit', form === 'night' ? 'outfit-phantom' : 'outfit-day', { at: game.player.pos }));
+    ev.on('outfit', ({ form, at }) => this.mixer.play('outfit', form === 'night' ? 'outfit-phantom' : 'outfit-day', { at }));
     ev.on('entered', ({ v, possessed }) => {
       if (possessed) this.mixer.play('morph', 'morph-truck', { at: v.pos });
     });

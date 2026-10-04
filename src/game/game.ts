@@ -10,7 +10,7 @@ import type { Obstacle } from '../actors/autopilot';
 import { Avoidance, parkedBlocks, PERSON_RADIUS } from '../actors/avoidance';
 import { Player } from '../actors/player';
 import { Traffic } from '../actors/traffic';
-import { type DriveInput, Vehicle } from '../actors/vehicle';
+import { type DriveEvents, type DriveInput, Vehicle } from '../actors/vehicle';
 import { type CarKind, VEHICLE_BREEDS } from '../actors/vehicle-breeds';
 import { TUNING } from '../config';
 import { Input } from '../engine/input/input';
@@ -64,6 +64,7 @@ import { EYE_HEIGHT, gameReactions, type Perception, react, type Reaction, type 
 import { LEVEL } from './rules/reach';
 import { WorldConditions } from './rules/world-conditions';
 import { createGameDebug } from './debug';
+import { playEffects } from './effects';
 import { Skeletons } from './town/skeletons';
 import { carContacts } from './driving/collisions';
 import { Crowd } from './town/crowd';
@@ -107,8 +108,6 @@ const BOOST_FLAME = new Color(0.9, 1.6, 1.4);
 const INTAKE: V3 = [0, 2.6, 1.4];
 /** Cody's outfit swap at moonrise / sunrise. */
 const OUTFIT_PUFF = new Color(0.6, 0.3, 1.4);
-/** A puff of smoke someone vanishes (or turns up) in: its colour, puffs, spread and rise (m, m/s), sizes and life (s). */
-const VANISH = { color: new Color('#5a4e66'), puffs: 18, spread: 1.4, up: [0.5, 2.2] as [number, number], size: [0.8, 2.8] as [number, number], life: [0.9, 1.7] as [number, number] };
 /** Black smoke and embers (glowing, so past 1) off Randy's fire when a tire goes in. */
 const TIRE_SMOKE = new Color('#221c28');
 const EMBER = new Color(2.4, 0.9, 0.2);
@@ -143,7 +142,7 @@ const DOOR_GAP = 1;
  * A prop smashed to bits (a hedge, a bus shelter): pieces of its debris per cubic metre it filled,
  * within `count`, their size, life (s), and how fast they fly out and up (m/s); the hit's shake.
  */
-const SHATTER = { perM3: 3, count: [12, 36] as [number, number], size: [0.1, 0.32] as [number, number], life: 2.2, out: 5, up: [2, 6] as [number, number], shake: 0.35 };
+const SHATTER = { perM3: 3, count: [12, 36] as [number, number], size: [0.1, 0.32] as [number, number], life: 2.2, out: 5, up: [2, 6] as [number, number] };
 /** A truck flattens a car outside the deck above this speed (m/s); the hit jolts the truck's body. */
 const CRUSH_SPEED = 4;
 /** A driver pulling round only knocks another driven car loose (its driver out) with a bump this hard (m/s); softer is a shove. */
@@ -187,8 +186,8 @@ export type GameEvents = {
   item: ItemDeed;
   /** The player picked a camera mode with C. */
   camera: CamMode;
-  /** The monster truck sucked in ghosts: how many, and the GhASt tank after (0..1). */
-  swallowed: { n: number; tank: number };
+  /** The monster truck sucked in ghosts at its intake (`at`): how many, and the GhASt tank after (0..1). */
+  swallowed: { n: number; tank: number; at: Vector3 };
   /** Cody started burning GhASt. */
   boosted: null;
   /** Emitted after a successful summon, with the number of skeletons raised. */
@@ -205,23 +204,27 @@ export type GameEvents = {
   /**
    * A vehicle hit something (for the crash sounds): another car, a wall (anything solid, the
    * ground too while it tumbles), or the ground coming down from the air. `dv` is how hard (m/s:
-   * the speed it changed by, or fell at). Contact that grinds on comes every frame.
+   * the speed it changed by, or fell at; against another car, the harder of what it took and
+   * what it dealt). `took` is how hard `v` itself was hit. Contact that grinds on comes every frame.
    */
-  impact: { v: Vehicle; at: Vector3; dv: number; against: 'car' | 'wall' | 'ground' };
-  /** Street furniture went: knocked over by a vehicle, smashed to bits (a hedge, a bus shelter), or a falling lamp hitting the ground. */
-  prop: { kind: PropKind; at: Vector3; how: 'knocked' | 'shattered' | 'landed' };
-  /** The monster truck broke through a parapet. */
-  smashed: { at: Vector3 };
-  /** The monster truck flattened a car. */
-  crushed: { car: Vehicle };
+  impact: { v: Vehicle; at: Vector3; dv: number; took: number; against: 'car' | 'wall' | 'ground' };
+  /**
+   * Street furniture went: knocked over by a vehicle, smashed to bits (a hedge, a bus shelter), or
+   * a falling lamp hitting the ground; `by` is the vehicle that did it, when one did.
+   */
+  prop: { kind: PropKind; at: Vector3; how: 'knocked' | 'shattered' | 'landed'; by: Vehicle | null };
+  /** A monster truck (`by`) broke through a parapet. */
+  smashed: { at: Vector3; by: Vehicle };
+  /** A monster truck (`by`) flattened a car. */
+  crushed: { car: Vehicle; by: Vehicle };
   /** A tire went into Randy's fire and it roared up. */
   stoked: { at: Vector3 };
   /** A puff of smoke (game.puff): someone vanishing in one, or turning up. */
   puff: { at: Vector3 };
   /** Cody picked up money: cash or a wallet off the ground, or cash out of a glovebox. */
   money: { kind: 'cash' | 'wallet' | 'glovebox'; amount: number };
-  /** Cody's outfit swap is starting (moonrise, sunrise, or the tutorial's); the payload is what he's turning into. */
-  outfit: Phase;
+  /** Cody's outfit swap is starting (moonrise, sunrise, or the tutorial's): what he's turning into, and where he is. */
+  outfit: { form: Phase; at: Vector3 };
   /** Someone on foot took fright and ran (or a driver bailed out), from where they stood. */
   fright: { at: Vector3 };
   /** Randy's burner: ringing, the call over, a text landing. */
@@ -447,7 +450,9 @@ export class Game {
     this.nav = NavGrid.build(this.world.collision, level);
     this.nav.elevators = this.elevators;
     this.world.interiors.attach(this.elevators);
-    this.planner = new NavPlanner(this.nav);
+    // Headless tests step the frames themselves (?manual): there a plan finishes by the next frame
+    // however busy the machine is, so a run doesn't depend on its speed.
+    this.planner = urlFlag('manual') ? new NavPlanner(this.nav, Infinity) : new NavPlanner(this.nav);
     this.guide = new RouteGuide(this.planner);
     console.info(`[nav] ${this.nav.nx}x${this.nav.nz} cells in ${this.nav.buildMs.toFixed(0)} ms`);
     if (this.navDebug) this.scene.add(this.navDebug.root);
@@ -502,8 +507,7 @@ export class Game {
       rejoin: (car, from) => this.traffic.rejoin(car, from),
       steer: (car, input, dt) => {
         const prev = _drivePrev.copy(car.pos);
-        car.drive(dt, input, this.world.collision);
-        this.vehicleContacts(car, NUDGE_LOOSEN);
+        this.drove(car, car.drive(dt, input, this.world.collision), NUDGE_LOOSEN);
         return this.garage.track(car, prev)?.kind === 'logged-in';
       },
       place: (car, at, yaw, dt) => car.place(at.x, at.y, at.z, yaw, 0, dt, this.world.collision),
@@ -566,7 +570,7 @@ export class Game {
     const entry = gate ? new Vector3((gate.min[0] + gate.max[0]) / 2, gate.min[1], (gate.min[2] + gate.max[2]) / 2) : this.deckCenter.clone();
     this.garage.bookedBy = (s) => this.claims.holder('spot', s);
     this.refuge = new Refuge(this.drivers, this.driveWorld, entry);
-    this.detours = new Detours(this.planner, this.nav, this.world.collision, this.fleet, this.traffic, (car) => this.vehicleContacts(car, NUDGE_LOOSEN));
+    this.detours = new Detours(this.planner, this.nav, this.world.collision, this.fleet, this.traffic, (car, ev) => this.drove(car, ev, NUDGE_LOOSEN));
     this.ghosts = new Ghosts(level.ghostZones, 28);
     this.bats = new Bats(new Vector3(this.deckCenter.x, 0, this.deckCenter.z), 16);
     this.scene.add(this.slime.mesh, this.debris.mesh, this.sprites.root, this.ghosts.root, this.bats.root, this.arrow.root, this.honks.root);
@@ -583,20 +587,21 @@ export class Game {
       _splatSize[1] = drips.splatSize * 0.5;
       this.slime.burst(_splat.copy(drips.splat).setY(drips.splat.y + 0.05), 4, 1.6, _splatSize, SPLAT_LIFE, SLIME, 0.5, drips.splat.y);
     };
-    this.world.gates.onSnapped = (g, kind) => this.events.emit('prop', { kind, at: g.center.clone(), how: 'knocked' });
+    this.world.gates.onSnapped = (g, kind) => this.events.emit('prop', { kind, at: g.center.clone(), how: 'knocked', by: null });
     const props = this.world.props;
     props.onLanded = () => {
       const p = props.landed;
       _spark.copy(props.landedColor).multiplyScalar(2.5);
       this.slime.burst(p, 16, 6, SPARK_SIZE, SPARK_LIFE, _spark, 0.8, this.world.collision.groundAt(p.x, p.z, p.y + 0.5, 0));
-      if (props.landedKind) this.events.emit('prop', { kind: props.landedKind, at: p.clone(), how: 'landed' });
+      if (props.landedKind) this.events.emit('prop', { kind: props.landedKind, at: p.clone(), how: 'landed', by: null });
     };
     // whoever smashed it, it flies apart from all through the room it filled
     props.onBroken = () => {
       const lo = props.brokenMin;
       const hi = props.brokenMax;
       const colors = props.brokenKind?.debris ?? [METAL];
-      if (props.brokenKind) this.events.emit('prop', { kind: props.brokenKind, at: new Vector3().lerpVectors(lo, hi, 0.5), how: 'shattered' });
+      const by = this.vehicles.find((v) => v === props.brokenBy) ?? null;
+      if (props.brokenKind) this.events.emit('prop', { kind: props.brokenKind, at: new Vector3().lerpVectors(lo, hi, 0.5), how: 'shattered', by });
       const n = clamp(Math.round((hi.x - lo.x) * (hi.y - lo.y) * (hi.z - lo.z) * SHATTER.perM3), ...SHATTER.count);
       const floor = this.world.collision.groundAt((lo.x + hi.x) / 2, (lo.z + hi.z) / 2, lo.y + 0.5, 0);
       for (let i = 0; i < n; i++) {
@@ -608,6 +613,15 @@ export class Game {
         this.debris.spawn(_v, _w, size, SHATTER.life, colors[i % colors.length] as Color, floor);
       }
     };
+
+    playEffects(this.events, {
+      ride: () => this.driving,
+      shake: (t) => this.shake(t),
+      toast: (title, sub, tone, seconds) => this.hud.toast(title, sub, tone, seconds),
+      slime: this.slime,
+      debris: this.debris,
+      sprites: this.sprites,
+    });
 
     for (const p of level.parked) {
       // one already sitting in a deck spot was badged in like any other
@@ -773,6 +787,7 @@ export class Game {
   /** Advance one frame (also used by headless tests). */
   frame(dt: number): void {
     this.time += dt;
+    Vehicle.advance(dt);
     this.syncView();
     if (this.mode === 'title') this.updateTitle(dt);
     else this.updatePlay(dt);
@@ -1017,11 +1032,7 @@ export class Game {
   private collectMoney(dt: number): void {
     const M = TUNING.money;
     const me = this.driving ? this.driving.pos : this.transform ? null : this.player.pos;
-    for (const got of this.money.update(dt, me, this.driving ? M.reachCar : M.reachFoot)) {
-      if (got.kind === 'wallet') this.hud.toast('WALLET!', `+$${got.amount}`, '', MONEY_TOAST);
-      else this.hud.toast(`+$${got.amount}`, '', '', MONEY_TOAST);
-      this.events.emit('money', { kind: got.kind, amount: got.amount });
-    }
+    for (const got of this.money.update(dt, me, this.driving ? M.reachCar : M.reachFoot)) this.events.emit('money', { kind: got.kind, amount: got.amount });
     const onFoot = this.driving || this.transform ? null : this.player.pos;
     for (const kind of this.junk.update(dt, onFoot)) {
       this.gain(kind, 1);
@@ -1270,10 +1281,7 @@ export class Game {
       return;
     }
     const found = this.money.glovebox(v);
-    if (found) {
-      this.hud.toast('GLOVEBOX', `+$${found}`, '', MONEY_TOAST);
-      this.events.emit('money', { kind: 'glovebox', amount: found });
-    }
+    if (found) this.events.emit('money', { kind: 'glovebox', amount: found });
     v.role = 'player';
     this.driving = v;
     // on a bike he's out in the open: Cody himself rides it
@@ -1296,20 +1304,7 @@ export class Game {
     const prev = _prev.copy(v.pos);
     const ev = v.drive(dt, di, this.world.collision);
     if (ev.hopped) this.slime.burst(v.pos, 10, 4, [0.12, 0.25], [0.6, 1], SLIME, 0.6, v.pos.y);
-
-    for (const s of ev.smashed) {
-      if (s.knockdown) this.knockProp(s, v);
-      else this.smash(s.id, v);
-    }
-    if (ev.impact > 6) this.shake(Math.min(0.5, ev.impact * 0.03));
-    if (ev.impact > 0) this.events.emit('impact', { v, at: v.pos.clone(), dv: ev.impact, against: 'wall' });
-    if (ev.landed > 0) this.events.emit('impact', { v, at: v.pos.clone(), dv: ev.landed, against: 'ground' });
-    if (ev.landed > 8) {
-      this.shake(Math.min(0.8, ev.landed * 0.03));
-      this.slime.burst(v.pos, Math.min(50, Math.round(ev.landed * 2)), ev.landed * 0.4, [0.15, 0.4], [0.8, 1.6], SLIME, 0.7, v.pos.y);
-      if (v.form === 'truck') this.debris.burst(v.pos, 12, 6, [0.15, 0.35], [1, 2], CONCRETE, 0.5, v.pos.y);
-    }
-    this.vehicleContacts(v);
+    this.drove(v, ev);
 
     const c = this.garage.track(v, prev);
     if (c) this.onCrossing(c);
@@ -1377,9 +1372,8 @@ export class Game {
         }
       },
     );
-    if (v === this.driving && dv > 3) this.shake(Math.min(0.5, dv * 0.05));
     // one bang for the sound: the harder of what it took and what it dealt
-    if (dv > 0 || dealt > 0) this.events.emit('impact', { v, at: dealt > 0 ? _met.clone() : v.pos.clone(), dv: Math.max(dv, dealt), against: 'car' });
+    if (dv > 0 || dealt > 0) this.events.emit('impact', { v, at: dealt > 0 ? _met.clone() : v.pos.clone(), dv: Math.max(dv, dealt), took: dv, against: 'car' });
   }
 
   /** A monster truck at speed flattens a car outside the deck instead of bumping it. */
@@ -1397,15 +1391,11 @@ export class Game {
     this.shaken.set(o, by.pos.clone());
   }
 
-  /** Crashing cars nobody is driving tumble on their own (valets' too), and knock into others. */
+  /** Crashing cars nobody stepped this frame tumble on their own (valets' too), and knock into others. */
   private updateWrecks(dt: number): void {
-    Vehicle.advance(dt);
     for (const v of this.vehicles) {
-      if (!v.crashing || v.role === 'player' || v.gone) continue;
-      const ev = v.drive(dt, null, this.world.collision);
-      if (ev.impact > 0) this.events.emit('impact', { v, at: v.pos.clone(), dv: ev.impact, against: 'wall' });
-      for (const s of ev.smashed) if (s.knockdown) this.world.props.knock(s.id, v.vel.x, v.vel.z);
-      if (!v.resting) this.vehicleContacts(v);
+      if (!v.crashing || v.role === 'player' || v.gone || v.steppedThisFrame) continue;
+      this.drove(v, v.drive(dt, null, this.world.collision));
     }
     for (const [o, from] of this.shaken) {
       if (!o.resting) continue;
@@ -1414,10 +1404,26 @@ export class Game {
     }
   }
 
+  /**
+   * What one step of a vehicle did, whoever is driving (Cody, an AI driver, or nobody: a wreck):
+   * the props it knocked over and the parapets it broke, its bangs, and its contacts with other
+   * cars (a car it nudges is knocked loose only past `loosen`; a wreck at rest pushes nothing).
+   */
+  private drove(v: Vehicle, ev: DriveEvents, loosen = 0): void {
+    for (const s of ev.smashed) {
+      if (s.knockdown) this.knockProp(s, v);
+      else this.smash(s.id, v);
+    }
+    if (ev.impact > 0) this.events.emit('impact', { v, at: v.pos.clone(), dv: ev.impact, took: ev.impact, against: 'wall' });
+    if (ev.landed > 0) this.events.emit('impact', { v, at: v.pos.clone(), dv: ev.landed, took: ev.landed, against: 'ground' });
+    if (!(v.crashing && v.resting)) this.vehicleContacts(v, loosen);
+  }
+
   private exit(): void {
     const v = this.driving as Vehicle;
     this.driving = null;
     this.claims.release(this.codySeat);
+    this.boosting = false;
     // An escaped vehicle's roll ends with the drive, so the next vehicle Cody takes is not affected.
     this.escapedTimer = -1;
     this.iso.zoomTarget = Math.min(this.iso.zoomTarget, TUNING.camera.zoom);
@@ -1508,9 +1514,7 @@ export class Game {
       this.debris.spawn(_v, _w, 0.25 + Math.random() * 0.45, 2.5, CONCRETE, this.world.collision.groundAt(_v.x, _v.z, c.y - 0.5, 0));
     }
     this.slime.burst(c, 24, 7, [0.12, 0.3], [1, 2], SLIME, 0.8, c.y - 0.6);
-    this.shake(0.45);
-    this.hud.toast('SMASH!', '', 'purple', 0.9);
-    this.events.emit('smashed', { at: c.clone() });
+    this.events.emit('smashed', { at: c.clone(), by: v });
   }
 
   /**
@@ -1524,30 +1528,26 @@ export class Game {
     const fz = Math.cos(v.yaw);
     const side = ((s.min[0] + s.max[0]) / 2 - v.pos.x) * -fz + ((s.min[2] + s.max[2]) / 2 - v.pos.z) * fx;
     const kick = (side === 0 ? (Math.random() < 0.5 ? -1 : 1) : Math.sign(side)) * Math.hypot(v.vel.x, v.vel.z) * 0.8;
-    const kind = this.world.props.knock(s.id, v.vel.x - fz * kick, v.vel.z + fx * kick);
+    const kind = this.world.props.knock(s.id, v.vel.x - fz * kick, v.vel.z + fx * kick, v);
     if (!kind) return;
     const k = kind.keep ?? v.breed.knockKeep;
     v.vel.x *= k;
     v.vel.z *= k;
-    if (kind.shatter) {
-      this.shake(SHATTER.shake);
-      return;
-    }
+    // one that shatters has gone to bits already (props.onBroken)
+    if (kind.shatter) return;
     _v.set((s.min[0] + s.max[0]) / 2, v.pos.y + 1, (s.min[2] + s.max[2]) / 2);
     const colors = kind.debris ?? [METAL];
     for (const c of colors) this.debris.burst(_v, Math.ceil(6 / colors.length), 5, [0.08, 0.2], [0.8, 1.4], c, 0.6, v.pos.y);
-    this.shake(0.2);
-    this.events.emit('prop', { kind, at: _v.clone(), how: 'knocked' });
+    this.events.emit('prop', { kind, at: _v.clone(), how: 'knocked', by: v });
   }
 
   private crush(o: Vehicle, by: Vehicle): void {
     o.role = 'crushed';
     o.timer = 0;
-    this.events.emit('crushed', { car: o });
+    this.events.emit('crushed', { car: o, by });
     this.junk.crushed(o);
     this.slime.burst(o.pos, 30, 8, [0.15, 0.35], [1, 2], SLIME, 0.7, o.pos.y);
     this.debris.burst(_at.copy(o.pos).setY(o.pos.y + 0.8), 10, 6, [0.15, 0.3], [1, 2], _tint.set(o.color), 0.6, o.pos.y);
-    this.shake(0.35);
     by.kick(-CRUSH_KICK);
   }
 
@@ -1606,9 +1606,10 @@ export class Game {
   private updateCodyFx(dt: number): void {
     if (this.codyFx < 0) return;
     const before = this.codyFx;
-    if (before === 0) this.events.emit('outfit', this.clock.phase);
+    // where Cody is: on foot, or inside whatever he's in
+    const p = (this.ride ?? this.player).pos;
+    if (before === 0) this.events.emit('outfit', { form: this.clock.phase, at: p.clone() });
     this.codyFx += dt;
-    const p = this.player.pos;
     if (before < 0.6) {
       _v.set(p.x + (Math.random() - 0.5) * 1.5, p.y + Math.random() * 2, p.z + (Math.random() - 0.5) * 1.5);
       this.sprites.emit(_v, _w.set(0, 2, 0), OUTFIT_PUFF, 0.4, 1.6, 0.8, 'puff', 0.8);
@@ -1769,9 +1770,7 @@ export class Game {
     const n = this.ghosts.suck(_at, G.reach, dt);
     if (n > 0) {
       this.ghast = Math.min(1, this.ghast + n * G.perGhost);
-      this.sprites.spray(_at, 4 * n, 1.2, [0.5, 1.5], WHITE, 1, 0.2, 0.5, 'ghost', 0.8);
-      this.shake(0.08 * n);
-      this.events.emit('swallowed', { n, tank: this.ghast });
+      this.events.emit('swallowed', { n, tank: this.ghast, at: _at.clone() });
     }
     const was = this.boosting;
     this.boosting = this.input.isDown('boost') && this.ghast > 0 && !v.crashing;
@@ -1791,10 +1790,6 @@ export class Game {
 
   /** A puff of smoke at `at` (someone's feet): for a character vanishing, or appearing, in one. */
   puff(at: Vector3): void {
-    const V = VANISH;
-    _at.copy(at).setY(at.y + 0.9);
-    this.sprites.spray(_at, V.puffs, V.spread, V.up, V.color, V.size[0], V.size[1], V.life, 'puff', 0.9);
-    this.shake(0.05);
     this.events.emit('puff', { at: at.clone() });
   }
 

@@ -56,8 +56,9 @@ const STEP_DOWN = 0.45;
 const FLIP_SPIN = 5;
 const FLIP_LIFT = 4.5;
 
-/** Sim time for crashedAt and the engine's buzz, advanced once a frame by Vehicle.advance(). */
+/** Sim time for crashedAt and the engine's buzz, and the frame count, advanced once a frame by Vehicle.advance(). */
 let now = 0;
+let frame = 0;
 const _up = new Vector3();
 const _f = new Vector3();
 const Y_UP = new Vector3(0, 1, 0);
@@ -99,6 +100,8 @@ export class Vehicle {
   /** Sim time (Vehicle.advance) when its last crash ended. */
   crashedAt = -Infinity;
   private crash: CrashBody | null = null;
+  /** The frame of its last step (Vehicle.advance counts them). */
+  private steppedAt = -1;
   private crashForm: VehicleForm | null = null;
   /** Yaw rate the steering gave it last step (rad/s, positive turns the heading down). */
   private yawRate = 0;
@@ -193,6 +196,12 @@ export class Vehicle {
   /** Move the sim clock on (crashedAt); once a frame. */
   static advance(dt: number): void {
     now += dt;
+    frame++;
+  }
+
+  /** It took a step (drive()) this frame: nothing else should step it again. */
+  get steppedThisFrame(): boolean {
+    return this.steppedAt === frame;
   }
 
   /** Mass (kg), from the size of its box. */
