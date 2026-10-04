@@ -13,17 +13,18 @@ const CHROME = process.env.CHROME ?? '/Applications/Chromium.app/Contents/MacOS/
 const LIVE = new URL('../tests/live/', import.meta.url);
 
 /**
- * Every case in every set, in file order. A set's exported functions are its cases, and its
- * `steps` (if any) are helpers its cases call as window.__sim.<name>().
+ * Every case in every set, in file order. A set's exported functions are its cases, its `steps`
+ * (if any) are helpers its cases call as window.__sim.<name>(), and `tutorial = true` runs its
+ * cases with the tutorial on (the others start as if it's been done).
  */
 const cases = [];
 for (const file of readdirSync(LIVE).filter((f) => f.endsWith('.mjs')).sort()) {
   const set = file.slice(0, -'.mjs'.length);
-  const { steps = {}, ...exports } = await import(new URL(file, LIVE).href);
+  const { steps = {}, tutorial = false, ...exports } = await import(new URL(file, LIVE).href);
   for (const [name, run] of Object.entries(exports)) {
     if (typeof run !== 'function') continue;
     const wanted = !only.length || only.some((o) => o === set || o === name || o === `${set}/${name}`);
-    if (wanted) cases.push({ id: `${set}/${name}`, run, steps });
+    if (wanted) cases.push({ id: `${set}/${name}`, run, steps, tutorial });
   }
 }
 if (!cases.length) {
@@ -33,12 +34,12 @@ if (!cases.length) {
 
 const browser = await chromium.launch({ executablePath: CHROME, args: ['--headless=new', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 let failed = 0;
-for (const { id, run, steps } of cases) {
+for (const { id, run, steps, tutorial } of cases) {
   const page = await browser.newPage({ viewport: { width: 640, height: 400 } });
   page.setDefaultTimeout(600000);
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.addInitScript(() => localStorage.setItem('30pc.tutorial', '1'));
+  if (!tutorial) await page.addInitScript(() => localStorage.setItem('30pc.tutorial', '1'));
   await page.goto(`${BASE}?manual=1&q=low&curve=0&sound=0&fresh`, { waitUntil: 'load' });
   await page.waitForFunction(() => window.__game !== undefined, null, { timeout: 600000 });
   await page.evaluate(() => {
@@ -67,7 +68,8 @@ for (const { id, run, steps } of cases) {
   });
   const helpers = Object.entries(steps).map(([name, fn]) => `${name}: ${fn.toString()}`);
   if (helpers.length) await page.evaluate(`Object.assign(window.__sim, { ${helpers.join(', ')} })`);
-  const result = await page.evaluate(run);
+  // a case that throws fails with what it threw, rather than stopping the run
+  const result = await page.evaluate(run).catch((e) => ({ ok: false, threw: String(e.message ?? e).split('\n')[0] }));
   // A body moving more than 3 m in one frame (about 90 m/s) is a jump, not driving.
   const jumped = (result.maxJump ?? 0) > 3;
   const ok = result.ok && !jumped && errors.length === 0;
