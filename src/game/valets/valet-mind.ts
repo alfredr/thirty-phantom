@@ -121,6 +121,7 @@ export const VALET_JOB = mind<Valet, Job, ValetEvents>({
   },
   returning: {
     enter: (v, s) => {
+      v.crew.jobOver(v);
       s.walk = v.crew.walkTo(v, v.home);
     },
     exit: (_v, s) => s.walk?.cancel(),

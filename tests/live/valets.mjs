@@ -97,3 +97,25 @@ export function codysSpotIsntFree() {
   const next = g.garage.topFree();
   return { ok: next !== null && next !== spot && g.garage.isFree(spot, car), sitting: spot.def.id, next: next?.def.id ?? null };
 }
+
+/** A valet's spot is booked for the car while he fetches and drives it, and only taken once it's parked there, the booking gone. */
+export function spotBookedTillParked() {
+  const g = window.__game;
+  const sim = window.__sim;
+  g.start();
+  sim.run(120);
+  const valet = g.valet.crew.find((v) => v.state === 'idle');
+  if (!valet) return { ok: false, why: 'no idle valet' };
+  const car = g.vehicles
+    .filter((v) => v.role === 'parked' && !v.insideDeck && v.form === 'car')
+    .sort((a, b) => a.pos.distanceTo(valet.walker.pos) - b.pos.distanceTo(valet.walker.pos))[0];
+  const spot = g.garage.topFree();
+  if (!car || !spot) return { ok: false, why: 'no car or spot' };
+  g.valet.take(valet, car, spot);
+  sim.run(60);
+  const booked = g.claims.holder('spot', spot) === car && spot.occupant === null && !g.garage.isFree(spot) && g.garage.topFree() !== spot;
+  const parked = sim.until(() => spot.occupant === car, 150, [car]);
+  sim.run(2);
+  const released = g.claims.holder('spot', spot) === null;
+  return { ok: booked && parked.ok && released, booked, parkSeconds: parked.seconds, released };
+}

@@ -15,7 +15,7 @@ import { type CarKind, VEHICLE_BREEDS } from '../actors/vehicle-breeds';
 import { TUNING } from '../config';
 import { Input } from '../engine/input/input';
 import { Emitter } from '../engine/core/events';
-import { clamp, lerp, smoothstep, TAU, type V3 } from '../engine/core/math';
+import { clamp, smoothstep, type V3 } from '../engine/core/math';
 import { Rng } from '../engine/core/rng';
 import { urlChoice, urlFlag, urlParam } from '../engine/core/url-flags';
 import { reloadIfPending } from '../dev/reload-prompt';
@@ -97,8 +97,6 @@ import { type Control, KEYS, STICK } from './controls';
 
 export type { CamMode, CamView } from './camera-controller';
 
-const CONCRETE = new Color('#8f889c');
-const METAL = new Color('#5a5266');
 const BONE = new Color('#efe6ff');
 const DIRT = new Color('#3a2a22');
 /** Spectral truck exhaust, and the hotter plume while it burns GhASt. */
@@ -111,10 +109,6 @@ const OUTFIT_PUFF = new Color(0.6, 0.3, 1.4);
 /** Black smoke and embers (glowing, so past 1) off Randy's fire when a tire goes in. */
 const TIRE_SMOKE = new Color('#221c28');
 const EMBER = new Color(2.4, 0.9, 0.2);
-// a knocked-over lamp's sparks (glowing, so brighter than its light color)
-const _spark = new Color();
-const SPARK_SIZE: [number, number] = [0.05, 0.12];
-const SPARK_LIFE: [number, number] = [0.3, 0.7];
 const _v = new Vector3();
 const _w = new Vector3();
 const _s = new Vector3();
@@ -131,18 +125,12 @@ const _drivePrev = new Vector3();
 const _at = new Vector3();
 /** Where two cars met, hardest this frame. */
 const _met = new Vector3();
-const _tint = new Color();
 const NONE: readonly Vector3[] = [];
 
 /** Cody can get into a car or truck at most this far above or below it (how near: VehicleBreed.enterReach). */
 const ENTER_HEIGHT = 1.8;
 /** Cody steps out this far past the side of the car (m). */
 const DOOR_GAP = 1;
-/**
- * A prop smashed to bits (a hedge, a bus shelter): pieces of its debris per cubic metre it filled,
- * within `count`, their size, life (s), and how fast they fly out and up (m/s); the hit's shake.
- */
-const SHATTER = { perM3: 3, count: [12, 36] as [number, number], size: [0.1, 0.32] as [number, number], life: 2.2, out: 5, up: [2, 6] as [number, number] };
 /** A truck flattens a car outside the deck above this speed (m/s); the hit jolts the truck's body. */
 const CRUSH_SPEED = 4;
 /** A driver pulling round only knocks another driven car loose (its driver out) with a bump this hard (m/s); softer is a shove. */
@@ -211,12 +199,18 @@ export type GameEvents = {
    */
   impact: { v: Vehicle; at: Vector3; dv: number; took: number; against: 'car' | 'wall' | 'ground' };
   /**
-   * Street furniture went: knocked over by a vehicle, smashed to bits (a hedge, a bus shelter), or
-   * a falling lamp hitting the ground; `by` is the vehicle that did it, when one did.
+   * Street furniture went: knocked over (by a vehicle, `by`, when one did it), smashed to bits (a
+   * hedge, a bus shelter: the box it filled, `min` to `max`), or a falling lamp hitting the ground
+   * (`light`: the colour its lamp was).
    */
-  prop: { kind: PropKind; at: Vector3; how: 'knocked' | 'shattered' | 'landed'; by: Vehicle | null };
-  /** A monster truck (`by`) broke through a parapet. */
+  prop:
+    | { how: 'knocked'; kind: PropKind; at: Vector3; by: Vehicle | null }
+    | { how: 'shattered'; kind: PropKind; at: Vector3; by: Vehicle | null; min: Vector3; max: Vector3 }
+    | { how: 'landed'; kind: PropKind; at: Vector3; light: Color };
+  /** A monster truck (`by`) broke through a parapet; `at` is the piece's middle. */
   smashed: { at: Vector3; by: Vehicle };
+  /** An escaped truck dissolved into the night here. */
+  vanished: { at: Vector3 };
   /** A monster truck (`by`) flattened a car. */
   crushed: { car: Vehicle; by: Vehicle };
   /** A tire went into Randy's fire and it roared up. */
@@ -521,7 +515,7 @@ export class Game {
       parked: (_car, s) => this.hud.toast('SPOOKED INTO THE DECK', spotLabel(s), 'purple', 1.6),
     };
     this.drivers = new Drivers(this.driveWorld);
-    this.valet = new ValetService(level.valets, this.planner, this.nav, this.garage, this.drivers);
+    this.valet = new ValetService(level.valets, this.planner, this.nav, this.garage, this.drivers, this.claims);
     this.scene.add(this.valet.root);
     this.valet.walkBlocks = () => parkedBlocks(this.vehicles);
     this.money = new Money(this.scene, this.nav, this.rng);
@@ -596,28 +590,14 @@ export class Game {
     this.world.gates.onSnapped = (g, kind) => this.events.emit('prop', { kind, at: g.center.clone(), how: 'knocked', by: null });
     const props = this.world.props;
     props.onLanded = () => {
-      const p = props.landed;
-      _spark.copy(props.landedColor).multiplyScalar(2.5);
-      this.slime.burst(p, 16, 6, SPARK_SIZE, SPARK_LIFE, _spark, 0.8, this.world.collision.groundAt(p.x, p.z, p.y + 0.5, 0));
-      if (props.landedKind) this.events.emit('prop', { kind: props.landedKind, at: p.clone(), how: 'landed', by: null });
+      if (props.landedKind) this.events.emit('prop', { kind: props.landedKind, at: props.landed.clone(), how: 'landed', light: props.landedColor.clone() });
     };
     // whoever smashed it, it flies apart from all through the room it filled
     props.onBroken = () => {
       const lo = props.brokenMin;
       const hi = props.brokenMax;
-      const colors = props.brokenKind?.debris ?? [METAL];
       const by = this.vehicles.find((v) => v === props.brokenBy) ?? null;
-      if (props.brokenKind) this.events.emit('prop', { kind: props.brokenKind, at: new Vector3().lerpVectors(lo, hi, 0.5), how: 'shattered', by });
-      const n = clamp(Math.round((hi.x - lo.x) * (hi.y - lo.y) * (hi.z - lo.z) * SHATTER.perM3), ...SHATTER.count);
-      const floor = this.world.collision.groundAt((lo.x + hi.x) / 2, (lo.z + hi.z) / 2, lo.y + 0.5, 0);
-      for (let i = 0; i < n; i++) {
-        _v.set(lerp(lo.x, hi.x, Math.random()), lerp(lo.y, hi.y, Math.random()), lerp(lo.z, hi.z, Math.random()));
-        const a = Math.random() * TAU;
-        const out = Math.random() * SHATTER.out;
-        _w.set(Math.cos(a) * out, lerp(SHATTER.up[0], SHATTER.up[1], Math.random()), Math.sin(a) * out);
-        const size = lerp(SHATTER.size[0], SHATTER.size[1], Math.random());
-        this.debris.spawn(_v, _w, size, SHATTER.life, colors[i % colors.length] as Color, floor);
-      }
+      if (props.brokenKind) this.events.emit('prop', { kind: props.brokenKind, at: new Vector3().lerpVectors(lo, hi, 0.5), how: 'shattered', by, min: lo.clone(), max: hi.clone() });
     };
 
     playEffects(this.events, {
@@ -627,6 +607,7 @@ export class Game {
       slime: this.slime,
       debris: this.debris,
       sprites: this.sprites,
+      groundAt: (x, z, y) => this.world.collision.groundAt(x, z, y, 0),
     });
 
     for (const p of level.parked) {
@@ -1509,9 +1490,7 @@ export class Game {
 
   private vanish(v: Vehicle): void {
     // the escaped truck dissolves into the night and Cody is left on foot
-    const at = _at.copy(v.pos).setY(v.pos.y + 1.5);
-    this.slime.burst(at, 50, 9, [0.15, 0.45], [1, 2], SLIME, 1, v.pos.y);
-    this.sprites.spray(at, 8, 5, [3, 6], WHITE, 1.5, 3, 1.6, 'ghost', 0.9);
+    this.events.emit('vanished', { at: v.pos.clone() });
     this.exit();
     v.setStatus('vanishing');
   }
@@ -1521,14 +1500,7 @@ export class Game {
     if (!piece || piece.broken) return;
     piece.broken = true;
     piece.group.visible = false;
-    const c = piece.center;
-    for (let i = 0; i < 26; i++) {
-      _v.set(c.x + (Math.random() - 0.5) * 3, c.y, c.z + (Math.random() - 0.5) * 3);
-      _w.set(v.vel.x * 0.5 + (Math.random() - 0.5) * 8, 3 + Math.random() * 6, v.vel.z * 0.5 + (Math.random() - 0.5) * 8);
-      this.debris.spawn(_v, _w, 0.25 + Math.random() * 0.45, 2.5, CONCRETE, this.world.collision.groundAt(_v.x, _v.z, c.y - 0.5, 0));
-    }
-    this.slime.burst(c, 24, 7, [0.12, 0.3], [1, 2], SLIME, 0.8, c.y - 0.6);
-    this.events.emit('smashed', { at: c.clone(), by: v });
+    this.events.emit('smashed', { at: piece.center.clone(), by: v });
   }
 
   /**
@@ -1549,10 +1521,7 @@ export class Game {
     v.vel.z *= k;
     // one that shatters has gone to bits already (props.onBroken)
     if (kind.shatter) return;
-    _v.set((s.min[0] + s.max[0]) / 2, v.pos.y + 1, (s.min[2] + s.max[2]) / 2);
-    const colors = kind.debris ?? [METAL];
-    for (const c of colors) this.debris.burst(_v, Math.ceil(6 / colors.length), 5, [0.08, 0.2], [0.8, 1.4], c, 0.6, v.pos.y);
-    this.events.emit('prop', { kind, at: _v.clone(), how: 'knocked', by: v });
+    this.events.emit('prop', { kind, at: new Vector3((s.min[0] + s.max[0]) / 2, v.pos.y + 1, (s.min[2] + s.max[2]) / 2), how: 'knocked', by: v });
   }
 
   private crush(o: Vehicle, by: Vehicle): void {
@@ -1561,8 +1530,6 @@ export class Game {
     o.setStatus('crushed');
     this.events.emit('crushed', { car: o, by });
     this.junk.crushed(o);
-    this.slime.burst(o.pos, 30, 8, [0.15, 0.35], [1, 2], SLIME, 0.7, o.pos.y);
-    this.debris.burst(_at.copy(o.pos).setY(o.pos.y + 0.8), 10, 6, [0.15, 0.3], [1, 2], _tint.set(o.color), 0.6, o.pos.y);
     by.kick(-CRUSH_KICK);
   }
 

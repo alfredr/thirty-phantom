@@ -57,7 +57,7 @@ export class CubeParticles {
     p.floor = floor;
   }
 
-  burst(at: Vector3, n: number, speed: number, size: [number, number], life: [number, number], color: Color, up = 1, floor = at.y): void {
+  burst(at: Vector3, n: number, speed: number, size: readonly [number, number], life: readonly [number, number], color: Color, up = 1, floor = at.y): void {
     for (let i = 0; i < n; i++) {
       const a = Math.random() * TAU;
       const s = speed * (0.3 + Math.random() * 0.7);

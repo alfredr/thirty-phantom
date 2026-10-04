@@ -6,11 +6,13 @@ import { buildValet } from '../../actors/models/valet';
 import type { Vehicle } from '../../actors/vehicle';
 import { Walker } from '../../actors/walker';
 import { done, type Result, running } from '../../engine/sim/action';
+import type { Claims } from '../../engine/sim/claims';
 import { type EventOf, Mind } from '../../engine/sim/mind';
 import type { ValetDef, ZoneDef } from '../../world/level-data';
 import { NAV, type NavGrid, type NavJob, type NavPlanner } from '../../world/nav-grid';
 import { type Garage, type SpotRuntime, spotZone } from '../deck/garage';
 import { type DriveAction, DriverJob, DriveTo, type DriveWorld, halt, Park, spotBerth } from '../driving/drive-actions';
+import type { ClaimKind } from '../rules/claim-kinds';
 import type { Drivers } from '../driving/drivers';
 import type { Bodies } from '../rules/bodies';
 import { type Attention, type Job, VALET_ATTENTION, VALET_JOB, type ValetEvents } from './valet-mind';
@@ -180,6 +182,8 @@ export class ValetService {
     readonly nav: NavGrid,
     private readonly garage: Garage,
     private readonly drivers: Drivers,
+    /** The spot a valet's taking a car to is booked ('spot') for as long as the job lasts. */
+    private readonly claims: Claims<ClaimKind>,
   ) {
     let n = 0;
     for (const def of defs) {
@@ -232,10 +236,10 @@ export class ValetService {
     return this.crew.find((v) => v.car === car) ?? null;
   }
 
-  /** Hand `car` to `valet` to park in `spot`. False if he's busy with another. */
+  /** Hand `car` to `valet` to park in `spot`: booked for the car till he's done. False if he's busy with another, or the spot isn't free. */
   take(valet: Valet, car: Vehicle, spot: SpotRuntime): boolean {
-    if (!valet.send({ type: 'handedCar', car, spot })) return false;
-    this.garage.occupy(spot, car);
+    if (!this.garage.isFree(spot, car) || !valet.send({ type: 'handedCar', car, spot })) return false;
+    this.claims.take('spot', car, spot, { owner: valet });
     car.role = 'valet';
     car.vel.set(0, 0, 0);
     car.speed = 0;
@@ -243,13 +247,17 @@ export class ValetService {
     return true;
   }
 
-  /** Cody stole the car out from under him: the job is off and he walks back. */
+  /** Cody stole the car out from under him: the job is off (its booking with it) and he walks back. */
   carjacked(car: Vehicle): Valet | null {
     const v = this.driverOf(car);
     if (!v) return null;
-    this.garage.release(car);
     v.send({ type: 'carjacked' });
     return v;
+  }
+
+  /** `v`'s job is over, done or not: the spot he was taking a car to isn't booked any more. */
+  jobOver(v: Valet): void {
+    this.claims.release(v);
   }
 
   update(dt: number, f: ValetFrame): void {
@@ -284,17 +292,17 @@ export class ValetService {
     return this.drivers.running(drive);
   }
 
-  /** `v` parked `car` in `spot`: it's a parked car in the deck, and the game is told. */
+  /** `v` parked `car` in `spot`: it's a parked car in the deck, in its spot, and the game is told. */
   parked(v: Valet, car: Vehicle, spot: SpotRuntime): void {
+    this.garage.occupy(spot, car);
     car.role = 'parked';
     car.insideDeck = true;
     car.markRest();
     this.frame.parked(car, spot, v);
   }
 
-  /** The job's off and the car never got to its spot: its spot's free again, and if nobody else has it, it's left parked where it is. */
+  /** The job's off and the car never got to its spot: if nobody else has it, it's left parked where it is. */
   drop(car: Vehicle): void {
-    this.garage.release(car);
     if (car.role === 'valet') car.role = 'parked';
   }
 }
