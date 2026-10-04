@@ -2,9 +2,44 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { loadModules } from './modules.mjs';
 
-const [{ Triggers }, { SaveGame }, { Emitter }] = await loadModules(
-  '/src/game/story/triggers.ts', '/src/game/save.ts', '/src/engine/core/events.ts',
+const [{ Triggers }, { SaveGame }, { Emitter }, { Haunting, Quests, TireDeal }] = await loadModules(
+  '/src/game/story/triggers.ts', '/src/game/save.ts', '/src/engine/core/events.ts', '/src/game/story/quests.ts',
 );
+
+/** What a save reads and writes, standing in for the game. */
+function stand(over = {}) {
+  const objectives = { add() {}, remove() {} };
+  const haunting = new Haunting({ needed: 30, victory: () => stand.victories++, moved() {} });
+  return {
+    events: new Emitter(),
+    clock: { day: 2 },
+    money: { cash: 40, foundToday: () => [[1, 0, 2, 15]], layOut: (list) => (stand.laidOut = list) },
+    inventory: { list: () => [['tire', 2]], add() {} },
+    quests: new Quests(objectives, [haunting, new TireDeal({ randy: () => null })]),
+    haunting,
+    wares: { slots: [{ count: 1 }, { count: 128 }] },
+    restorePhantom() {},
+    hud: { clearToasts() {} },
+    announceDay() {},
+    ...over,
+  };
+}
+stand.victories = 0;
+stand.laidOut = null;
+
+/** Swaps in window, document and a localStorage for one test. */
+function browser(t, storage) {
+  const globals = ['window', 'document', 'localStorage'];
+  const originals = globals.map((key) => Object.getOwnPropertyDescriptor(globalThis, key));
+  t.after(() => {
+    globals.forEach((key, i) => {
+      if (originals[i]) Object.defineProperty(globalThis, key, originals[i]);
+      else delete globalThis[key];
+    });
+  });
+  const values = [new EventTarget(), new EventTarget(), storage];
+  globals.forEach((key, i) => Object.defineProperty(globalThis, key, { configurable: true, value: values[i] }));
+}
 
 test('nested trigger checks fire each callback once and preserve pending triggers', () => {
   const triggers = new Triggers({ count: () => 0 });
@@ -58,12 +93,7 @@ test('saves retry failed writes and skip unchanged data after a successful write
   const values = [new EventTarget(), new EventTarget(), storage];
   globals.forEach((key, i) => Object.defineProperty(globalThis, key, { configurable: true, value: values[i] }));
 
-  const game = {
-    events: new Emitter(),
-    clock: { day: 2 },
-    money: { cash: 40 },
-    inventory: { list: () => [['tire', 2]] },
-  };
+  const game = stand();
   const save = new SaveGame(game, () => false);
   save.flush();
   assert.equal(attempts, 0, 'do not save before play starts');
@@ -72,7 +102,16 @@ test('saves retry failed writes and skip unchanged data after a successful write
 
   game.events.emit('frame', 2);
   assert.equal(attempts, 2, 'retry unchanged data after a failed write');
-  assert.deepEqual(stored, { v: 1, day: 2, cash: 40, items: [['tire', 2]], phantoms: [] });
+  assert.deepEqual(stored, {
+    v: 2,
+    day: 2,
+    cash: 40,
+    items: [['tire', 2]],
+    phantoms: [],
+    quests: { haunting: 'haunting', tires: 'waiting' },
+    stock: [1, 128],
+    found: [[1, 0, 2, 15]],
+  });
   save.flush();
   assert.equal(attempts, 2, 'do not repeat a successful write');
 
@@ -99,19 +138,68 @@ test('a save with unreadable cash still brings back the day, the items and the p
 
   const restored = [];
   const added = [];
-  const game = {
-    events: new Emitter(),
+  const game = stand({
     clock: { day: 1 },
-    money: { cash: 20 },
+    money: { cash: 20, foundToday: () => [], layOut() {} },
     inventory: { list: () => [], add: (kind, n) => added.push([kind, n]) },
     restorePhantom: (spot) => restored.push(spot),
-    hud: { clearToasts() {} },
-    announceDay() {},
-  };
+  });
   new SaveGame(game, () => false);
   game.events.emit('start', null);
   assert.equal(game.clock.day, 3);
   assert.equal(game.money.cash, 0);
   assert.deepEqual(added, [['tire', 2]]);
   assert.deepEqual(restored, [4]);
+});
+
+test('a run through the tutorial writes no save over the game it set aside', (t) => {
+  let writes = 0;
+  browser(t, { getItem: () => null, setItem: () => writes++ });
+  const game = stand();
+  let tutorial = true;
+  new SaveGame(game, () => tutorial);
+  game.events.emit('start', null);
+  game.events.emit('frame', 2);
+  window.dispatchEvent(new Event('pagehide'));
+  assert.equal(writes, 0);
+  tutorial = false;
+  game.events.emit('frame', 2);
+  assert.equal(writes, 1, 'once it is over, the game it led into saves');
+});
+
+test('a won game comes back won without the victory again, with the same cash about town and Randy\'s stock', (t) => {
+  const saved = { v: 2, day: 4, cash: 5, items: [], phantoms: [], quests: { haunting: 'won' }, stock: [0, 90], found: [[3, 0, 4, 20]] };
+  browser(t, { getItem: () => JSON.stringify(saved), setItem() {} });
+  stand.victories = 0;
+  const game = stand();
+  new SaveGame(game, () => false);
+  game.events.emit('start', null);
+  assert.equal(game.haunting.step, 'won');
+  assert.equal(stand.victories, 0, 'no victory screen on load');
+  game.haunting.mind.send({ type: 'phantom', n: 31 });
+  assert.equal(stand.victories, 0);
+  assert.deepEqual(game.wares.slots.map((s) => s.count), [0, 90]);
+  assert.deepEqual(stand.laidOut, [[3, 0, 4, 20]]);
+});
+
+test('a version 1 save with enough phantoms loads as won, quietly', (t) => {
+  const phantoms = Array.from({ length: 30 }, (_, n) => ({ spot: null, at: [0, 0, 0], yaw: 0, n, hours: 21, day: 1 }));
+  browser(t, { getItem: () => JSON.stringify({ v: 1, day: 2, cash: 0, items: [], phantoms }), setItem() {} });
+  stand.victories = 0;
+  const game = stand();
+  new SaveGame(game, () => false);
+  game.events.emit('start', null);
+  assert.equal(game.haunting.step, 'won');
+  assert.equal(stand.victories, 0);
+});
+
+test('the haunting is won on the phantom that makes enough, once', () => {
+  stand.victories = 0;
+  const { haunting } = stand();
+  haunting.mind.send({ type: 'phantom', n: 29 });
+  assert.equal(haunting.step, 'haunting');
+  haunting.mind.send({ type: 'phantom', n: 30 });
+  haunting.mind.send({ type: 'phantom', n: 31 });
+  assert.equal(haunting.step, 'won');
+  assert.equal(stand.victories, 1);
 });

@@ -35,6 +35,9 @@ interface Loot {
   root: Group;
 }
 
+/** Cash lying about town: where it lies on the ground (x, y, z), and how much. */
+export type FoundCash = [number, number, number, number];
+
 export interface Pickup {
   kind: LootKind;
   amount: number;
@@ -70,16 +73,29 @@ export class Money {
 
   /** Sunrise: whatever cash was lying about town is gone, and fresh bills turn up in new places. */
   scatter(): void {
-    for (let i = this.loot.length - 1; i >= 0; i--) if ((this.loot[i] as Loot).found) this.remove(i);
     const F = M.found;
+    const fresh: FoundCash[] = [];
     for (let k = 0; k < F.count; k++) {
       const at = this.nav.anywhere(this.rng, NAV.person, F.upTo, true);
-      if (!at) continue;
+      if (at) fresh.push([at.x, at.y, at.z, Math.round(this.rng.range(...F.amount))]);
+    }
+    this.layOut(fresh);
+  }
+
+  /** The cash still lying about town today, where it lies (on the ground) and how much: for the save. */
+  foundToday(): FoundCash[] {
+    return this.loot.filter((l) => l.found).map((l) => [l.pos.x, l.floor, l.pos.z, l.amount]);
+  }
+
+  /** Lays out today's cash about town as `list` has it, in place of what was there. */
+  layOut(list: readonly FoundCash[]): void {
+    for (let i = this.loot.length - 1; i >= 0; i--) if (this.loot[i]?.found) this.remove(i);
+    for (const [x, y, z, amount] of list) {
       const root = buildLoot('cash');
-      const pos = at.clone().setY(at.y + HOVER);
+      const pos = new Vector3(x, y + HOVER, z);
       root.position.copy(pos);
       this.scene.add(root);
-      this.loot.push({ kind: 'cash', amount: Math.round(this.rng.range(...F.amount)), pos, vel: new Vector3(), floor: at.y, landed: true, age: 0, life: Infinity, found: true, root });
+      this.loot.push({ kind: 'cash', amount, pos, vel: new Vector3(), floor: y, landed: true, age: 0, life: Infinity, found: true, root });
     }
   }
 
@@ -117,7 +133,8 @@ export class Money {
   update(dt: number, pos: Vector3 | null, reach: number): Pickup[] {
     const got: Pickup[] = [];
     for (let i = this.loot.length - 1; i >= 0; i--) {
-      const l = this.loot[i] as Loot;
+      const l = this.loot[i];
+      if (!l) continue;
       l.age += dt;
       if (!l.landed) {
         l.vel.y -= GRAVITY * dt;
@@ -140,7 +157,9 @@ export class Money {
   }
 
   private remove(i: number): void {
-    this.scene.remove((this.loot[i] as Loot).root);
+    const l = this.loot[i];
+    if (!l) return;
+    this.scene.remove(l.root);
     this.loot.splice(i, 1);
   }
 }

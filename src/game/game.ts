@@ -85,6 +85,7 @@ import { RandyTalk } from './randy/talk';
 import { TireTrade } from './randy/tire-trade';
 import { Wares } from './randy/wares';
 import { Objectives } from './story/objectives';
+import { Haunting, Quests, TireDeal } from './story/quests';
 import { type ItemDeed, Triggers } from './story/triggers';
 import { TransformSequence, type FxKit } from './deck/transform-sequence';
 import { ValetTalk } from './valets/talk';
@@ -334,6 +335,10 @@ export class Game {
   private readonly shop: Shop;
   /** Talking to Randy at his fire (off while the tutorial runs). */
   readonly randyTalk: RandyTalk;
+  /** The quests besides the tutorial: the haunting itself, and Randy's tire deal. */
+  readonly quests: Quests;
+  private readonly haunting: Haunting;
+  private readonly tireDeal: TireDeal;
   /** Cody's phone: Randy's burner, with its apps. */
   readonly phone: Phone;
   /** Randy Rolsen and anyone else hanging about to be talked to (the tutorial finds them here). */
@@ -433,7 +438,6 @@ export class Game {
   /** Headless simulation (tests): advance the game without drawing it. */
   /** Drawing frames (`?render=0` starts without, for headless tests: no shaders to compile). */
   private rendering = urlParam('render') !== '0';
-  private won = false;
   private readonly talk: ValetTalk;
   private readonly valetFrame: ValetFrame;
   /** The exit gate's zone: routes that should badge in through the entry gate go around it. */
@@ -705,6 +709,15 @@ export class Game {
       avoid: this.avoid,
       parked: (_v, s, valet) => this.talk.parked(s, valet),
     };
+    this.haunting = new Haunting({
+      needed: TUNING.garage.spots,
+      victory: () => this.hud.showVictory(),
+      moved: (step) => this.events.emit('step', { quest: 'haunting', step }),
+    });
+    // Randy takes tires when he's open for it (not while the tutorial has him)
+    this.tireDeal = new TireDeal({ randy: () => (this.randyTalk.enabled ? (this.npcs.find('randy')?.pos ?? null) : null) });
+    this.quests = new Quests(this.objectives, [this.haunting, this.tireDeal]);
+    this.events.on('phantom', ({ n }) => this.haunting.mind.send({ type: 'phantom', n }));
 
     // attract mode: the deck at night, slowly orbiting
     this.clock.hours = 21.5;
@@ -792,7 +805,7 @@ export class Game {
     if (this.driving === v) return;
     if (this.driving) this.exit(true);
     if (own) this.money.empty(v);
-    this.enter(v);
+    this.enter(v, true);
   }
 
   /** A parked civilian car (scripted scenes): `kind` picks one, else the usual mix. */
@@ -1032,12 +1045,10 @@ export class Game {
     if (this.chaseActive) this.cutaway.off();
     else this.cutaway.update(dt, focus, focusV, this.iso, this.world.collision, this.world.sight);
     this.updateNav(dt);
+    // the tire deal follows the tires Cody has
+    this.tireDeal.mind.send({ type: 'tires', have: this.inventory.count('tire') });
+    this.quests.update();
     this.updateObjectives();
-
-    if (!this.won && this.garage.phantoms >= TUNING.garage.spots) {
-      this.won = true;
-      this.hud.showVictory();
-    }
     this.events.emit('frame', dt);
   }
 
@@ -1282,7 +1293,8 @@ export class Game {
     return n;
   }
 
-  private enter(v: Vehicle): void {
+  /** Cody gets in `v`: steals it, takes it, or possesses it. `quiet` (a scene put him in) says nothing about it on the HUD. */
+  private enter(v: Vehicle, quiet = false): void {
     // Cody takes the wheel from whoever had it. A driver running for the deck loses the seat, and stops.
     this.claims.take('driverSeat', this.cody, v, { owner: this.codySeat, preempt: true });
     this.player.visible = false;
@@ -1290,20 +1302,20 @@ export class Game {
     this.hud.setPrompt(null);
     if (v.role === 'valet') {
       this.valet.carjacked(v);
-      this.hud.toast('HEY!', "THAT'S A GUEST'S CAR", 'warn', 1.8);
+      if (!quiet) this.hud.toast('HEY!', "THAT'S A GUEST'S CAR", 'warn', 1.8);
     }
     if (v.role === 'parked' || v.role === 'traffic' || v.role === 'valet' || v.role === 'visitor') v.markRest();
     if (v.role === 'traffic' || v.role === 'visitor') {
       // the driver gets out and runs for it (at night it's a frightened driver's car, possessed on its way into the deck)
       this.crowd.bail(v, this.player.pos);
-      if (this.conditions.parking()) this.hud.toast('STOLEN!', 'GET IT TO THE HAUNTED DECK');
+      if (this.conditions.parking() && !quiet) this.hud.toast('STOLEN!', 'GET IT TO THE HAUNTED DECK');
     }
     // his from here on, turning into the truck round him or not: nothing else drives it
     v.role = 'player';
     // phantom Cody possesses a car in the deck (and the tutorial's Cody, after moonrise, his own): it turns into the truck
     if (this.possessable(v)) {
       this.codyRide.go({ at: 'changing', seq: new TransformSequence(v, 'truck', () => VEHICLE_BREEDS.truck.model(this.assets, v.color), this.fx) });
-      this.hud.toast(this.cody.phantom ? 'PHANTOM CODY!' : 'POSSESSED!', 'GET IT OUT. NOT THROUGH THE GATE.', '', 2.6);
+      if (!quiet) this.hud.toast(this.cody.phantom ? 'PHANTOM CODY!' : 'POSSESSED!', 'GET IT OUT. NOT THROUGH THE GATE.', '', 2.6);
       this.events.emit('entered', { v, possessed: true });
       return;
     }

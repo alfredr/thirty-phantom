@@ -88,6 +88,26 @@ export function talkToGiveHimTires() {
   };
 }
 
+/** With tires on him, Cody's shown where Randy is (the tire deal); once they're handed over, the marker's gone. */
+export function tiresPutRandyOnTheMap() {
+  const g = window.__game;
+  const sim = window.__sim;
+  const r = sim.standBy(1.5);
+  if (!r) return { ok: false, why: 'no Randy' };
+  const marked = () => g.objectives.has('tires-randy');
+  sim.run(2);
+  const before = marked();
+  g.inventory.add('tire', 1);
+  sim.run(2);
+  const carrying = marked() && g.quests.steps().tires === 'bring';
+  g.input.press('KeyF');
+  sim.run(2);
+  g.input.press('KeyF');
+  sim.run(2);
+  const after = marked();
+  return { ok: !before && carrying && !after && g.inventory.count('tire') === 0, before, carrying, after };
+}
+
 /** While the tutorial runs, F by Randy doesn't start a talk of its own. */
 export function noTalkDuringTheTutorial() {
   const g = window.__game;
