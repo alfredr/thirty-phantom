@@ -15,7 +15,7 @@ import { type Action as Control, Input } from '../core/input';
 import { Emitter } from '../core/events';
 import { clamp, lerp, smoothstep, TAU } from '../core/math';
 import { Rng } from '../core/rng';
-import { urlChoice, urlFlag } from '../core/url-flags';
+import { urlChoice, urlFlag, urlParam } from '../core/url-flags';
 import { reloadIfPending } from '../dev/reload-prompt';
 import { Bats } from '../fx/bats';
 import { PURPLE, SLIME, WHITE } from '../fx/colors';
@@ -403,7 +403,8 @@ export class Game {
   private codyFx = -1;
   private readonly fpsAcc = { t: 0, n: 0 };
   /** Headless simulation (tests): advance the game without drawing it. */
-  private rendering = true;
+  /** Drawing frames (`?render=0` starts without, for headless tests: no shaders to compile). */
+  private rendering = urlParam('render') !== '0';
   private won = false;
   private readonly talk: ValetTalk;
   private readonly valetFrame: ValetFrame;

@@ -1,7 +1,8 @@
-// Runs the live engine tests in tests/live/ against the real game, headless, with rendering off so
-// the simulation runs fast. Each file there is a set of cases. A case sets up a situation, runs the
-// game until the AI finishes its job or time runs out, and checks it finished without anything
-// jumping. Run a dev server first, then:
+// Runs the live engine tests in tests/live/ against the real game, headless, with rendering off from
+// the start (?render=0: no shaders to compile, the bulk of a boot) so the simulation runs fast, and
+// JOBS cases at a time (default 3). Each file there is a set of cases. A case sets up a situation,
+// runs the game until the AI finishes its job or time runs out, and checks it finished without
+// anything jumping. Run a dev server first, then:
 //   node tools/scenarios.mjs [baseUrl] [set | set/case | case ...]
 // It needs Chromium at /Applications/Chromium.app (override with CHROME).
 import { readdirSync } from 'node:fs';
@@ -11,6 +12,7 @@ const BASE = process.argv[2]?.startsWith('http') ? process.argv[2] : 'http://loc
 const only = process.argv.slice(2).filter((a) => !a.startsWith('http'));
 const CHROME = process.env.CHROME ?? '/Applications/Chromium.app/Contents/MacOS/Chromium';
 const LIVE = new URL('../tests/live/', import.meta.url);
+const JOBS = Math.max(1, Number(process.env.JOBS ?? 3));
 
 /**
  * Every case in every set, in file order. A set's exported functions are its cases, its `steps`
@@ -34,13 +36,16 @@ if (!cases.length) {
 
 const browser = await chromium.launch({ executablePath: CHROME, args: ['--headless=new', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 let failed = 0;
-for (const { id, run, steps, tutorial } of cases) {
+const queue = [...cases];
+/** One case, start to finish, on a page of its own. */
+async function runCase({ id, run, steps, tutorial }) {
+  const started = Date.now();
   const page = await browser.newPage({ viewport: { width: 640, height: 400 } });
   page.setDefaultTimeout(600000);
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   if (!tutorial) await page.addInitScript(() => localStorage.setItem('30pc.tutorial', '1'));
-  await page.goto(`${BASE}?manual=1&q=low&curve=0&sound=0&fresh`, { waitUntil: 'load' });
+  await page.goto(`${BASE}?manual=1&render=0&q=low&curve=0&sound=0&fresh`, { waitUntil: 'load' });
   await page.waitForFunction(() => window.__game !== undefined, null, { timeout: 600000 });
   await page.evaluate(() => {
     const g = window.__game;
@@ -69,13 +74,20 @@ for (const { id, run, steps, tutorial } of cases) {
   const helpers = Object.entries(steps).map(([name, fn]) => `${name}: ${fn.toString()}`);
   if (helpers.length) await page.evaluate(`Object.assign(window.__sim, { ${helpers.join(', ')} })`);
   // a case that throws fails with what it threw, rather than stopping the run
+  const booted = Date.now();
   const result = await page.evaluate(run).catch((e) => ({ ok: false, threw: String(e.message ?? e).split('\n')[0] }));
   // A body moving more than 3 m in one frame (about 90 m/s) is a jump, not driving.
   const jumped = (result.maxJump ?? 0) > 3;
   const ok = result.ok && !jumped && errors.length === 0;
   if (!ok) failed++;
-  console.log(`${ok ? 'PASS' : 'FAIL'} ${id} ${JSON.stringify(result)}${errors.length ? ` errors: ${errors.join(' | ')}` : ''}${jumped ? ' (jumped)' : ''}`);
+  const secs = (a, b) => Math.round((b - a) / 100) / 10;
+  console.log(`${ok ? 'PASS' : 'FAIL'} ${id} (boot ${secs(started, booted)}s, run ${secs(booted, Date.now())}s) ${JSON.stringify(result)}${errors.length ? ` errors: ${errors.join(' | ')}` : ''}${jumped ? ' (jumped)' : ''}`);
   await page.close();
 }
+await Promise.all(
+  Array.from({ length: Math.min(JOBS, queue.length) }, async () => {
+    for (let c = queue.shift(); c; c = queue.shift()) await runCase(c);
+  }),
+);
 await browser.close();
 process.exitCode = failed ? 1 : 0;

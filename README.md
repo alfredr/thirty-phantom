@@ -72,6 +72,7 @@ Append flags to the game URL; combine them with `&`, for example `?fresh&cam=iso
 | `?nav` | Show planned routes |
 | `?touch` | Force touch controls |
 | `?manual` | Disable the animation loop for scripted frame stepping |
+| `?render=0` | Start without drawing frames (headless tests: no shaders to compile) |
 
 Custom levels require `version: 1`, `boxes`, `playerSpawn`, and `deck`. Other collections
 default to empty arrays; `name` defaults to `custom`. Invalid fields, unknown properties,
