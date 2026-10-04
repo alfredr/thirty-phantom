@@ -36,6 +36,14 @@ export interface MindState<Self, M extends StateMap, K extends keyof M & string,
 
 export type MindDef<Self, M extends StateMap, E extends EventMap, S, A> = { readonly [K in keyof M & string]: MindState<Self, M, K, E, S, A> };
 
+/** What a mind does beyond its states. */
+export interface MindOptions<Self, M extends StateMap, E extends EventMap> {
+  /** How it reacts, in any state, to events the state itself doesn't list: the state to move to, or null to stay. */
+  readonly on?: { readonly [T in keyof E & string]?: (self: Self, state: StateOf<M>, event: EventOf<E, T>) => StateOf<M> | null };
+  /** Called after each move, from one state to the next. */
+  moved?(self: Self, from: StateOf<M>, to: StateOf<M>): void;
+}
+
 /** Declares a mind's states. It returns its argument, so TypeScript checks each state's handlers against it. */
 export function mind<Self, M extends StateMap, E extends EventMap, S = unknown, A = never>(def: MindDef<Self, M, E, S, A>): MindDef<Self, M, E, S, A> {
   return def;
@@ -57,6 +65,7 @@ export class Mind<Self, M extends StateMap, E extends EventMap, S = unknown, A =
     readonly def: MindDef<Self, M, E, S, A>,
     readonly self: Self,
     initial: StateOf<M>,
+    private readonly options: MindOptions<Self, M, E> = {},
   ) {
     this.current = initial;
     this.enter(initial);
@@ -85,12 +94,14 @@ export class Mind<Self, M extends StateMap, E extends EventMap, S = unknown, A =
 
   /** Moves to `next`, leaving the current state and entering the new one. */
   go(next: StateOf<M>): void {
-    this.exit(this.current);
+    const from = this.current;
+    this.exit(from);
     this.current = next;
     this.enter(next);
+    this.options.moved?.(this.self, from, next);
   }
 
-  /** Offers `event` to the current state. True if it moved. */
+  /** Offers `event` to the current state (or, if it doesn't list it, the mind's own handlers). True if it moved. */
   send(event: EventOf<E>): boolean {
     const next = this.handle(this.current, event);
     if (!next) return false;
@@ -111,7 +122,9 @@ export class Mind<Self, M extends StateMap, E extends EventMap, S = unknown, A =
   private handle<K extends keyof M & string, T extends keyof E & string>(state: StateOf<M, K> & { readonly at: K }, event: EventOf<E, T> & { readonly type: T }): StateOf<M> | null {
     const def: MindState<Self, M, K, E, S, A> = this.def[state.at];
     const handler: Handler<Self, M, K, E, T> | undefined = def.on?.[event.type];
-    return handler ? handler(this.self, state, event) : null;
+    if (handler) return handler(this.self, state, event);
+    const fallback = this.options.on?.[event.type];
+    return fallback ? fallback(this.self, state, event) : null;
   }
 
   private enter<K extends keyof M & string>(state: StateOf<M, K> & { readonly at: K }): void {

@@ -8,6 +8,9 @@ export const tutorial = true;
 /** The goal under the clock, as shown. */
 const goal = () => document.querySelector('.burner-goal.on')?.textContent?.trim() ?? '';
 
+/** The objective markers up, by label, sorted. */
+const marks = () => window.__game.objectives.list.map((o) => o.label).sort().join(',');
+
 /**
  * Frames on, talking through any dialogue or sign that comes up (F), until `done()` or `seconds`
  * pass. Returns whether it got there.
@@ -28,7 +31,7 @@ export function playsThrough() {
   const sim = window.__sim;
   const reached = [];
   const at = (step, ok, extra = {}) => {
-    reached.push({ step, ok, goal: sim.goal(), ...extra });
+    reached.push({ step, ok, goal: sim.goal(), marks: sim.marks(), ...extra });
     return ok;
   };
   const result = () => ({ ok: reached.every((r) => r.ok) && reached.at(-1)?.step === 'done', reached });
@@ -40,15 +43,15 @@ export function playsThrough() {
   if (!truck || !randy) return { ok: false, why: 'no pickup or no Randy', reached };
   const opened = sim.playUntil(() => document.body.classList.contains('dialogue-open'), 5);
   const heldAtWindow = randy.held && Math.abs(g.clock.hours - 17.5) < 0.01 && !!g.cutscene;
-  if (!at('roof', opened && heldAtWindow && sim.playUntil(() => /FIND YOUR BADGE/.test(sim.goal()), 60) && g.inventory.count('burner') === 1)) return result();
+  if (!at('roof', opened && heldAtWindow && sim.playUntil(() => /FIND YOUR BADGE/.test(sim.goal()), 60) && g.inventory.count('burner') === 1 && sim.marks() === 'YOUR BADGE')) return result();
 
   // seven o'clock: Randy's gone in a puff, rings to say sorry, then texts him back to the pickup
   g.clock.hours = 18.99;
-  if (!at('back', sim.playUntil(() => /GET BACK IN THE PICKUP/.test(sim.goal()), 40))) return result();
+  if (!at('back', sim.playUntil(() => /GET BACK IN THE PICKUP/.test(sim.goal()), 40) && sim.marks() === 'YOUR BADGE,YOUR PICKUP')) return result();
 
   // back in: the jump
   g.board(truck);
-  if (!at('jump', sim.playUntil(() => /OFF THE ROOF/.test(sim.goal()), 5))) return result();
+  if (!at('jump', sim.playUntil(() => /OFF THE ROOF/.test(sim.goal()), 5) && sim.marks() === '')) return result();
 
   // off a kicker: the first phantom; it idles, Randy rings, the camera shows the imprint, then the joyride
   g.onCrossing({ vehicle: truck, kind: 'escaped' });
@@ -56,7 +59,7 @@ export function playsThrough() {
 
   // ten o'clock: the call, and down to the basement with wheels
   g.clock.hours = 21.99;
-  if (!at('basement', sim.playUntil(() => /FIND TIRES/.test(sim.goal()), 40))) return result();
+  if (!at('basement', sim.playUntil(() => /FIND TIRES/.test(sim.goal()), 40) && sim.marks() === 'RANDY')) return result();
 
   // no tires: sent back out for some
   g.alight();
@@ -134,4 +137,4 @@ export function playsThrough() {
 }
 
 /** Steps shared by this set's cases, installed on window.__sim before each one. */
-export const steps = { goal, playUntil };
+export const steps = { goal, marks, playUntil };

@@ -225,6 +225,8 @@ export type GameEvents = {
   crossing: Crossing;
   nightfall: null;
   sunrise: null;
+  /** A quest moved on to another step (the tutorial is quest 'tutorial'): for whatever follows along. */
+  step: { quest: string; step: string };
   /** One of Cody's actions happened: the action itself, for whatever waits on one (a quest step, an NPC's mind). */
   performed: { action: CodyAction };
   /** One of Cody's actions couldn't happen, and why. */
