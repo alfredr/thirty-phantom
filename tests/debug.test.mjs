@@ -9,6 +9,7 @@ function fixture() {
   let driving = null;
   let boarded = null;
   let diverted = null;
+  let frightAt = null;
   const game = {
     clock: { hours: 8, phase: 'day', isDay: true },
     player: { pos: new Vector3(), yaw: 1, place(pos) { this.pos.copy(pos); } },
@@ -22,9 +23,10 @@ function fixture() {
   const debug = createGameDebug(game, {
     driving: () => driving,
     mode: () => 'play',
-    refuge: { take: (car) => { diverted = car; return true; } },
+    refuge: { entry: new Vector3(10, 0, 0), take: (car, from) => { diverted = car; frightAt = from; return true; } },
+    roadAt: (car, meters) => car.pos.clone().setZ(meters),
   });
-  return { game, debug, drive: (car) => { driving = car; }, boarded: () => boarded, diverted: () => diverted };
+  return { game, debug, drive: (car) => { driving = car; }, boarded: () => boarded, diverted: () => diverted, frightAt: () => frightAt };
 }
 
 test('debug teleport reads the current vehicle and preserves the state output', () => {
@@ -49,16 +51,19 @@ test('debug teleport reads the current vehicle and preserves the state output', 
   assert.deepEqual(game.player.pos.toArray(), [-1, 0, 0]);
 });
 
-test('debug boarding and diversion choose the nearest eligible vehicle', () => {
-  const { game, debug, boarded, diverted } = fixture();
+test('debug boarding picks the car nearest Cody, and diversion the traffic car nearest the deck entry', () => {
+  const { game, debug, boarded, diverted, frightAt } = fixture();
   const car = (id, role, distance) => ({ id, role, pos: new Vector3(distance, 0, 0) });
   const parked = car(1, 'parked', 2);
-  const traffic = car(2, 'traffic', 4);
-  game.vehicles.push(car(0, 'player', 1), parked, car(3, 'traffic', 9), traffic);
+  const farFromCody = car(3, 'traffic', 9);
+  game.vehicles.push(car(0, 'player', 1), parked, farFromCody, car(2, 'traffic', 4));
   debug.enterNearest();
   assert.equal(boarded(), parked);
-  assert.equal(debug.divert(), 2);
-  assert.equal(diverted(), traffic);
+  assert.equal(debug.divert(), 3);
+  assert.equal(diverted(), farFromCody);
+  assert.deepEqual(frightAt().toArray(), [9, 0, 6], 'frightened from a point along its road');
+  debug.divert(-6);
+  assert.deepEqual(frightAt().toArray(), [9, 0, -6]);
   game.vehicles.length = 0;
   assert.equal(debug.divert(), -1);
   // The debug command delegates to the same summon method as the X key.

@@ -528,6 +528,7 @@ export class Game {
         fleet: this.fleet,
         entryOnly: this.exitBlocks,
         obstacles: () => this.valetObstacles,
+        roadAhead: (car, meters) => this.traffic.roadAhead(car, meters),
         steer: (car, input, dt) => {
           const prev = _drivePrev.copy(car.pos);
           car.drive(dt, input, this.world.collision);
@@ -636,6 +637,7 @@ export class Game {
       render: (on) => { this.rendering = on; },
       navDebug: this.navDebug,
       refuge: this.refuge,
+      roadAt: (car, meters) => this.traffic.roadAt(car, meters),
     });
     (window as unknown as { __game: Game }).__game = this;
   }

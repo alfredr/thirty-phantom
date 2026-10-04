@@ -131,6 +131,22 @@ export class Traffic {
     fright.left = TUNING.traffic.panicTime;
   }
 
+  /** The point `meters` along `v`'s lane from it (negative is behind it), or null if it isn't on a lane. */
+  roadAt(v: Vehicle, meters: number): Vector3 | null {
+    return this.paths[v.pathIndex]?.sample(v.pathS + meters, new Vector3()) ?? null;
+  }
+
+  /** Points along `v`'s lane ahead of it, `step` meters apart, up to `meters` on. Empty if it isn't on a lane. */
+  roadAhead(v: Vehicle, meters: number, step = 2): Vector3[] {
+    const out: Vector3[] = [];
+    for (let d = step; d <= meters; d += step) {
+      const p = this.roadAt(v, d);
+      if (!p) break;
+      out.push(p);
+    }
+    return out;
+  }
+
   update(dt: number, vehicles: Vehicle[], obstacles: readonly Vector3[]): void {
     const T = TUNING.traffic;
     for (const v of vehicles) {

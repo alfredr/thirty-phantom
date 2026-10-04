@@ -1,15 +1,28 @@
 import type { Vector3 } from 'three';
 import type { Vehicle } from '../../actors/vehicle';
-import { TUNING } from '../../config';
 import { Doing } from '../../engine/sim/action';
 import { Divert, type DriveWorld } from './drive-actions';
 import type { SpotRuntime } from '../deck/garage';
+import { REACH } from '../rules/reach';
 
 /**
- * Drivers spooked by phantom Cody near the haunted deck turn off for it, of all places. Each
- * runs a Divert job (drive-actions.ts): brake, drive in through the entry gate to the free spot
- * on the lowest level nearest the gate, ease in, get out and run. That leaves a car in the deck
- * for phantom Cody to possess.
+ * Whether staying on the road would carry a driver toward what frightened them: somewhere along
+ * `ahead` comes closer to `from` than the driver is now, and within spooking distance.
+ */
+export function roadLeadsToward(at: Vector3, ahead: readonly Vector3[], from: Vector3, within: number): boolean {
+  const now = Math.hypot(at.x - from.x, at.z - from.z);
+  return ahead.some((p) => {
+    const d = Math.hypot(p.x - from.x, p.z - from.z);
+    return d < now && d < within;
+  });
+}
+
+/**
+ * Drivers spooked by phantom Cody near the haunted deck turn off for it, of all places, when the
+ * deck is the way out: they are near its entry gate, and staying on their road would carry them
+ * toward him. Otherwise they floor it along their lane. Each runs a Divert job (drive-actions.ts):
+ * brake, drive in through the entry gate to the free spot on the lowest level nearest the gate,
+ * ease in, get out and run. That leaves a car in the deck for phantom Cody to possess.
  */
 export class Refuge {
   private readonly doing: Doing<DriveWorld, DriveWorld>;
@@ -18,7 +31,7 @@ export class Refuge {
   constructor(
     private readonly world: DriveWorld,
     /** The way in (the entry gate): diversions start within reach of it, and spots nearest it fill first. */
-    private readonly entry: Vector3,
+    readonly entry: Vector3,
   ) {
     this.doing = new Doing({ lost: (owner) => world.claims.lostBy(owner), end: (owner) => world.claims.release(owner) });
   }
@@ -29,12 +42,14 @@ export class Refuge {
   }
 
   /**
-   * The driver of traffic car `car` took fright at `from`: if the deck is near, a spot is free and
-   * the deck has room for another diversion, they head for it. True if they did.
+   * The driver of traffic car `car` took fright at `from`. If the deck's entry is near, their road
+   * would carry them toward the fright, a spot is free and the deck has room for another
+   * diversion, they head for the deck. True if they did.
    */
   take(car: Vehicle, from: Vector3): boolean {
     if (car.role !== 'traffic' || car.crashing) return false;
-    if (Math.hypot(car.pos.x - this.entry.x, car.pos.z - this.entry.z) > TUNING.traffic.divertReach) return false;
+    if (Math.hypot(car.pos.x - this.entry.x, car.pos.z - this.entry.z) > REACH.divert) return false;
+    if (!roadLeadsToward(car.pos, this.world.roadAhead(car, REACH.roadAhead), from, REACH.panic)) return false;
     const spot = this.pick();
     if (!spot) return false;
     const divert = new Divert({ car, spot, from: from.clone() });

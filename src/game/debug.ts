@@ -15,7 +15,8 @@ interface DebugControls {
   mode(): 'title' | 'play';
   render(on: boolean): void;
   navDebug: NavDebug | null;
-  refuge: Pick<Refuge, 'take'>;
+  refuge: Pick<Refuge, 'take' | 'entry'>;
+  roadAt(car: Vehicle, meters: number): Vector3 | null;
 }
 
 /** Console and screenshot helpers exposed as __game.debug. */
@@ -66,10 +67,14 @@ export function createGameDebug(game: DebugGame, controls: DebugControls) {
     },
     /** Summon skeletons using the same rules as the X key; return the number raised. */
     summon: (): number => game.summon(),
-    /** Divert the nearest traffic car into the deck; return its ID, or -1 if it refuses. */
-    divert: (): number => {
-      const car = nearest(game, (v) => v.role === 'traffic');
-      return car && controls.refuge.take(car, game.player.pos) ? car.id : -1;
+    /**
+     * Frighten the traffic car nearest the deck's entry from `meters` along its road (negative is
+     * behind it), as if phantom Cody stood there. Returns its ID if it turned for the deck, else -1.
+     */
+    divert: (meters = 6): number => {
+      const car = nearest(game, (v) => v.role === 'traffic', controls.refuge.entry);
+      const from = car && controls.roadAt(car, meters);
+      return car && from && controls.refuge.take(car, from) ? car.id : -1;
     },
     enterNearest: (): void => {
       const car = nearest(game, (v) => v.role === 'parked' || v.role === 'traffic');
@@ -92,12 +97,13 @@ export function createGameDebug(game: DebugGame, controls: DebugControls) {
   };
 }
 
-function nearest(game: DebugGame, accepts: (vehicle: Vehicle) => boolean): Vehicle | null {
+/** The accepted vehicle nearest `to` (Cody, unless given). */
+function nearest(game: DebugGame, accepts: (vehicle: Vehicle) => boolean, to: Vector3 = game.player.pos): Vehicle | null {
   let best: Vehicle | null = null;
   let distance = Infinity;
   for (const vehicle of game.vehicles) {
     if (!accepts(vehicle)) continue;
-    const d = vehicle.pos.distanceTo(game.player.pos);
+    const d = vehicle.pos.distanceTo(to);
     if (d < distance) {
       distance = d;
       best = vehicle;

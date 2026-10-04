@@ -35,6 +35,8 @@ export interface DriveWorld {
   readonly entryOnly: readonly ZoneDef[];
   /** People and cars to keep clear of this frame. */
   obstacles(): readonly Vector3[];
+  /** Points along a traffic car's lane ahead of it, up to `meters` on. */
+  roadAhead(car: Vehicle, meters: number): readonly Vector3[];
   /** Drives `car` one step with `input`, logging any gate it crosses. */
   steer(car: Vehicle, input: DriveInput, dt: number): void;
   /** Puts `car` exactly here, for easing into a spot. */
