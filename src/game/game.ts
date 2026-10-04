@@ -570,7 +570,7 @@ export class Game {
     // a car standing still in a spot holds it too, parked or not (Cody sitting in it at the wheel)
     this.garage.standingIn = (spot) => this.vehicles.find((v) => !v.gone && Math.abs(v.speed) < STANDING && inSpot(spot, v.pos)) ?? null;
     this.refuge = new Refuge(this.drivers, this.driveWorld, entry);
-    this.detours = new Detours(this.planner, this.nav, this.world.collision, this.fleet, this.traffic, (car, ev) => this.drove(car, ev, NUDGE_LOOSEN));
+    this.detours = new Detours(this.planner, this.nav, this.world.collision, this.fleet, this.traffic, (car, ev) => this.drove(car, ev, NUDGE_LOOSEN), this.claims);
     this.ghosts = new Ghosts(level.ghostZones, 28);
     this.bats = new Bats(new Vector3(this.deckCenter.x, 0, this.deckCenter.z), 16);
     this.scene.add(this.slime.mesh, this.debris.mesh, this.sprites.root, this.ghosts.root, this.bats.root, this.arrow.root, this.honks.root);

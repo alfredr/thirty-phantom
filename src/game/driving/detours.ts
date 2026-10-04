@@ -7,8 +7,10 @@ import { TUNING } from '../../config';
 import { lerp, mod } from '../../engine/core/math';
 import type { Polyline } from '../../engine/nav/polyline';
 import type { CollisionWorld } from '../../engine/physics/collision';
+import type { Claims } from '../../engine/sim/claims';
 import type { ZoneDef } from '../../world/level-data';
 import type { NavGrid, NavJob, NavPlanner } from '../../world/nav-grid';
+import type { ClaimKind } from '../rules/claim-kinds';
 import type { Fleet } from './fleet';
 
 /** Looking for where to rejoin the lane: in steps of this along it (m). */
@@ -44,6 +46,8 @@ const _d = new Vector3();
 /** One impatient driver's pull-round: out of the lane, round what's in the way, back in beyond it. */
 interface Detour {
   car: Vehicle;
+  /** Who's at the wheel: holds the car's driverSeat claim (owned by the detour) while it pulls round. */
+  driver: object;
   /** The lane it's leaving and coming back to, its index among the traffic loops. */
   line: Polyline;
   path: number;
@@ -93,6 +97,8 @@ export class Detours {
     private readonly traffic: Traffic,
     /** A car pulling round against every other: real contact, shoves and knocks. */
     private readonly drove: (car: Vehicle, ev: DriveEvents) => void,
+    /** Its driver holds the seat for the pull-round, like any AI driver's job: Cody taking the car ends it. */
+    private readonly claims: Claims<ClaimKind>,
   ) {}
 
   /** Cars pulling round something right now. */
@@ -110,8 +116,7 @@ export class Detours {
     const i = this.detours.findIndex((d) => d.car === car);
     const d = this.detours[i];
     if (!d) return;
-    d.job?.cancel();
-    this.detours.splice(i, 1);
+    this.end(i);
     this.backInLane(d, d.line.project(car.pos));
     this.traffic.frighten(car, from);
   }
@@ -141,9 +146,10 @@ export class Detours {
     }
     if (s < 0) return false;
     line.sample(s, _p, _d);
-    car.role = 'visitor';
+    const driver = { name: 'driver' };
     const d: Detour = {
       car,
+      driver,
       line,
       path: car.pathIndex,
       s0,
@@ -159,6 +165,8 @@ export class Detours {
       t: 0,
       replanned: false,
     };
+    if (!this.claims.take('driverSeat', driver, car, { owner: d })) return false;
+    car.role = 'visitor';
     this.plan(d);
     this.detours.push(d);
     return true;
@@ -167,19 +175,27 @@ export class Detours {
   /** `obstacles`: people and cars (their body circles, noses and tails too) to keep clear of. */
   update(dt: number, obstacles: readonly Obstacle[]): void {
     for (let i = this.detours.length - 1; i >= 0; i--) {
-      const d = this.detours[i] as Detour;
-      if (this.step(d, dt, obstacles)) continue;
-      d.job?.cancel();
-      this.detours.splice(i, 1);
+      const d = this.detours[i];
+      if (d && !this.step(d, dt, obstacles)) this.end(i);
     }
+  }
+
+  /** Pull-round i is over, however it ended: its route's called off and the driver lets go of the seat. */
+  private end(i: number): void {
+    const d = this.detours[i];
+    if (!d) return;
+    d.job?.cancel();
+    d.job = null;
+    this.claims.release(d);
+    this.detours.splice(i, 1);
   }
 
   /** One frame of a pull-round; false once it's over. */
   private step(d: Detour, dt: number, obstacles: readonly Obstacle[]): boolean {
     const I = TUNING.traffic.impatience;
     const car = d.car;
-    // someone else has it now (Cody took it, a hit knocked it loose): it's off, and the game sees to the driver
-    if (car.role !== 'visitor' || !this.fleet.vehicles.includes(car)) return false;
+    // someone else has it now (Cody took the seat, a hit knocked it loose, it's gone): it's off, and the game sees to the driver
+    if (this.claims.holder('driverSeat', car) !== d.driver || car.role !== 'visitor' || !this.fleet.vehicles.includes(car)) return false;
     if (car.crashing) {
       car.role = 'parked';
       this.fleet.abandon(car);
@@ -190,7 +206,8 @@ export class Detours {
     switch (d.phase) {
       case 'planning': {
         this.hold(car, dt);
-        const job = d.job as NavJob;
+        const job = d.job;
+        if (!job) return this.giveUp(d);
         if (!job.settled) return d.t < I.planWait || this.giveUp(d);
         d.job = null;
         // no way round, or only the long way (round the block): not worth it
@@ -209,7 +226,8 @@ export class Detours {
         d.t = 0;
         return true;
       case 'driving': {
-        const pilot = d.pilot as Autopilot;
+        const pilot = d.pilot;
+        if (!pilot) return this.giveUp(d);
         this.drove(car, car.drive(dt, pilot.update(dt, car, obstacles), this.collision));
         if (this.rejoin(d, false)) return false;
         if (pilot.state === 'arrived') {
