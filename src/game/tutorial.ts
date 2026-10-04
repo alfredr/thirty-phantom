@@ -8,6 +8,7 @@ import { Signpost } from '../ui/signpost';
 import { el } from '../ui/dom';
 import { wantsTouch } from '../ui/touch-controls';
 import type { LevelData, RampDef } from '../world/level-data';
+import { type CodyAction, ScriptedOffer } from './cody-actions';
 import type { CamMode, Game } from './game';
 import { type Garage, spotLabel, type SpotRuntime } from './garage';
 import { GameClock } from './game-clock';
@@ -223,6 +224,7 @@ export class Tutorial {
     this.burner.onBuzz = (what) => game.events.emit('phone', what);
     this.sign = new Signpost(game.hud.root);
     this.titleLink();
+    game.addOffer(() => this.randyOffer());
     const ev = game.events;
     ev.on('start', () => this.begin());
     ev.on('frame', (dt) => this.frame(dt));
@@ -475,8 +477,6 @@ export class Tutorial {
         const r = this.randy;
         if (r) this.game.objectives.add({ id: RANDY_MARK, label: 'RANDY', kind: 'primary', at: r.pos });
       });
-    } else if (this.step === 'basement') {
-      this.meet();
     } else if (this.step === 'outside' && g.player.visible && !g.garage.inFootprint(g.player.pos) && g.player.pos.y > -1) {
       // out under the moon: bam
       g.cody.release();
@@ -624,13 +624,17 @@ export class Tutorial {
   }
 
   /** In the basement: walk up to Randy and talk (F). No tires, no brisket: he sends Cody back out for some. */
-  private meet(): void {
+  /** In the basement, Cody can talk to Randy when he's close. The game shows and performs it like any other offer. */
+  private randyOffer(): CodyAction | null {
     const g = this.game;
-    const r = this.randy as Npc;
-    if (this.dialogue.open || !g.player.visible || g.npcs.talkable(g.player.pos, TALK_REACH) !== r) return;
-    g.hud.setPrompt('TALK TO RANDY');
-    if (!g.input.wasPressed('interact')) return;
-    g.hud.setPrompt(null);
+    const r = this.randy;
+    if (this.step !== 'basement' || !r || this.dialogue.open || !g.player.visible || g.npcs.talkable(g.player.pos, TALK_REACH) !== r) return null;
+    return new ScriptedOffer({ label: 'TALK TO RANDY', start: () => this.meet(r) });
+  }
+
+  /** Cody talks to Randy in the basement: without tires Randy sends him back out; with them, the brisket scene. */
+  private meet(r: Npc): void {
+    const g = this.game;
     if (g.inventory.count('tire') === 0) {
       r.held = true;
       this.dialogue.play(NO_WHEELS, () => {

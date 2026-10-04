@@ -37,8 +37,8 @@ import type { RouteCursor } from './polyline';
  * Walker on one hands itself over here at a hop (ride()): it waits at the
  * landing, walks in, rides, walks out and carries on along its route.
  *
- * Cody: game/elevator-panel.ts (F calls the cab at a landing; in the cab F
- * picks a floor up and G a floor down).
+ * Cody uses them through actions in game/cody-actions.ts: F calls the cab at a
+ * landing; in the cab F picks a floor up and G a floor down.
  *
  * Indoors (ElevatorDef.indoors, the walk-in buildings' lifts): it runs and
  * collides the same, but nothing's drawn until its building's rooms are
