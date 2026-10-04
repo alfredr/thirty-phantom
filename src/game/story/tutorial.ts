@@ -290,7 +290,7 @@ export class Tutorial {
       this.imprint = {
         at: at.clone(),
         title: n === 1 ? '1ST PHANTOM' : `PHANTOM #${n}`,
-        meta: `${spot ? `${spotLabel(spot)} \u2022 ` : ''}${GameClock.format(hours)}, NIGHT ${day}`,
+        meta: `${spot ? `${spotLabel(spot)}. ` : ''}${GameClock.format(hours)}, NIGHT ${day}`,
       };
       // let it come down and idle; then Randy rings about it, and only then the camera goes back up
       this.step = 'landing';

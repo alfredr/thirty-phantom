@@ -71,7 +71,7 @@ export class ValetTalk extends Conversation<Valet, Deal> {
   /** The valet drove it in and parked it: same as parking it yourself. */
   parked(spot: SpotRuntime, valet: Valet): void {
     if (!valet.badged) this.garage.logged++;
-    this.hud.toast('VALET PARKED IT', `${spotLabel(spot)} • ENTRY LOGGED`, 'purple', 2.4);
+    this.hud.toast('VALET PARKED IT', `${spotLabel(spot)}. ENTRY LOGGED.`, 'purple', 2.4);
   }
 
   protected where(valet: Valet): Vector3 {

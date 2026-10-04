@@ -30,9 +30,9 @@ export interface SpotRuntime {
   glowMat: MeshBasicMaterial;
 }
 
-/** "SPOT 7 • LEVEL 2": how toasts name a spot (ids and levels count from 1 on screen). */
+/** "SPOT 7, LEVEL 2": how toasts name a spot (ids and levels count from 1 on screen). */
 export function spotLabel(s: SpotRuntime): string {
-  return `SPOT ${s.def.id + 1} • LEVEL ${s.def.level + 1}`;
+  return `SPOT ${s.def.id + 1}, LEVEL ${s.def.level + 1}`;
 }
 
 /** A spot's region runs from just under its floor to above car height. */

@@ -5,7 +5,7 @@ Steal cars and park them by day. After 7 PM, possess them as monster trucks and 
 without using the exit gate. Each escape leaves a phantom truck behind: the garage still
 counts a car that is no longer there. Leave 30 phantoms to win.
 
-[Play](https://thirty-phantom.com) · [GitHub Pages mirror](https://alfredr.github.io/thirty-phantom/)
+[Play](https://thirty-phantom.com), or the [GitHub Pages mirror](https://alfredr.github.io/thirty-phantom/).
 
 ## Development
 

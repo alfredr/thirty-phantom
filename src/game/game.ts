@@ -1416,11 +1416,11 @@ export class Game {
     const v = c.vehicle;
     switch (c.kind) {
       case 'logged-in':
-        this.hud.toast('BEEP', 'BADGE SCANNED • ENTRY LOGGED', 'purple', 1.4);
+        this.hud.toast('BEEP', 'BADGE SCANNED. ENTRY LOGGED.', 'purple', 1.4);
         break;
       case 'logged-out':
         if (v.form === 'truck') this.hud.toast('BADGE SCANNED', 'EXIT LOGGED. THE GARAGE SAW YOU. NO PHANTOM.', 'warn', 2.6);
-        else this.hud.toast('BEEP', 'BADGE SCANNED • EXIT LOGGED', 'purple', 1.4);
+        else this.hud.toast('BEEP', 'BADGE SCANNED. EXIT LOGGED.', 'purple', 1.4);
         this.garage.release(v);
         v.homeSpot = null;
         break;

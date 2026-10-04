@@ -131,8 +131,8 @@ export class WaresPanel {
     });
     const info = el('div', 'wares-info');
     const f = this.slot(this.focus) ?? w.slots.find((s) => s.count > 0);
-    if (f) el('div', 'wares-what', info, `${f.name} <b>×${f.count}</b> <span>${f.price > 0 ? `$${f.price} EACH` : 'FREE'}</span>`);
-    if (keys) el('div', 'wares-how', info, `<kbd>1</kbd>–<kbd>${Math.min(w.slots.length, SLOT_KEYS.length)}</kbd> BUY ONE · <kbd>SHIFT</kbd> THE STACK`);
+    if (f) el('div', 'wares-what', info, `${f.name} <b>x${f.count}</b> <span>${f.price > 0 ? `$${f.price} EACH` : 'FREE'}</span>`);
+    if (keys) el('div', 'wares-how', info, `<kbd>1</kbd> TO <kbd>${Math.min(w.slots.length, SLOT_KEYS.length)}</kbd> BUY ONE, <kbd>SHIFT</kbd> THE STACK`);
     else {
       const picked = this.slot(this.focus);
       const how = el('div', 'wares-how', info);

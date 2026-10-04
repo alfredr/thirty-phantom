@@ -231,7 +231,7 @@ export class Hud {
    */
   showCamera(m: CamMode, flash: boolean): void {
     const [name, note] = CAM_NAMES[m];
-    const what = flash ? `<b>SWITCH CAMERA</b><small>NOW: ${name}${note ? ` · ${note}` : ''}</small>` : `<b>${name}</b>${note ? `<small>${note}</small>` : ''}`;
+    const what = flash ? `<b>SWITCH CAMERA</b><small>NOW: ${name}${note ? `, ${note}` : ''}</small>` : `<b>${name}</b>${note ? `<small>${note}</small>` : ''}`;
     const c = this.camEl;
     c.innerHTML = `${kbd('camera')}<span>${what}</span>`;
     c.classList.remove('show', 'flash');

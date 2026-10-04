@@ -534,7 +534,7 @@ export function generateDeck(w: LevelWriter, origin: V3, seed: number): void {
         solid: false,
         drip: 'top',
       });
-      w.sign([24, R + 6.7, 2.05], [16.4, 6.4], 'z+', 'billboard', ['30', 'PHANTOM CODYS', 'SAME TRUCKS · DIFFERENT DIMENSION']);
+      w.sign([24, R + 6.7, 2.05], [16.4, 6.4], 'z+', 'billboard', ['30', 'PHANTOM CODYS', 'SAME TRUCKS. DIFFERENT DIMENSION.']);
       // kickers
       w.ramp([38, R, 14], [44.5, R + 1.8, 20], 'x', 1, R, 'concrete', true);
       w.ramp([3.5, R, 15], [10, R + 1.8, 21], 'x', -1, R, 'concrete', true);
