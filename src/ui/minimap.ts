@@ -1,4 +1,4 @@
-import type { ObjectiveKind } from '../game/objectives';
+import type { ObjectiveKind } from '../game/story/objectives';
 import type { BoxDef, LevelData, V3 } from '../world/level-data';
 import { el } from './dom';
 

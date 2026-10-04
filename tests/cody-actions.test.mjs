@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { loadModules } from './modules.mjs';
 
-const [{ bestOffers }, actions, { resolveFully }] = await loadModules('/src/engine/sim/offers.ts', '/src/game/cody-actions.ts', '/src/engine/sim/action.ts');
+const [{ bestOffers }, actions, { resolveFully }] = await loadModules('/src/engine/sim/offers.ts', '/src/game/cody/cody-actions.ts', '/src/engine/sim/action.ts');
 const { InteractWithVehicle, GetOut, Summon, TalkToValet, RANK } = actions;
 
 function play({ phantom = false, abilities = phantom ? ['possess', 'truck', 'summon'] : ['steal'], possessable = () => false, escaping = false, parking = true, freeSpot = false, summoned = 3 } = {}) {

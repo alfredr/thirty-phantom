@@ -3,10 +3,10 @@ import { test } from 'node:test';
 import { loadModules } from './modules.mjs';
 
 const [{ gameReactions, react }, { Space }, { WorldConditions }, { LEVEL }] = await loadModules(
-  '/src/game/reactions.ts',
+  '/src/game/rules/reactions.ts',
   '/src/engine/sim/space.ts',
-  '/src/game/world-conditions.ts',
-  '/src/game/reach.ts',
+  '/src/game/rules/world-conditions.ts',
+  '/src/game/rules/reach.ts',
 );
 
 const at = (x, y, z) => ({ x, y, z, clone() { return { x: this.x, y: this.y, z: this.z }; } });

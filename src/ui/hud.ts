@@ -5,7 +5,7 @@ import { SOUND_ON } from '../audio/flags';
 import { urlFlag } from '../core/url-flags';
 import type { CamMode, CamView } from '../game/game';
 import { GameClock, type Phase } from '../game/game-clock';
-import type { Objective } from '../game/objectives';
+import type { Objective } from '../game/story/objectives';
 import type { LevelData } from '../world/level-data';
 import { ClockFace } from './clock-face';
 import { el } from './dom';

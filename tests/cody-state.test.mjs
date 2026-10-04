@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { Vector3 } from 'three';
 import { loadModules } from './modules.mjs';
 
-const [{ CodyState, FRIGHTENING }] = await loadModules('/src/game/cody-state.ts');
+const [{ CodyState, FRIGHTENING }] = await loadModules('/src/game/cody/cody-state.ts');
 
 function cody(form) {
   const player = { form, pos: new Vector3(1, 0, 2) };

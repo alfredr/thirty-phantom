@@ -3,7 +3,7 @@ import { TUNING } from '../config';
 import { KEYS, keyName } from '../core/input';
 import { clamp } from '../core/math';
 import type { Game, GameEvents } from '../game/game';
-import type { ItemKind } from '../game/inventory';
+import type { ItemKind } from '../game/items/inventory';
 import type { SoundOf } from './cues';
 import { soundLog } from './flags';
 import { Loops } from './loops';

@@ -6,7 +6,7 @@ import type { V3 } from '../world/level-data';
 import { NAV, type NavProfile, type NavQuery } from '../world/nav-grid';
 import type { CamMode } from './camera-controller';
 import type { Game } from './game';
-import type { Refuge } from './refuge';
+import type { Refuge } from './driving/refuge';
 
 type DebugGame = Pick<Game, 'clock' | 'garage' | 'player' | 'iso' | 'chase' | 'vehicles' | 'planner' | 'setCamera' | 'park' | 'board' | 'summon'>;
 

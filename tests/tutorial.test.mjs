@@ -10,7 +10,7 @@ Object.defineProperty(globalThis, 'document', {
   value: { body: { classList: { contains: () => false } } },
 });
 const [{ stageOn }, { generateLevel }, { emptyLevel }, { Vehicle }, { CollisionWorld }] = await loadModules(
-  '/src/game/tutorial.ts', '/src/world/generate-level.ts', '/src/world/level-data.ts',
+  '/src/game/story/tutorial.ts', '/src/world/generate-level.ts', '/src/world/level-data.ts',
   '/src/actors/vehicle.ts', '/src/world/collision.ts',
 ).finally(() => {
   if (originalDocument) Object.defineProperty(globalThis, 'document', originalDocument);

@@ -1,5 +1,5 @@
 import { type Camera, Vector3 } from 'three';
-import type { Objective } from '../game/objectives';
+import type { Objective } from '../game/story/objectives';
 import { el } from './dom';
 
 /** How high over its target a marker hangs (m). */
@@ -14,7 +14,7 @@ const _p = new Vector3();
 const _c = new Vector3();
 
 /**
- * Objective markers (game/objectives.ts): a chevron over each target, big and slime for the
+ * Objective markers (game/story/objectives.ts): a chevron over each target, big and slime for the
  * primary, small and lilac for optional ones. Off screen, or behind the camera, the chevron sits
  * on the screen's edge pointing the way, with the distance.
  */

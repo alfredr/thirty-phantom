@@ -6,7 +6,7 @@ import { SOUND_ON } from './audio/flags';
 import { urlFlag, urlParam } from './core/url-flags';
 import { Game } from './game/game';
 import { SaveGame } from './game/save';
-import { Tutorial } from './game/tutorial';
+import { Tutorial } from './game/story/tutorial';
 import { TouchControls, wantsTouch } from './ui/touch-controls';
 import { loadLevel } from './world/load-level';
 
