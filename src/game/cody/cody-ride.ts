@@ -6,7 +6,7 @@ import type { Emitter } from '../../engine/core/events';
 import type { V3 } from '../../engine/core/math';
 import type { CollisionWorld } from '../../engine/physics/collision';
 import type { Claims } from '../../engine/sim/claims';
-import { Mind, mind } from '../../engine/sim/mind';
+import { Mind, mind, type State } from '../../engine/sim/mind';
 import type { Garage, SpotRuntime } from '../deck/garage';
 import type { TransformSequence } from '../deck/transform-sequence';
 import type { Money } from '../items/money';
@@ -20,12 +20,11 @@ const DOOR_GAP = 1;
 const ESCAPE_ROLL = 2.5;
 const _door = new Vector3();
 
-type Ride = {
-  onFoot: object;
-  changing: { seq: TransformSequence };
+type RideState =
+  | State<'onFoot'>
+  | State<'changing', { seq: TransformSequence }>
   /** Seconds left rolling after an escape; null until the truck escapes. */
-  driving: { v: Vehicle; escape: number | null };
-};
+  | State<'driving', { v: Vehicle; escape: number | null }>;
 
 export type RideEvents = {
   /** `from` is the previous driver role, or null when a car Cody already drives transforms at moonrise. */
@@ -58,7 +57,7 @@ interface RideWorld {
 export class CodyRide {
   private readonly seat = { name: 'Cody at the wheel' };
   private lastCar: Vehicle | null = null;
-  private readonly states = mind<CodyRide, Ride, Record<never, object>>({
+  private readonly states = mind<CodyRide, RideState>({
     onFoot: {
       tick: (r, _s, dt) => {
         r.world.onFoot(dt);
@@ -82,7 +81,7 @@ export class CodyRide {
       },
     },
   });
-  private readonly mind = new Mind<CodyRide, Ride, Record<never, object>>(this.states, this, { at: 'onFoot' });
+  private readonly mind = new Mind<CodyRide, RideState>(this.states, this, { at: 'onFoot' });
 
   constructor(private readonly world: RideWorld) {}
 
@@ -123,14 +122,15 @@ export class CodyRide {
     // Taking the seat stops AI driving immediately, including while the car transforms.
     car.role = 'player';
     const possessed = this.possessable(car);
+    let found = 0;
     if (possessed) this.change(car);
     else {
-      const found = money.glovebox(car);
-      if (found) events.emit('money', { kind: 'glovebox', amount: found });
+      found = money.glovebox(car);
       this.mind.go({ at: 'driving', v: car, escape: null });
       if (car.rig.rider) player.mount(car.rig.rider.saddle);
     }
     events.emit('entered', { v: car, possessed, from, quiet });
+    if (found) events.emit('money', { kind: 'glovebox', amount: found });
   }
 
   exit(quiet = false): void {

@@ -15,6 +15,15 @@ export interface InvItem {
   actions: readonly { id: string; label: string }[];
 }
 
+/** Compare the displayed items and actions, including changes with no inventory mutation. */
+export function sameInventory(a: readonly InvItem[], b: readonly InvItem[]): boolean {
+  return a.length === b.length && a.every((item, i) => {
+    const other = b[i];
+    return !!other && item.kind === other.kind && item.name === other.name && item.icon === other.icon && item.count === other.count && item.note === other.note
+      && item.actions.length === other.actions.length && item.actions.every((action, j) => action.id === other.actions[j]?.id && action.label === other.actions[j]?.label);
+  });
+}
+
 /** While the menu is open these run the item's first and second action; Enter runs the first too. */
 const ACTION_KEYS: readonly Control[] = ['interact', 'pay'];
 

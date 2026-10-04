@@ -5,7 +5,7 @@ import type { Walker } from '../../actors/walker';
 import { TUNING } from '../../config';
 import type { Rng } from '../../engine/core/rng';
 import type { Polyline } from '../../engine/nav/polyline';
-import { Mind, mind } from '../../engine/sim/mind';
+import { type EventOf, Mind, mind, type MindEvent, type State, type StateOf } from '../../engine/sim/mind';
 import type { NavGrid, NavJob } from '../../world/nav-grid';
 import type { Visitors } from '../driving/visitors';
 import type { Casualties, Casualty, Harm } from './casualties';
@@ -20,32 +20,30 @@ const LIMP = 0.55;
 const _up = new Vector3();
 
 /** What someone in town is doing, and what each part holds while it lasts. */
-export type Doing = {
+export type Doing =
   /** Standing about for `t` more seconds, or waiting on a route to somewhere to stroll to. */
-  pause: { t: number };
+  | State<'pause', { t: number }>
   /** Strolling a route somewhere. */
-  stroll: object;
+  | State<'stroll'>
   /**
    * Running from what's at `from`: a straight dash away first, then the route planned meanwhile
    * by the walker. They calm down `t` seconds after the last fright, once well away.
    * `fresh`: a new fright, not a turn away from a new side of one they're already running from.
    */
-  flee: { from: Vector3; t: number; fresh: boolean };
+  | State<'flee', { from: Vector3; t: number; fresh: boolean }>
   /** Walking back to their car to drive off in it. */
-  leave: object;
+  | State<'leave'>
   /** Knocked off their feet, moving (vx, vz), by something at `from`: the ragdoll has them till they can get up. */
-  down: { from: Vector3; vx: number; vz: number; harm: Harm; hurt: Casualty | null };
+  | State<'down', { from: Vector3; vx: number; vz: number; harm: Harm; hurt: Casualty | null }>
   /** Drove off: off the street for good. */
-  gone: object;
-};
+  | State<'gone'>;
 
 /** What can happen to someone in town. Each state moves only on the ones it lists. */
-export type TownEvents = {
+export type TownEvent =
   /** Something frightening at `from`: phantom Cody, a skeleton, a car driven at them, a shove, a claw. */
-  frightened: { from: Vector3 };
+  | MindEvent<'frightened', { from: Vector3 }>
   /** Knocked off their feet: run over, or clawed down. */
-  felled: { from: Vector3; vx: number; vz: number; harm: Harm };
-};
+  | MindEvent<'felled', { from: Vector3; vx: number; vz: number; harm: Harm }>;
 
 /** What the people in town share: the town itself, as their minds use it. */
 export interface Town {
@@ -73,7 +71,7 @@ export interface Town {
 
 /** Someone in town, on foot. */
 export class Townsperson {
-  readonly mind: Mind<Townsperson, Doing, TownEvents>;
+  readonly mind: Mind<Townsperson, Doing, TownEvent>;
   /** Dropped their money already (once each). */
   dropped = false;
   /** Their running pace (m/s), picked when a fright starts. */
@@ -91,7 +89,7 @@ export class Townsperson {
     readonly walker: Walker,
     readonly town: Town,
   ) {
-    this.mind = new Mind<Townsperson, Doing, TownEvents>(TOWN_MIND, this, { at: 'pause', t: town.pause() });
+    this.mind = new Mind<Townsperson, Doing, TownEvent>(TOWN_MIND, this, { at: 'pause', t: town.pause() });
   }
 
   /** Down, the ragdoll that has them; else null. */
@@ -105,17 +103,17 @@ export class Townsperson {
   }
 }
 
-const pause = (p: Townsperson): { at: 'pause'; t: number } => ({ at: 'pause', t: p.town.pause() });
-const flee = (from: Vector3, fresh: boolean): Doing['flee'] & { at: 'flee' } => ({ at: 'flee', from: from.clone(), t: C.calm, fresh });
-const fall = (_p: Townsperson, _s: unknown, { from, vx, vz, harm }: TownEvents['felled']): Doing['down'] & { at: 'down' } => ({ at: 'down', from: from.clone(), vx, vz, harm, hurt: null });
-const frighten = (_p: Townsperson, _s: unknown, { from }: TownEvents['frightened']): Doing['flee'] & { at: 'flee' } => flee(from, true);
+const pause = (p: Townsperson): StateOf<Doing, 'pause'> => ({ at: 'pause', t: p.town.pause() });
+const flee = (from: Vector3, fresh: boolean): StateOf<Doing, 'flee'> => ({ at: 'flee', from: from.clone(), t: C.calm, fresh });
+const fall = (_p: Townsperson, _s: Doing, { from, vx, vz, harm }: EventOf<TownEvent, 'felled'>): StateOf<Doing, 'down'> => ({ at: 'down', from: from.clone(), vx, vz, harm, hurt: null });
+const frighten = (_p: Townsperson, _s: Doing, { from }: EventOf<TownEvent, 'frightened'>): StateOf<Doing, 'flee'> => flee(from, true);
 
 /**
  * A townsperson's mind: they stand about, stroll from spot to spot, and after a while walk back to
  * their car and drive off. A fright sends them running from wherever they are (again, from a new
  * side, if it heads them off), and a car or a claw can knock them off their feet.
  */
-export const TOWN_MIND = mind<Townsperson, Doing, TownEvents>({
+export const TOWN_MIND = mind<Townsperson, Doing, TownEvent>({
   pause: {
     exit: (p) => p.walker.cancelPlan(),
     tick: (p, s, dt) => {

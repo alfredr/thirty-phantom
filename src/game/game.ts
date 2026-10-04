@@ -52,13 +52,12 @@ import { NAV, NavGrid, NavPlanner, type NavProfile, type NavQuery } from '../wor
 import { BloodSim } from '../world/blood';
 import { Casualties } from './town/casualties';
 import { CameraController, type CamMode } from './camera-controller';
-import { CallElevator, type CodyAction, type CodyCandidate, Eat, GetOut, GiveTires, InteractWithVehicle, PickFloor, type Play, RANK, RockOver, Summon, TalkToRandy, TalkToValet } from './cody/cody-actions';
+import type { CodyAction, Play } from './cody/cody-actions';
+import { Interactions } from './cody/interactions';
 import { CodyState, FRIGHTENING } from './cody/cody-state';
 import { CodyRide, type RideEvents } from './cody/cody-ride';
 import { CLAIMS, type ClaimKind } from './rules/claim-kinds';
-import { Doing, resolveFully } from '../engine/sim/action';
 import { Claims } from '../engine/sim/claims';
-import { bestOffers } from '../engine/sim/offers';
 import { Space } from '../engine/sim/space';
 import { EYE_HEIGHT, gameReactions, type Perception, react, type Reaction, type Thing } from './rules/reactions';
 import { LEVEL } from './rules/reach';
@@ -72,11 +71,11 @@ import { Detours } from './driving/detours';
 import { GameClock, type Phase } from './game-clock';
 import { Fleet } from './driving/fleet';
 import { type Crossing, Garage, inSpot, spotLabel, type SpotRuntime } from './deck/garage';
-import { Inventory, type ItemActionId } from './items/inventory';
-import { ITEM_BREEDS, type ItemKind, isItemKind } from './items/item-breeds';
+import { Inventory } from './items/inventory';
+import { ITEM_BREEDS, type ItemKind } from './items/item-breeds';
 import { Junk } from './items/junk';
 import { Money } from './items/money';
-import { NPC_NAMES, Npcs } from './randy/npcs';
+import { Npcs } from './randy/npcs';
 import { makePortraits, type Portraits } from './story/portraits';
 import { RouteGuide } from './route-guide';
 import { Shop } from './randy/shop';
@@ -94,7 +93,7 @@ import { Refuge } from './driving/refuge';
 import { Bodies } from './rules/bodies';
 import { type ValetFrame, ValetService } from './valets/valet';
 import { Visitors } from './driving/visitors';
-import { type Control, KEYS, STICK } from './controls';
+import { KEYS, STICK } from './controls';
 
 export type { CamMode, CamView } from './camera-controller';
 
@@ -128,8 +127,6 @@ const _at = new Vector3();
 const _met = new Vector3();
 const NONE: readonly Vector3[] = [];
 
-/** Cody can get into a car or truck at most this far above or below it (how near: VehicleBreed.enterReach). */
-const ENTER_HEIGHT = 1.8;
 /** A truck flattens a car outside the deck above this speed (m/s); the hit jolts the truck's body. */
 const CRUSH_SPEED = 4;
 /** A driver pulling round only knocks another driven car loose (its driver out) with a bump this hard (m/s); softer is a shove. */
@@ -148,11 +145,6 @@ const MONEY_TOAST = 1.1;
 const TRADE_TOAST = 2.6;
 /** How long a refusal such as "THE DEAD NEED A MOMENT" stays up, in seconds. */
 const FAIL_TOAST = 1.4;
-/** The controls the prompt shows, in order, when they offer something. */
-const PROMPT_CONTROLS: readonly Control[] = ['hop', 'interact', 'pay'];
-/** The controls that perform Cody's offers when pressed. */
-const ACT_CONTROLS: readonly Control[] = ['interact', 'pay', 'summon', 'hop'];
-/** Randy's wares are up while Cody's within this of him (m, on his level) and his coat's open. */
 /** People on foot keep this far from Randy and from the middle of his trash can fire (m). */
 const NPC_ROOM = 0.4;
 const FIRE_ROOM = 0.45;
@@ -287,8 +279,6 @@ export class Game {
   readonly money: Money;
   /** What Cody's carrying: car parts picked up after smashes, Randy's brisket. */
   readonly inventory = new Inventory();
-  /** What the HUD last showed: the inventory's version, and who was by to give things to. */
-  private shownInventory = '';
   /** Script triggers on items: has, got, used, gave (see triggers.ts). */
   readonly triggers = new Triggers(this.inventory);
   /** What the objective markers and the minimap point at (scripts set them; see objectives.ts). */
@@ -310,8 +300,6 @@ export class Game {
   readonly wares = new Wares();
   /** A scene (the tutorial's coat flash) has his wares up, Cody near or not. */
   waresShown = false;
-  /** Cody's at Randy's open coat (the shop encounter): only then can he buy. */
-  private shopOpen = false;
   /** Randy takes tires for his fire and pays in brisket (the tutorial can run it, or switch it off). */
   readonly tires: TireTrade;
   private readonly shop: Shop;
@@ -326,21 +314,7 @@ export class Game {
   readonly npcs: Npcs;
   /** The elevators' cabs and doors (the deck's, beside the stair tower). */
   readonly elevators: Elevators;
-  /** Cody calling a cab and picking floors. */
-  /** The game as Cody's actions see it. */
-  private readonly play: Play;
-  /** Runs Cody's actions. The keys and the item menu hand it the same objects. */
-  private readonly doing = new Doing<Play, Play>({
-    lost: () => false,
-    end: () => undefined,
-    performed: (action) => this.events.emit('performed', { action }),
-    failed: (action, reason) => {
-      if (reason) this.hud.toast(reason, '', 'warn', FAIL_TOAST);
-      this.events.emit('failed', { action, reason });
-    },
-  });
-  /** Offers that scripts add for a while, such as the tutorial's talk with Randy. */
-  private readonly offerSources = new Set<() => CodyAction | null>();
+  private readonly interactions: Interactions;
   /** Who the cabs carry: Cody, while he's on foot (a list kept, so the per-frame call doesn't allocate). */
   private readonly riders: readonly Vector3[];
   readonly events = new Emitter<GameEvents>();
@@ -520,7 +494,7 @@ export class Game {
       // the brisket was his the moment he handed the tires over; the toast waits for the show
       fed: (n) => this.hud.toast(`+${n} BRISKET`, n > 1 ? 'NOW THAT IS A FIRE' : 'NOW WE ARE COOKING', 'purple', TRADE_TOAST),
     });
-    this.shop = new Shop(this.npcs);
+    this.shop = new Shop(this.npcs, this.wares, this.inventory, this.money, (deed) => this.deed(deed));
     this.tires = new TireTrade(this.npcs, this.inventory, {
       gave: (n, to) => this.deed({ how: 'gave', kind: 'tire', n, to: to.def.id }),
       paid: (n) => this.gain('brisket', n),
@@ -632,6 +606,8 @@ export class Game {
       phase: () => this.clock.phase,
       day: () => this.clock.day,
       cash: () => this.money.cash,
+      inventory: () => this.interactions.inventoryView(this.inventory),
+      wares: () => this.shop.view(this.waresShown),
       ledger: () => ({ logged: this.garage.logged, actual: this.garage.actual(this.vehicles), phantom: this.garage.phantomOccupancy(this.vehicles), max: TUNING.garage.spots }),
       // tumbling in a crash isn't flying: no AIRBORNE badge for it
       dash: () => {
@@ -668,14 +644,9 @@ export class Game {
     this.phone.onBuzz = (what) => this.events.emit('phone', what);
     this.hud.initMap(level);
     this.hud.onStart(() => this.start());
-    this.hud.onItemAction = (kind, id) => {
-      if (!isItemKind(kind)) return;
-      const offer = this.itemOffers(kind).find((o) => o.id === id);
-      if (offer) this.doing.do(this.play, offer.action);
-    };
+    this.hud.onItemAction = (kind, id) => this.interactions.useItem(kind, id);
     this.hud.onBuy = (slot, n) => this.buy(slot, n);
     this.hud.setCamera(this.cameras.view);
-    this.play = this.makePlay();
     this.talk = new ValetTalk(this.hud, this.garage, this.valet, this.rng, this.input.focus, {
       me: () => (this.driving ?? this.player).pos,
       onShift: () => this.conditions.valetsOnShift(),
@@ -686,7 +657,21 @@ export class Game {
     });
     this.randyTalk = new RandyTalk(this.input.focus, this.npcs, {
       tires: () => this.inventory.count('tire'),
-      give: (to) => 'done' in this.doing.do(this.play, new GiveTires({ to, name: NPC_NAMES[to.def.id] })),
+      give: (to) => this.interactions.giveTires(to),
+    });
+    this.interactions = new Interactions(this.makePlay(), {
+      player: this.player,
+      vehicles: this.vehicles,
+      valet: this.valet,
+      randyTalk: this.randyTalk,
+      elevators: this.elevators,
+      playing: () => this.mode === 'play',
+      blocked: () => this.mode !== 'play' || this.talk.active || this.randyTalk.active || !!this.cutscene || !!this.transform,
+    }, this.input, {
+      prompt: (text, control) => this.hud.setPrompt(text, control),
+      refused: (reason) => this.hud.toast(reason, '', 'warn', FAIL_TOAST),
+      performed: (action) => this.events.emit('performed', { action }),
+      failed: (action, reason) => this.events.emit('failed', { action, reason }),
     });
     this.valetFrame = {
       day: true,
@@ -990,6 +975,7 @@ export class Game {
     if (this.conditions.daylight() && this.skeletons.count) this.skeletons.crumbleAll();
     this.skeletons.update(dt, this.driving ? this.driving.pos : this.player.pos, this.vehicles);
     this.collectMoney(dt);
+    this.shop.update(this.onFoot && this.mode === 'play' && !this.cutscene ? this.player.pos : null);
     // what whoever Cody's talking to says, over their head
     const me = (this.driving ?? this.player).pos;
     const said = this.talk.update(dt, me) ?? this.randyTalk.update(dt, me);
@@ -1047,39 +1033,11 @@ export class Game {
       this.gain(kind, 1);
       this.gotToast(kind);
     }
-    this.updateShop(onFoot && this.mode === 'play' && !this.cutscene ? onFoot : null);
-    // The HUD's item list shows what Cody could do with each item now, and redraws when that or his items change.
-    const items = this.inventory.list().map(([kind, count]) => ({ kind, count, offers: this.itemOffers(kind) }));
-    const shown = `${this.inventory.version}:${items.map(({ offers }) => offers.map(({ label }) => label).join(',')).join(';')}`;
-    if (shown !== this.shownInventory) {
-      this.shownInventory = shown;
-      this.hud.setInventory(
-        items.map(({ kind, count, offers }) => ({
-          kind,
-          name: ITEM_BREEDS[kind].name,
-          icon: ITEM_BREEDS[kind].icon,
-          count,
-          note: ITEM_BREEDS[kind].note,
-          actions: offers.map(({ id, label }) => ({ id, label })),
-        })),
-      );
-    }
-  }
-
-  /** Cody at Randy's wares (the shop encounter), or a scene showing them: the wares menu is up. */
-  private updateShop(cody: Vector3 | null): void {
-    this.shopOpen = this.shop.update(cody) !== null;
-    // a scene showing his wares (the tutorial's coat flash) shows them whatever else is going on, but only the shop sells
-    const show = this.shopOpen || this.waresShown;
-    this.hud.setWares(show ? { title: "RANDY'S WARES", slots: this.wares.view(this.money.cash, this.shopOpen) } : null);
   }
 
   /** Randy hands Cody one `kind` out of his coat for nothing (the burner, in the tutorial): out of his wares, into the inventory. False if he has none. */
   handOver(kind: ItemKind): boolean {
-    const s = this.wares.slotOf(kind);
-    if (!s) return false;
-    s.count--;
-    this.gain(kind, 1);
+    if (!this.shop.gift(kind)) return false;
     this.gotToast(kind);
     return true;
   }
@@ -1092,14 +1050,8 @@ export class Game {
 
   /** Cody buys `n` from a slot of Randy's wares: as many as there are, and as he can pay for. */
   private buy(slot: string, n: number): void {
-    const one = this.shopOpen ? this.wares.slots.find((s) => s.id === slot) : undefined;
-    if (!one) return;
-    const price = this.wares.price(one.kind);
-    // Free items such as the burner are always affordable. Dividing by a zero price would make cash NaN.
-    const afford = price > 0 ? Math.floor(this.money.cash / price) : n;
-    const got = this.wares.take(slot, n, afford);
-    if (!got || !this.money.spend(got.cost)) return;
-    this.gain(got.kind, got.n);
+    const got = this.shop.buy(slot, n);
+    if (!got) return;
     this.hud.toast(`+${got.n} ${ITEM_BREEDS[got.kind].name}`, `-$${got.cost}`, '', MONEY_TOAST);
   }
 
@@ -1136,91 +1088,12 @@ export class Game {
     }
     blockers.length = n;
     this.player.update(dt, this.input, this.view, this.world.collision, blockers);
-    this.interact();
+    this.interactions.update();
   }
 
   /** Adds a script's offer, such as the tutorial's talk with Randy. The returned function removes it. */
   addOffer(source: () => CodyAction | null): () => void {
-    this.offerSources.add(source);
-    return () => this.offerSources.delete(source);
-  }
-
-  /**
-   * Cody's offers this frame. The prompt shows the best offer for each key, and pressing a key
-   * performs the offer the prompt showed. A key with nothing to offer shows the reason, if any.
-   * Keys a focus layer takes never reach here: the layer gets them instead.
-   */
-  private interact(): void {
-    const { offers, refusals } = bestOffers(this.play, this.codyCandidates());
-    // A conversation, sign or menu that has a key right now owns it, so the prompt doesn't offer it.
-    const shown = PROMPT_CONTROLS.flatMap((control) => {
-      const offer = offers.get(control);
-      return offer?.label && !this.input.focus.owns(control) ? [offer] : [];
-    });
-    const [first] = shown;
-    this.hud.setPrompt(first ? shown.map(({ control, label }) => `{${control}} ${label}`).join(' &nbsp;') : null, first?.control);
-    for (const control of ACT_CONTROLS) {
-      if (!this.input.wasPressed(control)) continue;
-      const offer = offers.get(control);
-      const reason = refusals.get(control);
-      if (offer) this.doing.do(this.play, offer.action);
-      else if (reason) this.hud.toast(reason, '', 'warn', FAIL_TOAST);
-    }
-  }
-
-  /** Everything Cody might do with a key right now, before resolving. Nearest vehicles come first. */
-  private codyCandidates(): CodyCandidate[] {
-    if (this.mode !== 'play' || this.talk.active || this.randyTalk.active || this.cutscene || this.transform) return [];
-    const out: CodyCandidate[] = [];
-    const v = this.driving;
-    if (v) {
-      const { handOverSpeed, talkReach } = TUNING.valet;
-      const valet = v.form === 'car' && v.grounded && Math.abs(v.speed) < handOverSpeed ? this.valet.talkable(v.pos, talkReach.car, this.conditions.valetsOnShift()) : null;
-      if (valet) out.push({ control: 'interact', rank: RANK.valet, action: new TalkToValet({ valet }) });
-      out.push({ control: 'interact', rank: RANK.getOut, action: new GetOut({ car: v }) });
-      if (v.crashing && v.resting) out.push({ control: 'hop', rank: RANK.getOut, action: new RockOver() });
-      return out;
-    }
-    const p = this.player.pos;
-    for (const source of this.offerSources) {
-      const action = source();
-      if (action) out.push({ control: 'interact', rank: RANK.script, action });
-    }
-    const valet = this.valet.talkable(p, TUNING.valet.talkReach.foot, this.conditions.valetsOnShift());
-    if (valet) out.push({ control: 'interact', rank: RANK.valet, action: new TalkToValet({ valet }) });
-    const randy = this.randyTalk.talkable(p);
-    if (randy) out.push({ control: 'interact', rank: RANK.randy, action: new TalkToRandy({ randy }) });
-    const cab = this.elevators.cabAt(p);
-    const landing = cab ? null : this.elevators.landingAt(p, TUNING.elevator.callReach);
-    if (cab) {
-      out.push({ control: 'interact', rank: RANK.elevator, action: new PickFloor({ cab, dir: 1 }) });
-      out.push({ control: 'pay', rank: RANK.elevator, action: new PickFloor({ cab, dir: -1 }) });
-    } else if (landing && !landing.elevator.openAt(landing.stop)) {
-      out.push({ control: 'interact', rank: RANK.elevator, action: new CallElevator({ elevator: landing.elevator, stop: landing.stop }) });
-    }
-    for (const car of this.vehiclesInReach(p)) out.push({ control: 'interact', rank: RANK.vehicle, action: new InteractWithVehicle({ car }) });
-    out.push({ control: 'summon', rank: 0, action: new Summon() });
-    return out;
-  }
-
-  /** Vehicles Cody could get into from `p`, nearest first. */
-  private vehiclesInReach(p: Vector3): Vehicle[] {
-    const near = this.vehicles.filter(
-      (v) => v.role !== 'player' && !v.status && Math.abs(v.pos.y - p.y) < ENTER_HEIGHT && v.pos.distanceTo(p) < v.breed.enterReach,
-    );
-    return near.sort((a, b) => a.pos.distanceTo(p) - b.pos.distanceTo(p));
-  }
-
-  /** What Cody could do with one kind of item right now, resolved: EAT, or GIVE TO RANDY. */
-  private itemOffers(kind: ItemKind): { id: ItemActionId; action: CodyAction; label: string }[] {
-    const candidates: [ItemActionId, CodyAction][] = [];
-    if (kind === 'brisket') candidates.push(['eat', new Eat()]);
-    const taker = kind === 'tire' && this.mode === 'play' ? this.play.tireTaker() : null;
-    if (taker) candidates.push(['give', new GiveTires({ to: taker, name: NPC_NAMES[taker.def.id] })]);
-    return candidates.flatMap(([id, action]) => {
-      const resolved = resolveFully(this.play, action);
-      return 'fail' in resolved ? [] : [{ id, action: resolved, label: resolved.label(this.play) }];
-    });
+    return this.interactions.addOffer(source);
   }
 
   /** The game as Cody's actions see it: what they may ask and what they may do. */
@@ -1291,7 +1164,7 @@ export class Game {
       }
     }
 
-    this.interact();
+    this.interactions.update();
   }
 
   /** CSS-pixel screen position of a world point, or null when it's behind the camera. */

@@ -56,11 +56,16 @@ export class Signpost {
     if (at) this.root.style.translate = `${at.x}px ${at.y}px`;
   }
 
+  /** Hide without advancing the scene that opened it. */
+  cancel(): void {
+    this.root.classList.remove('on');
+    this.dismissed = null;
+  }
+
   dismiss(): void {
     if (!this.open) return;
-    this.root.classList.remove('on');
     const done = this.dismissed;
-    this.dismissed = null;
+    this.cancel();
     done?.();
   }
 }

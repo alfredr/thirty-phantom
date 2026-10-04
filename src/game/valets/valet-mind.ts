@@ -1,7 +1,7 @@
 import { Vector3 } from 'three';
 import type { Vehicle } from '../../actors/vehicle';
 import { TUNING } from '../../config';
-import { mind } from '../../engine/sim/mind';
+import { mind, type MindEvent, type State, type StateOf } from '../../engine/sim/mind';
 import type { SpotRuntime } from '../deck/garage';
 import type { Valet, ValetDrive } from './valet';
 
@@ -12,44 +12,41 @@ const HOME_EPS = 0.5;
 const _ahead = new Vector3();
 
 /** What a valet's doing, and what each part of the job holds while it lasts. */
-export type Job = {
+export type Job =
   /** Night: the crew's inside. */
-  off: object;
+  | State<'off'>
   /** At the stand, waiting for keys. */
-  idle: object;
+  | State<'idle'>
   /** Walking to the car he's been handed. */
-  toCar: { car: Vehicle; spot: SpotRuntime };
+  | State<'toCar', { car: Vehicle; spot: SpotRuntime }>
   /** At the door, getting in. */
-  boarding: { car: Vehicle; spot: SpotRuntime; t: number };
+  | State<'boarding', { car: Vehicle; spot: SpotRuntime; t: number }>
   /** At the wheel. */
-  driving: { car: Vehicle; spot: SpotRuntime; drive: ValetDrive };
+  | State<'driving', { car: Vehicle; spot: SpotRuntime; drive: ValetDrive }>
   /** Walking back to the stand. */
-  returning: object;
-};
+  | State<'returning'>;
 
 /** Whether he's paying anyone attention. */
-export type Attention = {
-  free: object;
+export type Attention =
+  | State<'free'>
   /** Turned to someone talking to him: he stands where he is and faces them. */
-  facing: { who: () => Vector3 };
-};
+  | State<'facing', { who: () => Vector3 }>;
 
 /** What can happen to a valet. Either of his minds can be sent any of these; each moves only on the ones its state lists. */
-export type ValetEvents = {
+export type ValetEvent =
   /** Someone's handed him keys to park `car` in `spot`. */
-  handedCar: { car: Vehicle; spot: SpotRuntime };
+  | MindEvent<'handedCar', { car: Vehicle; spot: SpotRuntime }>
   /** The car's gone from under him: Cody took it. */
-  carjacked: object;
+  | MindEvent<'carjacked'>
   /** Someone's started talking to him, from wherever `who` says. */
-  talk: { who: () => Vector3 };
+  | MindEvent<'talk', { who: () => Vector3 }>
   /** They've stopped. */
-  talkEnded: object;
-};
+  | MindEvent<'talkEnded'>;
 
-const returning = (): { at: 'returning' } => ({ at: 'returning' });
+const returning = (): StateOf<Job, 'returning'> => ({ at: 'returning' });
 
 /** The job. Being handed a car moves him only while he's free for it: at the stand, or on his way back. */
-export const VALET_JOB = mind<Valet, Job, ValetEvents>({
+export const VALET_JOB = mind<Valet, Job, ValetEvent>({
   off: {
     enter: (v) => {
       v.walker.rig.root.visible = false;
@@ -142,7 +139,7 @@ export const VALET_JOB = mind<Valet, Job, ValetEvents>({
 });
 
 /** His attention, side by side with the job: a talk turns him to face someone without touching what he's doing. */
-export const VALET_ATTENTION = mind<Valet, Attention, ValetEvents>({
+export const VALET_ATTENTION = mind<Valet, Attention, ValetEvent>({
   free: {
     on: { talk: (_v, _s, { who }) => ({ at: 'facing', who }) },
   },

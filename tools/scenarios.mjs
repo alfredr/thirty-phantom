@@ -3,7 +3,7 @@
 // JOBS cases at a time (default 3). Each file there is a set of cases. A case sets up a situation,
 // runs the game until the AI finishes its job or time runs out, and checks it finished without
 // anything jumping. Run a dev server first, then:
-//   node tools/scenarios.mjs [baseUrl] [set | set/case | case ...]
+//   node tools/scenarios.mjs [baseUrl] [set | set/case[/input] | case[/input] ...]
 // It needs Chromium at /Applications/Chromium.app (override with CHROME).
 import { readdirSync } from 'node:fs';
 import { chromium } from 'playwright-core';
@@ -18,15 +18,23 @@ const JOBS = Math.max(1, Number(process.env.JOBS ?? 3));
  * Every case in every set, in file order. A set's exported functions are its cases, its `steps`
  * (if any) are helpers its cases call as window.__sim.<name>(), and `tutorial = true` runs its
  * cases with the tutorial on (the others start as if it's been done).
+ * An exported `cases` table maps names to { run, inputs }: each string input becomes a separate
+ * name/input case, passed as the run function's argument in the browser.
  */
 const cases = [];
 for (const file of readdirSync(LIVE).filter((f) => f.endsWith('.mjs')).sort()) {
   const set = file.slice(0, -'.mjs'.length);
-  const { steps = {}, tutorial = false, ...exports } = await import(new URL(file, LIVE).href);
+  const { steps = {}, tutorial = false, cases: parameterized = {}, ...exports } = await import(new URL(file, LIVE).href);
+  const add = (name, run, input) => {
+    const id = `${set}/${name}`;
+    const wanted = !only.length || only.some((filter) => [id, name].some((path) => path === filter || path.startsWith(`${filter}/`)));
+    if (wanted) cases.push({ id, run, input, steps, tutorial });
+  };
   for (const [name, run] of Object.entries(exports)) {
-    if (typeof run !== 'function') continue;
-    const wanted = !only.length || only.some((o) => o === set || o === name || o === `${set}/${name}`);
-    if (wanted) cases.push({ id: `${set}/${name}`, run, steps, tutorial });
+    if (typeof run === 'function') add(name, run);
+  }
+  for (const [name, { run, inputs }] of Object.entries(parameterized)) {
+    for (const input of inputs) add(`${name}/${input}`, run, input);
   }
 }
 if (!cases.length) {
@@ -38,7 +46,7 @@ const browser = await chromium.launch({ executablePath: CHROME, args: ['--headle
 let failed = 0;
 const queue = [...cases];
 /** One case, start to finish, on a page of its own. */
-async function runCase({ id, run, steps, tutorial }) {
+async function runCase({ id, run, input, steps, tutorial }) {
   const started = Date.now();
   const page = await browser.newPage({ viewport: { width: 640, height: 400 } });
   page.setDefaultTimeout(600000);
@@ -75,7 +83,7 @@ async function runCase({ id, run, steps, tutorial }) {
   if (helpers.length) await page.evaluate(`Object.assign(window.__sim, { ${helpers.join(', ')} })`);
   // a case that throws fails with what it threw, rather than stopping the run
   const booted = Date.now();
-  const result = await page.evaluate(run).catch((e) => ({ ok: false, threw: String(e.message ?? e).split('\n')[0] }));
+  const result = await page.evaluate(run, input).catch((e) => ({ ok: false, threw: String(e.message ?? e).split('\n')[0] }));
   // A body moving more than 3 m in one frame (about 90 m/s) is a jump, not driving.
   const jumped = (result.maxJump ?? 0) > 3;
   const ok = result.ok && !jumped && errors.length === 0;

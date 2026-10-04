@@ -19,7 +19,7 @@ const playUntil = (done, seconds) => {
   const g = window.__game;
   for (let i = 0; i < seconds * 30; i++) {
     if (done()) return true;
-    if (i % 6 === 0 && (document.body.classList.contains('dialogue-open') || document.querySelector('.hud-sign.show'))) g.input.press('KeyF');
+    if (i % 6 === 0 && (document.body.classList.contains('dialogue-open') || document.querySelector('.signpost.on'))) g.input.press('KeyF');
     g.frame(1 / 30);
   }
   return done();
@@ -132,9 +132,126 @@ export function playsThrough() {
   sim.run(3);
   g.onCrossing({ vehicle: second, kind: 'escaped' });
   const finished = sim.playUntil(() => g.randyTalk.enabled, 30);
-  at('done', finished && sim.goal() === '');
+  at('done', finished && sim.goal() === '' && !g.cody.holdForm && !g.keepEscaped && g.sleepAfterEating && g.tires.enabled && sim.marks() === '');
   return result();
 }
 
+/** Reach a scene through its preceding story beats, leaving its dialogue open. */
+const reachScene = (target) => {
+  const g = window.__game;
+  const sim = window.__sim;
+  let step;
+  g.events.on('step', (e) => { if (e.quest === 'tutorial') step = e.step; });
+  g.start();
+  const truck = g.vehicles.find((v) => v.role === 'player');
+  const randy = g.npcs.find('randy');
+  if (!truck || !randy) throw new Error('missing tutorial actors');
+  const result = () => ({ step: () => step, randy, truck });
+  if (target === 'scene') {
+    sim.until(() => document.body.classList.contains('dialogue-open'), 5, []);
+    return result();
+  }
+  if (!sim.playUntil(() => step === 'out', 30)) throw new Error('roof did not finish');
+  g.clock.hours = 18.99;
+  if (target === 'sorry') {
+    sim.until(() => step === 'sorry' && document.body.classList.contains('dialogue-open'), 15, []);
+    return result();
+  }
+  if (!sim.playUntil(() => step === 'back', 30)) throw new Error('Randy did not call back');
+  g.board(truck);
+  if (!sim.playUntil(() => step === 'jump', 5)) throw new Error('pickup did not transform');
+  g.onCrossing({ vehicle: truck, kind: 'escaped' });
+  if (target === 'tell') {
+    sim.until(() => step === 'tell' && document.body.classList.contains('dialogue-open'), 20, []);
+    return result();
+  }
+  if (target === 'imprint') {
+    sim.playUntil(() => !!document.querySelector('.signpost.on'), 30);
+    return result();
+  }
+  if (!sim.playUntil(() => step === 'cruise', 40)) throw new Error('imprint did not finish');
+  g.clock.hours = 21.99;
+  if (target === 'call') {
+    sim.until(() => step === 'call' && document.body.classList.contains('dialogue-open'), 15, []);
+    return result();
+  }
+  if (!sim.playUntil(() => step === 'basement', 30)) throw new Error('no basement invitation');
+  g.alight();
+  sim.run(10);
+  const P = g.player.pos.constructor;
+  g.player.place(new P(randy.pos.x + Math.sin(randy.homeYaw) * 1.6, randy.pos.y, randy.pos.z + Math.cos(randy.homeYaw) * 1.6), randy.homeYaw + Math.PI);
+  if (target === 'brisket') g.inventory.add('tire');
+  sim.run(5);
+  g.input.press('KeyF');
+  sim.run(3);
+  return result();
+};
+
+/** A sunrise must cancel scene UI and restore the normal daytime rules. */
+const interruptScene = (target) => {
+  const g = window.__game;
+  const sim = window.__sim;
+  const scene = sim.reachScene(target);
+  const reached = scene.step() === target;
+  const wasOpen = !!document.querySelector('.dialogue.on, .signpost.on');
+  g.clock.paused = false;
+  g.clock.hours = 7.49;
+  const woke = sim.until(() => scene.step() === 'steal', 5, []).ok;
+  const released = !scene.randy.held && !g.cutscene && !g.clock.paused && !g.cody.holdForm && !g.keepEscaped;
+  const closed = !document.querySelector('.dialogue.on, .signpost.on, .burner.calling');
+  // A stale callback must not replace the daytime objective after cancellation.
+  document.querySelector('.signpost')?.click();
+  document.querySelector('.dialogue')?.click();
+  sim.run(60);
+  const stayed = scene.step() === 'steal' && /STEAL A CAR/.test(sim.goal());
+  return { ok: reached && wasOpen && woke && released && closed && stayed && g.sleepAfterEating && g.tires.enabled, reached, wasOpen, woke, released, closed, stayed };
+};
+
+export const cases = {
+  sunriseInterrupts: {
+    run: interruptScene,
+    inputs: ['scene', 'sorry', 'tell', 'imprint', 'call', 'noWheels', 'brisket'],
+  },
+};
+
+/** The scene releases only its camera; a later scene's camera survives its exit. */
+export function preservesReplacementCamera() {
+  const g = window.__game;
+  const sim = window.__sim;
+  const scene = sim.reachScene('imprint');
+  const replacement = { focus: g.player.pos.clone(), zoom: 20 };
+  g.cutscene = replacement;
+  g.clock.hours = 7.49;
+  const woke = sim.until(() => scene.step() === 'steal', 5, []).ok;
+  return { ok: woke && g.cutscene === replacement && !document.querySelector('.signpost.on') };
+}
+
+export function keepsPlayersCameraChoiceAfterSunrise() {
+  const g = window.__game;
+  const sim = window.__sim;
+  const scene = sim.reachScene('tell');
+  // Chase -> auto -> iso, so the choice differs from the default before the jump.
+  g.input.press('KeyC');
+  sim.run(1);
+  g.input.press('KeyC');
+  sim.run(1);
+  const picked = g.cameraMode;
+  g.clock.hours = 7.49;
+  const woke = sim.until(() => scene.step() === 'steal', 5, []).ok;
+  return { ok: woke && picked === 'iso' && g.cameraMode === picked, picked, after: g.cameraMode };
+}
+
+export function restoresPreviousRulesAfterFirstNight() {
+  const g = window.__game;
+  const sim = window.__sim;
+  g.sleepAfterEating = false;
+  g.tires.enabled = false;
+  g.keepEscaped = true;
+  const scene = sim.reachScene('imprint');
+  g.clock.hours = 7.49;
+  const woke = sim.until(() => scene.step() === 'steal', 5, []).ok;
+  return { ok: woke && !g.sleepAfterEating && !g.tires.enabled && g.keepEscaped && !g.cody.holdForm };
+}
+
 /** Steps shared by this set's cases, installed on window.__sim before each one. */
-export const steps = { goal, marks, playUntil };
+export const steps = { goal, marks, playUntil, reachScene };

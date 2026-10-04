@@ -72,6 +72,14 @@ export class Dialogue {
     this.show();
   }
 
+  /** Close without completing the conversation or running another cue. */
+  cancel(): void {
+    this.done = null;
+    this.lines = [];
+    this.root.classList.remove('on');
+    document.body.classList.remove('dialogue-open');
+  }
+
   private frame(side: Side): HTMLDivElement {
     const f = el('div', `dialogue-portrait ${side}`, this.root);
     el('img', '', f).alt = this.names[side];
@@ -99,9 +107,7 @@ export class Dialogue {
       return;
     }
     const done = this.done;
-    this.done = null;
-    this.root.classList.remove('on');
-    document.body.classList.remove('dialogue-open');
+    this.cancel();
     done?.();
   }
 }

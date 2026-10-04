@@ -9,8 +9,6 @@ export function isItemAction(a: string): a is ItemActionId {
 /** Cody's pockets (and arms): how many of each thing he has, in the order he first got them. */
 export class Inventory {
   private readonly counts = new Map<ItemKind, number>();
-  /** Bumped on every change, so the HUD redraws only then. */
-  version = 0;
 
   count(kind: ItemKind): number {
     return this.counts.get(kind) ?? 0;
@@ -19,7 +17,6 @@ export class Inventory {
   add(kind: ItemKind, n = 1): void {
     if (n <= 0) return;
     this.counts.set(kind, this.count(kind) + n);
-    this.version++;
   }
 
   /** Takes up to `n` (all of them by default); returns how many it took. */
@@ -29,7 +26,6 @@ export class Inventory {
     const left = this.count(kind) - got;
     if (left > 0) this.counts.set(kind, left);
     else this.counts.delete(kind);
-    this.version++;
     return got;
   }
 

@@ -117,6 +117,7 @@ export class Walker {
     return this.cursor !== null && this.stalled > BLOCKED_TIME;
   }
 
+  /** Relocate and discard navigation from the previous position. */
   place(p: Vector3, yaw: number): void {
     this.cancelPlan();
     this.pos.copy(p);
@@ -124,6 +125,12 @@ export class Walker {
     this.cursor = null;
     this.speed = this.cruise = 0;
     this.vel.set(0, 0, 0);
+    this.sync(0);
+  }
+
+  /** Move to a collision-adjusted position while keeping the current and pending routes. */
+  nudge(p: Vector3): void {
+    this.pos.copy(p);
     this.sync(0);
   }
 

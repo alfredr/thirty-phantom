@@ -311,7 +311,7 @@ export class Crowd implements Prey, Town {
         if (!Number.isFinite(_b.x)) _b.set(Math.cos(v.yaw) * SHOVE, 0, -Math.sin(v.yaw) * SHOVE);
         _a.copy(w.pos).add(_b);
         _a.y = this.nav.heightAt(_a.x, w.pos.y, _a.z) ?? w.pos.y;
-        w.place(_a, w.yaw);
+        w.nudge(_a);
         p.mind.send({ type: 'frightened', from: v.pos });
         return true;
       }

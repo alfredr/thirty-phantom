@@ -1,5 +1,5 @@
 import type { Vector3 } from 'three';
-import { Mind, mind } from '../../engine/sim/mind';
+import { Mind, mind, type MindEvent, type State } from '../../engine/sim/mind';
 import type { Objective } from './objectives';
 
 /** Quest progress that survives a reload. */
@@ -32,11 +32,12 @@ export class Quests {
 // ---------------------------------------------------------------- the haunting: the main quest
 
 /** Leaving phantoms till there are enough, then it's won (`announced`: the victory's been shown). */
-export type HauntSteps = { haunting: object; won: { announced: boolean } };
-export type HauntEvents = {
+export type HauntState =
+  | State<'haunting'>
+  | State<'won', { announced: boolean }>;
+export type HauntEvent =
   /** A phantom was left: the `n`th so far. */
-  phantom: { n: number };
-};
+  | MindEvent<'phantom', { n: number }>;
 
 /** What the haunting needs from the game. */
 export interface HauntWorld {
@@ -48,7 +49,7 @@ export interface HauntWorld {
   moved(step: string): void;
 }
 
-const HAUNTING = mind<Haunting, HauntSteps, HauntEvents>({
+const HAUNTING = mind<Haunting, HauntState, HauntEvent>({
   haunting: {
     on: { phantom: (q, _s, { n }) => (n >= q.world.needed ? { at: 'won', announced: false } : null) },
   },
@@ -64,10 +65,10 @@ const HAUNTING = mind<Haunting, HauntSteps, HauntEvents>({
 /** The game itself as a quest: leave enough phantoms and it's won, once, saved as won. */
 export class Haunting implements Quest {
   readonly id = 'haunting';
-  readonly mind: Mind<Haunting, HauntSteps, HauntEvents>;
+  readonly mind: Mind<Haunting, HauntState, HauntEvent>;
 
   constructor(readonly world: HauntWorld) {
-    this.mind = new Mind<Haunting, HauntSteps, HauntEvents>(HAUNTING, this, { at: 'haunting' }, { moved: (q, _from, to) => q.world.moved(to.at) });
+    this.mind = new Mind<Haunting, HauntState, HauntEvent>(HAUNTING, this, { at: 'haunting' }, { moved: (q, _from, to) => q.world.moved(to.at) });
   }
 
   get step(): string {

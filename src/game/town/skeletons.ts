@@ -6,7 +6,7 @@ import { clamp, damp, dampAngle, TAU, type V3 } from '../../engine/core/math';
 import { RouteCursor } from '../../engine/nav/polyline';
 import type { CollisionWorld } from '../../engine/physics/collision';
 import type { Claims } from '../../engine/sim/claims';
-import { Mind, mind } from '../../engine/sim/mind';
+import { type EventOf, Mind, mind, type MindEvent, type State, type StateOf } from '../../engine/sim/mind';
 import { NAV, type NavGrid, type NavJob, type NavPlanner } from '../../world/nav-grid';
 import type { ClaimKind } from '../rules/claim-kinds';
 
@@ -83,25 +83,23 @@ const AMBLE = 1.1;
 const SETTLED = 0.02;
 
 /** What a skeleton's doing. */
-type Undead = {
+type Undead =
   /** Climbing out of the ground, `t` seconds in (each starts a moment after the others, below 0). */
-  rising: { t: number };
+  | State<'rising', { t: number }>
   /** After someone, or keeping near Cody with nobody to hunt. */
-  hunting: object;
+  | State<'hunting'>
   /** Knocked back by a car, for `t` more seconds. */
-  staggered: { t: number };
-};
+  | State<'staggered', { t: number }>;
 
 /** What can happen to a skeleton. */
-type UndeadEvents = {
+type UndeadEvent =
   /** A car ploughed into it and didn't finish it: staggered this long (s). */
-  struck: { t: number };
-};
+  | MindEvent<'struck', { t: number }>;
 
-const stagger = (_s: Skeleton, _st: unknown, { t }: UndeadEvents['struck']): { at: 'staggered'; t: number } => ({ at: 'staggered', t });
+const stagger = (_s: Skeleton, _st: Undead, { t }: EventOf<UndeadEvent, 'struck'>): StateOf<Undead, 'staggered'> => ({ at: 'staggered', t });
 
 /** A skeleton's mind: it climbs out, then hunts; a car that doesn't finish it staggers it a moment. */
-const SKELETON_MIND = mind<Skeleton, Undead, UndeadEvents>({
+const SKELETON_MIND = mind<Skeleton, Undead, UndeadEvent>({
   rising: {
     tick: (s, st, dt) => (s.pack.rise(s, st, dt) ? { at: 'hunting' } : null),
   },
@@ -124,7 +122,7 @@ const SKELETON_MIND = mind<Skeleton, Undead, UndeadEvents>({
 
 /** One of phantom Cody's skeletons. */
 class Skeleton {
-  readonly mind: Mind<Skeleton, Undead, UndeadEvents>;
+  readonly mind: Mind<Skeleton, Undead, UndeadEvent>;
   readonly gait = new Gait();
   speed = 0;
   hp = HEALTH;
@@ -146,7 +144,7 @@ class Skeleton {
     readonly pos: Vector3,
     public yaw: number,
   ) {
-    this.mind = new Mind<Skeleton, Undead, UndeadEvents>(SKELETON_MIND, this, { at: 'rising', t: -Math.random() * 0.35 });
+    this.mind = new Mind<Skeleton, Undead, UndeadEvent>(SKELETON_MIND, this, { at: 'rising', t: -Math.random() * 0.35 });
   }
 }
 

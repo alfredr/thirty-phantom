@@ -3,11 +3,11 @@ import { buildJunk } from '../../actors/models/junk';
 import { buildRandy, type RandyRig, ROAST_LIFT } from '../../actors/models/randy';
 import { buildTrashFire, CAN_TOP } from '../../actors/models/trash-fire';
 import { clamp, damp, dampAngle, wrapAngle } from '../../engine/core/math';
-import { type EventOf, Mind } from '../../engine/sim/mind';
+import { Mind } from '../../engine/sim/mind';
 import { ArcPath } from '../../fx/arc-path';
 import { Highlight } from '../../fx/highlight';
 import type { NpcDef } from '../../world/level-data';
-import { type Pitch, RANDY_PITCH, RANDY_WORK, type RandyEvents, type Work } from './randy-mind';
+import { type Pitch, RANDY_PITCH, RANDY_WORK, type RandyEvent, type Work } from './randy-mind';
 
 /** Cody this close (m, on his level) gets Randy's attention: he looks over, and between pitches turns to him and opens his coat. */
 const PITCH_REACH = 5;
@@ -114,8 +114,8 @@ interface Feed {
  * the shop has Cody browsing, and Cody hands him tires.
  */
 export class Npc {
-  readonly pitch: Mind<Npc, Pitch, RandyEvents>;
-  readonly work: Mind<Npc, Work, RandyEvents>;
+  readonly pitch: Mind<Npc, Pitch, RandyEvent>;
+  readonly work: Mind<Npc, Work, RandyEvent>;
   /** The way he faces when nobody's about (at his fire), and the way he's facing. Move him with Npcs.place. */
   homeYaw: number;
   yaw: number;
@@ -139,8 +139,8 @@ export class Npc {
     readonly npcs: Npcs,
   ) {
     this.homeYaw = this.yaw = def.yaw;
-    this.pitch = new Mind<Npc, Pitch, RandyEvents>(RANDY_PITCH, this, { at: 'resting', t: 0 });
-    this.work = new Mind<Npc, Work, RandyEvents>(RANDY_WORK, this, { at: 'roasting' });
+    this.pitch = new Mind<Npc, Pitch, RandyEvent>(RANDY_PITCH, this, { at: 'resting', t: 0 });
+    this.work = new Mind<Npc, Work, RandyEvent>(RANDY_WORK, this, { at: 'roasting' });
   }
 
   /** A scene has him: he turns toward Cody (as far as his fire allows), roasts on, and opens his coat only when told to. */
@@ -160,7 +160,7 @@ export class Npc {
   }
 
   /** Sends `event` to both his minds. True if either moved. */
-  send(event: EventOf<RandyEvents>): boolean {
+  send(event: RandyEvent): boolean {
     const pitch = this.pitch.send(event);
     const work = this.work.send(event);
     return pitch || work;

@@ -7,7 +7,7 @@ import type { Vehicle } from '../../actors/vehicle';
 import { Walker } from '../../actors/walker';
 import { done, type Result, running } from '../../engine/sim/action';
 import type { Claims } from '../../engine/sim/claims';
-import { type EventOf, Mind } from '../../engine/sim/mind';
+import { Mind } from '../../engine/sim/mind';
 import type { ValetDef, ZoneDef } from '../../world/level-data';
 import { NAV, type NavGrid, type NavJob, type NavPlanner } from '../../world/nav-grid';
 import { type Garage, type SpotRuntime, spotZone } from '../deck/garage';
@@ -15,9 +15,9 @@ import { type DriveAction, DriverJob, DriveTo, type DriveWorld, halt, Park, spot
 import type { ClaimKind } from '../rules/claim-kinds';
 import type { Drivers } from '../driving/drivers';
 import type { Bodies } from '../rules/bodies';
-import { type Attention, type Job, VALET_ATTENTION, VALET_JOB, type ValetEvents } from './valet-mind';
+import { type Attention, type Job, VALET_ATTENTION, VALET_JOB, type ValetEvent } from './valet-mind';
 
-export type ValetState = keyof Job;
+export type ValetState = Job['at'];
 
 /** What the game gives the valets each frame. */
 export interface ValetFrame {
@@ -46,8 +46,8 @@ const _v = new Vector3();
 
 /** One of Foxy's valets: his body, where his stand is, and his two minds (the job, and whether he's paying someone attention). See valet-mind.ts. */
 export class Valet {
-  readonly job: Mind<Valet, Job, ValetEvents>;
-  readonly attention: Mind<Valet, Attention, ValetEvents>;
+  readonly job: Mind<Valet, Job, ValetEvent>;
+  readonly attention: Mind<Valet, Attention, ValetEvent>;
   /** The car crossed the entry gate with him at the wheel. */
   badged = false;
   /** His own clock, for the idle rocking and waving. */
@@ -59,8 +59,8 @@ export class Valet {
     readonly home: Vector3,
     readonly homeYaw: number,
   ) {
-    this.job = new Mind<Valet, Job, ValetEvents>(VALET_JOB, this, { at: 'idle' });
-    this.attention = new Mind<Valet, Attention, ValetEvents>(VALET_ATTENTION, this, { at: 'free' });
+    this.job = new Mind<Valet, Job, ValetEvent>(VALET_JOB, this, { at: 'idle' });
+    this.attention = new Mind<Valet, Attention, ValetEvent>(VALET_ATTENTION, this, { at: 'free' });
   }
 
   /** What he's doing. */
@@ -75,7 +75,7 @@ export class Valet {
   }
 
   /** Sends `event` to both his minds. True if either moved. */
-  send(event: EventOf<ValetEvents>): boolean {
+  send(event: ValetEvent): boolean {
     const job = this.job.send(event);
     const attention = this.attention.send(event);
     return job || attention;

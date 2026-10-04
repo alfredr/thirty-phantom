@@ -122,5 +122,35 @@ export function noTalkDuringTheTutorial() {
   return { ok: !g.randyTalk.active && !r.held && g.inventory.count('tire') === 1, talking: g.randyTalk.active };
 }
 
+/** The bound shop redraws after a purchase and inventory actions change when Randy is out of reach. */
+export function shopAndInventoryFollowState() {
+  const g = window.__game;
+  const sim = window.__sim;
+  const r = sim.standBy(2);
+  if (!r) return { ok: false, why: 'no Randy' };
+  const slot = g.wares.slotOf('brisket');
+  const price = g.wares.price('brisket');
+  g.money.cash = price * 2;
+  if (!sim.until(() => r.pitch.state.at === 'browsing', 15, []).ok) return { ok: false, why: 'shop never opened' };
+  const selector = `.ware-slot[data-id="${slot.id}"]`;
+  const before = document.querySelector(selector);
+  sim.run(3);
+  const stable = document.querySelector(selector) === before;
+  g.input.press('Digit2');
+  sim.run(3);
+  const bought = g.inventory.count('brisket') === 1 && g.money.cash === price && slot.count === 127;
+  const redrawn = document.querySelector(selector) !== before && document.querySelector(`${selector} .ware-count`)?.textContent === '127';
+  g.inventory.add('tire');
+  sim.run(2);
+  const tireTag = () => [...document.querySelectorAll('.inv-item')].find((el) => el.textContent.includes('TIRE'));
+  const canGive = tireTag()?.classList.contains('usable');
+  const P = g.player.pos.constructor;
+  g.player.place(new P(r.pos.x + 12, r.pos.y, r.pos.z), 0);
+  sim.run(3);
+  const noGive = !tireTag()?.classList.contains('usable');
+  const closed = !document.querySelector('.hud-wares.on');
+  return { ok: stable && bought && redrawn && canGive && noGive && closed, stable, bought, redrawn, canGive, noGive, closed };
+}
+
 /** Steps shared by this set's cases, installed on window.__sim before each one. */
 export const steps = { standBy };

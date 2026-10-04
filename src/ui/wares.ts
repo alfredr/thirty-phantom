@@ -20,8 +20,14 @@ export interface Wares {
   slots: readonly WareSlot[];
 }
 
+export function sameWares(a: Wares | null, b: Wares | null): boolean {
+  return a === b || (!!a && !!b && a.title === b.title && a.slots.length === b.slots.length && a.slots.every((slot, i) => {
+    const other = b.slots[i];
+    return !!other && slot.id === other.id && slot.kind === other.kind && slot.name === other.name && slot.icon === other.icon && slot.count === other.count && slot.price === other.price && slot.can === other.can;
+  }));
+}
+
 /** Number keys buy from the slot they number (Shift: the whole stack). */
-/** The number keys buy from the slots, in order. */
 const SLOT_KEYS: readonly Control[] = ['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6', 'slot7', 'slot8', 'slot9'];
 
 /**
@@ -33,7 +39,6 @@ const SLOT_KEYS: readonly Control[] = ['slot1', 'slot2', 'slot3', 'slot4', 'slot
 export class WaresPanel {
   readonly root: HTMLDivElement;
   private wares: Wares | null = null;
-  private shown = '';
   /** The slot the info line is about: hovered, or tapped on touch. */
   private focus: string | null = null;
   /** Just bought from (it pops), or refused (it shakes). */
@@ -64,10 +69,7 @@ export class WaresPanel {
   }
 
   set(w: Wares | null): void {
-    const shown = w ? JSON.stringify(w) : '';
-    if (shown === this.shown) return;
     const opening = !this.wares && w;
-    this.shown = shown;
     this.wares = w;
     if (!w) this.focus = null;
     this.root.classList.toggle('on', !!w);

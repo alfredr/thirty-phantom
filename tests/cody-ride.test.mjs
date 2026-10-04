@@ -98,6 +98,19 @@ test('scripted boarding stays quiet and handing off a car forgets it for the nex
   assert.equal(claims.holder('driverSeat', car), null);
 });
 
+test('stealing announces entry before glovebox money, with the ride already established', () => {
+  const { ride, world, car, player, log } = setup({ role: 'traffic', insideDeck: false });
+  const seen = [];
+  for (const event of ['entered', 'money']) world.events.on(event, () => seen.push({ event, driving: ride.driving, visible: player.visible }));
+  ride.enter(car);
+  assert.deepEqual(log.map((e) => e.type), ['bailed', 'entered', 'money']);
+  assert.deepEqual(seen, [
+    { event: 'entered', driving: car, visible: false },
+    { event: 'money', driving: car, visible: false },
+  ]);
+  assert.equal(log.at(-1).amount, 5);
+});
+
 test('an escape countdown belongs to one drive and waits for landing before releasing the seat', () => {
   const { ride, car, claims, world, log } = setup({ insideDeck: false });
   ride.board(car);

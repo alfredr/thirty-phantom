@@ -10,14 +10,14 @@ import { GameClock, type Phase } from '../game/game-clock';
 import type { Objective } from '../game/story/objectives';
 import type { LevelData } from '../world/level-data';
 import { ClockFace } from './clock-face';
-import { type InvItem, InventoryStrip } from './inventory';
+import { type InvItem, InventoryStrip, sameInventory } from './inventory';
 import { OccupancySign } from './occupancy-sign';
 import { GhastDial } from './ghast-dial';
 import { type MapView, Minimap } from './minimap';
 import { ObjectiveMarks } from './objective-marks';
 import { SpeedGauge } from './speed-gauge';
 import { touchGlyph } from './touch-controls';
-import { type Wares, WaresPanel } from './wares';
+import { type Wares, WaresPanel, sameWares } from './wares';
 import './hud.css';
 import { type Control, isControl, keyName } from '../game/controls';
 
@@ -121,6 +121,8 @@ export interface HudStatus {
   phase(): Phase;
   day(): number;
   cash(): number;
+  inventory(): readonly InvItem[];
+  wares(): Wares | null;
   /** The occupancy board: the badge log, cars really in the deck, phantoms in spots, and spots in all. */
   ledger(): { logged: number; actual: number; phantom: number; max: number };
   /** What's on the dash while he drives; null on foot. */
@@ -245,7 +247,9 @@ export class Hud {
     const v = this.views;
     v.add({ read: () => s.mode(), draw: (m) => this.drawMode(m) });
     v.add({ read: () => s.summon(), draw: (on) => (this.root.dataset.summon = on ? 'on' : '') });
-    // the dial's hand moves on every frame the clock runs; the digits only when the minute does
+    v.add({ read: () => s.inventory(), same: sameInventory, draw: (items) => this.inv.set(items) });
+    v.add({ read: () => s.wares(), same: sameWares, draw: (wares) => this.wares.set(wares) });
+    // The dial moves each frame; the digits change only on the minute.
     v.add({ read: () => s.hours(), draw: (h) => this.clock.set(h) });
     v.add({
       read: () => GameClock.format(s.hours()),
@@ -349,16 +353,6 @@ export class Hud {
   /** Objective markers this frame (ui/objective-marks.ts): `project` puts a world point on screen, `from` is Cody. */
   setObjectives(list: readonly Objective[], cam: Camera, project: (p: Vector3) => { x: number; y: number } | null, from: Vector3): void {
     this.marks.update(list, cam, project, from);
-  }
-
-  /** Randy's stock while his coat's open and Cody's in reach, every frame; null puts it away (ui/wares.ts). */
-  setWares(w: Wares | null): void {
-    this.wares.set(w);
-  }
-
-  /** What Cody's carrying: tags top right, each with its actions (ui/inventory.ts). */
-  setInventory(items: readonly InvItem[]): void {
-    this.inv.set(items);
   }
 
   /** Cody's cash, on the coin at the clock plate's right end. It bumps when it goes up. */
