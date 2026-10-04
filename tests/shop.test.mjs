@@ -123,3 +123,20 @@ test('invalid purchase requests and a scene taking Randy cannot move stock', () 
   assert.equal(inventory.count('brisket'), 0);
   assert.deepEqual(deeds, []);
 });
+
+test('molten keys are visible as too hot but cannot be bought or gifted', () => {
+  const { shop, stock, inventory, randy, money, deeds } = setup();
+  const keys = { id: 'molten-keys', kind: 'moltenKeys', count: 1 };
+  stock.slots.push(keys);
+  shop.update(new Vector3(1, 0, 0));
+  const view = shop.view().slots.find((s) => s.id === keys.id);
+  assert.equal(view.name, 'MOLTEN KEYS');
+  assert.equal(view.unavailable, 'TOO HOT');
+  assert.equal(view.can, false);
+  assert.equal(shop.buy(keys.id, 1), null);
+  assert.equal(shop.gift(randy, keys.kind), null);
+  assert.equal(keys.count, 1);
+  assert.equal(inventory.count(keys.kind), 0);
+  assert.equal(money.cash, 100);
+  assert.deepEqual(deeds, []);
+});

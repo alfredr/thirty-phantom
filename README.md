@@ -73,7 +73,7 @@ to your Chromium executable if it is not installed at
 | `Shift` | Run or drift |
 | `Space` | Jump |
 | `F` | Enter or exit a vehicle, talk, or interact |
-| `G` | Pay or tip a valet |
+| `G` | Hotwire a parked car, or pay or tip a valet |
 | `I` | Open the inventory or advance its selection |
 | Backtick | Toggle the phone |
 | `X` | Summon skeletons as phantom Cody |
@@ -93,6 +93,7 @@ Touch devices have on-screen controls and use chase view while driving.
 The game stores the day, cash, inventory, phantoms, quest progress, shop stock, and remaining
 daily cash pickups in browser storage. A completed game stays completed after a reload.
 The player's position and ordinary vehicles are reset when the world loads.
+Vehicle keys belong to those individual cars and reset with them.
 
 Use `?fresh` to start without restoring the saved game. Replaying the tutorial also starts
 a new game; saving is suspended while the tutorial runs, then the new progress replaces
@@ -148,6 +149,7 @@ src/
   actors/       characters, shared movement and collision helpers
     vehicles/   vehicle instances, breeds, capabilities, traffic, autopilot
     npcs/       NPC instances, breeds, behaviors, fire and throwing capabilities
+    skeletons/  summoned packs, breeds, behavior, movement, and animation
     models/     geometry builders and rigs
   render/       cameras, materials, lighting, post-processing
   audio/        synthesis, recorded engine cycles, mixing
@@ -162,10 +164,21 @@ public/         models, audio, icons
 Actor families keep their breed definitions beside their runtime code. Breeds select
 shared models, settings, and capabilities; each instance owns its changing state.
 `engine/sim/` supplies the shared action runners, state machines, and claims.
+Bob Nystrom's [Hauberk](https://github.com/munificent/hauberk) is the reference for this
+composition of breeds, capabilities, and actions.
+
+Hunting accepts a target source and an attack definition. The source chooses eligible
+entities and supplies their current positions; each hunter owns its selected target and
+cooldown. The game supplies damage and effect callbacks.
 
 Inventory, consumption, shop stock, and exchanges live in `game/items/`. Each merchant
 owns its stock. `game/randy/` contains Randy's dialogue; his breed selects the reusable
 NPC behaviors used by his conversations and tutorial scenes.
+
+Each vehicle has a plate and one set of keys. `actors/vehicles/ignition.ts` tracks
+transfers between the ignition, people's keyrings, and ground pickups. Hotwiring bypasses
+the ignition without producing keys. Drivers and Cody use the same ownership rules;
+valet handovers transfer the matching set automatically.
 
 Recorded audio uses CC0 assets. See the [sound credits](public/audio/CREDITS.md).
 

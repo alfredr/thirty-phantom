@@ -79,7 +79,7 @@ class Engines {
 
     // Release unused engines before starting new ones so they do not consume the cue limit.
     for (const [v, r] of this.on) {
-      if (v === ride || near.includes(v)) {
+      if ((v === ride && v.engineOn) || near.includes(v)) {
         continue;
       }
 
@@ -87,7 +87,7 @@ class Engines {
       this.on.delete(v);
     }
 
-    if (ride) {
+    if (ride?.engineOn) {
       this.run(ride, dt, throttle, boost, true);
     }
 

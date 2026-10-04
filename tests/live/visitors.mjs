@@ -50,7 +50,10 @@ export function leavesAndJoinsTraffic() {
     return { ok: false, why: 'no car waiting in a stall' };
   }
 
-  if (!g.visitors.leave(car)) {
+  car.ignition.transfer('away', 'ignition');
+  g.crowd.arrive(car);
+  const owner = g.crowd.living().find((p) => p.car === car && car.ignition.heldBy(p.keys));
+  if (!owner || !g.visitors.leave(car, owner.keys)) {
     return { ok: false, why: 'nowhere to go' };
   }
 

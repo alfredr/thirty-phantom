@@ -4,7 +4,7 @@ import type { Npc, Npcs } from '@/actors/npcs/npcs';
 import type { ItemDeed } from '@/game/story/triggers';
 
 import type { Inventory } from './inventory';
-import type { ItemKind } from './item-breeds';
+import { ITEM_BREEDS, type ItemKind } from './item-breeds';
 
 export interface ItemAmount {
   readonly kind: ItemKind;
@@ -49,6 +49,7 @@ export class Trades {
       const exchange = to.breed.trades.find((e) => e.take === kind);
       if (
         exchange &&
+        transferable(exchange) &&
         exchange.offered(to) &&
         exchange.ready(to) &&
         Math.hypot(to.pos.x - from.x, to.pos.z - from.z) < exchange.reach &&
@@ -64,7 +65,7 @@ export class Trades {
   /** Scripts supply their own proximity rules. Availability and inventory are checked again at handover. */
   give(to: Npc, kind: ItemKind, from: Vector3): number {
     const exchange = to.breed.trades.find((e) => e.take === kind);
-    if (!exchange || !exchange.ready(to)) {
+    if (!exchange || !transferable(exchange) || !exchange.ready(to)) {
       return 0;
     }
 
@@ -80,4 +81,8 @@ export class Trades {
     exchange.start(to, from, n, reward);
     return n;
   }
+}
+
+function transferable(exchange: Exchange): boolean {
+  return !ITEM_BREEDS[exchange.take].unavailable && !ITEM_BREEDS[exchange.give.kind].unavailable;
 }

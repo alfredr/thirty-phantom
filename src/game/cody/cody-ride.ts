@@ -1,6 +1,7 @@
 import { type Scene, Vector3 } from 'three';
 
 import type { Player } from '@/actors/player';
+import type { Keyring } from '@/actors/vehicles/ignition';
 import type { Vehicle } from '@/actors/vehicles/vehicle';
 import { TUNING } from '@/config';
 import type { Emitter } from '@/engine/core/events';
@@ -18,8 +19,6 @@ import type { CodyState } from './cody-state';
 
 /** Distance beyond the vehicle’s side used for exiting, in meters. */
 const DOOR_GAP = 1;
-/** Minimum post-escape duration before a grounded vehicle disappears, in seconds. */
-const ESCAPE_ROLL = 2.5;
 const _door = new Vector3();
 
 type RideState =
@@ -28,6 +27,9 @@ type RideState =
   /** Seconds left rolling after an escape; null until the truck escapes. */
   | State<'driving', { v: Vehicle; escape: number | null }>;
 
+/** A lesson may block entry or restrict it to one vehicle until Cody hotwires it. */
+export type VehicleAccess = 'any' | 'none' | Vehicle;
+
 export type RideEvents = {
   /** `from` is the previous driver role, or null when a car Cody already drives transforms at moonrise. */
   entered: { v: Vehicle; possessed: boolean; from: Vehicle['role'] | null; quiet: boolean };
@@ -35,9 +37,11 @@ export type RideEvents = {
   exited: { v: Vehicle; spot: SpotRuntime | null; quiet: boolean };
   /** Report where an escaped vehicle disappears. */
   vanished: { at: Vector3 };
+  hotwired: { v: Vehicle };
 };
 
 interface RideWorld {
+  readonly keys: Keyring;
   readonly player: Player;
   readonly cody: CodyState;
   readonly conditions: WorldConditions;
@@ -57,8 +61,8 @@ interface RideWorld {
 
 /** Owns Cody's seat, vehicle transitions, and the escape roll for his current drive. */
 export class CodyRide {
+  access: VehicleAccess = 'any';
   private readonly seat = { name: 'Cody at the wheel' };
-  private lastCar: Vehicle | null = null;
   private readonly states = mind<CodyRide, RideState>({
     onFoot: {
       tick: (r, _s, dt) => {
@@ -115,10 +119,54 @@ export class CodyRide {
 
   /** Shared by the interaction prompt and boarding. */
   possessable(car: Vehicle): boolean {
-    return car.form === 'car' && car.insideDeck && this.world.conditions.deckAwake() && this.world.cody.can('possess');
+    return (
+      this.access === 'any' &&
+      car.form === 'car' &&
+      car.insideDeck &&
+      this.world.conditions.deckAwake() &&
+      this.world.cody.can('possess')
+    );
   }
 
-  /** Board quietly for scripts. Mark owned vehicles as searched to prevent glovebox rewards. */
+  canEnter(car: Vehicle): boolean {
+    return this.access === 'any' || this.access === car;
+  }
+
+  canHotwire(car: Vehicle): boolean {
+    return (
+      this.driving === car &&
+      car.form === 'car' &&
+      !car.ignition.ready &&
+      this.canEnter(car) &&
+      this.world.cody.can('steal')
+    );
+  }
+
+  hotwire(car: Vehicle): boolean {
+    if (!this.canHotwire(car)) {
+      return false;
+    }
+
+    car.ignition.hotwired = true;
+
+    if (this.access === car) {
+      this.access = 'any';
+    }
+
+    this.world.events.emit('hotwired', { v: car });
+
+    if (this.possessable(car)) {
+      this.change(car);
+      this.world.events.emit('entered', { v: car, possessed: true, from: null, quiet: true });
+    }
+
+    return true;
+  }
+
+  /**
+   * Board for a script, bypassing entry restrictions and supplying keys from an absent owner. Owned cars have no
+   * glovebox reward.
+   */
   board(car: Vehicle, own = false): void {
     if (this.driving === car) {
       return;
@@ -132,12 +180,118 @@ export class CodyRide {
       this.world.money.empty(car);
     }
 
-    this.enter(car, true);
+    car.ignition.transfer('away', this.world.keys);
+
+    this.takeSeat(car, true);
   }
 
-  enter(car: Vehicle, quiet = false): void {
+  enter(car: Vehicle): void {
+    if (this.canEnter(car)) {
+      this.takeSeat(car, false);
+    }
+  }
+
+  exit(quiet = false): void {
+    const car = this.driving;
+    if (!car) {
+      return;
+    }
+
+    const { player, claims, garage, collision, scene, events } = this.world;
+    this.mind.go({ at: 'onFoot' });
+    claims.release(this.seat);
+    car.vel.set(0, 0, 0);
+    car.speed = 0;
+    car.role = 'parked';
+    car.ignition.take(this.world.keys);
+    let parkedIn: SpotRuntime | null = null;
+    if (car.insideDeck) {
+      const spot = garage.spotAt(car.pos);
+      if (spot && garage.isFree(spot, car)) {
+        const flip = Math.cos(car.yaw - spot.def.yaw) < 0;
+        car.place(spot.center.x, spot.center.y, spot.center.z, spot.def.yaw + (flip ? Math.PI : 0), 0, 0, null);
+        garage.occupy(spot, car);
+        parkedIn = spot;
+      } else {
+        garage.release(car);
+      }
+    }
+
+    car.markRest();
+    const side = car.params.radius + DOOR_GAP;
+    const pos: V3 = [car.pos.x - Math.cos(car.yaw) * side, car.pos.y, car.pos.z + Math.sin(car.yaw) * side];
+    collision.resolveCircle(pos, TUNING.player.radius, TUNING.player.height, TUNING.player.stepUp);
+    _door.set(pos[0], collision.groundAt(pos[0], pos[2], car.pos.y + 0.5, 1), pos[2]);
+    player.dismount(scene);
+    player.place(_door, car.yaw);
+    player.visible = true;
+    events.emit('exited', { v: car, spot: parkedIn, quiet });
+  }
+
+  /** Moonrise also transforms cars outside the deck when Cody is already driving them. */
+  moonrise(): void {
+    const car = this.driving;
+    if (!car || car.form !== 'car' || !car.ignition.ready) {
+      return;
+    }
+
+    if (car.rig.rider) {
+      this.world.player.dismount(this.world.scene);
+      this.world.player.visible = false;
+    }
+
+    this.change(car);
+    this.world.events.emit('entered', { v: car, possessed: true, from: null, quiet: true });
+  }
+
+  escaped(): void {
+    const drive = this.mind.in('driving');
+    const delay = drive?.v.breed.vanishAfterEscape;
+    if (drive && delay !== undefined) {
+      drive.escape = delay;
+    }
+  }
+
+  /** Nearest civilian car within valet reach for which Cody has the keys. */
+  carForValet(): Vehicle | null {
+    let nearest: Vehicle | null = null;
+    let distance: number = TUNING.valet.carReach;
+    const at = this.driving?.pos ?? this.world.player.pos;
+    for (const car of this.world.vehicles) {
+      const mine = car.ignition.heldBy(this.world.keys) || (car === this.driving && car.ignition.heldBy('ignition'));
+      if (
+        !mine ||
+        car.form !== 'car' ||
+        car.status ||
+        car.insideDeck ||
+        (car.role !== 'parked' && car !== this.driving)
+      ) {
+        continue;
+      }
+
+      const d = at.distanceTo(car.pos);
+      if (d < distance) {
+        nearest = car;
+        distance = d;
+      }
+    }
+
+    return nearest;
+  }
+
+  handOff(car: Vehicle, to: Keyring): void {
+    if (this.driving === car) {
+      this.exit();
+    }
+
+    car.ignition.transfer(this.world.keys, to);
+  }
+
+  private takeSeat(car: Vehicle, quiet: boolean): void {
     const { player, cody, claims, money, events } = this.world;
     const from = car.role;
+    // Seize keys still in the ignition before a carjacked driver can take them.
+    car.ignition.take(this.world.keys);
     claims.take('driverSeat', cody, car, { owner: this.seat, preempt: true });
     player.visible = false;
 
@@ -152,6 +306,8 @@ export class CodyRide {
     if (from === 'traffic' || from === 'visitor') {
       this.world.bail(car);
     }
+
+    car.ignition.insert(this.world.keys);
 
     // Taking the seat stops AI driving immediately, including while the car transforms.
     car.role = 'player';
@@ -172,90 +328,6 @@ export class CodyRide {
 
     if (found) {
       events.emit('money', { kind: 'glovebox', amount: found });
-    }
-  }
-
-  exit(quiet = false): void {
-    const car = this.driving;
-    if (!car) {
-      return;
-    }
-
-    const { player, claims, garage, collision, scene, events } = this.world;
-    this.mind.go({ at: 'onFoot' });
-    claims.release(this.seat);
-    car.vel.set(0, 0, 0);
-    car.speed = 0;
-    car.role = 'parked';
-    let parkedIn: SpotRuntime | null = null;
-    if (car.insideDeck) {
-      const spot = garage.spotAt(car.pos);
-      if (spot && garage.isFree(spot, car)) {
-        const flip = Math.cos(car.yaw - spot.def.yaw) < 0;
-        car.place(spot.center.x, spot.center.y, spot.center.z, spot.def.yaw + (flip ? Math.PI : 0), 0, 0, null);
-        garage.occupy(spot, car);
-        parkedIn = spot;
-      } else {
-        garage.release(car);
-      }
-    }
-
-    car.markRest();
-    this.lastCar = car;
-    const side = car.params.radius + DOOR_GAP;
-    const pos: V3 = [car.pos.x - Math.cos(car.yaw) * side, car.pos.y, car.pos.z + Math.sin(car.yaw) * side];
-    collision.resolveCircle(pos, TUNING.player.radius, TUNING.player.height, TUNING.player.stepUp);
-    _door.set(pos[0], collision.groundAt(pos[0], pos[2], car.pos.y + 0.5, 1), pos[2]);
-    player.dismount(scene);
-    player.place(_door, car.yaw);
-    player.visible = true;
-    events.emit('exited', { v: car, spot: parkedIn, quiet });
-  }
-
-  /** Moonrise also transforms cars outside the deck when Cody is already driving them. */
-  moonrise(): void {
-    const car = this.driving;
-    if (!car || car.form !== 'car') {
-      return;
-    }
-
-    if (car.rig.rider) {
-      this.world.player.dismount(this.world.scene);
-      this.world.player.visible = false;
-    }
-
-    this.change(car);
-    this.world.events.emit('entered', { v: car, possessed: true, from: null, quiet: true });
-  }
-
-  escaped(): void {
-    const drive = this.mind.in('driving');
-    if (drive) {
-      drive.escape = ESCAPE_ROLL;
-    }
-  }
-
-  /** The civilian car Cody is driving, or the nearby car he just left outside the deck. */
-  carForValet(): Vehicle | null {
-    if (this.driving) {
-      return this.driving.form === 'car' ? this.driving : null;
-    }
-
-    const car = this.lastCar;
-    if (!car || car.role !== 'parked' || car.status || car.insideDeck || !this.world.vehicles.includes(car)) {
-      return null;
-    }
-
-    return car.pos.distanceTo(this.world.player.pos) < TUNING.valet.carReach ? car : null;
-  }
-
-  handOff(car: Vehicle): void {
-    if (this.driving === car) {
-      this.exit();
-    }
-
-    if (this.lastCar === car) {
-      this.lastCar = null;
     }
   }
 

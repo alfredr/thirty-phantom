@@ -10,6 +10,7 @@ import type { CircleHit, CollisionWorld, Solid } from '@/engine/physics/collisio
 import { steerScale, type VehicleParams } from '@/engine/physics/vehicle-params';
 
 import { type CarKind, VEHICLE_BREEDS, type VehicleBreed, type VehicleBuild } from './breeds';
+import { Ignition } from './ignition';
 
 export type VehicleForm = 'car' | 'truck';
 /**
@@ -82,6 +83,8 @@ export class Vehicle {
   readonly quirk = new Rng(this.id * 7919).next();
   form: VehicleForm;
   role: VehicleRole;
+  readonly ignition: Ignition;
+  plate = `PCD-${this.id.toString().padStart(4, '0')}`;
   rig: VehicleRig;
   readonly color: string;
 
@@ -140,6 +143,7 @@ export class Vehicle {
     this.rig = rig;
     this.color = color;
     this.role = role;
+    this.ignition = new Ignition(this, role === 'parked' ? 'away' : 'ignition');
     this.kind = kind;
   }
 
@@ -182,10 +186,11 @@ export class Vehicle {
     this.statusTime = 0;
   }
 
-  /** Whether a driving role is active and crash physics is inactive. */
+  /** Whether the current driver can run the engine and crash physics is inactive. */
   get engineOn(): boolean {
     return (
       !this.crashing &&
+      (this.form === 'truck' || this.ignition.ready) &&
       (this.role === 'traffic' || this.role === 'player' || this.role === 'valet' || this.role === 'visitor')
     );
   }
@@ -280,7 +285,7 @@ export class Vehicle {
 
   drive(dt: number, input: DriveInput | null, world: CollisionWorld): DriveEvents {
     const P = this.params;
-    const inp = input ?? NO_INPUT;
+    const inp = this.form === 'car' && !this.ignition.ready ? NO_INPUT : (input ?? NO_INPUT);
     const ev: DriveEvents = { impact: 0, landed: 0, smashed: [], hopped: false };
     this.steppedAt = frame;
 

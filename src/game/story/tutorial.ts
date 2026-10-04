@@ -6,9 +6,11 @@ import { TUNING } from '@/config';
 import { type EventOf, Mind, mind, type MindEvent, type State, type StateOf } from '@/engine/sim/mind';
 import { el } from '@/engine/ui/dom';
 import { type CodyAction, ScriptedOffer } from '@/game/cody/cody-actions';
+import type { VehicleAccess } from '@/game/cody/cody-ride';
 import { type Crossing, type Garage, spotLabel, type SpotRuntime } from '@/game/deck/garage';
 import type { CamMode, Cutscene, Game } from '@/game/game';
 import { GameClock } from '@/game/game-clock';
+import type { StockSlot } from '@/game/items/stock';
 import { ISO_ELEVATION } from '@/render/iso-camera';
 import { Dialogue, type DialogueLine } from '@/ui/dialogue';
 import type { Phone } from '@/ui/phone/phone';
@@ -109,6 +111,7 @@ type TutorialState =
   /** Wait before the return-to-truck text. */
   | State<'hangup', { t: number }>
   | State<'back'>
+  | State<'hotwire'>
   | State<'jump'>
   /** Wait for the truck to settle while retaining the first imprint details. */
   | State<'landing', { t: number; idle: number; imprint: Imprint }>
@@ -150,6 +153,7 @@ interface TutorialSettings {
   trades: boolean;
   skipAfterEating: boolean;
   keepEscaped: boolean;
+  vehicleAccess: VehicleAccess;
 }
 
 interface SceneOptions {
@@ -194,6 +198,7 @@ const STORY: ReadonlySet<Step> = new Set<Step>([
   'sorry',
   'hangup',
   'back',
+  'hotwire',
   'jump',
   'landing',
   'tell',
@@ -234,8 +239,9 @@ const FIRST_NIGHT: ReadonlySet<Step> = new Set<Step>([...STORY, 'possess', 'esca
 const STEPS: Readonly<Record<Texted, { goal: string | null; text: string | null }>> = {
   back: {
     goal: '{interact} GET BACK IN THE PICKUP',
-    text: "SEVEN O'CLOCK, KID. NO BADGE? NO PROBLEM. GET BACK IN THE TRUCK.",
+    text: "SEVEN O'CLOCK, KID. GET IN YOUR PICKUP. YOU'RE GONNA HOTWIRE IT.",
   },
+  hotwire: { goal: '{pay} HOTWIRE YOUR PICKUP', text: null },
   jump: {
     goal: '{forward} UP THE RAMP. OFF THE ROOF.',
     text: 'NO BADGE, NO GATE. PULL OUT, HANG A {turn}, FLOOR IT UP THAT RAMP.',
@@ -338,6 +344,7 @@ export class Tutorial {
   private badgeGot: (() => void) | null = null;
   private settings: TutorialSettings | null = null;
   private holdingCody = false;
+  private moltenKeys: StockSlot | null = null;
   private readonly steps = mind<Tutorial, TutorialState, TutorialEvent>({
     off: {},
     scene: {
@@ -402,6 +409,12 @@ export class Tutorial {
     back: {
       enter: (t) => t.arrive('back'),
       on: { entered: (t, s, e) => t.boardedBeforeJump(s.at, e) },
+    },
+    hotwire: {
+      on: {
+        entered: (t, _s, e) => t.boardedBeforeJump('back', e),
+        exited: () => ({ at: 'back' }),
+      },
     },
     jump: {
       enter: (t) => t.arrive('jump'),
@@ -743,6 +756,7 @@ export class Tutorial {
       trades: g.trades.enabled,
       skipAfterEating: g.skipAfterEating,
       keepEscaped: g.keepEscaped,
+      vehicleAccess: g.vehicleAccess,
     };
     // Reserve Randy’s dialogue for tutorial scenes.
     g.randyTalk.enabled = false;
@@ -762,6 +776,7 @@ export class Tutorial {
     g.clock.hours = START_HOUR;
     // Register the opening pickup as already parked and logged in.
     const truck = g.park(st.truck, st.yaw, 'pickup');
+    truck.plate = '30-CODY-01';
     g.garage.checkIn(st.spot, truck);
     g.board(truck, true);
     this.truck = truck;
@@ -892,22 +907,20 @@ export class Tutorial {
     });
   }
 
-  /**
-   * When possession occurs before the jump, select that vehicle, switch to chase view, and keep it after escape. Return
-   * null for ordinary boarding.
-   */
+  /** Require the opening pickup's hotwire before its transformation and roof jump. */
   private boardedBeforeJump(
     from: 'out' | 'gone' | 'sorry' | 'hangup' | 'back',
     e: EventOf<TutorialEvent, 'entered'>,
-  ): StateOf<TutorialState, 'jump'> | null {
-    if (!e.possessed) {
+  ): StateOf<TutorialState, 'jump' | 'hotwire'> | null {
+    if (e.v !== this.truck) {
       return null;
     }
 
-    const g = this.game;
-    // Allow the opening jump to use any possessed car.
-    this.truck = e.v;
+    if (!e.possessed) {
+      return this.game.vehicleAccess === e.v ? { at: 'hotwire' } : null;
+    }
 
+    const g = this.game;
     // Possession can arrive before the nightfall event if Cody remained seated.
     if (from === 'out') {
       this.moonrise();
@@ -920,7 +933,7 @@ export class Tutorial {
     return { at: 'jump' };
   }
 
-  /** Build the roof dialogue and its badge, coat, and phone cues. */
+  /** Build the roof dialogue and synchronize the badge, phone, and key handovers. */
   private script(): DialogueLine[] {
     const g = this.game;
     const r = this.randy as Npc;
@@ -970,6 +983,38 @@ export class Tutorial {
           g.handOver(r, 'burner');
         },
       },
+      {
+        who: 'narrator',
+        say: 'RANDY TAKES YOUR KEYS.',
+        cue: () => {
+          if (this.truck) {
+            this.truck.ignition.take(r.keys);
+          }
+
+          g.vehicleAccess = 'none';
+        },
+      },
+      {
+        who: 'narrator',
+        say: 'OOPS. RANDY DROPS THEM INTO THE FIRE.',
+        cue: () => {
+          this.truck?.ignition.transfer(r.keys, 'destroyed');
+
+          if (r.fire) {
+            r.fire.plume = 1;
+          }
+        },
+      },
+      { who: 'left', say: 'YOU CAN HAVE THEM BACK. MIGHT BE A SECOND.' },
+      {
+        who: 'narrator',
+        say: 'RANDY FISHES THE KEYS OUT AND PUTS THEM IN HIS POCKET.',
+        cue: () => {
+          this.moltenKeys = { id: 'molten-keys', kind: 'moltenKeys', count: 1 };
+          r.stock?.slots.push(this.moltenKeys);
+        },
+      },
+      { who: 'left', say: 'YOUR KEYS ARE BURNING A HOLE IN MY POCKET.' },
     ];
   }
 
@@ -1002,6 +1047,8 @@ export class Tutorial {
   private moonrise(): StateOf<TutorialState, 'gone'> {
     const g = this.game;
     const r = this.randy as Npc;
+    this.removeMoltenKeys();
+    g.vehicleAccess = this.truck ?? 'none';
     g.haunt(true, EMERGE);
     g.puff(r.pos);
     r.place(new Vector3(...r.def.pos), r.def.yaw);
@@ -1110,10 +1157,24 @@ export class Tutorial {
   /** Release the tutorial form override, restore escape behavior, reveal the ledger, and return the camera. */
   private wake(): void {
     const g = this.game;
+    this.removeMoltenKeys();
+    g.vehicleAccess = this.settings?.vehicleAccess ?? 'any';
     this.releaseCody();
     g.keepEscaped = this.settings?.keepEscaped ?? false;
     g.hud.showLedger(true);
     this.giveCamera();
+  }
+
+  private removeMoltenKeys(): void {
+    const slots = this.randy?.stock?.slots;
+    if (slots && this.moltenKeys) {
+      const i = slots.indexOf(this.moltenKeys);
+      if (i !== -1) {
+        slots.splice(i, 1);
+      }
+    }
+
+    this.moltenKeys = null;
   }
 
   /** A scene releases its own camera and actors on every exit, including interruptions. */
@@ -1225,8 +1286,10 @@ export class Tutorial {
   private sorry(): DialogueLine[] {
     return [
       { who: 'left', say: "IT'S RANDY. SORRY, I HAD TO GO." },
-      { who: 'left', say: "I'LL TEXT YOU." },
-      { who: 'right', say: '...OK?' },
+      { who: 'right', say: 'YOU STILL HAVE MY KEYS.' },
+      { who: 'left', say: "RIGHT. YOU'LL HAVE TO HOTWIRE YOUR PICKUP." },
+      { who: 'left', say: 'GET IN. JOIN THE IGNITION WIRES, THEN TOUCH THE STARTER WIRE TO THEM.' },
+      { who: 'left', say: 'PARKED CARS WORK THE SAME WAY. TAKE ONE WITH A DRIVER AND THE KEYS ARE ALREADY IN IT.' },
     ];
   }
 

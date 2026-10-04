@@ -11,6 +11,7 @@ export interface WareSlot {
   icon?: string;
   count: number;
   price: number;
+  unavailable?: string;
   /** Whether the game currently permits purchasing one item from this slot. */
   can: boolean;
 }
@@ -37,6 +38,7 @@ export function sameWares(a: Wares | null, b: Wares | null): boolean {
           slot.icon === other.icon &&
           slot.count === other.count &&
           slot.price === other.price &&
+          slot.unavailable === other.unavailable &&
           slot.can === other.can
         );
       }))
@@ -196,7 +198,7 @@ export class WaresPanel {
         'div',
         'wares-what',
         info,
-        `${f.name} <b>x${f.count}</b> <span>${f.price > 0 ? `$${f.price} EACH` : 'FREE'}</span>`,
+        `${f.name} <b>x${f.count}</b> <span>${f.unavailable ?? (f.price > 0 ? `$${f.price} EACH` : 'FREE')}</span>`,
       );
     }
 

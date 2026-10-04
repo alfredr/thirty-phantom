@@ -1,6 +1,7 @@
 import { Vector3 } from 'three';
 
 import type { Avoidance } from '@/actors/avoidance';
+import { Keyring } from '@/actors/vehicles/ignition';
 import type { Vehicle } from '@/actors/vehicles/vehicle';
 import type { Walker } from '@/actors/walker';
 import { TUNING } from '@/config';
@@ -31,7 +32,7 @@ export type Doing =
    * Flee from the recorded threat position with a direct dash followed by a planned route. `t` is the remaining calm
    * timer; `fresh` selects a new running pace and emits a fright event.
    */
-  | State<'flee', { from: Vector3; t: number; fresh: boolean }>
+  | State<'flee', { from: Vector3; t: number; fresh: boolean; keysChecked: boolean }>
   /** Walk back to an associated car to depart. */
   | State<'leave'>
   /** Retain impact velocity and injury while a casualty ragdoll controls the character. */
@@ -68,10 +69,12 @@ export interface Town {
   frightAt(at: Vector3): void;
   /** Drop money at the pedestrian’s position using the threat as the directional reference. */
   dropMoney(at: Vector3, from: Vector3): void;
+  dropKeys(person: Townsperson, at: Vector3): void;
 }
 
 /** A pedestrian’s behavior state, walker, health, and optional parked car. */
 export class Townsperson {
+  readonly keys = new Keyring();
   readonly mind: Mind<Townsperson, Doing, TownEvent>;
   /** Whether this pedestrian has already dropped money. */
   dropped = false;
@@ -110,6 +113,7 @@ const flee = (from: Vector3, fresh: boolean): StateOf<Doing, 'flee'> => ({
   from: from.clone(),
   t: C.calm,
   fresh,
+  keysChecked: false,
 });
 const fall = (
   _p: Townsperson,
@@ -195,6 +199,15 @@ export const TOWN_MIND = mind<Townsperson, Doing, TownEvent>({
       const w = p.walker;
       s.t -= dt;
       w.followPlanned(true);
+
+      if (!s.keysChecked && w.walking) {
+        s.keysChecked = true;
+
+        if (p.keys.held.size && p.town.rng.chance(C.keyDropChance)) {
+          p.town.dropKeys(p, w.pos);
+        }
+      }
+
       const close = w.pos.distanceTo(s.from) < C.ghostReach * STILL_CLOSE;
       // Continue fleeing if the route ends too close to the recorded threat.
       if (!w.walking && !w.planning) {
@@ -256,7 +269,7 @@ export const TOWN_MIND = mind<Townsperson, Doing, TownEvent>({
         // Replan a blocked return route from the current position.
         w.plan(p.town.walkTo(w.pos, car), () => p.town.rng.range(C.walkPace[0], C.walkPace[1]));
       } else if (w.update(dt, p.town.nav, p.town.avoid)) {
-        if (p.town.visitors?.leave(car)) {
+        if (p.town.visitors?.leave(car, p.keys)) {
           return { at: 'gone' };
         }
 
@@ -279,10 +292,18 @@ export const TOWN_MIND = mind<Townsperson, Doing, TownEvent>({
       }
 
       s.hurt = p.town.casualties?.strike(w.rig, s.vx, s.vz, s.harm) ?? null;
+
+      if (s.harm === 'dead') {
+        p.town.dropKeys(p, w.pos);
+      }
     },
     // Recover when ready, then flee from the impact source with an injury-dependent pace.
     tick: (p, s) => {
       const c = p.town.casualties;
+      if (s.hurt?.harm === 'dead') {
+        p.town.dropKeys(p, s.hurt.at);
+      }
+
       if (!s.hurt || !c) {
         return flee(s.from, true);
       }

@@ -100,6 +100,8 @@ export interface RandyRig extends CharacterRig {
   /** Brisket nodes on each flap and the burner phone on the right flap, for independent visibility. */
   brisket: [Object3D, Object3D];
   phone: Object3D;
+  /** Smoke origin on the moving left coat flap. */
+  pocket: Object3D;
   /** Right-hand skewer node. Raise armR by ROAST_LIFT to position it over the fire. */
   skewer: Object3D;
   /** Badge node in Randy’s left hand, initially hidden until he receives it. */
@@ -181,6 +183,10 @@ export function randy() {
     const wares: Part<Mat>[] = [
       brisket(s < 0 ? 'brisketL' : 'brisketR', tucked(at, h - 0.44, box(0.22, 0.22, 0.07)), at),
     ];
+    if (s < 0) {
+      wares.push(group({ name: 'pocket', at: [-0.17, 0.95, 0.27] }, []));
+    }
+
     if (s > 0) {
       const phone = tucked(side, h - 0.2, box(0.07, 0.13, 0.025));
       const screen = phone.sized(0.05, 0.07, 0.01).move(-Math.sin(side) * 0.012, 0.02, -Math.cos(side) * 0.012);
@@ -289,6 +295,7 @@ export function buildRandy(): RandyRig {
     grips: [built.node('gripL'), built.node('gripR')],
     brisket: [built.node('brisketL'), built.node('brisketR')],
     phone: built.node('phone'),
+    pocket: built.node('pocket'),
     skewer: built.node('skewer'),
     badge: hideBadge(built.node('badge')),
   };

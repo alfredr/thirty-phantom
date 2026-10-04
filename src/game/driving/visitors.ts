@@ -1,6 +1,7 @@
 import { Vector3 } from 'three';
 
 import { footprint } from '@/actors/avoidance';
+import type { Keyring } from '@/actors/vehicles/ignition';
 import { Traffic } from '@/actors/vehicles/traffic';
 import type { Vehicle } from '@/actors/vehicles/vehicle';
 import { TUNING } from '@/config';
@@ -285,7 +286,7 @@ export class Visitors {
     for (const v of this.unclaimed) {
       if (!this.waiting(v)) {
         this.unclaimed.delete(v);
-      } else if (v.pos.distanceTo(near) < TUNING.crowd.bayReach) {
+      } else if (v.ignition.heldBy('away') && v.pos.distanceTo(near) < TUNING.crowd.bayReach) {
         nearby.push(v);
       }
     }
@@ -331,7 +332,7 @@ export class Visitors {
    * Start departure toward a sampled traffic-lane point. Return false if the car is unavailable, no target exists, or
    * the driver job cannot start.
    */
-  leave(car: Vehicle): boolean {
+  leave(car: Vehicle, keys: Keyring): boolean {
     if (!this.waiting(car)) {
       return false;
     }
@@ -343,14 +344,20 @@ export class Visitors {
       },
       (p) => p.distanceTo(this.view),
     );
-    if (!lane) {
+    if (!lane || !car.ignition.insert(keys)) {
       return false;
     }
 
-    this.parked.delete(car);
-    return this.drivers.start(
+    const started = this.drivers.start(
       new Leave({ car, lane, keepOut: this.keepOut, join: (c, l, force) => this.join(c, l, force), hooks: this.hooks }),
     );
+    if (started) {
+      this.parked.delete(car);
+    } else {
+      car.ignition.take(keys);
+    }
+
+    return started;
   }
 
   /** Mark a still-parked car for distant removal after its owner is lost. */

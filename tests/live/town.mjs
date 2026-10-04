@@ -70,7 +70,7 @@ export function atMostThreeSkeletonsOnOnePerson() {
     sim.run(130);
   }
 
-  const hunters = g.skeletons.list.filter((s) => s.target === victim).length;
+  const hunters = g.skeletons.list.filter((s) => s.hunting?.target === victim).length;
   const claims = g.claims.holders('quarry', victim).length;
   return { ok: raised === 9 && hunters > 0 && hunters <= 3 && claims === hunters, raised, hunters, claims };
 }

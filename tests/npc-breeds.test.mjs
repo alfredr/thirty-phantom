@@ -13,8 +13,35 @@ const [{ Npc, Npcs }, { NPC_BREEDS }, { proximityPitch, feedItems }, { Shop }, {
   '/src/game/items/inventory.ts',
 );
 
-const hooks = { landed() {}, ground: () => 0, burned() {}, fed() {} };
+const hooks = { landed() {}, ground: () => 0, burned() {}, fed() {}, sprites: { emit() {} } };
 const placed = (x) => ({ id: 'randy', pos: [x, 0, 0], yaw: 0, fire: [x, 0, 1] });
+
+test('pocket smoke follows the coat and stops when that NPC no longer carries molten keys', () => {
+  const puffs = [];
+  const npcs = new Npcs([placed(0), placed(10)], new Scene(), {
+    ...hooks,
+    sprites: { emit: (at) => puffs.push(at.clone()) },
+  });
+  const [a] = npcs.list;
+  npcs.update(0.2, null);
+  assert.equal(puffs.length, 0);
+  const keys = { id: 'test-keys', kind: 'moltenKeys', count: 1 };
+  a.stock.slots.push(keys);
+  npcs.update(0.01, null);
+  assert.equal(puffs.length, 1, 'only the NPC with the keys smokes');
+  const first = puffs[0];
+  a.send({ type: 'held', face: null });
+  a.send({ type: 'flash', open: true });
+  npcs.update(0.2, null);
+  assert.ok(first.distanceTo(puffs.at(-1)) > 0.1, 'opening the coat moves the smoke origin');
+  a.place(new Vector3(4, -3, 6), Math.PI / 2);
+  npcs.update(0.2, null);
+  assert.deepEqual(puffs.at(-1), a.model.smokeOrigin.getWorldPosition(new Vector3()));
+  keys.count = 0;
+  const count = puffs.length;
+  npcs.update(1, null);
+  assert.equal(puffs.length, count);
+});
 
 test('NPCs share breed definitions while keeping their models, stock, and behavior state independent', () => {
   const npcs = new Npcs([placed(0), placed(10)], new Scene(), hooks);

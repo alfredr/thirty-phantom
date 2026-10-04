@@ -19,6 +19,7 @@ export function parksAndComesBack() {
     return { ok: false, why: 'no car or no free spot' };
   }
 
+  car.ignition.transfer('away', valet.keys);
   g.valet.take(valet, car, spot);
   const parked = sim.until(() => car.role === 'parked' && spot.occupant === car, 150, [car]);
   const back = sim.until(() => valet.state === 'idle', 150, []);
@@ -91,6 +92,7 @@ export function carjackedMidDrive() {
     return { ok: false, why: 'no car or no free spot' };
   }
 
+  car.ignition.transfer('away', valet.keys);
   g.valet.take(valet, car, spot);
   const driving = sim.until(() => valet.state === 'driving' && Math.abs(car.speed) > 2, 120, [car]);
   if (!driving.ok) {
@@ -155,6 +157,7 @@ export function spotBookedTillParked() {
     return { ok: false, why: 'no car or spot' };
   }
 
+  car.ignition.transfer('away', valet.keys);
   g.valet.take(valet, car, spot);
   sim.run(60);
   const booked =

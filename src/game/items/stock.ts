@@ -20,6 +20,7 @@ export interface StockView {
   icon?: string;
   count: number;
   price: number;
+  unavailable?: string;
   /** Whether selling is enabled and at least one unit is available and affordable. */
   can: boolean;
 }
@@ -50,7 +51,8 @@ export class Stock {
       icon: ITEM_BREEDS[s.kind].icon,
       count: s.count,
       price: this.price(s.kind),
-      can: selling && s.count > 0 && cash >= this.price(s.kind),
+      unavailable: ITEM_BREEDS[s.kind].unavailable,
+      can: !ITEM_BREEDS[s.kind].unavailable && selling && s.count > 0 && cash >= this.price(s.kind),
     }));
   }
 }

@@ -3,6 +3,7 @@ import { Color, MeshBasicMaterial, MeshStandardMaterial, Scene, Vector3 } from '
 import { Avoidance, parkedBlocks, PERSON_RADIUS } from '@/actors/avoidance';
 import { type Npc, Npcs } from '@/actors/npcs/npcs';
 import { Player } from '@/actors/player';
+import { Skeletons } from '@/actors/skeletons/skeletons';
 import type { Obstacle } from '@/actors/vehicles/autopilot';
 import { type CarKind, VEHICLE_BREEDS } from '@/actors/vehicles/breeds';
 import { Traffic } from '@/actors/vehicles/traffic';
@@ -53,7 +54,7 @@ import type { PropKind } from '@/world/props';
 
 import { CameraController, type CamMode } from './camera-controller';
 import type { CodyAction, Play } from './cody/cody-actions';
-import { CodyRide, type RideEvents } from './cody/cody-ride';
+import { CodyRide, type RideEvents, type VehicleAccess } from './cody/cody-ride';
 import { CodyState, FRIGHTENING } from './cody/cody-state';
 import { GhostFuel } from './cody/ghost-fuel';
 import { Interactions } from './cody/interactions';
@@ -73,6 +74,7 @@ import { GameClock, type Phase } from './game-clock';
 import { Inventory } from './items/inventory';
 import { ITEM_BREEDS, type ItemKind } from './items/item-breeds';
 import { Junk } from './items/junk';
+import { dropKeys } from './items/key-drops';
 import { Money } from './items/money';
 import { Trades } from './items/trades';
 import { RandyTalk } from './randy/talk';
@@ -88,7 +90,6 @@ import { Haunting, Quests, tireMarks } from './story/quests';
 import { type ItemDeed, Triggers } from './story/triggers';
 import { Casualties } from './town/casualties';
 import { Crowd } from './town/crowd';
-import { Skeletons } from './town/skeletons';
 import { ValetTalk } from './valets/talk';
 import { type ValetFrame, ValetService } from './valets/valet';
 
@@ -143,6 +144,7 @@ const FIRE_ROOM = 0.45;
 type Mode = 'title' | 'play';
 /** Events shared by gameplay, tutorial, audio, and visual effects. */
 export type GameEvents = RideEvents & {
+  keysFound: { plate: string };
   start: null;
   /** The play update completed; payload is elapsed seconds. Shared simulation and rendering follow afterward. */
   frame: number;
@@ -252,7 +254,7 @@ export class Game {
   private readonly detours: Detours;
   /** World-space horn captions. */
   private readonly honks = new Honks();
-  /** Civilian exhaust particle emission. */
+  /** Civilian smoke and spectral truck exhaust. */
   private readonly exhaust: Exhaust;
 
   /** Current obstacle data used by pedestrian steering. */
@@ -481,6 +483,7 @@ export class Game {
     this.junk = new Junk(this.scene, this.nav, this.rng);
     // Register thrown props as persistent collectibles.
     this.npcs = new Npcs(level.npcs, this.scene, {
+      sprites: this.sprites,
       landed: (kind, item, floor) => this.junk.lay(kind, item, floor),
       ground: (x, z, below) => this.world.collision.groundAt(x, z, below, 0),
       burned: (at) => {
@@ -517,6 +520,15 @@ export class Game {
       drivers: { frighten: (v, from) => this.frightenDriver(v, from) },
     });
     this.crowd.onFright = (at) => this.events.emit('fright', { at: at.clone() });
+    this.crowd.onKeysDropped = (keys, at) =>
+      dropKeys(
+        keys,
+        at,
+        this.world.collision.groundAt(at.x, at.z, at.y + 0.5, 0),
+        this.junk,
+        this.inventory.keys,
+        (plate) => this.events.emit('keysFound', { plate }),
+      );
     // Connect skeleton rise, removal, and kill callbacks to world effects.
     this.skeletons = new Skeletons(this.world.collision, this.nav, this.planner, this.crowd, this.claims);
     this.scene.add(this.skeletons.root);
@@ -585,6 +597,7 @@ export class Game {
       flash: (a, c) => this.doFlash(a, c),
     };
     this.codyRide = new CodyRide({
+      keys: this.inventory.keys,
       player: this.player,
       cody: this.cody,
       conditions: this.conditions,
@@ -770,7 +783,7 @@ export class Game {
       me: () => (this.driving ?? this.player).pos,
       onShift: () => this.conditions.valetsOnShift(),
       carToTake: () => this.codyRide.carForValet(),
-      handOff: (car) => this.codyRide.handOff(car),
+      handOff: (car, valet) => this.codyRide.handOff(car, valet.keys),
       cash: () => this.money.cash,
       pay: (amount) => this.money.spend(amount),
     });
@@ -893,6 +906,13 @@ export class Game {
   /** Board a vehicle for a script, quietly leaving the previous ride. Set `own` to prevent glovebox rewards. */
   board(v: Vehicle, own = false): void {
     this.codyRide.board(v, own);
+  }
+
+  get vehicleAccess(): VehicleAccess {
+    return this.codyRide.access;
+  }
+  set vehicleAccess(access: VehicleAccess) {
+    this.codyRide.access = access;
   }
 
   /** Spawn a parked civilian vehicle using the supplied kind or normal weighted selection. */
@@ -1374,6 +1394,9 @@ export class Game {
       conditions: this.conditions,
       ride: () => this.driving,
       possessable: (car) => this.codyRide.possessable(car),
+      canEnter: (car) => this.codyRide.canEnter(car),
+      canHotwire: (car) => this.codyRide.canHotwire(car),
+      hotwire: (car) => this.codyRide.hotwire(car),
       enter: (car) => this.codyRide.enter(car),
       exit: () => this.codyRide.exit(),
       escaping: () => this.escaping,

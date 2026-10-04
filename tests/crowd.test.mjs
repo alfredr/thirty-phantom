@@ -5,11 +5,12 @@ import { Vector3 } from 'three';
 
 import { loadModules } from './modules.mjs';
 
-const [{ Crowd }, { Rng }, { NavJob, NAV }, { Polyline }] = await loadModules(
+const [{ Crowd }, { Rng }, { NavJob, NAV }, { Polyline }, { Ignition }] = await loadModules(
   '/src/game/town/crowd.ts',
   '/src/engine/core/rng.ts',
   '/src/world/nav-grid.ts',
   '/src/engine/nav/polyline.ts',
+  '/src/actors/vehicles/ignition.ts',
 );
 
 /** Create one pedestrian with a parked car and overridable navigation services. */
@@ -18,7 +19,9 @@ function onePerson({
   planner = { request: () => null },
 } = {}) {
   const crowd = new Crowd({ add() {} }, planner, nav, new Rng(1), () => {});
-  crowd.arrive({ pos: new Vector3(), yaw: 0, params: { radius: 1 } });
+  const car = { pos: new Vector3(), yaw: 0, params: { radius: 1 } };
+  car.ignition = new Ignition(car, 'ignition');
+  crowd.arrive(car);
   let frights = 0;
   crowd.onFright = () => frights++;
   return { crowd, frights: () => frights };
@@ -58,6 +61,42 @@ test('a running person turns to run from a fright that heads them off, but not f
       .toArray(),
     'from the same side: they keep running as they were',
   );
+});
+
+test('a driver takes the car keys on exit and drops that same set on death', () => {
+  const { crowd } = onePerson();
+  const [p] = crowd.living();
+  const keys = p.car.ignition;
+  assert.equal(keys.heldBy(p.keys), true);
+  assert.equal(keys.ready, false);
+  const drops = [];
+  crowd.onKeysDropped = (key) => drops.push(key);
+  p.mind.send({ type: 'felled', from: new Vector3(), vx: 0, vz: 0, harm: 'dead' });
+  assert.equal(keys.heldBy('ground'), true);
+  assert.equal(p.keys.held.size, 0);
+  crowd.dropKeys(p, p.walker.pos);
+  assert.deepEqual(drops, [keys], 'repeated death processing cannot duplicate keys');
+});
+
+test('fleeing rolls for a key drop once per run, and only while actually running', () => {
+  for (const dropsKeys of [true, false]) {
+    const nav = { spotNear: () => null, standable: () => 0, heightAt: () => 0 };
+    const { crowd } = onePerson({ nav });
+    const [p] = crowd.living();
+    const keys = p.car.ignition;
+    crowd.frighten(p, p.walker.pos.clone().add(new Vector3(3, 0, 0)));
+    let rolls = 0;
+    crowd.rng.chance = () => {
+      rolls++;
+      return dropsKeys;
+    };
+
+    p.mind.tick(1 / 30);
+    p.mind.tick(1 / 30);
+    assert.equal(rolls, 1);
+    assert.equal(keys.heldBy('ground'), dropsKeys);
+    assert.equal(keys.heldBy(p.keys), !dropsKeys);
+  }
 });
 
 for (const route of ['pending', 'ready', 'following']) {

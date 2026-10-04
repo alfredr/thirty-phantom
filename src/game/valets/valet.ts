@@ -3,6 +3,7 @@ import { Group, Vector3 } from 'three';
 import { type Avoidance, PERSON_RADIUS } from '@/actors/avoidance';
 import { buildValet } from '@/actors/models/valet';
 import { driverDoor } from '@/actors/vehicles/doors';
+import { Keyring } from '@/actors/vehicles/ignition';
 import type { Vehicle } from '@/actors/vehicles/vehicle';
 import { Walker } from '@/actors/walker';
 import { TUNING } from '@/config';
@@ -58,6 +59,7 @@ const _v = new Vector3();
 
 /** A valet’s walker, home position, parking job, and conversation attention. See valet-mind.ts for state transitions. */
 export class Valet {
+  readonly keys = new Keyring();
   readonly job: Mind<Valet, Job, ValetEvent>;
   readonly attention: Mind<Valet, Attention, ValetEvent>;
   /** The car crossed the entry gate with him at the wheel. */

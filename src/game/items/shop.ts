@@ -4,7 +4,7 @@ import type { Npc, Npcs } from '@/actors/npcs/npcs';
 import type { ItemDeed } from '@/game/story/triggers';
 
 import type { Inventory } from './inventory';
-import type { ItemKind } from './item-breeds';
+import { ITEM_BREEDS, type ItemKind } from './item-breeds';
 import type { Money } from './money';
 import type { StockItem, StockSlot, StockView } from './stock';
 
@@ -68,7 +68,7 @@ export class Shop {
 
   /** Check payment before stock moves; observers see both sides of a completed transfer. */
   private transfer(slot: StockSlot, requested: number, price: number): Transfer | null {
-    if (!Number.isFinite(requested) || requested < 1) {
+    if (ITEM_BREEDS[slot.kind].unavailable || !Number.isFinite(requested) || requested < 1) {
       return null;
     }
 

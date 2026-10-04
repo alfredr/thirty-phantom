@@ -5,6 +5,62 @@
 /** Enable the tutorial when the scenario runner starts each case. */
 export const tutorial = true;
 
+/** A roof exit before nightfall must leave the pickup available, even if it transforms during the fall. */
+const earlyPickupExit = (phase) => {
+  const g = window.__game;
+  const sim = window.__sim;
+  g.start();
+  const pickup = g.vehicles.find((v) => v.role === 'player');
+  if (!pickup || !sim.playUntil(() => /FIND YOUR BADGE/.test(sim.goal()), 60)) {
+    return { ok: false, why: 'opening scene did not finish' };
+  }
+
+  g.clock.hours = phase === 'day' ? 18 : 18.99;
+  g.clock.paused = phase === 'day';
+  // Bypass the lesson to exercise an early escape independently of its entry restriction.
+  g.vehicleAccess = 'any';
+  pickup.ignition.hotwired = true;
+  g.board(pickup);
+  // Begin just beyond the roof edge, then let normal physics and gate tracking handle the fall.
+  const at = pickup.pos.clone();
+  while (g.garage.inFootprint(at)) {
+    at.x += 1;
+  }
+
+  at.x += 6;
+  pickup.place(at.x, at.y + 1, at.z, Math.PI / 2, 0, 0, null);
+  pickup.grounded = false;
+  const landed = sim.until(() => pickup.grounded, 10, []).ok;
+  sim.run(100);
+  const stillDriving = g.driving === pickup;
+  g.input.press('KeyF');
+  sim.run(1);
+  const exited = g.codyRide.onFoot;
+  const present = g.vehicles.includes(pickup) && pickup.rig.root.parent === g.scene && !pickup.status;
+  g.input.press('KeyF');
+  sim.run(1);
+  const reentered = g.driving === pickup;
+  return {
+    ok:
+      landed &&
+      stillDriving &&
+      exited &&
+      present &&
+      reentered &&
+      g.player.form === 'day' &&
+      pickup.form === (phase === 'day' ? 'car' : 'truck'),
+    landed,
+    stillDriving,
+    exited,
+    present,
+    reentered,
+    status: pickup.status,
+    form: pickup.form,
+    position: pickup.pos.toArray(),
+    hours: g.clock.hours,
+  };
+};
+
 /** Read the currently displayed goal beneath the clock. */
 const goal = () => document.querySelector('.burner-goal.on')?.textContent?.trim() ?? '';
 
@@ -84,7 +140,9 @@ export function playsThrough() {
   }
 
   // Board the pickup and verify that the jump objective clears the map markers.
-  g.board(truck);
+  g.codyRide.enter(truck);
+  g.input.press('KeyG');
+  sim.run(1);
 
   if (!at('jump', sim.playUntil(() => /OFF THE ROOF/.test(sim.goal()), 5) && sim.marks() === '')) {
     return result();
@@ -293,7 +351,9 @@ const reachScene = (target) => {
     throw new Error('Randy did not call back');
   }
 
-  g.board(truck);
+  g.codyRide.enter(truck);
+  g.input.press('KeyG');
+  sim.run(1);
 
   if (!sim.playUntil(() => step === 'jump', 5)) {
     throw new Error('pickup did not transform');
@@ -354,7 +414,14 @@ const interruptScene = (target) => {
   g.clock.paused = false;
   g.clock.hours = 7.49;
   const woke = sim.until(() => scene.step() === 'steal', 5, []).ok;
-  const released = !scene.randy.held && !g.cutscene && !g.clock.paused && !g.cody.holdForm && !g.keepEscaped;
+  const released =
+    !scene.randy.held &&
+    !g.cutscene &&
+    !g.clock.paused &&
+    !g.cody.holdForm &&
+    !g.keepEscaped &&
+    g.vehicleAccess === 'any' &&
+    !scene.randy.stock.slotOf('moltenKeys');
   const closed = !document.querySelector('.dialogue.on, .signpost.on, .burner.calling');
   // A stale callback must not replace the daytime objective after cancellation.
   document.querySelector('.signpost')?.click();
@@ -373,6 +440,7 @@ const interruptScene = (target) => {
 };
 
 export const cases = {
+  earlyPickupExit: { run: earlyPickupExit, inputs: ['day', 'nightfall'] },
   sunriseInterrupts: {
     run: interruptScene,
     inputs: ['scene', 'sorry', 'tell', 'imprint', 'call', 'noWheels', 'brisket'],
@@ -420,3 +488,61 @@ export function restoresPreviousRulesAfterFirstNight() {
 
 /** Shared browser scenario helpers installed on window.__sim before each case. */
 export const steps = { goal, marks, playUntil, reachScene };
+
+/** The roof lesson blocks early entry, keeps the molten keys unavailable, and requires a hotwire. */
+export function keysAndHotwireLesson() {
+  const g = window.__game;
+  const sim = window.__sim;
+  g.start();
+  const pickup = g.driving;
+  const randy = g.npcs.find('randy');
+  if (!sim.playUntil(() => /BURNING A HOLE/.test(document.querySelector('.dialogue-text')?.textContent ?? ''), 30)) {
+    return { ok: false, why: 'no pocket dialogue' };
+  }
+
+  sim.run(8);
+  const slot = randy.stock.slotOf('moltenKeys');
+  const stock = g.shop.view(randy).slots.find((s) => s.id === slot?.id);
+  const smoke = g.sprites.pool.some((p) => p.s.visible && p.s.position.distanceTo(randy.pos) < 2.5);
+  const tooHot = stock?.unavailable === 'TOO HOT' && !stock.can && !g.handOver(randy, 'moltenKeys');
+  sim.playUntil(() => /FIND YOUR BADGE/.test(sim.goal()), 10);
+  g.codyRide.enter(pickup);
+  const blocked = g.onFoot && !pickup.ignition.ready;
+  g.clock.hours = 18.99;
+
+  if (!sim.playUntil(() => /GET BACK IN THE PICKUP/.test(sim.goal()), 30)) {
+    return { ok: false, why: 'no hotwire lesson', blocked, tooHot, smoke };
+  }
+
+  const other = g.vehicles.find((v) => v !== pickup && v.role === 'parked');
+  g.codyRide.enter(other);
+  const onlyPickup = g.onFoot && g.vehicleAccess === pickup;
+  const at = pickup.pos.clone();
+  at.x -= Math.cos(pickup.yaw) * (pickup.params.radius + 1);
+  at.z += Math.sin(pickup.yaw) * (pickup.params.radius + 1);
+  g.player.place(at, pickup.yaw);
+  sim.run(1);
+  g.input.press('KeyF');
+  sim.run(1);
+  const waiting = g.driving === pickup && !pickup.engineOn && /HOTWIRE/.test(sim.goal());
+  g.input.press('KeyG');
+  sim.run(1);
+  const unlocked = g.vehicleAccess === 'any' && pickup.ignition.hotwired && /OFF THE ROOF/.test(sim.goal());
+  return {
+    ok:
+      tooHot &&
+      smoke &&
+      blocked &&
+      onlyPickup &&
+      waiting &&
+      unlocked &&
+      !randy.stock.slotOf('moltenKeys') &&
+      pickup.plate === '30-CODY-01',
+    tooHot,
+    smoke,
+    blocked,
+    onlyPickup,
+    waiting,
+    unlocked,
+  };
+}

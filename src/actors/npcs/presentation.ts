@@ -11,6 +11,7 @@ export interface NpcModel {
   readonly root: Object3D;
   readonly props?: Partial<Record<ItemKind, Object3D>>;
   readonly throwArm?: Object3D;
+  readonly smokeOrigin?: Object3D;
   pose?(n: Npc, dt: number, target: Vector3 | null): void;
 }
 

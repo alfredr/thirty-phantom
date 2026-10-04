@@ -5,7 +5,7 @@ import { ITEM_ICONS } from '@/ui/item-icons';
 import { consume, type ItemUse } from './item-use';
 
 /** Item kinds supported by the inventory and pickup systems. */
-export type ItemKind = PartKind | 'brisket' | 'badge' | 'burner';
+export type ItemKind = PartKind | 'brisket' | 'badge' | 'burner' | 'moltenKeys' | 'keys';
 
 /** Presentation, price, and use capabilities shared by an item kind. */
 export interface ItemBreed {
@@ -19,6 +19,8 @@ export interface ItemBreed {
   readonly icon?: string;
   /** Unit price in dollars, when sold by Randy. */
   readonly price?: number;
+  /** Reason this item cannot be bought, gifted, or exchanged. */
+  readonly unavailable?: string;
   readonly use?: ItemUse;
 }
 
@@ -47,6 +49,8 @@ export const ITEM_BREEDS: Readonly<Record<ItemKind, ItemBreed>> = {
     }),
   },
   badge: { name: 'UNREADABLE BADGE', note: 'COVERED IN BBQ SAUCE', sound: 'item-gift' },
+  moltenKeys: { name: 'MOLTEN KEYS', sound: 'item-gift', icon: ITEM_ICONS.moltenKeys, unavailable: 'TOO HOT' },
+  keys: { name: 'CAR KEYS', sound: 'item-gift', icon: ITEM_ICONS.keys },
 
   burner: {
     name: 'BURNER PHONE',

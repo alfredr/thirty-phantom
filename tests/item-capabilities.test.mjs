@@ -112,3 +112,19 @@ test('a different exchange recipe changes inputs and rewards without changing tr
     { how: 'got', kind: 'hubcap', n: 6 },
   ]);
 });
+
+test('molten keys cannot be either side of an exchange, including scripted handovers', () => {
+  for (const [take, give] of [
+    ['tire', 'moltenKeys'],
+    ['moltenKeys', 'brisket'],
+  ]) {
+    const exchange = { ...NPC_BREEDS.randy.trades[0], take, give: { kind: give, perItem: 1 } };
+    const { trades, npc, inventory, log } = tradeSetup({ trades: [exchange] });
+    inventory.add(take);
+    assert.equal(trades.offer(take, new Vector3()), null);
+    assert.equal(trades.give(npc, take, new Vector3()), 0);
+    assert.equal(inventory.count(take), 1);
+    assert.equal(inventory.count(give), 0);
+    assert.deepEqual(log, []);
+  }
+});

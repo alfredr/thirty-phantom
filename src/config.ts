@@ -250,6 +250,8 @@ export const TUNING = {
     carReach: 7,
     /** Chance of dropping money when frightened, and the fraction of drops that are wallets. */
     dropChance: 0.45,
+    /** Chance of dropping carried keys when starting an on-foot escape run. */
+    keyDropChance: 0.25,
     walletShare: 0.3,
     /** Maximum parking distance from the active view in meters, and visitor stay duration in seconds. */
     bayReach: 70,

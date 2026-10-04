@@ -25,6 +25,8 @@ function play({
     cody: { phantom, can: (a) => abilities.includes(a) },
     conditions: { parking: () => parking },
     possessable,
+    canEnter: () => true,
+    canHotwire: () => false,
     escaping: () => escaping,
     inFreeSpot: () => freeSpot,
     enter: (car) => log.push(['enter', car.name]),
@@ -36,6 +38,7 @@ function play({
 
 const car = (name, props = {}) => ({
   name,
+  plate: 'PCD-0001',
   form: 'car',
   role: 'parked',
   insideDeck: false,
@@ -55,9 +58,9 @@ test('getting into a vehicle becomes possessing, stealing or getting in, by the 
   const deck = car('deck', { insideDeck: true });
   const truck = car('truck', { form: 'truck' });
   const day = play();
-  assert.equal(label(day, new InteractWithVehicle({ car: traffic })), 'STEAL');
-  assert.equal(label(day, new InteractWithVehicle({ car: lot })), 'STEAL');
-  assert.equal(label(day, new InteractWithVehicle({ car: deck })), 'GET IN');
+  assert.equal(label(day, new InteractWithVehicle({ car: traffic })), 'STEAL · PCD-0001');
+  assert.equal(label(day, new InteractWithVehicle({ car: lot })), 'GET IN · PCD-0001');
+  assert.equal(label(day, new InteractWithVehicle({ car: deck })), 'GET IN · PCD-0001');
   assert.equal(label(day, new InteractWithVehicle({ car: truck })), 'fail:', 'day Cody has no business with the truck');
   const night = play({ phantom: true, possessable: (c) => c === deck });
   assert.equal(label(night, new InteractWithVehicle({ car: deck })), 'POSSESS &nbsp;☾');
@@ -66,7 +69,7 @@ test('getting into a vehicle becomes possessing, stealing or getting in, by the 
     'fail:',
     'phantom Cody only possesses, in the deck',
   );
-  assert.equal(label(night, new InteractWithVehicle({ car: truck })), 'GET IN');
+  assert.equal(label(night, new InteractWithVehicle({ car: truck })), 'GET IN · PCD-0001');
   const held = play({ abilities: ['steal', 'truck', 'possess'], possessable: (c) => c === deck });
   assert.equal(
     label(held, new InteractWithVehicle({ car: deck })),
@@ -122,4 +125,18 @@ test('performing an offer does what its label said, and a summon that raises not
   ]).offers.get('interact');
   steal.action.perform(d, 0);
   assert.deepEqual(d.log, [['enter', 'x']]);
+});
+
+test('entry restrictions apply before possession and hotwire offers recheck availability', () => {
+  const pickup = car('pickup', { insideDeck: true });
+  const w = play({ possessable: () => true });
+  w.canEnter = () => false;
+  assert.equal(label(w, new InteractWithVehicle({ car: pickup })), 'fail:');
+  w.canHotwire = () => true;
+  const hotwire = new actions.Hotwire({ car: pickup });
+  assert.equal(label(w, hotwire), 'HOTWIRE');
+  w.hotwire = () => false;
+  assert.deepEqual(hotwire.perform(w), { fail: '' });
+  w.canHotwire = () => false;
+  assert.equal(label(w, hotwire), 'fail:');
 });

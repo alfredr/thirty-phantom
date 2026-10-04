@@ -7,7 +7,7 @@ import './dialogue.css';
 export type Side = 'left' | 'right';
 
 export interface DialogueLine {
-  who: Side;
+  who: Side | 'narrator';
   say: string;
   /** Run when this line is displayed to synchronize scene actions with dialogue. */
   cue?: () => void;
@@ -92,11 +92,10 @@ export class Dialogue {
       return;
     }
 
-    const other: Side = line.who === 'left' ? 'right' : 'left';
-    this.frames[line.who].classList.add('talking');
-    this.frames[other].classList.remove('talking');
+    this.frames.left.classList.toggle('talking', line.who === 'left');
+    this.frames.right.classList.toggle('talking', line.who === 'right');
     this.root.dataset.who = line.who;
-    this.name.textContent = this.names[line.who];
+    this.name.textContent = line.who === 'narrator' ? '' : this.names[line.who];
     this.text.textContent = line.say;
     line.cue?.();
   }

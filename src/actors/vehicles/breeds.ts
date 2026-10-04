@@ -56,6 +56,8 @@ export interface VehicleBreed {
   readonly boost?: FuelBoost;
   readonly exhaust?: VehicleExhaust;
   readonly drops?: PartDrops;
+  /** Minimum seconds after an unlogged exit before disappearing on the ground. Omit to keep the vehicle. */
+  readonly vanishAfterEscape?: number;
   /** Builds its model in `color`. */
   model(assets: AssetRegistry, color: string): VehicleRig;
 }
@@ -110,6 +112,7 @@ export const VEHICLE_BREEDS: Readonly<Record<VehicleBuild, VehicleBreed>> = {
     model: (_, color) => buildMotorcycleRig(color),
   },
   truck: {
+    vanishAfterEscape: 2.5,
     crushable: false,
     crush: crushCars({
       minimumSpeed: 4,

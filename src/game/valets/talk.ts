@@ -22,7 +22,7 @@ export interface TalkHooks {
   /** Return the vehicle eligible for handover, or null. */
   carToTake(): Vehicle | null;
   /** Release Cody’s vehicle before handing it to the valet. */
-  handOff(car: Vehicle): void;
+  handOff(car: Vehicle, valet: Valet): void;
   /** Read and spend Cody’s balance in dollars. */
   cash(): number;
   pay(amount: number): boolean;
@@ -138,7 +138,7 @@ export class ValetTalk extends Conversation<Valet, Deal> {
     } else if (
       deal === 'bribed' ? this.hooks.pay(TUNING.valet.bribe) : deal !== 'tipped' || this.hooks.pay(this.tip ?? 0)
     ) {
-      this.hooks.handOff(car);
+      this.hooks.handOff(car, valet);
       this.valets.take(valet, car, spot);
       this.handed++;
 

@@ -125,6 +125,7 @@ export class Fleet {
   }
 
   remove(v: Vehicle): void {
+    v.ignition.dispose();
     this.scene.remove(v.rig.root);
     this.flashes.delete(v);
     this.garage.release(v);

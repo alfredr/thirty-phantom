@@ -38,6 +38,13 @@ interface Part {
   keep: boolean;
   highlight: Highlight | null;
   root: Object3D;
+  pickup?: Pickup;
+}
+
+/** A unique pickup keeps its identity instead of becoming an inventory count. */
+export interface Pickup {
+  available(): boolean;
+  take(): void;
 }
 
 /** Per-vehicle part and tire counts, with the last shedding time in seconds. */
@@ -81,7 +88,7 @@ export class Junk {
    * Register an item at its current position as a permanent pickup. Attach it to the scene and highlight the ground at
    * `floor`.
    */
-  lay(kind: ItemKind, item: Object3D, floor: number): void {
+  lay(kind: ItemKind, item: Object3D, floor: number, pickup?: Pickup): void {
     if (item.parent !== this.scene) {
       this.scene.attach(item);
     }
@@ -101,6 +108,7 @@ export class Junk {
       keep: true,
       highlight,
       root: item,
+      pickup,
     });
   }
 
@@ -110,6 +118,11 @@ export class Junk {
     const got: ItemKind[] = [];
     for (let i = this.parts.length - 1; i >= 0; i--) {
       const p = this.parts[i] as Part;
+      if (p.pickup && !p.pickup.available()) {
+        this.remove(i);
+        continue;
+      }
+
       p.age += dt;
 
       if (!p.landed) {
@@ -129,7 +142,11 @@ export class Junk {
         Math.hypot(pos.x - p.pos.x, pos.z - p.pos.z) < J.reach &&
         Math.abs(pos.y - p.floor) < J.reach;
       if (taken) {
-        got.push(p.kind);
+        if (p.pickup) {
+          p.pickup.take();
+        } else {
+          got.push(p.kind);
+        }
       }
 
       if (taken || (!p.keep && p.age >= J.life)) {

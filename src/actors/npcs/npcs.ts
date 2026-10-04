@@ -1,6 +1,9 @@
 import { type Object3D, type Scene, Vector3 } from 'three';
 
+import { Keyring } from '@/actors/vehicles/ignition';
 import type { Mind } from '@/engine/sim/mind';
+import { Smoke } from '@/fx/smoke';
+import type { SpriteFx } from '@/fx/sprite-fx';
 import type { ItemKind } from '@/game/items/item-breeds';
 import { Stock } from '@/game/items/stock';
 import type { ItemAmount } from '@/game/items/trades';
@@ -19,11 +22,13 @@ const ANIMATION_PHASE = 5;
 
 /** Scene services and notifications available to NPC capabilities. */
 export interface NpcWorld extends FireWorld, ThrowWorld {
+  readonly sprites: Pick<SpriteFx, 'emit'>;
   fed(reward: ItemAmount): void;
 }
 
 /** An NPC's model, stock, and capability instances, built from its shared breed definition. */
 export class Npc {
+  readonly keys = new Keyring();
   readonly pos: Vector3;
   readonly model: NpcModel;
   readonly fire: Fire | null;
@@ -31,6 +36,7 @@ export class Npc {
   readonly stock: Stock | null;
   readonly pitch: Mind<Npc, Pitch, NpcEvent> | null;
   readonly work: Mind<Npc, Work, NpcEvent> | null;
+  private readonly smoke: Smoke | null;
   /** Resting and current yaw in radians. Use place() to move the NPC and fire together. */
   homeYaw: number;
   yaw: number;
@@ -67,6 +73,15 @@ export class Npc {
     this.stock = breed.shop ? new Stock(breed.shop.stock) : null;
     this.pitch = breed.pitch?.(this) ?? null;
     this.work = breed.work?.(this) ?? null;
+    this.smoke = null;
+
+    if (breed.smoke) {
+      if (!this.model.smokeOrigin) {
+        throw new Error(`${breed.name} needs a smoke origin`);
+      }
+
+      this.smoke = new Smoke(breed.smoke, this.model.smokeOrigin, world.sprites);
+    }
   }
 
   /** Require a named prop for a scripted scene. Missing props indicate a scene/model mismatch. */
@@ -124,6 +139,7 @@ export class Npc {
     this.pitch?.tick(dt);
     this.work?.tick(dt);
     this.model.pose?.(this, dt, cody);
+    this.smoke?.update(dt, this.breed.smoke?.active(this) ?? false);
     this.throwing?.update(dt);
     this.fire?.update(dt);
   }

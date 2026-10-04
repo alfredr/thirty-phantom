@@ -105,11 +105,17 @@ export const VALET_JOB = mind<Valet, Job, ValetEvent>({
         return null;
       }
 
+      if (!s.car.ignition.insert(v.keys)) {
+        v.crew.drop(s.car);
+        return returning();
+      }
+
       const drive = v.crew.startDrive(s.car, s.spot);
       if (drive) {
         return { at: 'driving', car: s.car, spot: s.spot, drive };
       }
 
+      s.car.ignition.take(v.keys);
       v.crew.drop(s.car);
       return returning();
     },
@@ -121,6 +127,7 @@ export const VALET_JOB = mind<Valet, Job, ValetEvent>({
     },
     // Restore the visible walker beside the car on every driving exit.
     exit: (v, s) => {
+      s.car.ignition.take(v.keys);
       v.walker.place(v.crew.doorOf(s.car), s.car.yaw + Math.PI / 2);
       v.walker.rig.root.visible = true;
     },

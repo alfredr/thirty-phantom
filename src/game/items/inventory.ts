@@ -1,3 +1,5 @@
+import { Keyring } from '@/actors/vehicles/ignition';
+
 import type { ItemKind } from './item-breeds';
 
 /** Inventory action identifiers. Availability is resolved by the interaction system. */
@@ -9,6 +11,7 @@ export function isItemAction(a: string): a is ItemActionId {
 
 /** Track item counts in insertion order. Removing the last item also removes its position in that order. */
 export class Inventory {
+  readonly keys = new Keyring();
   private readonly counts = new Map<ItemKind, number>();
 
   count(kind: ItemKind): number {

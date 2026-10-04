@@ -20,6 +20,9 @@ export interface Play {
   ride(): Vehicle | null;
   /** Test whether entering this car would trigger possession. */
   possessable(car: Vehicle): boolean;
+  canEnter(car: Vehicle): boolean;
+  canHotwire(car: Vehicle): boolean;
+  hotwire(car: Vehicle): boolean;
   enter(car: Vehicle): void;
   exit(): void;
   /** Whether the escape sequence currently prevents leaving the truck. */
@@ -47,6 +50,10 @@ abstract class Board extends Action<Play, Play> {
     super();
   }
   perform(w: Play): Result<CodyAction> {
+    if (!w.canEnter(this.p.car)) {
+      return fail('');
+    }
+
     w.enter(this.p.car);
     return done;
   }
@@ -61,13 +68,28 @@ export class Possess extends Board {
 
 export class Steal extends Board {
   label(): string {
-    return 'STEAL';
+    return `STEAL · ${this.p.car.plate}`;
   }
 }
 
 export class GetIn extends Board {
   label(): string {
-    return 'GET IN';
+    return `GET IN · ${this.p.car.plate}`;
+  }
+}
+
+export class Hotwire extends Action<Play, Play> {
+  constructor(readonly p: { car: Vehicle }) {
+    super();
+  }
+  label(): string {
+    return 'HOTWIRE';
+  }
+  resolve(w: Play): CodyAction | Fail {
+    return w.canHotwire(this.p.car) ? this : fail('');
+  }
+  perform(w: Play): Result<CodyAction> {
+    return w.hotwire(this.p.car) ? done : fail('');
   }
 }
 
@@ -79,6 +101,10 @@ export class InteractWithVehicle extends Action<Play, Play> {
   resolve(w: Play): CodyAction | Fail {
     const { car } = this.p;
     const { cody } = w;
+    if (!w.canEnter(car)) {
+      return fail('');
+    }
+
     if (w.possessable(car)) {
       return new Possess({ car });
     }
@@ -91,7 +117,9 @@ export class InteractWithVehicle extends Action<Play, Play> {
       return fail('');
     }
 
-    return car.role === 'traffic' || !car.insideDeck ? new Steal({ car }) : new GetIn({ car });
+    return car.role === 'traffic' || car.role === 'visitor' || car.role === 'valet'
+      ? new Steal({ car })
+      : new GetIn({ car });
   }
   perform(): Result<CodyAction> {
     return fail('');

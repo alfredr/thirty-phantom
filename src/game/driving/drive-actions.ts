@@ -412,6 +412,10 @@ export abstract class DriverJob<S extends JobStep = JobStep> extends Action<Driv
   perform(w: DriveWorld, dt: number): Result<DriveAction> {
     const { car } = this;
     if (!this.seated) {
+      if (car.form === 'car' && !car.ignition.heldBy('ignition')) {
+        return fail('NO KEYS');
+      }
+
       const refused = this.book(w);
       if (refused) {
         return refused;

@@ -51,7 +51,7 @@ const MAP_ON_FOOT: 'phone' | 'corner' = 'phone';
 export const helpRows = (): [keys: string, what: string][] => [
   [kbd('forward', 'left', 'back', 'right'), 'walk'],
   [kbd('interact'), 'steal / get in / talk'],
-  [kbd('pay'), 'tip the valet'],
+  [kbd('pay'), 'hotwire / tip the valet'],
   [kbd('inventory'), 'items: eat, use'],
   [kbd('phone'), 'phone: texts, tasks, map'],
   [`${kbd('interact')} ${kbd('pay')}`, 'elevator: call, floor up / down'],

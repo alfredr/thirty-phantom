@@ -1,9 +1,11 @@
 import { type Scene, Vector3 } from 'three';
 
 import { type Avoidance, inZones, parkedBlocks, PERSON_RADIUS } from '@/actors/avoidance';
+import type { Prey } from '@/actors/hunting';
 import type { LootKind } from '@/actors/models/loot';
 import { buildPerson, randomOutfit } from '@/actors/models/person';
 import { driverDoor } from '@/actors/vehicles/doors';
+import type { Ignition } from '@/actors/vehicles/ignition';
 import type { Vehicle } from '@/actors/vehicles/vehicle';
 import { Walker } from '@/actors/walker';
 import { TUNING } from '@/config';
@@ -15,7 +17,6 @@ import type { Bodies } from '@/game/rules/bodies';
 import { NAV, type NavGrid, type NavJob, type NavPlanner, type NavQuery } from '@/world/nav-grid';
 
 import { Casualties } from './casualties';
-import type { Prey } from './skeletons';
 import { type Town, Townsperson } from './town-mind';
 
 const C = TUNING.crowd;
@@ -74,6 +75,7 @@ export class Crowd implements Prey, Town {
   private spawnIn = 0;
   /** Notify the game when a pedestrian begins a fresh fright response. */
   onFright: ((at: Vector3) => void) | null = null;
+  onKeysDropped: ((keys: Ignition, at: Vector3) => void) | null = null;
   /** Vehicles from the current frame, used to block walking routes. */
   private vehicles: readonly Vehicle[] = [];
   avoid: Avoidance | null = null;
@@ -95,7 +97,7 @@ export class Crowd implements Prey, Town {
   }
 
   /** Return the nearest eligible living victim within horizontal reach and vertical tolerance, or null. */
-  victimNear(at: Vector3, reach: number, sameLevel: number, may: (v: object) => boolean): object | null {
+  nearest(at: Vector3, reach: number, sameLevel: number, may: (v: object) => boolean): object | null {
     let best: Townsperson | null = null;
     let bd = reach * reach;
     for (const p of this.people) {
@@ -121,7 +123,7 @@ export class Crowd implements Prey, Town {
     return best;
   }
 
-  victimAt(v: object, out: Vector3): boolean {
+  position(v: object, out: Vector3): boolean {
     const p = this.people.find((q) => q === v);
     const hurt = p?.hurt;
     if (!p || hurt?.harm === 'dead') {
@@ -179,7 +181,9 @@ export class Crowd implements Prey, Town {
   bail(car: Vehicle, from: Vector3): void {
     const door = driverDoor(car, TUNING.valet.doorGap, new Vector3());
     door.y = this.nav.heightAt(door.x, car.pos.y, door.z) ?? car.pos.y;
-    this.add(door, car.yaw - Math.PI / 2).mind.send({ type: 'frightened', from });
+    const p = this.add(door, car.yaw - Math.PI / 2);
+    car.ignition.take(p.keys);
+    p.mind.send({ type: 'frightened', from });
   }
 
   /** Spawn a visitor’s pedestrian driver and associate the parked car for a later return. */
@@ -188,6 +192,7 @@ export class Crowd implements Prey, Town {
     door.y = this.nav.heightAt(door.x, car.pos.y, door.z) ?? car.pos.y;
     const p = this.add(door, car.yaw - Math.PI / 2);
     p.car = car;
+    car.ignition.take(p.keys);
     p.stay = this.rng.range(C.stay[0], C.stay[1]);
   }
 
@@ -319,6 +324,14 @@ export class Crowd implements Prey, Town {
 
   dropMoney(at: Vector3, from: Vector3): void {
     this.drop(at, this.rng.chance(C.walletShare) ? 'wallet' : 'cash', from);
+  }
+
+  dropKeys(person: Townsperson, at: Vector3): void {
+    for (const keys of person.keys.held) {
+      if (keys.transfer(person.keys, 'ground')) {
+        this.onKeysDropped?.(keys, at);
+      }
+    }
   }
 
   private threats(p: Townsperson, f: CrowdFrame): void {
@@ -479,7 +492,9 @@ export class Crowd implements Prey, Town {
       }
 
       // Leave the stay timer at zero so the owner returns immediately.
-      this.add(at, this.rng.range(0, Math.PI * 2)).car = car;
+      const p = this.add(at, this.rng.range(0, Math.PI * 2));
+      p.car = car;
+      car.ignition.transfer('away', p.keys);
       return;
     }
 
@@ -493,6 +508,10 @@ export class Crowd implements Prey, Town {
     }
 
     const hurt = p.hurt;
+    if (hurt?.harm === 'dead') {
+      this.dropKeys(p, hurt.at);
+    }
+
     // Exit the active state so pending route requests are cancelled.
     if (!p.mind.in('gone')) {
       p.mind.go({ at: 'gone' });
@@ -503,6 +522,11 @@ export class Crowd implements Prey, Town {
     }
 
     this.scene.remove(p.walker.rig.root);
+
+    for (const keys of p.keys.held) {
+      keys.transfer(p.keys, 'away');
+    }
+
     this.people.splice(i, 1);
   }
 }

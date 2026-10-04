@@ -22,6 +22,7 @@ import {
   UseItem,
   GetOut,
   GiveItem,
+  Hotwire,
   InteractWithVehicle,
   PickFloor,
   type Play,
@@ -101,7 +102,7 @@ export class Interactions {
   }
 
   inventoryView(inventory: Inventory): InvItem[] {
-    return inventory.list().map(([kind, count]) => ({
+    const items: InvItem[] = inventory.list().map(([kind, count]) => ({
       kind,
       name: ITEM_BREEDS[kind].name,
       icon: ITEM_BREEDS[kind].icon,
@@ -109,6 +110,15 @@ export class Interactions {
       count,
       actions: this.itemOffers(kind).map(({ id, label }) => ({ id, label })),
     }));
+    return items.concat(
+      [...inventory.keys.held].map((keys) => ({
+        kind: `keys-${keys.car.id}`,
+        name: `KEYS FOR ${keys.car.plate}`,
+        icon: ITEM_BREEDS.keys.icon,
+        count: 1,
+        actions: [],
+      })),
+    );
   }
 
   /**
@@ -162,6 +172,7 @@ export class Interactions {
       }
 
       out.push({ control: 'interact', rank: RANK.getOut, action: new GetOut({ car: v }) });
+      out.push({ control: 'pay', rank: RANK.vehicle, action: new Hotwire({ car: v }) });
 
       if (v.crashing && v.resting) {
         out.push({ control: 'hop', rank: RANK.getOut, action: new RockOver() });

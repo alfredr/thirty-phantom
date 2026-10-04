@@ -3,6 +3,7 @@ import { Vector3 } from 'three';
 import { buildRandy, ROAST_LIFT } from '@/actors/models/randy';
 import { buildTrashFire, CAN_TOP } from '@/actors/models/trash-fire';
 import type { Mind } from '@/engine/sim/mind';
+import type { SmokeSpec } from '@/fx/smoke';
 import type { Merchant } from '@/game/items/shop';
 import type { Exchange } from '@/game/items/trades';
 import type { NpcDef } from '@/world/level-data';
@@ -21,6 +22,7 @@ export interface NpcBreed {
   model(): NpcModel;
   readonly fire?: FireSpec;
   readonly throwing?: ThrowSpec;
+  readonly smoke?: SmokeSpec & { active(n: Npc): boolean };
   readonly attention?: { readonly reach: number; readonly level: number };
   pitch?(n: Npc): Mind<Npc, Pitch, NpcEvent>;
   work?(n: Npc): Mind<Npc, Work, NpcEvent>;
@@ -34,7 +36,21 @@ export const NPC_BREEDS: Readonly<Record<NpcDef['id'], NpcBreed>> = {
     name: 'RANDY',
     model: () => {
       const rig = buildRandy();
-      return { ...coatSeller(rig, ROAST_LIFT), props: { burner: rig.phone, badge: rig.badge } };
+      return {
+        ...coatSeller(rig, ROAST_LIFT),
+        smokeOrigin: rig.pocket,
+        props: { burner: rig.phone, badge: rig.badge },
+      };
+    },
+    smoke: {
+      every: 0.16,
+      life: 1.8,
+      size: [0.12, 0.65],
+      rise: 0.65,
+      scatter: 0.18,
+      color: 0xaaa2b0,
+      alpha: 0.6,
+      active: (n) => !!n.stock?.slotOf('moltenKeys'),
     },
     fire: { model: buildTrashFire, rim: CAN_TOP },
     throwing: { windup: 0.75, flight: 0.8, speed: 14, arc: 0.8, arcPerMeter: 0.15 },

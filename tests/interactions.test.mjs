@@ -30,6 +30,8 @@ function setup() {
     conditions: { valetsOnShift: () => true, parking: () => true },
     ride: () => state.ride,
     possessable: () => false,
+    canEnter: () => true,
+    canHotwire: () => false,
     escaping: () => false,
     inFreeSpot: () => false,
     enter: (v) => log.push(['enter', v.name]),
@@ -105,7 +107,7 @@ test('discovery keeps scripts above conversations and the nearest vehicle first'
   assert.match(shown.prompt, /TALK TO RANDY/);
   state.randy = null;
   press();
-  assert.match(shown.prompt, /STEAL/);
+  assert.match(shown.prompt, /GET IN/);
   assert.deepEqual(log, [['script'], ['valet'], ['randy'], ['enter', 'near']]);
   assert.equal(shown.performed.length, 4);
 });
@@ -124,7 +126,7 @@ test('focus and scene blocking suppress keyboard offers and actions', () => {
   assert.deepEqual(log, []);
   state.blocked = false;
   interactions.update();
-  assert.match(shown.prompt, /STEAL/);
+  assert.match(shown.prompt, /GET IN/);
   press('summon');
   assert.equal(shown.refused, 'ONLY THE PHANTOM CAN RAISE THE DEAD');
 });
