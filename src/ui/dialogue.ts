@@ -1,3 +1,4 @@
+import type { Action, Focus } from '../core/input';
 import { el } from './dom';
 import './dialogue.css';
 
@@ -11,7 +12,8 @@ export interface DialogueLine {
 }
 
 /** These advance a line, and are kept from the game while a conversation plays. */
-const NEXT_KEYS = new Set(['KeyF', 'Space', 'Enter']);
+/** F, Space and Enter move the conversation on. */
+const NEXT: readonly Action[] = ['interact', 'start'];
 
 /**
  * A scripted conversation over the HUD: two portraits, one each side, the speaker's lit and
@@ -26,7 +28,10 @@ export class Dialogue {
   private i = 0;
   private done: (() => void) | null = null;
 
-  constructor(private readonly names: Record<Side, string>) {
+  constructor(
+    private readonly names: Record<Side, string>,
+    focus: Focus,
+  ) {
     this.root = el('div', 'dialogue', document.body);
     this.frames = { left: this.frame('left'), right: this.frame('right') };
     const box = el('div', 'dialogue-box', this.root);
@@ -36,17 +41,13 @@ export class Dialogue {
     // the box's own row order: left portrait, box, right portrait
     this.root.append(this.frames.left, box, this.frames.right);
     this.root.addEventListener('click', () => this.next());
-    window.addEventListener(
-      'keydown',
-      (e) => {
-        if (!this.open || !NEXT_KEYS.has(e.code)) return;
-        // the game never sees it (else the F that ends a chat would also get Cody in a car)
-        e.preventDefault();
-        e.stopPropagation();
-        if (!e.repeat) this.next();
+    // While it's open the conversation takes F, Space and Enter, so the F that ends a chat doesn't also get Cody into a car.
+    focus.add({
+      controls: () => (this.open ? NEXT : []),
+      press: (_control, { repeat }) => {
+        if (!repeat) this.next();
       },
-      true,
-    );
+    });
   }
 
   get open(): boolean {

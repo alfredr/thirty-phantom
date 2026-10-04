@@ -14,7 +14,7 @@ export const KEYS = {
   hop: ['Space'],
   interact: ['KeyF'],
   pay: ['KeyG'],
-  /** Opens the item menu (ui/inventory.ts reads it straight off the keyboard). */
+  /** Opens the item menu, and steps through it while it's open. */
   inventory: ['KeyI'],
   summon: ['KeyX'],
   /** Hold in the monster truck: burn GhASt for a boost. */
@@ -30,12 +30,74 @@ export const KEYS = {
   start: ['Enter', 'Space'],
   // dev: only does anything while a code change is waiting
   reload: ['KeyR'],
+  // Menus and panels take these while they're open, through focus layers.
+  menuUp: ['ArrowUp'],
+  menuDown: ['ArrowDown', 'Tab'],
+  cancel: ['Escape'],
+  confirm: ['Enter'],
+  slot1: ['Digit1'],
+  slot2: ['Digit2'],
+  slot3: ['Digit3'],
+  slot4: ['Digit4'],
+  slot5: ['Digit5'],
+  slot6: ['Digit6'],
+  slot7: ['Digit7'],
+  slot8: ['Digit8'],
+  slot9: ['Digit9'],
 } satisfies Record<string, [string, ...string[]]>;
 
 export type Action = keyof typeof KEYS;
 
 export function isAction(name: string): name is Action {
   return Object.hasOwn(KEYS, name);
+}
+
+/** The details of a key press that a focus layer may care about. */
+export interface KeyPress {
+  readonly repeat: boolean;
+  readonly shift: boolean;
+}
+
+/**
+ * Something that takes keys before the world does: a conversation, a sign, a menu, a shop. It
+ * says which controls it takes right now; the top layer that takes a key's control gets the
+ * press, and the world never sees that key.
+ */
+export interface FocusLayer {
+  controls(): readonly Action[];
+  press(control: Action, key: KeyPress): void;
+}
+
+/** The stack of focus layers, newest on top. Input offers every key press to it first. */
+export class Focus {
+  private readonly layers: FocusLayer[] = [];
+
+  /** Adds a layer above the others. The returned function removes it. */
+  add(layer: FocusLayer): () => void {
+    this.layers.push(layer);
+    return () => {
+      const i = this.layers.indexOf(layer);
+      if (i >= 0) this.layers.splice(i, 1);
+    };
+  }
+
+  /** Whether any layer takes `control` right now, so the world shouldn't offer anything for it. */
+  owns(control: Action): boolean {
+    return this.layers.some((layer) => layer.controls().includes(control));
+  }
+
+  /** Offers a key press to the layers, top first. True if a layer took it. */
+  route(code: string, key: KeyPress): boolean {
+    for (let i = this.layers.length - 1; i >= 0; i--) {
+      const layer = this.layers[i];
+      const control = layer?.controls().find((c) => KEYS[c].some((k) => k === code));
+      if (layer && control) {
+        layer.press(control, key);
+        return true;
+      }
+    }
+    return false;
+  }
 }
 
 /** How the HUD names an action's key: KeyF -> F, ShiftLeft -> SHIFT, Space -> SPACE. */
@@ -52,8 +114,10 @@ export class Input {
   private mouseY = 0;
   private lockEl: HTMLElement | null = null;
   private dragging = false;
-  /** A cutscene has the controls: every read comes back empty (keys, stick, mouse, wheel). */
+  /** A cutscene has the controls: every read comes back empty (keys, stick, mouse, wheel). Focus layers still get their keys. */
   muted = false;
+  /** Conversations, signs and menus, which take keys before the world. */
+  readonly focus = new Focus();
   /** Analog stick (touch): x to the right, y forward, each -1..1. axis() adds it to the keys. */
   private stickX = 0;
   private stickY = 0;
@@ -61,6 +125,11 @@ export class Input {
   constructor() {
     window.addEventListener('keydown', (e) => {
       if (BLOCKED.has(e.code)) e.preventDefault();
+      // A conversation, sign or menu that takes this key gets it, and the world doesn't.
+      if (this.focus.route(e.code, { repeat: e.repeat, shift: e.shiftKey })) {
+        e.preventDefault();
+        return;
+      }
       if (!e.repeat) this.pressed.add(e.code);
       this.down.add(e.code);
     });

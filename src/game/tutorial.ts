@@ -191,7 +191,7 @@ export class Tutorial {
   get running(): boolean {
     return this.active;
   }
-  private readonly dialogue = new Dialogue({ left: 'RANDY ROLSEN', right: 'CODY' });
+  private readonly dialogue: Dialogue;
   private readonly sign: Signpost;
   /** The first phantom's imprint: where it hangs, and what the sign says about it. */
   private imprint: { at: Vector3; title: string; meta: string } | null = null;
@@ -220,9 +220,10 @@ export class Tutorial {
     private readonly game: Game,
     private readonly level: LevelData,
   ) {
+    this.dialogue = new Dialogue({ left: 'RANDY ROLSEN', right: 'CODY' }, game.input.focus);
     this.burner = new Burner(game.hud.root);
     this.burner.onBuzz = (what) => game.events.emit('phone', what);
-    this.sign = new Signpost(game.hud.root);
+    this.sign = new Signpost(game.hud.root, game.input.focus);
     this.titleLink();
     game.addOffer(() => this.randyOffer());
     const ev = game.events;
@@ -420,7 +421,6 @@ export class Tutorial {
     const g = this.game;
     this.burner.setTime(GameClock.format(g.clock.hours));
     // nothing to press while a conversation or the sign is up (the game's own prompts come back after)
-    if (this.dialogue.open || this.sign.open) g.hud.setPrompt(null);
     if (this.step === 'scene' && this.throwCam !== null) this.followThrow(dt);
     if (this.step === 'scene' && this.t > TALK_DELAY && !this.dialogue.open) {
       this.dialogue.play(this.script(), () => this.letOut());

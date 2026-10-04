@@ -1,4 +1,4 @@
-import { type Action, KEYS, keyName } from '../core/input';
+import { type Action, type Focus, keyName } from '../core/input';
 import { el } from './dom';
 import { itemIcon } from './item-icons';
 
@@ -16,9 +16,6 @@ export interface InvItem {
 /** While the menu is open these run the item's first and second action; Enter runs the first too. */
 const ACTION_KEYS: readonly Action[] = ['interact', 'pay'];
 
-function actionIndex(code: string): number {
-  return code === 'Enter' ? 0 : ACTION_KEYS.findIndex((a) => KEYS[a].includes(code));
-}
 
 /**
  * What Cody's carrying: a strip of tags, and the actions of the one picked.
@@ -36,6 +33,7 @@ export class InventoryStrip {
   constructor(
     parent: HTMLElement,
     private readonly onAction: (kind: string, actionId: string) => void,
+    focus: Focus,
   ) {
     this.root = el('div', 'hud-inv', parent);
     this.root.addEventListener('click', (e) => this.click(e));
@@ -46,7 +44,7 @@ export class InventoryStrip {
       },
       true,
     );
-    window.addEventListener('keydown', (e) => this.key(e), true);
+    focus.add({ controls: () => this.controls(), press: (control, { repeat }) => this.press(control, repeat) });
   }
 
   set(items: readonly InvItem[]): void {
@@ -61,29 +59,21 @@ export class InventoryStrip {
     return this.items.flatMap((it, i) => (it.actions.length ? [i] : []));
   }
 
-  private key(e: KeyboardEvent): void {
-    // hidden (title screen) or a conversation has the keys
-    if (this.root.offsetParent === null || document.body.classList.contains('dialogue-open')) return;
-    const c = e.code;
-    const open = this.sel >= 0;
-    if (KEYS.inventory.includes(c)) {
-      if (!open && !this.usable.length) return;
-      if (!e.repeat) this.step(1, true);
-    } else if (!open) {
-      return;
-    } else if (c === 'ArrowDown' || c === 'Tab') {
-      if (!e.repeat) this.step(1, false);
-    } else if (c === 'ArrowUp') {
-      if (!e.repeat) this.step(-1, false);
-    } else if (c === 'Escape') {
-      this.select(-1);
-    } else {
-      const i = actionIndex(c);
-      if (i < 0) return;
-      if (!e.repeat) this.run(i);
-    }
-    e.preventDefault();
-    e.stopPropagation();
+  /** The keys the item strip takes right now: I to open it, and the menu keys while it's open. */
+  private controls(): readonly Action[] {
+    // Hidden on the title screen.
+    if (this.root.offsetParent === null) return [];
+    if (this.sel < 0) return this.usable.length ? ['inventory'] : [];
+    return ['inventory', 'menuDown', 'menuUp', 'cancel', 'confirm', ...ACTION_KEYS];
+  }
+
+  private press(control: Action, repeat: boolean): void {
+    if (control === 'cancel') return this.select(-1);
+    if (repeat) return;
+    if (control === 'inventory') this.step(1, true);
+    else if (control === 'menuDown') this.step(1, false);
+    else if (control === 'menuUp') this.step(-1, false);
+    else this.run(control === 'confirm' ? 0 : ACTION_KEYS.indexOf(control));
   }
 
   /** Move through the usable items; `closeAtEnd` closes after the last instead of wrapping. */

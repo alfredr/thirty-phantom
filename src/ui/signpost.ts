@@ -1,8 +1,10 @@
+import type { Action, Focus } from '../core/input';
 import { el } from './dom';
 import './signpost.css';
 
 /** These dismiss it, and are kept from the game while it's up. */
-const DISMISS_KEYS = new Set(['KeyF', 'Space', 'Enter']);
+/** F, Space and Enter put it away. */
+const DISMISS: readonly Action[] = ['interact', 'start'];
 
 /**
  * A signpost pinned to a point in the world (the tutorial's first phantom imprint): a plate on a
@@ -16,7 +18,7 @@ export class Signpost {
   private readonly body: HTMLElement;
   private dismissed: (() => void) | null = null;
 
-  constructor(parent: HTMLElement) {
+  constructor(parent: HTMLElement, focus: Focus) {
     this.root = el('div', 'signpost', parent);
     const plate = el('div', 'signpost-plate plate', this.root);
     this.title = el('div', 'signpost-title slime-text', plate);
@@ -26,16 +28,12 @@ export class Signpost {
     el('div', 'signpost-pole', this.root);
     el('div', 'signpost-foot', this.root);
     this.root.addEventListener('click', () => this.dismiss());
-    window.addEventListener(
-      'keydown',
-      (e) => {
-        if (!this.open || !DISMISS_KEYS.has(e.code)) return;
-        e.preventDefault();
-        e.stopPropagation();
-        if (!e.repeat) this.dismiss();
+    focus.add({
+      controls: () => (this.open ? DISMISS : []),
+      press: (_control, { repeat }) => {
+        if (!repeat) this.dismiss();
       },
-      true,
-    );
+    });
   }
 
   get open(): boolean {

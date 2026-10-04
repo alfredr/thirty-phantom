@@ -1,3 +1,4 @@
+import type { Action, Focus } from '../core/input';
 import { el } from './dom';
 import { itemIcon } from './item-icons';
 
@@ -18,7 +19,8 @@ export interface Wares {
 }
 
 /** Number keys buy from the slot they number (Shift: the whole stack). */
-const DIGITS = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'Digit8', 'Digit9'];
+/** The number keys buy from the slots, in order. */
+const SLOT_KEYS: readonly Action[] = ['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6', 'slot7', 'slot8', 'slot9'];
 
 /**
  * Randy's coat, open: his stock in slots on the purple lining, up while he's open for business
@@ -39,6 +41,7 @@ export class WaresPanel {
   constructor(
     parent: HTMLElement,
     private readonly onBuy: (slotId: string, n: number) => void,
+    layers: Focus,
   ) {
     this.root = el('div', 'hud-wares', parent);
     this.root.addEventListener('click', (e) => this.click(e));
@@ -46,7 +49,16 @@ export class WaresPanel {
       const id = (e.target as Element).closest<HTMLElement>('.ware-slot')?.dataset.id;
       if (id && id !== this.focus && !touch()) this.setFocus(id);
     });
-    window.addEventListener('keydown', (e) => this.key(e), true);
+    // While the coat is open, the number keys buy from its slots (Shift buys the whole stack).
+    layers.add({
+      controls: () => (this.wares && this.root.offsetParent !== null ? SLOT_KEYS.slice(0, this.wares.slots.length) : []),
+      press: (control, { repeat, shift }) => {
+        const s = this.wares?.slots[SLOT_KEYS.indexOf(control)];
+        if (!s || repeat) return;
+        this.focus = s.id;
+        this.buy(s, shift);
+      },
+    });
   }
 
   set(w: Wares | null): void {
@@ -68,19 +80,6 @@ export class WaresPanel {
 
   private slot(id: string | null): WareSlot | undefined {
     return id === null ? undefined : this.wares?.slots.find((s) => s.id === id);
-  }
-
-  private key(e: KeyboardEvent): void {
-    const w = this.wares;
-    if (!w || this.root.offsetParent === null) return;
-    const i = DIGITS.indexOf(e.code);
-    const s = w.slots[i];
-    if (!s) return;
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.repeat) return;
-    this.focus = s.id;
-    this.buy(s, e.shiftKey);
   }
 
   private click(e: MouseEvent): void {
@@ -125,7 +124,7 @@ export class WaresPanel {
       const cls = ['ware-slot', empty ? 'empty' : '', !s.can && !empty ? 'off' : '', s.id === this.focus ? 'on' : '', this.flash?.id === s.id ? this.flash.cls : ''];
       const slot = el('div', cls.filter(Boolean).join(' '), grid);
       slot.dataset.id = s.id;
-      if (keys && i < DIGITS.length) el('i', 'ware-key', slot, String(i + 1));
+      if (keys && i < SLOT_KEYS.length) el('i', 'ware-key', slot, String(i + 1));
       if (empty) return;
       slot.insertAdjacentHTML('beforeend', itemIcon(s.kind) ?? `<span class="ware-initial">${s.name.charAt(0)}</span>`);
       el('b', 'ware-count', slot, String(s.count));
@@ -133,7 +132,7 @@ export class WaresPanel {
     const info = el('div', 'wares-info');
     const f = this.slot(this.focus) ?? w.slots.find((s) => s.count > 0);
     if (f) el('div', 'wares-what', info, `${f.name} <b>×${f.count}</b> <span>${f.price > 0 ? `$${f.price} EACH` : 'FREE'}</span>`);
-    if (keys) el('div', 'wares-how', info, `<kbd>1</kbd>–<kbd>${Math.min(w.slots.length, DIGITS.length)}</kbd> BUY ONE · <kbd>SHIFT</kbd> THE STACK`);
+    if (keys) el('div', 'wares-how', info, `<kbd>1</kbd>–<kbd>${Math.min(w.slots.length, SLOT_KEYS.length)}</kbd> BUY ONE · <kbd>SHIFT</kbd> THE STACK`);
     else {
       const picked = this.slot(this.focus);
       const how = el('div', 'wares-how', info);

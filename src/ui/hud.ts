@@ -1,6 +1,6 @@
 import type { Camera, Vector3 } from 'three';
 import type { CarKind, VehicleForm } from '../actors/vehicle';
-import { type Action, isAction, keyName } from '../core/input';
+import { type Action, type Focus, isAction, keyName } from '../core/input';
 import { SOUND_ON } from '../audio/flags';
 import { urlFlag } from '../core/url-flags';
 import type { CamMode, CamView } from '../game/game';
@@ -152,7 +152,7 @@ export class Hud {
   onBuy: ((slotId: string, n: number) => void) | null = null;
   private readonly shown = new Map<Shown, string | boolean>();
 
-  constructor(container: HTMLElement) {
+  constructor(container: HTMLElement, focus: Focus) {
     const root = el('div', '', container);
     root.id = 'hud';
     this.root = root;
@@ -173,8 +173,8 @@ export class Hud {
 
     const cash = el('div', 'hud-cash', status, BILLS);
     this.cashEl = el('div', 'cash-coin', cash, '');
-    this.inv = new InventoryStrip(root, (kind, id) => this.onItemAction?.(kind, id));
-    this.wares = new WaresPanel(root, (id, n) => this.onBuy?.(id, n));
+    this.inv = new InventoryStrip(root, (kind, id) => this.onItemAction?.(kind, id), focus);
+    this.wares = new WaresPanel(root, (id, n) => this.onBuy?.(id, n), focus);
 
     this.prompt = el('div', 'hud-prompt plate', root);
     this.bubble = el('div', 'hud-bubble plate', root);

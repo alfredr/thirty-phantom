@@ -568,7 +568,7 @@ export class Game {
     this.visitors.adopt();
     for (let i = 0; i < TUNING.traffic.dayCars; i++) this.fleet.spawnTraffic(this.view.target, 0);
 
-    this.hud = new Hud(container);
+    this.hud = new Hud(container, this.input.focus);
     this.hud.initMap(level);
     this.hud.onStart(() => this.start());
     this.hud.onItemAction = (kind, id) => {
@@ -1034,12 +1034,14 @@ export class Game {
   /**
    * Cody's offers this frame. The prompt shows the best offer for each key, and pressing a key
    * performs the offer the prompt showed. A key with nothing to offer shows the reason, if any.
+   * Keys a focus layer takes never reach here: the layer gets them instead.
    */
   private interact(): void {
     const { offers, refusals } = bestOffers(this.play, this.codyCandidates());
+    // A conversation, sign or menu that has a key right now owns it, so the prompt doesn't offer it.
     const shown = PROMPT_CONTROLS.flatMap((control) => {
       const offer = offers.get(control);
-      return offer?.label ? [offer] : [];
+      return offer?.label && !this.input.focus.owns(control) ? [offer] : [];
     });
     const [first] = shown;
     this.hud.setPrompt(first ? shown.map(({ control, label }) => `{${control}} ${label}`).join(' &nbsp;') : null, first?.control);
