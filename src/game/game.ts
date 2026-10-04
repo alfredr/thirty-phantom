@@ -611,6 +611,23 @@ export class Game {
     for (let i = 0; i < TUNING.traffic.dayCars; i++) this.fleet.spawnTraffic(this.view.target, 0);
 
     this.hud = new Hud(container, this.input.focus);
+    // what the status displays show, read each frame
+    this.hud.bind({
+      mode: () => (this.mode === 'title' ? 'title' : this.driving || this.transform ? 'drive' : 'foot'),
+      hours: () => this.clock.hours,
+      phase: () => this.clock.phase,
+      day: () => this.clock.day,
+      cash: () => this.money.cash,
+      ledger: () => ({ logged: this.garage.logged, actual: this.garage.actual(this.vehicles), phantom: this.garage.phantomOccupancy(this.vehicles), max: TUNING.garage.spots }),
+      // tumbling in a crash isn't flying: no AIRBORNE badge for it
+      dash: () => {
+        const v = this.driving;
+        if (v) return { speed: v.speed, form: v.form, kind: v.kind, airborne: !v.grounded && !v.crashing };
+        return this.transform ? { speed: 0, form: 'truck', airborne: false } : null;
+      },
+      // the GhASt dial (and the touch BOOST button) while he's driving the monster truck
+      ghast: () => (this.driving?.form === 'truck' ? { fill: this.ghast, burning: this.boosting } : null),
+    });
     this.hud.initMap(level);
     this.hud.onStart(() => this.start());
     this.hud.onItemAction = (kind, id) => {
@@ -743,6 +760,7 @@ export class Game {
     else this.updatePlay(dt);
     this.updateShared(dt);
     this.phases.enter('present');
+    this.hud.update();
     this.gfx.chaseView = this.chaseActive;
     if (this.rendering) this.gfx.render(this.time);
     this.input.endFrame();
@@ -764,7 +782,6 @@ export class Game {
     this.iso.zoomTarget = TUNING.camera.zoom;
     this.iso.azimuthTarget = Math.round((this.iso.azimuth - Math.PI / 4) / (Math.PI / 2)) * (Math.PI / 2) + Math.PI / 4;
     this.chase.snapBehind(this.player.yaw);
-    this.hud.setMode('foot');
     this.announceDay();
     this.events.emit('start', null);
   }
@@ -868,7 +885,6 @@ export class Game {
         v.role = 'player';
         this.driving = v;
         this.transform = null;
-        this.hud.setMode('drive');
       }
     } else if (this.driving) {
       this.updateDriving(dt);
@@ -943,14 +959,6 @@ export class Game {
     this.updateNav(dt);
     this.updateObjectives();
 
-    const phase = this.clock.phase;
-    this.hud.setClock(this.clock.hours, phase, this.clock.day);
-    this.hud.setLedger(this.garage.logged, this.garage.actual(this.vehicles), this.garage.phantomOccupancy(this.vehicles), TUNING.garage.spots);
-    // tumbling in a crash isn't flying: no AIRBORNE badge for it
-    if (this.driving) this.hud.setDash({ speed: this.driving.speed, form: this.driving.form, kind: this.driving.kind, airborne: !this.driving.grounded && !this.driving.crashing });
-    else if (this.transform) this.hud.setDash({ speed: 0, form: 'truck', airborne: false });
-    // the GhASt dial (and the touch BOOST button) while he's driving the monster truck
-    this.hud.setGhast(this.driving?.form === 'truck' ? this.ghast : null, this.boosting);
     if (!this.won && this.garage.phantoms >= TUNING.garage.spots) {
       this.won = true;
       this.hud.showVictory();
@@ -984,7 +992,6 @@ export class Game {
       else this.hud.toast(`+$${got.amount}`, '', '', MONEY_TOAST);
       this.events.emit('money', { kind: got.kind, amount: got.amount });
     }
-    this.hud.setCash(this.money.cash);
     const onFoot = this.driving || this.transform ? null : this.player.pos;
     for (const kind of this.junk.update(dt, onFoot)) {
       this.gain(kind, 1);
@@ -1224,7 +1231,6 @@ export class Game {
     if (this.possessable(v)) {
       this.transform = new TransformSequence(v, 'truck', () => this.assets.truckRig(), this.fx);
       this.hud.toast('PHANTOM CODY!', 'GET IT OUT. NOT THROUGH THE GATE.', '', 2.6);
-      this.hud.setMode('drive');
       this.events.emit('entered', { v, possessed: true });
       return;
     }
@@ -1237,7 +1243,6 @@ export class Game {
     this.driving = v;
     // on a bike he's out in the open: Cody himself rides it
     if (v.rig.rider) this.player.mount(v.rig.rider.saddle);
-    this.hud.setMode('drive');
     this.events.emit('entered', { v, possessed: false });
   }
 
@@ -1380,7 +1385,6 @@ export class Game {
     this.claims.release(this.codySeat);
     // An escaped vehicle's roll ends with the drive, so the next vehicle Cody takes is not affected.
     this.escapedTimer = -1;
-    this.hud.setMode('foot');
     this.iso.zoomTarget = Math.min(this.iso.zoomTarget, TUNING.camera.zoom);
     this.hud.setPrompt(null);
     v.vel.set(0, 0, 0);

@@ -2,6 +2,7 @@ import type { Camera, Vector3 } from 'three';
 import type { CarKind, VehicleForm } from '../actors/vehicle';
 import { type Action, type Focus, isAction, keyName } from '../core/input';
 import { SOUND_ON } from '../audio/flags';
+import { Bindings } from '../engine/ui/binding';
 import { urlFlag } from '../core/url-flags';
 import type { CamMode, CamView } from '../game/game';
 import { GameClock, type Phase } from '../game/game-clock';
@@ -104,6 +105,22 @@ export interface Bubble {
   choices: { action: Action; label: string; off?: boolean }[];
 }
 
+/** What the status displays show: the game's state as they read it, once a frame. */
+export interface HudStatus {
+  /** 'title' till play starts; then 'drive' at the wheel (or turning into the truck), else 'foot'. */
+  mode(): HudMode;
+  hours(): number;
+  phase(): Phase;
+  day(): number;
+  cash(): number;
+  /** The occupancy board: the badge log, cars really in the deck, phantoms in spots, and spots in all. */
+  ledger(): { logged: number; actual: number; phantom: number; max: number };
+  /** What's on the dash while he drives; null on foot. */
+  dash(): DashState | null;
+  /** The truck's ghost tank (0..1) and whether he's burning it, while he drives the truck; null otherwise. */
+  ghast(): { fill: number; burning: boolean } | null;
+}
+
 export interface DashState {
   speed: number;
   form: VehicleForm;
@@ -115,7 +132,7 @@ export interface DashState {
 const STOLEN: Readonly<Record<CarKind, string>> = { sedan: 'STOLEN SEDAN', pickup: 'STOLEN PICKUP', motorcycle: 'STOLEN MOTORCYCLE' };
 
 /** Per-frame setters only touch the DOM when what they show changes; this is what they last showed. */
-type Shown = 'time' | 'phase' | 'cash' | 'prompt' | 'bubble' | 'form' | 'air' | 'ghast';
+type Shown = 'prompt' | 'bubble' | 'form' | 'air' | 'ghast';
 
 /** The DOM overlay: clock, occupancy board and cash, prompts, speech bubbles, dash, toasts, title and victory screens. */
 export class Hud {
@@ -151,6 +168,8 @@ export class Hud {
   /** The game's handler for buying from Randy: `n` from slot `slotId` (the whole stack can be more than Cody can pay for). */
   onBuy: ((slotId: string, n: number) => void) | null = null;
   private readonly shown = new Map<Shown, string | boolean>();
+  /** The status displays, each drawn when what it reads changes. */
+  private readonly views = new Bindings();
 
   constructor(container: HTMLElement, focus: Focus) {
     const root = el('div', '', container);
@@ -195,7 +214,7 @@ export class Hud {
     this.victory = el('div', 'hud-victory hide', container, VICTORY);
     this.hudBits = [logo, status, this.inv.root, this.wares.root, this.help, this.marks.root];
     this.fps = urlFlag('fps') ? el('div', 'fps', root, '') : null;
-    this.setMode('title');
+    this.drawMode('title');
   }
 
   /** True (and remembered) if `value` differs from what `key` last showed. */
@@ -212,7 +231,51 @@ export class Hud {
     });
   }
 
-  setMode(m: HudMode): void {
+  /** Hooks the status displays up to `s`; update() redraws whichever changed. */
+  bind(s: HudStatus): void {
+    const v = this.views;
+    v.add({ read: () => s.mode(), draw: (m) => this.drawMode(m) });
+    // the dial's hand moves on every frame the clock runs; the digits only when the minute does
+    v.add({ read: () => s.hours(), draw: (h) => this.clock.set(h) });
+    v.add({
+      read: () => GameClock.format(s.hours()),
+      draw: (t) => {
+        this.digits.innerHTML = clockCells(t);
+        this.gauge.time.textContent = t;
+      },
+    });
+    v.add({
+      read: () => ({ phase: s.phase(), day: s.day() }),
+      same: (a, b) => a.phase === b.phase && a.day === b.day,
+      draw: ({ phase, day }) => {
+        this.root.dataset.phase = phase;
+        this.phaseEl.innerHTML = phase === 'day' ? `${SUN_ICON}DAY ${day}` : `${MOON_ICON}NIGHT ${day}`;
+      },
+    });
+    v.add({ read: () => s.cash(), draw: (amount, was) => this.drawCash(amount, was) });
+    v.add({
+      read: () => s.ledger(),
+      same: (a, b) => a.logged === b.logged && a.actual === b.actual && a.phantom === b.phantom && a.max === b.max,
+      draw: (l) => this.sign.set(l.logged, l.actual, l.phantom, l.max),
+    });
+    v.add({
+      read: () => s.dash(),
+      same: (a, b) => a === b || (!!a && !!b && Math.round(a.speed * 2.6) === Math.round(b.speed * 2.6) && a.form === b.form && a.kind === b.kind && a.airborne === b.airborne),
+      draw: (d) => d && this.drawDash(d),
+    });
+    v.add({
+      read: () => s.ghast(),
+      same: (a, b) => a === b || (!!a && !!b && a.fill === b.fill && a.burning === b.burning),
+      draw: (g) => this.drawGhast(g),
+    });
+  }
+
+  /** Redraws the status displays whose state has changed. Once a frame. */
+  update(): void {
+    this.views.update();
+  }
+
+  private drawMode(m: HudMode): void {
     this.root.dataset.mode = m;
     this.title.classList.toggle('hide', m !== 'title');
     for (const b of this.hudBits) b.style.display = m === 'title' ? 'none' : '';
@@ -244,19 +307,6 @@ export class Hud {
 
   toggleHelp(): void {
     this.help.classList.toggle('hide');
-  }
-
-  setClock(hours: number, phase: Phase, day: number): void {
-    this.clock.set(hours);
-    const t = GameClock.format(hours);
-    if (this.changed('time', t)) {
-      this.digits.innerHTML = clockCells(t);
-      this.gauge.time.textContent = t;
-    }
-    if (this.changed('phase', `${phase}${day}`)) {
-      this.root.dataset.phase = phase;
-      this.phaseEl.innerHTML = phase === 'day' ? `${SUN_ICON}DAY ${day}` : `${MOON_ICON}NIGHT ${day}`;
-    }
   }
 
   /** The minimap's city, baked once from the level (desktop only: touch screens hide it). */
@@ -294,21 +344,15 @@ export class Hud {
   }
 
   /** Cody's cash, on the coin at the clock plate's right end. It bumps when it goes up. */
-  setCash(amount: number): void {
+  private drawCash(amount: number, was: number | undefined): void {
     const s = String(amount);
-    const was = this.shown.get('cash');
-    if (!this.changed('cash', s)) return;
     this.cashEl.innerHTML = `<small>$</small>${s}`;
     this.cashEl.dataset.len = String(Math.min(s.length, 5));
-    if (typeof was === 'string' && amount > Number(was)) {
+    if (was !== undefined && amount > was) {
       this.cashEl.classList.remove('bump');
       void this.cashEl.offsetWidth;
       this.cashEl.classList.add('bump');
     }
-  }
-
-  setLedger(logged: number, actual: number, phantom: number, max: number): void {
-    this.sign.set(logged, actual, phantom, max);
   }
 
   /**
@@ -342,21 +386,18 @@ export class Hud {
     this.bubble.style.top = `${Math.round(b.y)}px`;
   }
 
-  /**
-   * The truck's ghost tank, 0..1, and whether the boost is burning it; null hides the dial (and,
-   * on touch, the BOOST button). Called every frame while it shows.
-   */
-  setGhast(fill: number | null, burning = false): void {
-    const on = fill !== null;
+  /** The truck's ghost tank, and whether the boost is burning it; null hides the dial (and, on touch, the BOOST button). */
+  private drawGhast(g: { fill: number; burning: boolean } | null): void {
+    const on = g !== null;
     if (this.changed('ghast', on)) {
       this.ghast.root.classList.toggle('on', on);
       document.body.classList.toggle('ghast-on', on);
       if (!on) this.ghast.reset();
     }
-    if (on) this.ghast.set(fill, burning);
+    if (g) this.ghast.set(g.fill, g.burning);
   }
 
-  setDash(d: DashState): void {
+  private drawDash(d: DashState): void {
     this.gauge.set(Math.round(Math.abs(d.speed) * 2.6));
     const label = d.form === 'truck' ? 'PHANTOM MONSTER TRUCK' : STOLEN[d.kind ?? 'sedan'];
     if (this.changed('form', label)) {
