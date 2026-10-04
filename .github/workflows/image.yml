@@ -1,0 +1,44 @@
+# Build the game's container image on pushes to main, publish it to GHCR, and ask the box server to deploy it.
+name: Image
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+# Allow one workflow run at a time; a newer run cancels the previous run.
+concurrency:
+  group: image
+  cancel-in-progress: true
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v7
+        with:
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      # The box server also polls for new images, so without the secret the deploy happens on its next check.
+      - name: Deploy
+        env:
+          BOX_HOOK_SECRET: ${{ secrets.BOX_HOOK_SECRET }}
+        run: |
+          if [ -n "$BOX_HOOK_SECRET" ]; then
+            curl -fsS -X POST -H "Authorization: Bearer $BOX_HOOK_SECRET" https://box.fredrossi.com/deploy/thirty-phantom
+          fi
