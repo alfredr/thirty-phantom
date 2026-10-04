@@ -112,8 +112,12 @@ export class Garage {
     return null;
   }
 
+  /** Who has booked spot `s` on their way to it, if anyone. The game wires this to its claims. */
+  bookedBy: (s: SpotRuntime) => object | null = () => null;
+
   isFree(s: SpotRuntime, except?: Vehicle): boolean {
-    return !s.phantom && (!s.occupant || s.occupant === except);
+    const booked = this.bookedBy(s);
+    return !s.phantom && (!s.occupant || s.occupant === except) && (!booked || booked === except);
   }
 
   /** Nearest free spot, only on `floor` if one is given. */

@@ -50,7 +50,9 @@ import { Casualties } from './casualties';
 import { CameraController, type CamMode } from './camera-controller';
 import { CallElevator, type CodyAction, type CodyCandidate, Eat, GetOut, GiveTires, InteractWithVehicle, PickFloor, type Play, RANK, RockOver, Summon, TalkToValet } from './cody-actions';
 import { CodyState, FRIGHTENING } from './cody-state';
+import { CLAIMS, type ClaimKind } from './claim-kinds';
 import { Doing, resolveFully } from '../engine/sim/action';
+import { Claims } from '../engine/sim/claims';
 import { bestOffers } from '../engine/sim/offers';
 import { Phases } from '../engine/sim/phase';
 import { Space } from '../engine/sim/space';
@@ -114,6 +116,8 @@ const _splat = new Vector3();
 const _splatSize: [number, number] = [0, 0];
 const SPLAT_LIFE: [number, number] = [0.25, 0.5];
 const _prev = new Vector3();
+/** Where an AI-driven car was before this step, for its gate crossings. */
+const _drivePrev = new Vector3();
 const _at = new Vector3();
 /** Where two cars met, hardest this frame. */
 const _met = new Vector3();
@@ -332,6 +336,10 @@ export class Game {
   readonly cody: CodyState;
   /** What the time of day means for each rule (deck awake, valets on shift, parking, daylight). */
   readonly conditions: WorldConditions;
+  /** Who holds what: driver's seats, spots on the way to being parked in, the deck's room for diversions. */
+  readonly claims = new Claims<ClaimKind>(CLAIMS);
+  /** The owner of the driver's seat Cody holds. It ends when he gets out. */
+  private readonly codySeat = { name: 'Cody at the wheel' };
   /** Where everything that perceives or is perceived is, indexed once at the start of each frame. */
   private readonly space = new Space<Thing>(8, LEVEL.person);
   private readonly things: Thing[] = [];
@@ -510,11 +518,29 @@ export class Game {
     // frightened drivers run for the deck through its entry gate (or, in a level without one, its middle)
     const gate = level.gates.find((g) => g.kind === 'entry');
     const entry = gate ? new Vector3((gate.min[0] + gate.max[0]) / 2, gate.min[1], (gate.min[2] + gate.max[2]) / 2) : this.deckCenter.clone();
-    this.refuge = new Refuge(this.planner, this.nav, this.world.collision, this.garage, this.fleet, entry, this.exitBlocks, {
-      bail: (car, from) => this.crowd.bail(car, from),
-      wrecked: (car, from) => this.shaken.set(car, from.clone()),
-      parked: (_car, s) => this.hud.toast('SPOOKED INTO THE DECK', spotLabel(s), 'purple', 1.6),
-    });
+    this.garage.bookedBy = (s) => this.claims.holder('spot', s);
+    this.refuge = new Refuge(
+      {
+        claims: this.claims,
+        planner: this.planner,
+        nav: this.nav,
+        garage: this.garage,
+        fleet: this.fleet,
+        entryOnly: this.exitBlocks,
+        obstacles: () => this.valetObstacles,
+        steer: (car, input, dt) => {
+          const prev = _drivePrev.copy(car.pos);
+          car.drive(dt, input, this.world.collision);
+          this.garage.track(car, prev);
+        },
+        place: (car, at, yaw, dt) => car.place(at.x, at.y, at.z, yaw, 0, dt, this.world.collision),
+        alive: (car) => car.role === 'visitor' && this.fleet.vehicles.includes(car),
+        bail: (car, from) => this.crowd.bail(car, from),
+        wrecked: (car, from) => this.shaken.set(car, from.clone()),
+        parked: (_car, s) => this.hud.toast('SPOOKED INTO THE DECK', spotLabel(s), 'purple', 1.6),
+      },
+      entry,
+    );
     this.detours = new Detours(this.planner, this.nav, this.world.collision, this.fleet, this.traffic, (car) => this.vehicleContacts(car, NUDGE_LOOSEN));
     this.ghosts = new Ghosts(level.ghostZones, 28);
     this.bats = new Bats(new Vector3(this.deckCenter.x, 0, this.deckCenter.z), 16);
@@ -798,6 +824,7 @@ export class Game {
 
     // Sense: index where everything is before anything moves this frame.
     this.phases.enter('sense');
+    this.claims.newFrame();
     this.sense();
     // Act: the systems below still decide and move in one pass; later stages split them.
     this.phases.enter('act');
@@ -1150,6 +1177,8 @@ export class Game {
   }
 
   private enter(v: Vehicle): void {
+    // Cody takes the wheel from whoever had it. A driver running for the deck loses the seat, and stops.
+    this.claims.take('driverSeat', this.cody, v, { owner: this.codySeat, preempt: true });
     this.player.visible = false;
     this.iso.zoomTarget = Math.max(this.iso.zoomTarget, TUNING.camera.driveZoom);
     this.hud.setPrompt(null);
@@ -1320,6 +1349,7 @@ export class Game {
   private exit(): void {
     const v = this.driving as Vehicle;
     this.driving = null;
+    this.claims.release(this.codySeat);
     // An escaped vehicle's roll ends with the drive, so the next vehicle Cody takes is not affected.
     this.escapedTimer = -1;
     this.hud.setMode('foot');
@@ -1543,7 +1573,7 @@ export class Game {
       this.visitors.update(dt, obstacles, this.view.target);
       // a visitor's car crashed on the way: its driver gets out and runs once it stops
       for (const v of this.visitors.stranded.splice(0)) this.shaken.set(v, v.pos.clone());
-      this.refuge.update(dt, obstacles, this.phantomAt);
+      this.refuge.update(dt, this.phantomAt);
       this.detours.update(dt, obstacles);
       // a car crashed pulling round: its driver gets out and runs once it stops
       for (const v of this.detours.stranded.splice(0)) this.shaken.set(v, v.pos.clone());

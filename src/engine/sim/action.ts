@@ -39,6 +39,9 @@ export abstract class Action<S, W extends S> {
   }
 
   abstract perform(w: W, dt: number): Result<Action<S, W>>;
+
+  /** Called once when the action ends, however it ends, so it can let go of what it started (a route request, say). */
+  stop(): void {}
 }
 
 /** Follows resolve() hand-offs to the action that would really happen. It has no side effects. */
@@ -72,8 +75,15 @@ export class Sequence<S, W extends S> extends Action<S, W> {
       this.steps[this.at] = result.instead;
       return running;
     }
-    if ('done' in result) return ++this.at < this.steps.length ? running : done;
+    if ('done' in result) {
+      step.stop();
+      return ++this.at < this.steps.length ? running : done;
+    }
     return result;
+  }
+
+  stop(): void {
+    this.steps[this.at]?.stop();
   }
 }
 
@@ -126,6 +136,7 @@ export class Doing<S, W extends S> {
     const keep = (a: Action<S, W>): boolean => a.owner !== owner;
     for (const action of [...this.running, ...this.started]) {
       if (keep(action)) continue;
+      action.stop();
       this.hooks.end(action.owner);
       this.hooks.failed?.(action, reason);
     }
@@ -142,7 +153,8 @@ export class Doing<S, W extends S> {
     let current = action;
     let result: Result<Action<S, W>> = this.hooks.lost(current.owner) ? fail('lost') : current.perform(w, dt);
     for (let hop = 0; 'instead' in result; hop++) {
-      // A hand-off found while doing it: the old action's claims end, and the new one starts.
+      // A hand-off found while doing it: the old action stops and its claims end, and the new one starts.
+      current.stop();
       this.hooks.end(current.owner);
       const next = hop < MAX_HOPS ? resolveFully(w, result.instead) : fail('NOTHING HAPPENS');
       if ('fail' in next) {
@@ -153,6 +165,7 @@ export class Doing<S, W extends S> {
       result = current.perform(w, dt);
     }
     if (!('running' in result)) {
+      current.stop();
       this.hooks.end(current.owner);
       if ('done' in result) this.hooks.performed?.(current);
       else if ('fail' in result) this.hooks.failed?.(current, result.fail);

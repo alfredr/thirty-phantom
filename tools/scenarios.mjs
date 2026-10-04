@@ -35,6 +35,33 @@ const SCENARIOS = {
     };
   },
 
+  /** Cody takes a car while its frightened driver is running it for the deck: the run stops, and its spot is free again. */
+  divertCarjack: () => {
+    const g = window.__game;
+    const sim = window.__sim;
+    g.start();
+    sim.run(200);
+    g.debug.night();
+    sim.run(90);
+    const id = g.debug.divert();
+    const car = g.vehicles.find((v) => v.id === id);
+    if (!car) return { ok: false, why: 'no traffic car would divert' };
+    sim.run(90);
+    const spot = g.garage.spots.find((s) => g.claims.holder('spot', s) === car);
+    // board() is the scripted way in, past Cody's abilities: at night phantom Cody couldn't steal it out on the street.
+    g.board(car);
+    sim.run(3);
+    const peopleAfter = g.crowd.living().length;
+    sim.run(30);
+    return {
+      ok: g.refuge.count === 0 && car.role === 'player' && !!spot && g.garage.isFree(spot) && g.crowd.living().length === peopleAfter,
+      cody: car.role,
+      runsLeft: g.refuge.count,
+      spotFreed: !!spot && g.garage.isFree(spot),
+      maxJump: 0,
+    };
+  },
+
   /** A valet takes a car to a deck spot, parks it, and comes back to the stand. */
   valet: () => {
     const g = window.__game;
