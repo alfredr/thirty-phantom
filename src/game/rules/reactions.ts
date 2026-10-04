@@ -1,7 +1,8 @@
 import type { Vector3 } from 'three';
 import type { Vehicle } from '../../actors/vehicle';
 import { _, type Space } from '../../engine/sim/space';
-import type { Crowd, Person } from '../town/crowd';
+import type { Crowd } from '../town/crowd';
+import type { Townsperson } from '../town/town-mind';
 import { LEVEL, REACH } from './reach';
 
 /** Everything that can perceive or be perceived this frame, as the space indexes it. */
@@ -9,7 +10,7 @@ export type Thing =
   | { readonly kind: 'phantom'; readonly pos: Vector3 }
   | { readonly kind: 'phantomTruck'; readonly pos: Vector3; readonly vehicle: Vehicle }
   | { readonly kind: 'skeleton'; readonly pos: Vector3 }
-  | { readonly kind: 'townsperson'; readonly pos: Vector3; readonly person: Person }
+  | { readonly kind: 'townsperson'; readonly pos: Vector3; readonly person: Townsperson }
   | { readonly kind: 'driver'; readonly pos: Vector3; readonly vehicle: Vehicle };
 
 export type ThingKind = Thing['kind'];
