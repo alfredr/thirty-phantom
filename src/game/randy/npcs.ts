@@ -1,17 +1,17 @@
 import { type Object3D, Quaternion, type Scene, Vector3 } from 'three';
+import { buildJunk } from '../../actors/models/junk';
 import { buildRandy, type RandyRig, ROAST_LIFT } from '../../actors/models/randy';
 import { buildTrashFire, CAN_TOP } from '../../actors/models/trash-fire';
 import { ArcPath } from '../../fx/arc-path';
 import { Highlight } from '../../fx/highlight';
 import { clamp, damp, dampAngle, wrapAngle } from '../../core/math';
+import { type EventOf, Mind } from '../../engine/sim/mind';
 import type { NpcDef } from '../../world/level-data';
+import { type Pitch, RANDY_PITCH, RANDY_WORK, type RandyEvents, type Work } from './randy-mind';
 
 /** Cody this close (m, on his level) gets Randy's attention: he looks over, and between pitches turns to him and opens his coat. */
 const PITCH_REACH = 5;
 const SAME_LEVEL = 2;
-/** He holds the coat open this long (s), then closes it and waits this long before the next pitch. */
-const PITCH_HOLD = 3.5;
-const PITCH_REST = 4;
 /**
  * He flashes one side of the coat, the left (his right hand has the stick):
  * how wide that flap swings (rad: past a right angle, so the lining and the
@@ -41,7 +41,7 @@ const TURN_MEAT_RATE = 2.2;
 /** Flames lick up and down: each one's height swings by FLICKER around FLAME_REST of its own, at two rates, and its width by WOBBLE. */
 const FLAME_REST = 0.8;
 const FLICKER = 0.35;
-const FLICKER_RATES = [7.3, 11.1];
+const FLICKER_RATES: readonly [number, number] = [7.3, 11.1];
 const WOBBLE = 0.12;
 /**
  * Tossing something from his left hand: the arm winds back and swings
@@ -78,34 +78,105 @@ const PLUME_TIME = 1.6;
 /** What each is called on the HUD. */
 export const NPC_NAMES: Readonly<Record<NpcDef['id'], string>> = { randy: 'RANDY' };
 
-export interface Npc {
-  readonly def: NpcDef;
-  readonly rig: RandyRig;
-  /** Where he stands, and the way he faces when nobody's about (at his fire). Move him with Npcs.place. */
-  readonly pos: Vector3;
+/** His trash can fire, and where it sits in his own frame (x to his left, z ahead). */
+export interface TrashFire {
+  root: Object3D;
+  flames: readonly Object3D[];
+  at: [number, number];
+}
+
+/** Something he's throwing: from his hand to `to` (world), its flight time, how far into the throw, and where in his hand it came from. */
+interface Toss {
+  item: Object3D;
+  to: Vector3;
+  from: Vector3;
+  flight: number;
+  t: number;
+  released: boolean;
+  hand: { parent: Object3D | null; pos: Vector3; quat: Quaternion };
+  highlight: Highlight;
+  path: ArcPath | null;
+  lift: number;
+}
+
+/** Something on its way into his fire. */
+interface Feed {
+  item: Object3D;
+  from: Vector3;
+  t: number;
+  done: () => void;
+}
+
+/**
+ * Randy: his body and fire, and his two minds (randy-mind.ts), the pitch
+ * (his coat, and a scene holding him) and his work at the fire. Tell him
+ * things with hear(): a scene holds and releases him and flashes his coat,
+ * the shop has Cody browsing, and Cody hands him tires.
+ */
+export class Npc {
+  readonly pitch: Mind<Npc, Pitch, RandyEvents>;
+  readonly work: Mind<Npc, Work, RandyEvents>;
+  /** The way he faces when nobody's about (at his fire), and the way he's facing. Move him with Npcs.place. */
   homeYaw: number;
   yaw: number;
-  /** While held, what he turns to instead of Cody (a car window, say), or null. */
-  face: Vector3 | null;
   /** Coat open, 0..1. */
-  open: number;
-  /** Pitching to Cody right now (coat open, facing him). Set it while he's held to have him flash the coat. */
-  pitching: boolean;
-  /** Held in a conversation: turns toward Cody (as far as his fire allows), roasts on, and pitches only when told to. */
-  held: boolean;
-  /** Cody's at his wares (the shop menu's up): the coat stays open. */
-  shopping: boolean;
-  t: number;
-  /** Time into the current pitch or the rest between pitches. */
-  pitchT: number;
-  /** His trash can fire, and where it sits in his own frame (x to his left, z ahead), if he keeps one. */
-  readonly fire: { root: Object3D; flames: readonly Object3D[]; at: [number, number] } | null;
-  /** Something he's throwing: from his hand to `to` (world), its flight time, how far into the throw, and where in his hand it came from. */
-  toss: { item: Object3D; to: Vector3; from: Vector3; flight: number; t: number; released: boolean; hand: { parent: Object3D | null; pos: Vector3; quat: Quaternion }; highlight: Highlight; path: ArcPath | null; lift: number } | null;
+  open = 0;
+  t = Math.random() * GLANCE_EVERY;
+  /** Cody's close on foot, on his level, this frame. */
+  near = false;
+  toss: Toss | null = null;
   /** How hard his fire's roaring from being fed, 1 just fed down to 0. */
-  plume: number;
+  plume = 0;
   /** Things on their way into his fire. */
-  readonly feeding: { item: Object3D; from: Vector3; t: number; done: () => void }[];
+  feeding: Feed[] = [];
+
+  constructor(
+    readonly def: NpcDef,
+    readonly rig: RandyRig,
+    /** Where he stands. */
+    readonly pos: Vector3,
+    readonly fire: TrashFire | null,
+    readonly npcs: Npcs,
+  ) {
+    this.homeYaw = this.yaw = def.yaw;
+    this.pitch = new Mind<Npc, Pitch, RandyEvents>(RANDY_PITCH, this, { at: 'resting', t: 0 });
+    this.work = new Mind<Npc, Work, RandyEvents>(RANDY_WORK, this, { at: 'roasting' });
+  }
+
+  /** A scene has him: he turns toward Cody (as far as his fire allows), roasts on, and opens his coat only when told to. */
+  get held(): boolean {
+    return !!this.pitch.in('directed');
+  }
+
+  /** While a scene has him, what he turns to instead of Cody (a car window, say), or null. */
+  get face(): Vector3 | null {
+    return this.pitch.in('directed')?.face ?? null;
+  }
+
+  /** His coat's open on his wares, facing Cody. */
+  get pitching(): boolean {
+    const s = this.pitch.state;
+    return s.at === 'pitching' || s.at === 'browsing' || (s.at === 'directed' && s.open);
+  }
+
+  /** Both his minds hear `event`. True if either moved. */
+  hear(event: EventOf<RandyEvents>): boolean {
+    const pitch = this.pitch.hear(event);
+    const work = this.work.hear(event);
+    return pitch || work;
+  }
+}
+
+/** What Randy's doings tell the game. */
+export interface NpcHooks {
+  /** A thing he threw has landed: a copy lies at the ground height `floor` (the one in his hand goes back, hidden). */
+  landed(item: Object3D, floor: number): void;
+  /** The highest surface at (x, z) no higher than `below`, so a throw can clear what's under it. */
+  ground(x: number, z: number, below: number): number;
+  /** A tire went into his fire at `at`. */
+  burned(at: Vector3): void;
+  /** The last of `n` tires Cody gave him has gone in. */
+  fed(n: number): void;
 }
 
 /**
@@ -119,10 +190,7 @@ export class Npcs {
   constructor(
     defs: readonly NpcDef[],
     private readonly scene: Scene,
-    /** A thing he threw has landed: a copy lies at the ground height `floor` (the one in his hand goes back, hidden). */
-    private readonly landed: (item: Object3D, floor: number) => void = () => {},
-    /** The highest surface at (x, z) no higher than `below`, so a throw can clear what's under it. */
-    private readonly ground: (x: number, z: number, below: number) => number = () => -Infinity,
+    private readonly hooks: NpcHooks,
   ) {
     this.list = defs.map((def) => {
       const rig = buildRandy();
@@ -130,7 +198,7 @@ export class Npcs {
       rig.root.position.copy(pos);
       rig.root.rotation.y = def.yaw;
       scene.add(rig.root);
-      let fire: Npc['fire'] = null;
+      let fire: TrashFire | null = null;
       if (def.fire) {
         const built = buildTrashFire();
         built.root.position.set(...def.fire);
@@ -142,7 +210,7 @@ export class Npcs {
         const sn = Math.sin(def.yaw);
         fire = { root: built.root, flames: built.flames, at: [dx * c - dz * sn, dx * sn + dz * c] };
       }
-      return { def, rig, pos, homeYaw: def.yaw, yaw: def.yaw, face: null, open: 0, pitching: false, held: false, shopping: false, t: Math.random() * GLANCE_EVERY, pitchT: 0, fire, toss: null, plume: 0, feeding: [] };
+      return new Npc(def, rig, pos, fire, this);
     });
   }
 
@@ -204,6 +272,20 @@ export class Npcs {
     n.plume = 1;
   }
 
+  /** One of the tires Cody gave him goes into the fire, from Cody's hands at `from`. */
+  feedTire(n: Npc, from: Vector3): void {
+    const tire = buildJunk('tire');
+    this.scene.add(tire);
+    this.feed(n, tire, from, () => {
+      if (n.fire) this.hooks.burned(n.fire.root.position);
+    });
+  }
+
+  /** The last of `count` tires has gone in. */
+  fed(_n: Npc, count: number): void {
+    this.hooks.fed(count);
+  }
+
   /**
    * How hard a throw from `from` to `to` is lobbed (the arc's `lift`, see
    * arcAt): enough for its usual height, and to clear everything under it
@@ -217,7 +299,7 @@ export class Npcs {
     for (let i = 1; i < TOSS_SAMPLES; i++) {
       const u = i / TOSS_SAMPLES;
       if (u > 1 - TOSS_LAND) break;
-      const h = this.ground(from.x + (to.x - from.x) * u, from.z + (to.z - from.z) * u, top);
+      const h = this.hooks.ground(from.x + (to.x - from.x) * u, from.z + (to.z - from.z) * u, top);
       if (!Number.isFinite(h)) continue;
       lift = Math.max(lift, (h + TOSS_CLEAR - from.y - drop * u * u) / (u * (1 - u)));
     }
@@ -225,7 +307,7 @@ export class Npcs {
   }
 
   /** Throw arcs fading out after their throw. */
-  private readonly trails: ArcPath[] = [];
+  private trails: ArcPath[] = [];
 
   /** The NPC with this id, if the level has one. */
   find(id: NpcDef['id']): Npc | null {
@@ -248,31 +330,18 @@ export class Npcs {
 
   /** `cody`: where Cody is on foot, or null (driving, or off somewhere else). */
   update(dt: number, cody: Vector3 | null): void {
-    for (let i = this.trails.length - 1; i >= 0; i--) {
-      const tr = this.trails[i] as ArcPath;
-      if (!tr.update(dt)) {
-        tr.dispose();
-        this.trails.splice(i, 1);
-      }
+    const fading: ArcPath[] = [];
+    for (const tr of this.trails) {
+      if (tr.update(dt)) fading.push(tr);
+      else tr.dispose();
     }
+    this.trails = fading;
     for (const n of this.list) {
       n.toss?.path?.update(dt);
       n.t += dt;
-      n.pitchT += dt;
-      const near = cody !== null && Math.hypot(cody.x - n.pos.x, cody.z - n.pos.z) < PITCH_REACH && Math.abs(cody.y - n.pos.y) < SAME_LEVEL;
-      // pitch while Cody's close: open for a while, closed (back to the fire) for a while, again
-      if (!n.held) {
-        if (!near) {
-          n.pitching = false;
-        } else if (!n.pitching && n.pitchT > PITCH_REST) {
-          n.pitching = true;
-          n.pitchT = 0;
-        } else if (n.pitching && n.pitchT > PITCH_HOLD && !n.shopping) {
-          // (he keeps it open while Cody's browsing)
-          n.pitching = false;
-          n.pitchT = 0;
-        }
-      }
+      n.near = cody !== null && Math.hypot(cody.x - n.pos.x, cody.z - n.pos.z) < PITCH_REACH && Math.abs(cody.y - n.pos.y) < SAME_LEVEL;
+      n.pitch.tick(dt);
+      n.work.tick(dt);
       const r = n.rig;
       // he never leaves his fire: the body turns partway toward Cody (or whatever he's told to face) to pitch or talk, the head does the rest
       const at = n.held && n.face ? n.face : cody;
@@ -291,14 +360,14 @@ export class Npcs {
       r.armR.rotation.x = -ROAST_LIFT + Math.sin(n.t * TURN_MEAT_RATE) * TURN_MEAT;
       r.body.position.y = Math.sin(n.t * SWAY_RATE) * SWAY;
       // looking: at Cody when he's about (head only, unless he's turned to him), else the odd glance
-      const look = near || n.held || n.face ? clamp(wrapAngle(toCody - n.yaw), -LOOK, LOOK) : Math.max(0, Math.sin((n.t / GLANCE_EVERY) * Math.PI * 2)) ** 4 * GLANCE;
+      const look = n.near || n.held || n.face ? clamp(wrapAngle(toCody - n.yaw), -LOOK, LOOK) : Math.max(0, Math.sin((n.t / GLANCE_EVERY) * Math.PI * 2)) ** 4 * GLANCE;
       r.head.rotation.y = damp(r.head.rotation.y, look, TURN_RATE, dt);
       // the fire, roaring up for a moment when fed
       this.feedFire(n, dt);
       n.plume = Math.max(0, n.plume - dt / PLUME_TIME);
       const roar = n.plume * n.plume;
       n.fire?.flames.forEach((f, i) => {
-        const a = Math.sin(n.t * (FLICKER_RATES[0] as number) + i * 1.7) * 0.6 + Math.sin(n.t * (FLICKER_RATES[1] as number) + i * 2.9) * 0.4;
+        const a = Math.sin(n.t * FLICKER_RATES[0] + i * 1.7) * 0.6 + Math.sin(n.t * FLICKER_RATES[1] + i * 2.9) * 0.4;
         const wide = 1 + roar * PLUME_WIDTH;
         f.scale.set((1 + a * WOBBLE) * wide, (FLAME_REST + a * FLICKER) * (1 + roar * PLUME_HEIGHT), (1 - a * WOBBLE) * wide);
       });
@@ -321,8 +390,9 @@ export class Npcs {
   private feedFire(n: Npc, dt: number): void {
     const fire = n.fire;
     if (!fire) return;
-    for (let i = n.feeding.length - 1; i >= 0; i--) {
-      const f = n.feeding[i] as Npc['feeding'][number];
+    const flying: Feed[] = [];
+    const landed: Feed[] = [];
+    for (const f of n.feeding) {
       f.t += dt;
       const u = Math.min(1, f.t / FEED_FLIGHT);
       const to = fire.root.position;
@@ -331,9 +401,11 @@ export class Npcs {
       const rim = to.y + CAN_TOP - FEED_SINK * u - f.from.y;
       f.item.position.y = f.from.y + rim * u + 4 * FEED_ARC * u * (1 - u);
       f.item.rotation.x += TOSS_SPIN * dt;
-      if (u < 1) continue;
+      (u < 1 ? flying : landed).push(f);
+    }
+    n.feeding = flying;
+    for (const f of landed) {
       this.scene.remove(f.item);
-      n.feeding.splice(i, 1);
       this.stoke(n);
       f.done();
     }
@@ -381,7 +453,7 @@ export class Npcs {
       }
       const lying = tw.item.clone();
       this.scene.add(lying);
-      this.landed(lying, tw.to.y);
+      this.hooks.landed(lying, tw.to.y);
       tw.item.visible = false;
       tw.hand.parent?.add(tw.item);
       tw.item.position.copy(tw.hand.pos);

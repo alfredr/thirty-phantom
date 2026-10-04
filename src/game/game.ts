@@ -70,9 +70,10 @@ import { type Crossing, Garage, spotLabel, type SpotRuntime } from './deck/garag
 import { Inventory, type ItemActionId, type ItemKind, ITEM_NAMES, ITEM_NOTES, isItemKind } from './items/inventory';
 import { Junk } from './items/junk';
 import { Money } from './items/money';
-import { NPC_NAMES, type Npc, Npcs } from './randy/npcs';
+import { NPC_NAMES, Npcs } from './randy/npcs';
 import { makePortraits, type Portraits } from './story/portraits';
 import { RouteGuide } from './route-guide';
+import { Shop } from './randy/shop';
 import { TireTrade } from './randy/tire-trade';
 import { Wares } from './randy/wares';
 import { Objectives } from './story/objectives';
@@ -161,8 +162,6 @@ const PROMPT_CONTROLS: readonly Control[] = ['hop', 'interact', 'pay'];
 /** The controls that perform Cody's offers when pressed. */
 const ACT_CONTROLS: readonly Control[] = ['interact', 'pay', 'summon', 'hop'];
 /** Randy's wares are up while Cody's within this of him (m, on his level) and his coat's open. */
-const SHOP_REACH = 2.8;
-const SHOP_LEVEL = 2;
 /** People on foot keep this far from Randy and from the middle of his trash can fire (m). */
 const NPC_ROOM = 0.4;
 const FIRE_ROOM = 0.45;
@@ -225,6 +224,10 @@ export type GameEvents = {
   crossing: Crossing;
   nightfall: null;
   sunrise: null;
+  /** One of Cody's actions happened: the action itself, for whatever waits on one (a quest step, an NPC's mind). */
+  performed: { action: CodyAction };
+  /** One of Cody's actions couldn't happen, and why. */
+  failed: { action: CodyAction; reason: string };
 };
 
 /** A cutscene takes the camera to `focus` (iso view, zoom `zoom`) and the controls from the player. */
@@ -312,6 +315,7 @@ export class Game {
   waresShown = false;
   /** Randy takes tires for his fire and pays in brisket (the tutorial can run it, or switch it off). */
   readonly tires: TireTrade;
+  private readonly shop: Shop;
   /** Randy Rolsen and anyone else hanging about to be talked to (the tutorial finds them here). */
   readonly npcs: Npcs;
   /** The elevators' cabs and doors (the deck's, beside the stair tower). */
@@ -323,8 +327,10 @@ export class Game {
   private readonly doing = new Doing<Play, Play>({
     lost: () => false,
     end: () => undefined,
-    failed: (_action, reason) => {
+    performed: (action) => this.events.emit('performed', { action }),
+    failed: (action, reason) => {
       if (reason) this.hud.toast(reason, '', 'warn', FAIL_TOAST);
+      this.events.emit('failed', { action, reason });
     },
   });
   /** Offers that scripts add for a while, such as the tutorial's talk with Randy. */
@@ -500,24 +506,22 @@ export class Game {
     this.money.scatter();
     this.junk = new Junk(this.scene, this.nav, this.rng);
     // Randy only ever throws Cody's badge: it lies where it lands, sauced, till he picks it up
-    this.npcs = new Npcs(
-      level.npcs,
-      this.scene,
-      (item, floor) => this.junk.lay('badge', item, floor),
-      (x, z, below) => this.world.collision.groundAt(x, z, below, 0),
-    );
-    this.tires = new TireTrade(this.npcs, this.inventory, this.scene, {
-      gave: (n, to) => this.deed({ how: 'gave', kind: 'tire', n, to: to.def.id }),
-      paid: (n) => {
-        this.gain('brisket', n);
-        this.hud.toast(`+${n} BRISKET`, n > 1 ? 'NOW THAT IS A FIRE' : 'NOW WE ARE COOKING', 'purple', TRADE_TOAST);
-      },
-      burn: (at) => {
+    this.npcs = new Npcs(level.npcs, this.scene, {
+      landed: (item, floor) => this.junk.lay('badge', item, floor),
+      ground: (x, z, below) => this.world.collision.groundAt(x, z, below, 0),
+      burned: (at) => {
         _at.copy(at).setY(at.y + 1);
         this.sprites.spray(_at, 7, 0.7, [1.2, 2.6], TIRE_SMOKE, 0.35, 1.5, [1.4, 2.4], 'puff', 0.85);
         this.debris.burst(_at, 14, 2.5, [0.03, 0.07], [0.6, 1.3], EMBER, 2.2, at.y);
         this.events.emit('stoked', { at: at.clone() });
       },
+      // the brisket was his the moment he handed the tires over; the toast waits for the show
+      fed: (n) => this.hud.toast(`+${n} BRISKET`, n > 1 ? 'NOW THAT IS A FIRE' : 'NOW WE ARE COOKING', 'purple', TRADE_TOAST),
+    });
+    this.shop = new Shop(this.npcs);
+    this.tires = new TireTrade(this.npcs, this.inventory, {
+      gave: (n, to) => this.deed({ how: 'gave', kind: 'tire', n, to: to.def.id }),
+      paid: (n) => this.gain('brisket', n),
     });
     // people cars hit: ragdolls, and the blood they leave
     this.blood = new BloodSim(this.world.collision);
@@ -974,7 +978,6 @@ export class Game {
       const note = ITEM_NOTES[kind];
       this.hud.toast(`+ ${ITEM_NAMES[kind]}`, note ?? '', '', note ? TRADE_TOAST : MONEY_TOAST);
     }
-    this.tires.update(dt, this.mode === 'play' ? onFoot : null);
     this.updateShop(onFoot && this.mode === 'play' && !this.cutscene ? onFoot : null);
     // The HUD's item list shows what Cody could do with each item now, and redraws when that or his items change.
     const items = this.inventory.list().map(([kind, count]) => ({ kind, count, offers: this.itemOffers(kind) }));
@@ -993,14 +996,9 @@ export class Game {
     }
   }
 
-  /** Randy's coat open with Cody close on foot (and no scene holding Randy): his wares are up, and the coat stays open. */
+  /** Cody at Randy's wares (the shop encounter), or a scene showing them: the wares menu is up. */
   private updateShop(cody: Vector3 | null): void {
-    let open: Npc | null = null;
-    for (const n of this.npcs.list) {
-      const near = cody !== null && !n.held && n.pitching && n.fire !== null && Math.hypot(n.pos.x - cody.x, n.pos.z - cody.z) < SHOP_REACH && Math.abs(n.pos.y - cody.y) < SHOP_LEVEL;
-      n.shopping = near;
-      if (near) open = n;
-    }
+    const open = this.shop.update(cody);
     // a scene showing his wares (the tutorial's coat flash) shows them whatever else is going on
     const show = open !== null || this.waresShown;
     this.hud.setWares(show ? { title: "RANDY'S WARES", slots: this.wares.view(this.money.cash) } : null);

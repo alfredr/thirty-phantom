@@ -367,8 +367,7 @@ export class Tutorial {
     this.truck = truck;
     g.npcs.place(r, st.randy, st.randyYaw);
     r.rig.phone.visible = false;
-    r.held = true;
-    r.face = st.window;
+    r.hear({ type: 'held', face: st.window });
     this.talkFocus.addVectors(st.window, st.randy).multiplyScalar(0.5).setY(st.randy.y + TALK_HEIGHT);
     // a view of the pair and the pickup's nose that none of the roof's towers stands in front of
     _fwd.set(Math.sin(st.yaw), 0, Math.cos(st.yaw));
@@ -499,7 +498,7 @@ export class Tutorial {
     const npcs = g.npcs;
     const toss = (this.stage as Stage).toss;
     const coat = (open: boolean, phone = false) => (): void => {
-      r.pitching = open;
+      r.hear({ type: 'flash', open });
       r.rig.phone.visible = phone;
     };
     return [
@@ -562,9 +561,7 @@ export class Tutorial {
     const g = this.game;
     const r = this.randy as Npc;
     this.throwCam = null;
-    r.held = false;
-    r.face = null;
-    r.pitching = false;
+    r.hear({ type: 'released' });
     r.rig.phone.visible = false;
     g.waresShown = false;
     g.cutscene = null;
@@ -636,20 +633,19 @@ export class Tutorial {
   private meet(r: Npc): void {
     const g = this.game;
     if (g.inventory.count('tire') === 0) {
-      r.held = true;
+      r.hear({ type: 'held', face: null });
       this.dialogue.play(NO_WHEELS, () => {
-        r.held = false;
+        r.hear({ type: 'released' });
       });
       return;
     }
     this.step = 'brisket';
     g.objectives.remove(RANDY_MARK);
-    r.held = true;
+    r.hear({ type: 'held', face: null });
     this.talkFocus.addVectors(r.pos, g.player.pos).multiplyScalar(0.5).setY(r.pos.y + TALK_HEIGHT);
     g.cutscene = { focus: this.talkFocus, zoom: BASEMENT_ZOOM };
     this.dialogue.play(this.brisket(r), () => {
-      r.held = false;
-      r.pitching = false;
+      r.hear({ type: 'released' });
       g.cutscene = null;
       this.go('outside');
     });
@@ -659,7 +655,7 @@ export class Tutorial {
   private brisket(r: Npc): DialogueLine[] {
     const g = this.game;
     const coat = (open: boolean) => (): void => {
-      r.pitching = open;
+      r.hear({ type: 'flash', open });
     };
     const lines: DialogueLine[] = [];
     if (g.inventory.count('tire') > 0) lines.push({ who: 'left', say: 'OHHH. NICE WHEELS.', cue: () => void g.tires.give(r, g.player.pos) });

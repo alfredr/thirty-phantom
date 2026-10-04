@@ -138,7 +138,7 @@ export class Leave extends DriverJob {
  */
 export class Visitors {
   private readonly bays: Berth[];
-  private readonly coming: Coming[] = [];
+  private coming: Coming[] = [];
   private arrivals: Arrive[] = [];
   /** Cars visitors left in stalls, and where, while their drivers are out and about. */
   private readonly parked = new Map<Vehicle, Vector3>();
@@ -249,10 +249,9 @@ export class Visitors {
   /** `view`: where the camera is. Cars on their way in turn up once their route's ready and their start is out of sight. */
   update(dt: number, view: Vector3): void {
     this.view.copy(view);
-    for (let i = this.coming.length - 1; i >= 0; i--) {
-      const c = this.coming[i] as Coming;
-      if (this.turnUp(c, dt)) this.coming.splice(i, 1);
-    }
+    const waiting: Coming[] = [];
+    for (const c of this.coming) if (!this.turnUp(c, dt)) waiting.push(c);
+    this.coming = waiting;
   }
 
   /** One frame of waiting for a newcomer's car to turn up; true once it has, or they've given up. */

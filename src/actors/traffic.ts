@@ -129,7 +129,8 @@ export class Traffic {
   spawnPoint(rng: Rng, avoid: Vector3, minDist: number, others: Vehicle[]): { path: number; s: number } | null {
     for (let tries = 0; tries < SPAWN_TRIES; tries++) {
       const path = rng.int(0, this.paths.length - 1);
-      const p = this.paths[path] as Polyline;
+      const p = this.paths[path];
+      if (!p) continue;
       const s = rng.range(0, p.total);
       p.sample(s, _p, _d);
       if (_p.distanceTo(avoid) < minDist) continue;
