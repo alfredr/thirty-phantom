@@ -40,7 +40,7 @@ export class TransformSequence {
     private readonly fx: FxKit,
   ) {
     this.oldRig = vehicle.rig;
-    vehicle.role = 'transforming';
+    vehicle.setStatus('transforming');
     vehicle.vel.set(0, 0, 0);
   }
 
@@ -67,6 +67,7 @@ export class TransformSequence {
       nr.root.scale.setScalar(nr.scale * Math.max(0.05, easeOutElastic(k)));
       if (k >= 1) {
         nr.root.scale.setScalar(nr.scale);
+        v.setStatus(null);
         this.done = true;
       }
     }

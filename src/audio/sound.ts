@@ -94,7 +94,7 @@ export class Sound {
     ev.on('sunrise', () => {
       this.mixer.play('dawn', 'stinger-dawn');
       // the night's trucks turning back into cars
-      for (const v of game.vehicles) if (v.role === 'transforming' && v.form === 'truck') this.mixer.play('morph', 'morph-car', { at: v.pos });
+      for (const v of game.vehicles) if (v.status === 'transforming' && v.form === 'truck') this.mixer.play('morph', 'morph-car', { at: v.pos });
     });
     ev.on('outfit', ({ form, at }) => this.mixer.play('outfit', form === 'night' ? 'outfit-phantom' : 'outfit-day', { at }));
     ev.on('entered', ({ v, possessed }) => {
@@ -130,7 +130,7 @@ export class Sound {
   private frame(dt: number): void {
     this.time += dt;
     const g = this.game;
-    const ride = g.vehicles.find((v) => v.role === 'player') ?? null;
+    const ride = g.vehicles.find((v) => v.role === 'player' && !v.status) ?? null;
     // heard from Cody (in his ride), or from what a cutscene looks at; panned with the camera on screen
     this.mixer.ear.copy(g.cutscene?.focus ?? ride?.pos ?? g.player.pos);
     const cam = g.gfx.chaseView ? g.chase.camera : g.iso.camera;

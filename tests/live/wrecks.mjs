@@ -34,3 +34,33 @@ export function wreckSmashesThroughAParapet() {
   const broken = g.world.breakables.filter((b) => b.broken).length;
   return { ok: broken > 0 && holes === 0, broken, holes };
 }
+
+/** Cody's monster truck runs over a parked car outside the deck: it's flattened, nobody's to drive it, and it's gone a few seconds later. */
+export function truckCrushesACar() {
+  const g = window.__game;
+  const sim = window.__sim;
+  g.start();
+  sim.run(30);
+  const victim = g.vehicles.find((v) => v.role === 'parked' && !v.insideDeck && v.form === 'car');
+  const ride = g.vehicles.find((v) => v !== victim && v.role === 'parked' && !v.insideDeck && v.form === 'car');
+  if (!victim || !ride) return { ok: false, why: 'no parked cars outside the deck' };
+  g.board(ride);
+  g.scene.remove(ride.rig.root);
+  const rig = g.assets.truckRig();
+  ride.setForm('truck', rig);
+  g.scene.add(rig.root);
+  // ten metres short of it, heading straight at it at 12 m/s
+  const yaw = victim.yaw;
+  ride.place(victim.pos.x - Math.sin(yaw) * 10, victim.pos.y, victim.pos.z - Math.cos(yaw) * 10, yaw, 0, 0, null);
+  ride.vel.set(Math.sin(yaw) * 12, 0, Math.cos(yaw) * 12);
+  ride.speed = 12;
+  let crushed = 0;
+  g.events.on('crushed', ({ car, by }) => {
+    if (car === victim && by === ride) crushed++;
+  });
+  sim.run(45);
+  const flat = victim.status === 'crushed' && victim.role === 'parked' && victim.gone;
+  sim.run(240);
+  const removed = !g.vehicles.includes(victim);
+  return { ok: crushed === 1 && flat && removed, crushed, flat, removed };
+}

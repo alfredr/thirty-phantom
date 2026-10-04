@@ -191,7 +191,7 @@ export class Visitors {
   /** The cars already sitting in stalls belong to people out in town, who'll come back for them in time. */
   adopt(): void {
     for (const v of this.fleet.vehicles) {
-      if (v.role !== 'parked' || v.insideDeck || !this.bays.some((b) => this.holds(b, v))) continue;
+      if (v.role !== 'parked' || v.gone || v.insideDeck || !this.bays.some((b) => this.holds(b, v))) continue;
       this.parked.set(v, v.pos.clone());
       this.unclaimed.add(v);
     }
@@ -219,7 +219,7 @@ export class Visitors {
   waiting(car: Vehicle): boolean {
     const at = this.parked.get(car);
     if (!at) return false;
-    if (car.role === 'parked' && !car.crashing && this.fleet.vehicles.includes(car) && car.pos.distanceTo(at) < MOVED) return true;
+    if (car.role === 'parked' && !car.crashing && !car.gone && this.fleet.vehicles.includes(car) && car.pos.distanceTo(at) < MOVED) return true;
     this.parked.delete(car);
     return false;
   }

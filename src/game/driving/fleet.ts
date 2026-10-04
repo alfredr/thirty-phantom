@@ -132,15 +132,15 @@ export class Fleet {
       }
       // wrecks squash and shrink from the scale the rig was built at (sedans are built smaller than modelled)
       const base = v.rig.scale;
-      if (v.role === 'crushed') {
-        v.timer += dt;
-        v.rig.root.scale.set(1.15 * base, Math.max(0.28, 1 - v.timer * 6) * base, 1.1 * base);
-        if (v.timer > 6) this.remove(v);
-      } else if (v.role === 'vanishing') {
-        v.timer += dt;
-        const k = Math.max(0, 1 - v.timer * 1.6);
+      if (v.status === 'crushed') {
+        const t = (v.statusTime += dt);
+        v.rig.root.scale.set(1.15 * base, Math.max(0.28, 1 - t * 6) * base, 1.1 * base);
+        if (t > 6) this.remove(v);
+      } else if (v.status === 'vanishing') {
+        const t = (v.statusTime += dt);
+        const k = Math.max(0, 1 - t * 1.6);
         v.rig.root.scale.setScalar(k * base);
-        v.rig.root.position.y = v.pos.y + v.timer * 2;
+        v.rig.root.position.y = v.pos.y + t * 2;
         if (k <= 0) this.remove(v);
       }
     }

@@ -134,7 +134,7 @@ export class Traffic {
       const s = rng.range(0, p.total);
       p.sample(s, _p, _d);
       if (_p.distanceTo(avoid) < minDist) continue;
-      if (others.some((v) => v.role !== 'crushed' && v.pos.distanceTo(_p) < SPAWN_GAP)) continue;
+      if (others.some((v) => !v.gone && v.pos.distanceTo(_p) < SPAWN_GAP)) continue;
       return { path, s };
     }
     return null;

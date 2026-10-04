@@ -11,11 +11,15 @@ import { type CarKind, VEHICLE_BREEDS, type VehicleBreed, type VehicleBuild } fr
 
 export type VehicleForm = 'car' | 'truck';
 /**
- * traffic: on a lane loop. parked: sitting still. player: being driven. valet: a valet is driving it.
- * visitor: someone from town driving in to park, or back out to the traffic.
- * transforming: changing form. crushed: flattened by a truck. vanishing: escaped truck dissolving.
+ * Who's at the wheel. traffic: on a lane loop. player: Cody. valet: a valet. visitor: someone from
+ * town driving in to park, or back out to the traffic. parked: nobody.
  */
-export type VehicleRole = 'traffic' | 'parked' | 'player' | 'crushed' | 'vanishing' | 'transforming' | 'valet' | 'visitor';
+export type VehicleRole = 'traffic' | 'parked' | 'player' | 'valet' | 'visitor';
+/**
+ * What's happening to the car itself, whoever had the wheel: changing form (transforming),
+ * flattened by a truck (crushed), an escaped truck dissolving into the night (vanishing).
+ */
+export type VehicleStatus = 'transforming' | 'crushed' | 'vanishing';
 
 export interface DriveInput {
   throttle: number;
@@ -117,8 +121,9 @@ export class Vehicle {
   pathIndex = -1;
   pathS = 0;
   cruise = 8;
-  /** seconds since crushed / vanishing */
-  timer = 0;
+  /** What's happening to it, if anything (setStatus), and for how long (s). */
+  status: VehicleStatus | null = null;
+  statusTime = 0;
 
   // sprung body state
   private bodyY = 0;
@@ -174,7 +179,13 @@ export class Vehicle {
 
   /** Crushed or dissolving: on its way out of the world, so nothing collides with it. */
   get gone(): boolean {
-    return this.role === 'crushed' || this.role === 'vanishing';
+    return this.status === 'crushed' || this.status === 'vanishing';
+  }
+
+  /** Something starts happening to it (its clock from zero), or stops (null). */
+  setStatus(s: VehicleStatus | null): void {
+    this.status = s;
+    this.statusTime = 0;
   }
 
   /** Someone's at the wheel with the engine running: traffic, a valet, a visitor, Cody. */

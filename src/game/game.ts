@@ -1210,7 +1210,7 @@ export class Game {
   /** Vehicles Cody could get into from `p`, nearest first. */
   private vehiclesInReach(p: Vector3): Vehicle[] {
     const near = this.vehicles.filter(
-      (v) => (v.role === 'traffic' || v.role === 'parked' || v.role === 'valet' || v.role === 'visitor') && Math.abs(v.pos.y - p.y) < ENTER_HEIGHT && v.pos.distanceTo(p) < v.breed.enterReach,
+      (v) => v.role !== 'player' && !v.status && Math.abs(v.pos.y - p.y) < ENTER_HEIGHT && v.pos.distanceTo(p) < v.breed.enterReach,
     );
     return near.sort((a, b) => a.pos.distanceTo(p) - b.pos.distanceTo(p));
   }
@@ -1348,7 +1348,7 @@ export class Game {
   private carForValet(): Vehicle | null {
     if (this.driving) return this.driving.form === 'car' ? this.driving : null;
     const c = this.lastCar;
-    if (!c || c.role !== 'parked' || c.insideDeck || !this.vehicles.includes(c)) return null;
+    if (!c || c.role !== 'parked' || c.status || c.insideDeck || !this.vehicles.includes(c)) return null;
     return c.pos.distanceTo(this.player.pos) < TUNING.valet.carReach ? c : null;
   }
 
@@ -1512,8 +1512,7 @@ export class Game {
     this.slime.burst(at, 50, 9, [0.15, 0.45], [1, 2], SLIME, 1, v.pos.y);
     this.sprites.spray(at, 8, 5, [3, 6], WHITE, 1.5, 3, 1.6, 'ghost', 0.9);
     this.exit();
-    v.role = 'vanishing';
-    v.timer = 0;
+    v.setStatus('vanishing');
   }
 
   private smash(solidId: number, v: Vehicle): void {
@@ -1556,8 +1555,9 @@ export class Game {
   }
 
   private crush(o: Vehicle, by: Vehicle): void {
-    o.role = 'crushed';
-    o.timer = 0;
+    // nobody drives it on: whoever had the wheel has lost it
+    o.role = 'parked';
+    o.setStatus('crushed');
     this.events.emit('crushed', { car: o, by });
     this.junk.crushed(o);
     this.slime.burst(o.pos, 30, 8, [0.15, 0.35], [1, 2], SLIME, 0.7, o.pos.y);
@@ -1602,7 +1602,7 @@ export class Game {
     this.skeletons.crumbleAll();
     // monster trucks fall back asleep as cars
     for (const v of this.vehicles) {
-      if (v.form !== 'truck' || v.role === 'vanishing' || v.role === 'transforming') continue;
+      if (v.form !== 'truck' || v.status) continue;
       if (v === this.driving) this.exit();
       this.morphs.push(new TransformSequence(v, 'car', () => VEHICLE_BREEDS[v.kind].model(this.assets, v.color), this.fx));
     }
@@ -1615,8 +1615,7 @@ export class Game {
     let n = 0;
     for (const m of this.morphs) {
       m.update(dt);
-      if (m.done) m.vehicle.role = 'parked';
-      else this.morphs[n++] = m;
+      if (!m.done) this.morphs[n++] = m;
     }
     this.morphs.length = n;
   }
