@@ -45,7 +45,7 @@ const LYING = 0.8;
 /** Pausing, strolling somewhere, running from something, or walking back to their car to drive off. */
 type Mood = 'pause' | 'stroll' | 'flee' | 'leave';
 
-interface Person {
+export interface Person {
   walker: Walker;
   mood: Mood;
   job: NavJob | null;
@@ -74,14 +74,10 @@ export interface CrowdFrame {
   /** Where the view is: people come and go around it. */
   near: Vector3;
   day: boolean;
-  /** Ghost Cody on foot, whom everyone runs from, or null. */
-  ghost: Vector3 | null;
   /** The car Cody is driving, or null. */
   driving: Vehicle | null;
   /** Every vehicle: any of them can run someone down. */
   vehicles: readonly Vehicle[];
-  /** Skeletons and the like: people run from them the way they run from ghost Cody. */
-  threats?: readonly Vector3[];
   /** Everyone and everything people on foot steer around, or null to walk routes blind. */
   avoid: Avoidance | null;
   /** Townsfolk driving in to park and out again; null: newcomers just turn up on the sidewalk. */
@@ -307,21 +303,19 @@ export class Crowd implements Prey {
     }
   }
 
+  /** The people on their feet, who can see and react to what's around them. */
+  living(): readonly Person[] {
+    return this.people.filter((p) => !p.hurt);
+  }
+
+  /** Someone takes fright at something at `from` (the reactions table decides who and when). */
+  frighten(p: Person, from: Vector3): void {
+    if (!p.hurt) this.scare(p, from);
+  }
+
   private threats(p: Person, f: CrowdFrame): void {
     const w = p.walker;
     if (this.struck(p, f)) return;
-    if (f.ghost && w.pos.distanceTo(f.ghost) < C.ghostReach && Math.abs(f.ghost.y - w.pos.y) < C.ghostReach) {
-      this.scare(p, f.ghost);
-      return;
-    }
-    if (f.threats) {
-      for (const t of f.threats) {
-        if (w.pos.distanceTo(t) < C.ghostReach && Math.abs(t.y - w.pos.y) < C.ghostReach) {
-          this.scare(p, t);
-          return;
-        }
-      }
-    }
     const v = f.driving;
     if (!v || Math.abs(v.pos.y - w.pos.y) > IN_THE_WAY) return;
     // a car coming at them fast

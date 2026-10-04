@@ -49,6 +49,11 @@ import { BloodSim } from '../world/blood';
 import { Casualties } from './casualties';
 import { CameraController, type CamMode } from './camera-controller';
 import { CodyState, FRIGHTENING } from './cody-state';
+import { Phases } from '../engine/sim/phase';
+import { Space } from '../engine/sim/space';
+import { EYE_HEIGHT, gameReactions, type Perception, react, type Reaction, type Thing } from './reactions';
+import { LEVEL } from './reach';
+import { WorldConditions } from './world-conditions';
 import { createGameDebug } from './debug';
 import { Skeletons } from './skeletons';
 import { carContacts } from './collisions';
@@ -306,6 +311,19 @@ export class Game {
   private portraitSet: Portraits | null = null;
   /** Cody's form, abilities, and presence. Scripts can hold his form and grant extra abilities here. */
   readonly cody: CodyState;
+  /** What the time of day means for each rule (deck awake, valets on shift, parking, daylight). */
+  readonly conditions: WorldConditions;
+  /** Where everything that perceives or is perceived is, indexed once at the start of each frame. */
+  private readonly space = new Space<Thing>(8, LEVEL.person);
+  private readonly things: Thing[] = [];
+  private readonly reactions: readonly Reaction[];
+  /** This frame's space and things, and line of sight through the collision world, floors included. */
+  private readonly perception: Perception = {
+    space: this.space,
+    things: this.things,
+    sees: (a, b) => !this.world.collision.segmentBlocked(eyeOf(a), eyeOf(b), true),
+  };
+  readonly phases = new Phases();
   /** An escaped truck stays Cody's to drive (the tutorial's first ride) instead of rolling to a stop and vanishing. */
   keepEscaped = false;
   /** Trucks already counted as phantoms: a kept one going out again isn't another. */
@@ -412,6 +430,7 @@ export class Game {
     this.player.place(new Vector3(...level.playerSpawn), Math.PI);
     this.riders = [this.player.pos];
     this.cody = new CodyState(this.player);
+    this.conditions = new WorldConditions(this.clock);
 
     this.slime = new CubeParticles(softInk(withCutaway(new MeshBasicMaterial({ toneMapped: false }))), 600);
     this.debris = new CubeParticles(withCutaway(new MeshStandardMaterial({ roughness: 0.9 })), 300, 34);
@@ -450,6 +469,7 @@ export class Game {
     this.scene.add(this.blood.root);
     this.casualties = new Casualties(this.world.collision, this.blood);
     this.crowd = new Crowd(this.scene, this.planner, this.nav, this.rng, (at, kind, from) => this.money.drop(at, kind, from), this.casualties);
+    this.reactions = gameReactions({ crowd: this.crowd, traffic: this.traffic });
     this.crowd.onFright = (at) => this.events.emit('fright', { at: at.clone() });
     // skeletons: dirt as they climb out, bones as they fall apart, a ghost from everyone they kill
     this.skeletons = new Skeletons(this.world.collision, this.nav, this.planner, this.crowd);
@@ -655,6 +675,7 @@ export class Game {
     if (this.mode === 'title') this.updateTitle(dt);
     else this.updatePlay(dt);
     this.updateShared(dt);
+    this.phases.enter('present');
     this.gfx.chaseView = this.chaseActive;
     if (this.rendering) this.gfx.render(this.time);
     this.input.endFrame();
@@ -716,6 +737,24 @@ export class Game {
 
   // ---------------------------------------------------------------- play
 
+  /** Whether Cody is on his feet: not driving, and not inside a car that's turning into the truck. */
+  private get onFoot(): boolean {
+    return !this.driving && !this.transform;
+  }
+
+  /** Indexes everything that perceives or is perceived, where it stands at the start of the frame. */
+  private sense(): void {
+    const things = this.things;
+    things.length = 0;
+    const seen = this.cody.presence(this.driving, !!this.transform);
+    if (seen?.kind === 'phantom') things.push({ kind: 'phantom', pos: seen.at });
+    else if (seen?.kind === 'phantomTruck' && this.driving) things.push({ kind: 'phantomTruck', pos: seen.at, vehicle: this.driving });
+    for (const pos of this.skeletons.threats) things.push({ kind: 'skeleton', pos });
+    for (const person of this.crowd.living()) things.push({ kind: 'townsperson', pos: person.walker.pos, person });
+    for (const vehicle of this.vehicles) if (vehicle.role === 'traffic' && !vehicle.crashing) things.push({ kind: 'traffic', pos: vehicle.pos, vehicle });
+    this.space.rebuild(things);
+  }
+
   private updatePlay(dt: number): void {
     const inp = this.input;
     inp.muted = !!this.cutscene;
@@ -736,6 +775,12 @@ export class Game {
     // read every frame so movement made in the iso view can't jump the chase camera later
     const [mx, my] = inp.consumeMouse();
 
+    // Sense: index where everything is before anything moves this frame.
+    this.phases.enter('sense');
+    this.sense();
+    // Act: the systems below still decide and move in one pass; later stages split them.
+    this.phases.enter('act');
+
     // the cabs move first, carrying Cody if he's standing in one
     this.elevators.update(dt, this.driving || this.transform ? NONE : this.riders);
     if (this.transform) {
@@ -755,26 +800,26 @@ export class Game {
 
     this.updateMorphs(dt);
     this.updateCodyFx(dt);
-    // Phantom Cody and the phantom truck frighten pedestrians and drivers.
-    // Pedestrians flee; drivers accelerate or abandon their cars if blocked.
+    // Phantom Cody and the phantom truck frighten pedestrians and drivers. The reactions table
+    // decides who takes fright; pedestrians flee, and drivers accelerate or abandon their cars if blocked.
     const seen = this.cody.presence(this.driving, !!this.transform);
     const ghost = seen && FRIGHTENING.has(seen.kind) ? seen.at : null;
+    react(this.perception, this.reactions);
     const obstacles = this.trafficObstacles;
     obstacles.length = 0;
-    if (!this.driving) obstacles.push(this.player.pos);
+    if (this.onFoot) obstacles.push(this.player.pos);
     this.valet.pedestrians(obstacles);
     this.crowd.obstacles(obstacles);
-    this.traffic.update(dt, this.vehicles, obstacles, ghost);
+    this.traffic.update(dt, this.vehicles, obstacles);
     for (const v of this.traffic.abandoned.splice(0)) {
       this.crowd.bail(v, ghost ?? v.pos);
       this.fleet.abandon(v);
     }
-    // a driver he frightens near the deck may turn off and run for it
+    // A frightened driver near the deck may turn off and run for it.
     this.phantomAt = ghost;
-    for (const v of this.traffic.scared.splice(0)) {
-      if (!ghost) continue;
-      this.events.emit('spooked', { car: v });
-      this.refuge.take(v, ghost);
+    for (const { car, from } of this.traffic.scared.splice(0)) {
+      this.events.emit('spooked', { car });
+      this.refuge.take(car, from);
     }
     // held up behind something going nowhere: they honk, then pull round it
     for (const v of this.traffic.honks.splice(0)) this.honk(v);
@@ -782,21 +827,19 @@ export class Game {
     this.fillAvoidance();
     this.crowd.update(dt, {
       near: this.view.target,
-      day: this.clock.isDay,
-      ghost,
+      day: this.conditions.daylight(),
       driving: this.driving,
       vehicles: this.vehicles,
       avoid: this.avoid,
       visitors: this.visitors,
-      threats: this.skeletons.threats,
     });
     // skeletons keep near Cody (on foot, or in whatever he's driving); daylight finishes them
-    if (this.clock.isDay && this.skeletons.count) this.skeletons.crumbleAll();
+    if (this.conditions.daylight() && this.skeletons.count) this.skeletons.crumbleAll();
     this.skeletons.update(dt, this.driving ? this.driving.pos : this.player.pos, this.vehicles);
     this.collectMoney(dt);
-    this.talk.update(dt, this.clock.isDay, (a) => inp.wasPressed(a));
+    this.talk.update(dt, this.conditions.valetsOnShift(), (a) => inp.wasPressed(a));
     this.fleet.update(dt, this.dayNight.nightness);
-    this.fleet.maintain(dt, this.view.target, this.clock.isDay);
+    this.fleet.maintain(dt, this.view.target, this.conditions.daylight());
 
     // focus, cutaway, camera
     const focusV = this.ride;
@@ -958,7 +1001,6 @@ export class Game {
     }
     blockers.length = n;
     this.player.update(dt, this.input, this.view, this.world.collision, blockers);
-    const night = !this.clock.isDay;
     if (this.talk.active) return;
     // a scripted moment has the camera (and the controls): no prompts under it
     if (this.cutscene) {
@@ -969,7 +1011,7 @@ export class Game {
     const cody = this.cody;
     // phantom Cody calls skeletons up out of the ground
     if (cody.can('summon') && this.input.wasPressed('summon')) this.summon();
-    const valet = this.valet.talkable(this.player.pos, TUNING.valet.talkReach.foot, !night);
+    const valet = this.valet.talkable(this.player.pos, TUNING.valet.talkReach.foot, this.conditions.valetsOnShift());
     if (valet) {
       this.hud.setPrompt('TALK TO VALET');
       if (this.input.wasPressed('interact')) this.talk.start(valet);
@@ -1004,7 +1046,7 @@ export class Game {
    * inside the deck at night. Shared by the interaction prompt and enter().
    */
   private possessable(v: Vehicle): boolean {
-    return v.form === 'car' && v.insideDeck && !this.clock.isDay && this.cody.can('possess');
+    return v.form === 'car' && v.insideDeck && this.conditions.deckAwake() && this.cody.can('possess');
   }
 
   /** Summon skeletons at Cody's position and return the number raised. */
@@ -1022,7 +1064,6 @@ export class Game {
     this.player.visible = false;
     this.iso.zoomTarget = Math.max(this.iso.zoomTarget, TUNING.camera.driveZoom);
     this.hud.setPrompt(null);
-    const night = !this.clock.isDay;
     if (v.role === 'valet') {
       this.valet.carjacked(v);
       this.hud.toast('HEY!', "THAT'S A GUEST'S CAR", 'warn', 1.8);
@@ -1031,7 +1072,7 @@ export class Game {
     if (v.role === 'traffic' || v.role === 'visitor') {
       // the driver gets out and runs for it (at night it's a frightened driver's car, possessed on its way into the deck)
       this.crowd.bail(v, this.player.pos);
-      if (!night) this.hud.toast('STOLEN!', 'GET IT TO THE HAUNTED DECK');
+      if (this.conditions.parking()) this.hud.toast('STOLEN!', 'GET IT TO THE HAUNTED DECK');
     }
     // phantom Cody possesses a car in the deck (and the tutorial's Cody, after moonrise, his own): it turns into the truck
     if (this.possessable(v)) {
@@ -1101,9 +1142,8 @@ export class Game {
     }
 
     // by day: a valet beside the car, or spot beacon feedback in the deck
-    const day = this.clock.isDay;
     const V = TUNING.valet;
-    const valet = !this.talk.active && v.form === 'car' && v.grounded && Math.abs(v.speed) < V.handOverSpeed ? this.valet.talkable(v.pos, V.talkReach.car, day) : null;
+    const valet = !this.talk.active && v.form === 'car' && v.grounded && Math.abs(v.speed) < V.handOverSpeed ? this.valet.talkable(v.pos, V.talkReach.car, this.conditions.valetsOnShift()) : null;
     // on its side or roof and gone still: hop to rock it back over (or get out)
     const stuck = v.crashing && v.resting;
     if (this.talk.active || this.cutscene) {
@@ -1112,7 +1152,7 @@ export class Game {
       this.hud.setPrompt('ROCK IT OVER', 'hop');
     } else if (valet) {
       this.hud.setPrompt('TALK TO VALET');
-    } else if (day && v.insideDeck && v.form === 'car') {
+    } else if (this.conditions.parking() && v.insideDeck && v.form === 'car') {
       const s = this.garage.spotAt(v.pos);
       this.hud.setPrompt(s && this.garage.isFree(s, v) ? 'PARK HERE' : null);
     } else {
@@ -1425,10 +1465,10 @@ export class Game {
       const obstacles = this.valetObstacles;
       obstacles.length = 0;
       for (const v of this.vehicles) if (!v.gone) obstacles.push(v.pos);
-      if (!this.driving) obstacles.push(this.player.pos);
+      if (this.onFoot) obstacles.push(this.player.pos);
       this.valet.pedestrians(obstacles);
       this.crowd.obstacles(obstacles);
-      this.valetFrame.day = this.clock.isDay;
+      this.valetFrame.day = this.conditions.valetsOnShift();
       this.valet.update(dt, this.valetFrame);
       this.visitors.update(dt, obstacles, this.view.target);
       // a visitor's car crashed on the way: its driver gets out and runs once it stops
@@ -1443,7 +1483,7 @@ export class Game {
     for (const v of this.vehicles) if (v.role !== 'parked') movers.push(v.pos);
     this.world.gates.update(dt, movers, this.vehicles);
     this.world.clocks.update(this.clock.hours);
-    this.garage.update(dt, !!this.driving && this.driving.form === 'car' && this.clock.isDay, nightness);
+    this.garage.update(dt, !!this.driving && this.driving.form === 'car' && this.conditions.parking(), nightness);
     const focus = this.view.target;
     this.dayNight.apply(this.clock.hours, (focus.x - focus.z) * 0.002 + this.iso.azimuth * 0.3);
     this.updateWrecks(dt);
@@ -1451,8 +1491,8 @@ export class Game {
     this.blood.update(dt);
     this.world.slime.update(dt, focus);
     this.world.props.update(dt, this.vehicles, this.world.collision);
-    this.npcs.update(dt, this.mode === 'play' && !this.driving ? this.player.pos : null);
-    this.world.interiors.update(this.mode === 'play' && !this.driving ? this.player.pos : null);
+    this.npcs.update(dt, this.mode === 'play' && this.onFoot ? this.player.pos : null);
+    this.world.interiors.update(this.mode === 'play' && this.onFoot ? this.player.pos : null);
     this.slime.update(dt);
     this.debris.update(dt);
     this.exhaust.update(dt, this.vehicles, nightness);
@@ -1496,7 +1536,7 @@ export class Game {
     let key = '';
     let profile: NavProfile = NAV.car;
     let query: NavQuery | undefined;
-    if (v && this.clock.isDay && v.form === 'car') {
+    if (v && this.conditions.parking() && v.form === 'car') {
       // by day: a free spot, entering through the badge gate
       const s = this.garage.nearestFree(v.pos, null);
       if (s) {
@@ -1617,4 +1657,9 @@ export class Game {
     this.flash = Math.max(this.flash, a);
     this.flashColor.set(color);
   }
+}
+
+/** The point a thing sees from, or is seen at: its position raised to its eye height. */
+function eyeOf(thing: Thing): [number, number, number] {
+  return [thing.pos.x, thing.pos.y + EYE_HEIGHT[thing.kind], thing.pos.z];
 }

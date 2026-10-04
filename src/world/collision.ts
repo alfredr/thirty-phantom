@@ -296,15 +296,19 @@ export class CollisionWorld {
     return best;
   }
 
-  /** True if the segment a->b passes through any solid (ramps treated as boxes). */
-  segmentBlocked(a: V3, b: V3): boolean {
+  /**
+   * True if the segment a->b passes through any solid (ramps treated as boxes). Thin slabs such as
+   * floors and curbs are skipped unless `slabs` is set; a line of sight sets it, so a deck floor
+   * between two people blocks their view of each other.
+   */
+  segmentBlocked(a: V3, b: V3, slabs = false): boolean {
     const minX = Math.min(a[0], b[0]);
     const maxX = Math.max(a[0], b[0]);
     const minZ = Math.min(a[2], b[2]);
     const maxZ = Math.max(a[2], b[2]);
     const d = segment(a, b);
     for (const s of this.query(minX, minZ, maxX, maxZ)) {
-      if (s.max[1] - s.min[1] < THIN_SLAB) continue;
+      if (!slabs && s.max[1] - s.min[1] < THIN_SLAB) continue;
       let t0 = 0;
       let t1 = 1;
       let hit = true;

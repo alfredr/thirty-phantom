@@ -91,8 +91,8 @@ export class Traffic {
   readonly paths: Polyline[];
   /** Cars whose drivers gave up and ran, since the caller last emptied this. */
   readonly abandoned: Vehicle[] = [];
-  /** Cars whose drivers just took fright (a new scare, not one still going), since the caller last emptied this. */
-  readonly scared: Vehicle[] = [];
+  /** Drivers who just took fright (a new scare, not one still going), and where it came from, since the caller last emptied this. */
+  readonly scared: { car: Vehicle; from: Vector3 }[] = [];
   /** Drivers who just leaned on the horn, since the caller last emptied this. */
   readonly honks: Vehicle[] = [];
   /** Drivers who've waited long enough and want to pull round what's in the way, since the caller last emptied this. */
@@ -120,8 +120,18 @@ export class Traffic {
     return null;
   }
 
-  /** `ghost`: ghost Cody on foot, or null. */
-  update(dt: number, vehicles: Vehicle[], obstacles: readonly Vector3[], ghost: Vector3 | null = null): void {
+  /** A driver takes fright at something at `from` (the reactions table decides who and when). A new fright is reported through `scared`. */
+  frighten(v: Vehicle, from: Vector3): void {
+    if (v.role !== 'traffic' || v.crashing) return;
+    let fright = this.fright.get(v);
+    if (!fright) {
+      this.fright.set(v, (fright = { left: 0, held: 0 }));
+      this.scared.push({ car: v, from: from.clone() });
+    }
+    fright.left = TUNING.traffic.panicTime;
+  }
+
+  update(dt: number, vehicles: Vehicle[], obstacles: readonly Vector3[]): void {
     const T = TUNING.traffic;
     for (const v of vehicles) {
       if (v.role !== 'traffic' || v.crashing) {
@@ -130,14 +140,7 @@ export class Traffic {
       }
       const path = this.paths[v.pathIndex];
       if (!path) continue;
-      let fright = this.fright.get(v);
-      if (ghost && Math.hypot(ghost.x - v.pos.x, ghost.z - v.pos.z) < T.panicReach && Math.abs(ghost.y - v.pos.y) < SAME_LEVEL) {
-        if (!fright) {
-          this.fright.set(v, (fright = { left: 0, held: 0 }));
-          this.scared.push(v);
-        }
-        fright.left = T.panicTime;
-      }
+      const fright = this.fright.get(v);
       const cruise = fright ? v.cruise * T.panicBoost : v.cruise;
       const fx = Math.sin(v.yaw);
       const fz = Math.cos(v.yaw);

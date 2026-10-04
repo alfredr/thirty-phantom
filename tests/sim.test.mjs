@@ -179,21 +179,24 @@ test('an action that loses its claim stops before acting, and a sequence holds c
 });
 
 test('the space finds what is near, never across levels, in all three query shapes', () => {
-  const at = (x, z, level = 0) => ({ pos: { x, z }, level });
+  const at = (x, z, y = 0) => ({ pos: { x, y, z } });
   const cody = at(0, 0);
   const randy = at(2, 0);
   const valet = at(30, 0);
-  const upstairs = at(1, 0, 1);
-  const space = new Space(8);
-  space.rebuild([cody, randy, valet, upstairs]);
+  const upstairs = at(1, 0, 5);
+  const onRamp = at(2.5, 0, 1.5);
+  const space = new Space(8, 2);
+  space.rebuild([cody, randy, valet, upstairs, onRamp]);
   assert.equal(space.near(cody, randy, 3), true);
-  assert.equal(space.near(cody, upstairs, 3), false, 'a floor apart');
-  assert.deepEqual(space.near(cody, _, 3), [randy]);
-  assert.deepEqual(space.near(_, cody, 3), [randy]);
+  assert.equal(space.near(cody, upstairs, 3), false, 'a deck floor apart');
+  assert.equal(space.near(cody, onRamp, 3), true, 'partway up a ramp still counts');
+  assert.deepEqual(space.near(cody, _, 3), [randy, onRamp]);
+  assert.deepEqual(space.near(_, cody, 3), [randy, onRamp]);
   const pairs = space.near(_, _, 3);
-  assert.equal(pairs.length, 2, 'both orders of the one close pair');
+  assert.equal(pairs.length, 6, 'both orders of each close pair');
   assert.equal(space.near(_, _, 3), pairs, 'answered once per frame');
-  assert.equal(space.nearest(cody, 50, (b) => b !== randy), valet);
+  assert.equal(space.near(_, _, 3, 1).length, 2, 'a tighter level tolerance is its own answer');
+  assert.equal(space.nearest(cody, 50, (b) => b !== randy && b !== onRamp), valet);
   space.rebuild([cody, valet]);
   assert.deepEqual(space.near(_, _, 3), [], 'the rebuild dropped the old answers');
 });
