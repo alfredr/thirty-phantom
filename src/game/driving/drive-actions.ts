@@ -1,5 +1,5 @@
 import { Vector3 } from 'three';
-import { Autopilot } from '../../actors/autopilot';
+import { Autopilot, type Obstacle } from '../../actors/autopilot';
 import { footprint } from '../../actors/avoidance';
 import { roadLeadsToward } from '../../actors/traffic';
 import type { DriveInput, Vehicle, VehicleRole } from '../../actors/vehicle';
@@ -34,8 +34,8 @@ export interface DriveWorld {
   readonly fleet: Fleet;
   /** Exit-lane blocks, so routes from outside badge in through the entry gate. */
   readonly entryOnly: readonly ZoneDef[];
-  /** People and cars to keep clear of this frame. */
-  obstacles(): readonly Vector3[];
+  /** People and cars (their body circles) to keep clear of this frame. */
+  obstacles(): readonly Obstacle[];
   /** Points along a car's lane ahead of where it is, `step` meters apart, up to `meters` on. */
   roadAhead(car: Vehicle, meters: number, step?: number): readonly Vector3[];
   /** Whether `car` is out on its lane, outside the deck. */

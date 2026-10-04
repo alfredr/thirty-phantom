@@ -121,6 +121,12 @@ const IDLE: DriveInput = { throttle: 0, steer: 0, hop: false, drift: false };
  * it, waits for someone in the way, and backs up only when nothing forward
  * works.
  */
+/** Something to keep clear of: a person, or one of a car's body circles, and whose it is (a car skips its own). */
+export interface Obstacle {
+  readonly pos: Vector3;
+  readonly owner: object | null;
+}
+
 export class Autopilot {
   state: AutopilotState = 'driving';
   cursor: RouteCursor;
@@ -151,8 +157,8 @@ export class Autopilot {
     return this.leg >= this.legs.length - 1;
   }
 
-  /** Input for this frame. `obstacles` are people and other cars to keep clear of. */
-  update(dt: number, v: Vehicle, obstacles: readonly Vector3[]): DriveInput {
+  /** Input for this frame. `obstacles` are people and other cars (their body circles) to keep clear of. */
+  update(dt: number, v: Vehicle, obstacles: readonly Obstacle[]): DriveInput {
     if (this.state === 'stuck') return IDLE;
     const c = this.cursor;
     c.track(v.pos, TRACK_WINDOW + Math.abs(v.speed) * TRACK_WINDOW_PER_SPEED);
@@ -220,7 +226,7 @@ export class Autopilot {
   }
 
   /** A planned reverse leg: track it backwards, slowly, waiting for anyone in the way behind. */
-  private reverseLeg(dt: number, v: Vehicle, obstacles: readonly Vector3[]): DriveInput {
+  private reverseLeg(dt: number, v: Vehicle, obstacles: readonly Obstacle[]): DriveInput {
     const c = this.cursor;
     let want: number = Math.min(A.reverseCruise, this.stopping(c.remaining));
     this.sinceChoice += dt;
@@ -255,8 +261,14 @@ export class Autopilot {
     return Math.sqrt(2 * A.stopDecel * Math.max(0, remaining - LEG_END)) + STOPPED;
   }
 
-  private near(v: Vehicle, obstacles: readonly Vector3[]): Vector3[] {
-    return obstacles.filter((o) => o !== v.pos && Math.abs(o.x - v.pos.x) < OBSTACLE_RANGE && Math.abs(o.z - v.pos.z) < OBSTACLE_RANGE && Math.abs(o.y - v.pos.y) < OBSTACLE_LEVEL);
+  /** Where the obstacles close enough to matter are, leaving out `v`'s own body. */
+  private near(v: Vehicle, obstacles: readonly Obstacle[]): Vector3[] {
+    const out: Vector3[] = [];
+    for (const { pos: o, owner } of obstacles) {
+      if (owner === v || o === v.pos) continue;
+      if (Math.abs(o.x - v.pos.x) < OBSTACLE_RANGE && Math.abs(o.z - v.pos.z) < OBSTACLE_RANGE && Math.abs(o.y - v.pos.y) < OBSTACLE_LEVEL) out.push(o);
+    }
+    return out;
   }
 
   /**

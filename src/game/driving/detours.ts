@@ -1,9 +1,9 @@
 import { Vector3 } from 'three';
-import { Autopilot } from '../../actors/autopilot';
+import { Autopilot, type Obstacle } from '../../actors/autopilot';
 import { footprint } from '../../actors/avoidance';
 import type { Jam, Traffic } from '../../actors/traffic';
 import type { DriveInput, Vehicle } from '../../actors/vehicle';
-import { bodyHalf, TUNING } from '../../config';
+import { TUNING } from '../../config';
 import { lerp, mod } from '../../core/math';
 import type { CollisionWorld } from '../../world/collision';
 import type { ZoneDef } from '../../world/level-data';
@@ -22,8 +22,6 @@ const PLAN_REACH = 35;
 const PERSON_EXTRA = 0.5;
 /** A car slower than this (m/s) is standing, for the plan. */
 const STANDING = 0.5;
-/** Driving round, standing cars within this (m) count as their whole body to keep off (nose and tail too), not just their middle. */
-const BODY_REACH = 14;
 /** A person's region runs from just under their feet to over their head (m). */
 const BELOW = 0.3;
 const ABOVE = 2;
@@ -42,9 +40,6 @@ const ONCOMING_SIDE = 9;
 
 const _p = new Vector3();
 const _d = new Vector3();
-/** The obstacles a pull-round steers by, and the points standing cars' noses and tails add to them (reused). */
-const _obs: Vector3[] = [];
-const _ends: Vector3[] = [];
 
 /** One impatient driver's pull-round: out of the lane, round what's in the way, back in beyond it. */
 interface Detour {
@@ -169,8 +164,8 @@ export class Detours {
     return true;
   }
 
-  /** `obstacles`: people and cars to keep clear of. */
-  update(dt: number, obstacles: readonly Vector3[]): void {
+  /** `obstacles`: people and cars (their body circles, noses and tails too) to keep clear of. */
+  update(dt: number, obstacles: readonly Obstacle[]): void {
     for (let i = this.detours.length - 1; i >= 0; i--) {
       const d = this.detours[i] as Detour;
       if (this.step(d, dt, obstacles)) continue;
@@ -180,7 +175,7 @@ export class Detours {
   }
 
   /** One frame of a pull-round; false once it's over. */
-  private step(d: Detour, dt: number, obstacles: readonly Vector3[]): boolean {
+  private step(d: Detour, dt: number, obstacles: readonly Obstacle[]): boolean {
     const I = TUNING.traffic.impatience;
     const car = d.car;
     // someone else has it now (Cody took it, a hit knocked it loose): it's off, and the game sees to the driver
@@ -215,7 +210,7 @@ export class Detours {
         return true;
       case 'driving': {
         const pilot = d.pilot as Autopilot;
-        car.drive(dt, pilot.update(dt, car, this.bodies(car, obstacles)), this.collision);
+        car.drive(dt, pilot.update(dt, car, obstacles), this.collision);
         this.bump(car);
         if (this.rejoin(d, false)) return false;
         if (pilot.state === 'arrived') {
@@ -232,26 +227,6 @@ export class Detours {
         return true;
       }
     }
-  }
-
-  /**
-   * `obstacles` plus the nose and tail of every car standing near `car`: the
-   * autopilot keeps clear of points, and a car parked across the lane reaches
-   * well past its middle.
-   */
-  private bodies(car: Vehicle, obstacles: readonly Vector3[]): readonly Vector3[] {
-    _obs.length = 0;
-    for (const o of obstacles) _obs.push(o);
-    let n = 0;
-    for (const o of this.fleet.vehicles) {
-      if (o === car || o.gone || Math.hypot(o.vel.x, o.vel.z) > STANDING || o.pos.distanceTo(car.pos) > BODY_REACH) continue;
-      const half = bodyHalf(o.params);
-      for (const k of [-1, 1]) {
-        const e = (_ends[n++] ??= new Vector3());
-        _obs.push(e.set(o.pos.x + Math.sin(o.yaw) * half * k, o.pos.y, o.pos.z + Math.cos(o.yaw) * half * k));
-      }
-    }
-    return _obs;
   }
 
   /** Ask for a drive from where the car is to where it rejoins the lane, round whatever's standing about. */

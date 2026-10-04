@@ -6,6 +6,7 @@ import {
   Vector3,
 } from 'three';
 import type { AssetRegistry } from '../assets/asset-registry';
+import type { Obstacle } from '../actors/autopilot';
 import { Avoidance, parkedBlocks, PERSON_RADIUS } from '../actors/avoidance';
 import { Player } from '../actors/player';
 import { Traffic } from '../actors/traffic';
@@ -415,7 +416,7 @@ export class Game {
   /** Everyone and everything taking up room this frame (filled in sense()), and where those in traffic's way and in the AI drivers' way are. */
   private readonly bodies = new Bodies();
   private readonly trafficObstacles: Vector3[] = [];
-  private readonly valetObstacles: Vector3[] = [];
+  private readonly valetObstacles: Obstacle[] = [];
   private readonly movers: Vector3[] = [];
   private readonly blockers: { pos: Vector3; r: number }[] = [];
   /** Background transformations (sunrise reverting trucks to cars). */
@@ -1625,7 +1626,7 @@ export class Game {
     this.planner.update();
     if (this.mode === 'play') {
       // the AI drivers keep clear of the cars as well
-      const obstacles = this.bodies.points((b) => b.kind === 'car' || b.kind === 'cody' || b.kind === 'down' || (b.kind === 'person' && b.moving), this.valetObstacles);
+      const obstacles = this.bodies.obstacles((b) => b.kind === 'car' || b.kind === 'cody' || b.kind === 'down' || (b.kind === 'person' && b.moving), this.valetObstacles);
       this.valetFrame.day = this.conditions.valetsOnShift();
       this.valet.update(dt, this.valetFrame);
       this.visitors.update(dt, this.view.target);

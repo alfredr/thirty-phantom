@@ -1,5 +1,7 @@
 import { Vector3 } from 'three';
+import type { Obstacle } from '../../actors/autopilot';
 import type { Vehicle } from '../../actors/vehicle';
+import { bodyOffsets } from '../../config';
 
 /** What a body is, to whoever's steering round it. */
 export type BodyKind = 'person' | 'down' | 'still' | 'cody' | 'skeleton' | 'car';
@@ -46,6 +48,8 @@ export interface BodyOf {
 export class Bodies {
   private readonly pool: Body[] = [];
   private n = 0;
+  /** Obstacle records, reused frame to frame (see obstacles()). */
+  private readonly marks: { pos: Vector3; owner: object | null }[] = [];
 
   /** Starts this frame's list. */
   clear(): void {
@@ -75,6 +79,36 @@ export class Bodies {
       const b = this.pool[i];
       if (b) fn(b);
     }
+  }
+
+  /**
+   * The bodies that pass `test`, as drivers keep clear of them, into `out` (emptied first): a
+   * point for each, and for a car its three body circles, so its nose and tail count as much as its
+   * middle. Each says whose it is, so a car leaves out its own. Positions are as they are now.
+   */
+  obstacles(test: (b: Body) => boolean, out: Obstacle[]): Obstacle[] {
+    out.length = 0;
+    let k = 0;
+    const put = (x: number, y: number, z: number, owner: object | null): void => {
+      let o = this.marks[k];
+      if (!o) this.marks.push((o = { pos: new Vector3(), owner: null }));
+      k++;
+      o.pos.set(x, y, z);
+      o.owner = owner;
+      out.push(o);
+    };
+    this.each((b) => {
+      if (!test(b)) return;
+      const v = b.vehicle;
+      if (!v) {
+        put(b.pos.x, b.pos.y, b.pos.z, b.owner);
+        return;
+      }
+      const fx = Math.sin(v.yaw);
+      const fz = Math.cos(v.yaw);
+      for (const off of bodyOffsets(v.params)) put(v.pos.x + fx * off, v.pos.y, v.pos.z + fz * off, v);
+    });
+    return out;
   }
 
   /** Where the bodies that pass `test` are, into `out` (emptied first). */
