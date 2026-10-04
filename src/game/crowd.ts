@@ -26,6 +26,8 @@ const DASH_STEP = 0.5;
 const FLEE_TRIES = 6;
 /** Still this close to the threat (in ghost reaches) when a run ends: keep running. */
 const STILL_CLOSE = 1.5;
+/** Ghost Cody and skeletons frighten only people within this height of them (m), on the same level. */
+const SAME_LEVEL = 2;
 /** A car Cody drives at someone: they're in its way within this far either side of its line (m). */
 const IN_THE_WAY = 2;
 /** Clipped by a car's body (closer than its radius plus this, m): shoved this far aside. */
@@ -310,13 +312,13 @@ export class Crowd implements Prey {
   private threats(p: Person, f: CrowdFrame): void {
     const w = p.walker;
     if (this.struck(p, f)) return;
-    if (f.ghost && w.pos.distanceTo(f.ghost) < C.ghostReach && Math.abs(f.ghost.y - w.pos.y) < C.ghostReach) {
+    if (f.ghost && w.pos.distanceTo(f.ghost) < C.ghostReach && Math.abs(f.ghost.y - w.pos.y) < SAME_LEVEL) {
       this.scare(p, f.ghost);
       return;
     }
     if (f.threats) {
       for (const t of f.threats) {
-        if (w.pos.distanceTo(t) < C.ghostReach && Math.abs(t.y - w.pos.y) < C.ghostReach) {
+        if (w.pos.distanceTo(t) < C.ghostReach && Math.abs(t.y - w.pos.y) < SAME_LEVEL) {
           this.scare(p, t);
           return;
         }
