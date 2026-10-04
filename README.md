@@ -35,7 +35,9 @@ Installing dependencies also installs the Husky pre-commit hook. The hook and CI
 Oxfmt formats TypeScript and JavaScript at 120 columns, wraps doc comments, and sorts
 imports. It does not format CSS. Oxlint requires braces around conditional and loop bodies,
 plus blank lines around multiline blocks. A variable declaration may sit directly above
-the block that uses it.
+the block that uses it. Oxlint also rejects `instanceof` through
+[`tools/lint/rules.mjs`](tools/lint/rules.mjs). Use discriminated unions or shape checks.
+Necessary platform checks require an inline exception with an explanation.
 
 In application code, import across folders with `@/`, which resolves to `src/`. Use `./`
 for files in the same folder. Parent-relative imports (`../`) are rejected. Local game

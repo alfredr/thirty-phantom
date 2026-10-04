@@ -10,7 +10,7 @@ import type { MaterialLibrary, MatKey } from '@/render/materials';
 
 import { doorPoint, facingAxis, landingPoint, LIFT, shaftCenter } from './elevator-shaft';
 import type { ElevatorDef, Facing } from './level-data';
-import { NavRoute, type NavHop } from './nav-grid';
+import type { NavHop } from './nav-grid';
 
 /**
  * ElevatorDef describes shaft bounds and ordered stops; elevator-shaft.ts builds static geometry, while this module
@@ -746,7 +746,7 @@ export class Elevators {
    * false when no ride applies or exit completes. Advance the matching cursor beyond the hop after exit. Route changes
    * cancel waiting rides; external displacement can cancel any ride.
    */
-  ride(w: ElevatorRider, cursor: RouteCursor | null, dt: number): boolean {
+  ride(w: ElevatorRider, cursor: RouteCursor | null, hops: readonly NavHop[], dt: number): boolean {
     let r = this.rides.get(w);
     // Cancel externally displaced riders or waiting riders whose route changed.
     if (r && (w.pos.distanceTo(r.at) > RIDER_LOST || (r.phase === 'call' && cursor !== r.cursor))) {
@@ -755,7 +755,7 @@ export class Elevators {
     }
 
     if (!r) {
-      const hop = cursor && this.hopAt(w.pos, cursor);
+      const hop = cursor && this.hopAt(w.pos, cursor, hops);
       if (!hop || !cursor) {
         return false;
       }
@@ -829,13 +829,8 @@ export class Elevators {
    * Return the next uncompleted route hop when the cursor and walker are close enough to its departure landing, or
    * null.
    */
-  private hopAt(pos: Vector3, cursor: RouteCursor): NavHop | null {
-    const path = cursor.path;
-    if (!(path instanceof NavRoute)) {
-      return null;
-    }
-
-    for (const h of path.hops) {
+  private hopAt(pos: Vector3, cursor: RouteCursor, hops: readonly NavHop[]): NavHop | null {
+    for (const h of hops) {
       if (h.s1 <= cursor.s) {
         continue;
       }

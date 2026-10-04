@@ -122,6 +122,8 @@ export class Input<C extends string> {
       'wheel',
       (e) => {
         // Preserve native scrolling inside HUD scroll regions.
+        // Event targets can be non-elements; check before calling closest().
+        // oxlint-disable-next-line phantom/no-instanceof
         if (e.target instanceof Element && e.target.closest('[data-scroll]')) {
           return;
         }

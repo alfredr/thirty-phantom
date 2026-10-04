@@ -23,7 +23,7 @@ export class Polyline {
   readonly total: number;
 
   constructor(points: readonly (Vector3 | V3)[], closed = false) {
-    this.points = points.map((p) => (p instanceof Vector3 ? p.clone() : new Vector3(p[0], p[1], p[2])));
+    this.points = points.map((p) => (Array.isArray(p) ? new Vector3(p[0], p[1], p[2]) : p.clone()));
     this.closed = closed;
     const n = this.segments;
     let acc = 0;

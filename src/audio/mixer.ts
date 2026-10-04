@@ -8,6 +8,12 @@ import { soundLog } from './flags';
 import { engine, type Mark } from './grains';
 import { type Controls, type Kit, makeKit, synthesize, type Voice } from './synth';
 
+/** Cached fetch state. Failed requests are not retried. */
+type Fetched<T> =
+  | { readonly state: 'loading' }
+  | { readonly state: 'ready'; readonly value: T }
+  | { readonly state: 'failed' };
+
 const A = TUNING.audio;
 /** Loop fade duration and source-following time constant, in seconds. */
 const FADE = 0.08;
@@ -97,10 +103,10 @@ export class Mixer {
   private master: GainNode | null = null;
   private buses: Record<Bus, GainNode> | null = null;
   private readonly live: Live[] = [];
-  /** Cache decoded audio by path. A promise marks a pending load; null marks a failed load. */
-  private readonly files = new Map<string, AudioBuffer | Promise<void> | null>();
-  /** Cache engine cycle metadata by path, using the same pending and failed states as audio files. */
-  private readonly marks = new Map<string, readonly Mark[] | Promise<void> | null>();
+  /** Decoded audio cached by file path. */
+  private readonly files = new Map<string, Fetched<AudioBuffer>>();
+  /** Engine cycle metadata cached by file path. */
+  private readonly marks = new Map<string, Fetched<readonly Mark[]>>();
   /** Listener position and horizontal camera-right vector used for spatial audio. */
   readonly ear = new Vector3();
   readonly right = new Vector3(1, 0, 0);
@@ -356,20 +362,21 @@ export class Mixer {
     if ('synth' in src) {
       voice = synthesize(kit, out, t, src);
     } else {
-      const buf = this.files.get(src.file);
-      if (!(buf instanceof AudioBuffer)) {
+      const file = this.files.get(src.file);
+      if (file?.state !== 'ready') {
         this.load(src.file);
         return null;
       }
 
+      const buf = file.value;
       if ('engine' in src) {
         const marks = this.marks.get(src.marks);
-        if (!Array.isArray(marks)) {
+        if (marks?.state !== 'ready') {
           this.loadMarks(src.marks);
           return null;
         }
 
-        return this.keep(cue, name, def, engine(kit, out, t, buf, marks, src.engine), out, pan, level, note);
+        return this.keep(cue, name, def, engine(kit, out, t, buf, marks.value, src.engine), out, pan, level, note);
       }
 
       const s = ctx.createBufferSource();
@@ -437,15 +444,15 @@ export class Mixer {
     }
 
     const url = `${import.meta.env.BASE_URL}audio/${path}`;
-    const job = fetch(url)
+    this.files.set(path, { state: 'loading' });
+    void fetch(url)
       .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((data) => ctx.decodeAudioData(data))
-      .then((buf) => void this.files.set(path, buf))
+      .then((value) => void this.files.set(path, { state: 'ready', value }))
       .catch((err: unknown) => {
-        this.files.set(path, null);
+        this.files.set(path, { state: 'failed' });
         console.warn(`[sound] ${url} failed to load`, err);
       });
-    this.files.set(path, job);
   }
 
   /** Fetch engine cycle metadata once. Cache the result or the failure. */
@@ -455,14 +462,28 @@ export class Mixer {
     }
 
     const url = `${import.meta.env.BASE_URL}audio/${path}`;
-    const job = fetch(url)
+    this.marks.set(path, { state: 'loading' });
+    void fetch(url)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((data: { marks: Mark[] }) => void this.marks.set(path, data.marks))
+      .then((data: unknown) => {
+        if (
+          typeof data !== 'object' ||
+          data === null ||
+          !('marks' in data) ||
+          !Array.isArray(data.marks) ||
+          !data.marks.every(
+            (mark: unknown): mark is Mark => Array.isArray(mark) && mark.length === 4 && mark.every(Number.isFinite),
+          )
+        ) {
+          throw new Error('Invalid engine cycle metadata');
+        }
+
+        this.marks.set(path, { state: 'ready', value: data.marks });
+      })
       .catch((err: unknown) => {
-        this.marks.set(path, null);
+        this.marks.set(path, { state: 'failed' });
         console.warn(`[sound] ${url} failed to load`, err);
       });
-    this.marks.set(path, job);
   }
 
   private drop(name: string, why: string): false {

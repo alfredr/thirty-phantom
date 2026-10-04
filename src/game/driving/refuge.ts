@@ -11,6 +11,7 @@ import { DIVERSIONS } from '@/game/rules/claim-kinds';
 import {
   type DriveAction,
   DriverJob,
+  type DriveStep,
   DriveTo,
   type DriveWorld,
   LOOK,
@@ -19,6 +20,7 @@ import {
   Rest,
   spotBerth,
   stand,
+  steerClear,
 } from './drive-actions';
 import type { Drivers } from './drivers';
 
@@ -72,19 +74,24 @@ function toSpot(car: Vehicle, spot: SpotRuntime, more: { via?: Polyline; avoid?:
   });
 }
 
+type DivertStep =
+  | DriveStep
+  | { readonly at: 'park'; readonly action: Park }
+  | { readonly at: 'rest'; readonly action: Rest };
+
 /**
  * Divert a frightened driver into a reserved deck spot. Reserve a diversion slot, destination, and driver seat. New
  * threats can return the car to a safe road, move its destination upstairs, or force the driver to flee. After parking,
  * pause before the driver exits. Failed routing abandons the car; crashes use the base job’s recovery handling.
  */
-export class Divert extends DriverJob {
+export class Divert extends DriverJob<DivertStep> {
   private spot: SpotRuntime;
 
   constructor(readonly p: { car: Vehicle; spot: SpotRuntime; from: Vector3; via: Polyline }) {
     super(p.car, 'visitor');
     this.spot = p.spot;
     this.scare = p.from.clone();
-    this.next(toSpot(p.car, p.spot, { via: p.via }));
+    this.next({ at: 'drive', action: toSpot(p.car, p.spot, { via: p.via }) });
   }
 
   protected book(w: DriveWorld): Fail | null {
@@ -109,12 +116,12 @@ export class Divert extends DriverJob {
       }
     }
 
-    const stage = this.stage;
-    if (!stage) {
+    const step = this.step;
+    if (!step) {
       return done;
     }
 
-    const result = stage.perform(w, dt);
+    const result = step.action.perform(w, dt);
     if ('fail' in result) {
       this.giveUp(w);
       return result;
@@ -124,20 +131,21 @@ export class Divert extends DriverJob {
       return running;
     }
 
-    if (stage instanceof DriveTo) {
-      this.next(new Park({ car, berth: spotBerth(this.spot) }));
-    } else if (stage instanceof Park) {
-      car.insideDeck = true;
-      w.garage.occupy(this.spot, car);
-      w.parked(car, this.spot);
-      this.next(new Rest({ seconds: TUNING.traffic.divertRest }));
-    } else {
-      stand(car);
-      w.bail(car, this.scare ?? car.pos);
-      return done;
+    switch (step.at) {
+      case 'drive':
+        this.next({ at: 'park', action: new Park({ car, berth: spotBerth(this.spot) }) });
+        return running;
+      case 'park':
+        car.insideDeck = true;
+        w.garage.occupy(this.spot, car);
+        w.parked(car, this.spot);
+        this.next({ at: 'rest', action: new Rest({ seconds: TUNING.traffic.divertRest }) });
+        return running;
+      case 'rest':
+        stand(car);
+        w.bail(car, this.scare ?? car.pos);
+        return done;
     }
-
-    return running;
   }
 
   /**
@@ -150,14 +158,19 @@ export class Divert extends DriverJob {
       return instead(new Rejoin({ car, from: at }));
     }
 
-    if (!(this.stage instanceof DriveTo)) {
+    const step = this.step;
+    if (step?.at !== 'drive') {
       this.giveUp(w);
       return fail('SPOOKED');
     }
 
     const up = car.insideDeck && this.spot.def.level <= w.garage.floorOf(car.pos.y) ? this.above(w) : null;
     if (!up) {
-      this.steerClear(at);
+      const round = steerClear(step, at);
+      if (round) {
+        this.next(round);
+      }
+
       return null;
     }
 
@@ -169,7 +182,7 @@ export class Divert extends DriverJob {
     }
 
     this.spot = up;
-    this.next(toSpot(car, up, { avoid: at }));
+    this.next({ at: 'drive', action: toSpot(car, up, { avoid: at }) });
     return null;
   }
 

@@ -387,12 +387,12 @@ export class Rejoin extends Action<DriveWorld, DriveWorld> {
  * claim is lost. Deliver sightings to subclasses; by default, a crash ends the job and schedules the driver’s escape
  * after settling.
  */
-export abstract class DriverJob extends Action<DriveWorld, DriveWorld> {
+export abstract class DriverJob<S extends JobStep = JobStep> extends Action<DriveWorld, DriveWorld> {
   private readonly driver = { name: 'driver' };
   private seated = false;
   private sighting: Vector3 | null = null;
-  /** Current child driving action. */
-  protected stage: DriveAction | null = null;
+  /** Active job step and its driving action. */
+  protected step: S | null = null;
   /** Last reported threat position, retained after the sighting is consumed. */
   protected scare: Vector3 | null = null;
 
@@ -440,7 +440,7 @@ export abstract class DriverJob extends Action<DriveWorld, DriveWorld> {
   }
 
   stop(): void {
-    this.stage?.stop();
+    this.step?.action.stop();
   }
 
   /** Acquire additional job reservations, returning a failure when unavailable. */
@@ -464,24 +464,30 @@ export abstract class DriverJob extends Action<DriveWorld, DriveWorld> {
     return fail('wrecked');
   }
 
-  /** Stop the previous child action and attach its replacement to this job. */
-  protected next<A extends DriveAction>(stage: A): A {
-    this.stage?.stop();
-    stage.parent = this;
-    this.stage = stage;
-    return stage;
+  /** Stop the current action and attach the next step's action to this job. */
+  protected next(step: S): S {
+    this.step?.action.stop();
+    step.action.parent = this;
+    this.step = step;
+    return step;
   }
+}
 
-  /** Replace an obstructed DriveTo route with one avoiding the threat. Return whether a replacement was created. */
-  protected steerClear(at: Vector3): boolean {
-    const { stage } = this;
-    if (!(stage instanceof DriveTo) || !stage.inTheWay(at)) {
-      return false;
-    }
+/** Named step in an AI driving job. */
+export interface JobStep {
+  readonly at: string;
+  readonly action: DriveAction;
+}
 
-    this.next(stage.around(at));
-    return true;
-  }
+/** Driving step that follows a route to a destination. */
+export interface DriveStep extends JobStep {
+  readonly at: 'drive';
+  readonly action: DriveTo;
+}
+
+/** Return a replacement driving step around an obstructing threat, or null if no reroute is needed. */
+export function steerClear(step: DriveStep, at: Vector3): DriveStep | null {
+  return step.action.inTheWay(at) ? { at: 'drive', action: step.action.around(at) } : null;
 }
 
 /** Return braking input proportional to speed and opposed to travel. */

@@ -13,11 +13,13 @@ import { type Garage, type SpotRuntime, spotZone } from '@/game/deck/garage';
 import {
   type DriveAction,
   DriverJob,
+  type DriveStep,
   DriveTo,
   type DriveWorld,
   halt,
   Park,
   spotBerth,
+  steerClear,
 } from '@/game/driving/drive-actions';
 import type { Drivers } from '@/game/driving/drivers';
 import type { Bodies } from '@/game/rules/bodies';
@@ -101,14 +103,16 @@ export class Valet {
   }
 }
 
+type ValetStep = DriveStep | { readonly at: 'park'; readonly action: Park };
+
 /**
  * Drive through the entry gate to the assigned spot, then park. Avoid perceived threats and replan after crashes. If
  * driving or parking fails, place the car directly in its destination spot.
  */
-export class ValetDrive extends DriverJob {
+export class ValetDrive extends DriverJob<ValetStep> {
   /** Whether the parking job completed successfully. */
   parked = false;
-  /** It went through the entry gate on the way. */
+  /** Whether the car entered through the badge gate. */
   badged = false;
   /** Crash duration and continuous resting duration, in seconds. */
   private wreck = 0;
@@ -116,7 +120,7 @@ export class ValetDrive extends DriverJob {
 
   constructor(readonly p: { car: Vehicle; spot: SpotRuntime }) {
     super(p.car, 'valet');
-    this.next(this.toSpot());
+    this.next({ at: 'drive', action: this.toSpot() });
   }
 
   protected drive(w: DriveWorld, dt: number, seen: Vector3 | null): Result<DriveAction> {
@@ -125,20 +129,22 @@ export class ValetDrive extends DriverJob {
       // Replan from the recovered position after a crash.
       this.wreck = 0;
       this.upended = 0;
-      this.next(this.toSpot());
+      this.next({ at: 'drive', action: this.toSpot() });
     }
 
-    if (seen) {
-      this.steerClear(seen);
-    }
-
-    const stage = this.stage;
-    if (!stage) {
+    const step = this.step;
+    if (!step) {
       return done;
     }
 
-    const result = stage.perform(w, dt);
-    if (stage instanceof DriveTo && stage.badged) {
+    const round = seen && step.at === 'drive' ? steerClear(step, seen) : null;
+    if (round) {
+      this.next(round);
+    }
+
+    const now = round ?? step;
+    const result = now.action.perform(w, dt);
+    if (now.at === 'drive' && now.action.badged) {
       this.badged = true;
     }
 
@@ -154,8 +160,8 @@ export class ValetDrive extends DriverJob {
       return running;
     }
 
-    if (stage instanceof DriveTo) {
-      this.next(new Park({ car, berth: spotBerth(spot) }));
+    if (now.at === 'drive') {
+      this.next({ at: 'park', action: new Park({ car, berth: spotBerth(spot) }) });
       return running;
     }
 

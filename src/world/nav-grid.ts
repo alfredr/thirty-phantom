@@ -125,10 +125,7 @@ export interface NavQuery {
    * heading. Failed searches leave a fallback segment and set the job's drivable flag to false.
    */
   drive?: { yaw: number; endYaw: number; eitherWay?: boolean };
-  /**
-   * Allow pedestrian routes to use elevators. Routes containing rides are NavRoute instances whose hops require a
-   * Walker capable of handing control to the elevators.
-   */
+  /** Allow pedestrian routes to use elevators. Required rides are returned in NavJob.hops. */
   elevators?: boolean;
 }
 
@@ -144,15 +141,8 @@ export interface NavHop {
   s1: number;
 }
 
-/** A pedestrian route with elevator rides marked by arc-length intervals between landing points. */
-export class NavRoute extends Polyline {
-  constructor(
-    points: readonly Vector3[],
-    readonly hops: readonly NavHop[],
-  ) {
-    super(points);
-  }
-}
+/** Shared empty list for routes without elevator rides. */
+export const NO_HOPS: readonly NavHop[] = [];
 
 /** One stretch of a vehicle route driven in a single direction. */
 export interface RouteLeg {
@@ -1395,7 +1385,8 @@ export class NavGrid {
     const rides = S.lifts ? this.ridesAlong(nodes) : null;
     const pts = this.smooth(raw, cost, p, ends, rides);
     if (!p.vehicle) {
-      job.path = rides?.size ? new NavRoute(pts, hopsAlong(pts, raw, rides)) : new Polyline(pts);
+      job.path = new Polyline(pts);
+      job.hops = rides?.size ? hopsAlong(pts, raw, rides) : NO_HOPS;
       job.legs = [{ path: job.path, reverse: false }];
       job.status = 'done';
       return;
@@ -2280,6 +2271,8 @@ export class NavJob {
   status: NavStatus = 'queued';
   /** Complete route polyline for guidance and pedestrian movement. */
   path: Polyline | null = null;
+  /** Elevator rides along the pedestrian route, indexed by arc length. */
+  hops: readonly NavHop[] = NO_HOPS;
   /** The route split into stretches driven forward or in reverse (vehicles). */
   legs: RouteLeg[] | null = null;
   /** False when a failed vehicle search is replaced by a straight fallback segment. */

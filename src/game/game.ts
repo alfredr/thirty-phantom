@@ -667,7 +667,7 @@ export class Game {
       // Count initial cars in available deck spots as logged entries.
       const v = this.fleet.spawnCar('parked', new Vector3(...p.pos), p.yaw);
       const s = this.garage.spotAt(v.pos);
-      if (s && this.garage.isFree(s)) {
+      if (s && this.garage.isFree(s, v)) {
         this.garage.checkIn(s, v);
       }
     }

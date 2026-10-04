@@ -2,7 +2,7 @@ import { Vector3 } from 'three';
 
 import { damp, dampAngle } from '@/engine/core/math';
 import { type Polyline, RouteCursor } from '@/engine/nav/polyline';
-import { NAV, type NavGrid, type NavJob } from '@/world/nav-grid';
+import { NAV, type NavGrid, type NavHop, type NavJob, NO_HOPS } from '@/world/nav-grid';
 
 import { type Avoidance, PERSON_RADIUS } from './avoidance';
 import { Gait } from './models/person';
@@ -64,6 +64,8 @@ export class Walker {
   /** Current target speed after acceleration and endpoint easing, in m/s. */
   private cruise = 0;
   private cursor: RouteCursor | null = null;
+  /** Elevator rides on the active route. */
+  private hops: readonly NavHop[] = NO_HOPS;
   private planned: { job: NavJob; pace: number | (() => number) } | null = null;
   private wantYaw = 0;
   private stalled = 0;
@@ -108,7 +110,7 @@ export class Walker {
       return 'failed';
     }
 
-    this.follow(job.path, typeof pace === 'number' ? pace : pace());
+    this.follow(job.path, typeof pace === 'number' ? pace : pace(), job.hops);
     return 'following';
   }
 
@@ -149,8 +151,10 @@ export class Walker {
     this.sync(0);
   }
 
-  follow(path: Polyline, pace: number): void {
+  /** Follow the path at the requested pace, using its optional elevator hops. */
+  follow(path: Polyline, pace: number, hops: readonly NavHop[] = NO_HOPS): void {
     this.cursor = new RouteCursor(path);
+    this.hops = hops;
     this.pace = pace;
     this.stalled = this.blind = 0;
   }
@@ -171,7 +175,7 @@ export class Walker {
    */
   update(dt: number, nav: NavGrid, avoid: Avoidance | null = null): boolean {
     // Delegate boarding, transport, and disembarking to world/elevators.ts.
-    if (dt > 0 && nav.elevators?.ride(this, this.cursor, dt)) {
+    if (dt > 0 && nav.elevators?.ride(this, this.cursor, this.hops, dt)) {
       this.yaw = dampAngle(this.yaw, this.wantYaw, TURN_RATE, dt);
       this.sync(dt);
       return false;

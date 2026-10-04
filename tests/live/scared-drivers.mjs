@@ -178,12 +178,12 @@ export function givesWayWhenCodyIsInTheWayIn() {
   }
 
   const divert = g.refuge.diverts.find((d) => d.p.car === car);
-  const offRoad = sim.until(() => !g.traffic.onRoad(car) && divert.stage.ahead?.(16).length > 0, 10, [car]);
+  const offRoad = sim.until(() => !g.traffic.onRoad(car) && divert.step.action.ahead?.(16).length > 0, 10, [car]);
   if (!offRoad.ok) {
     return { ok: false, why: 'never left the road with a way in' };
   }
 
-  const cody = divert.stage.ahead(16)[2];
+  const cody = divert.step.action.ahead(16)[2];
   const dist = () => Math.hypot(car.pos.x - cody.x, car.pos.z - cody.z);
   const start = dist();
   let closest = start;

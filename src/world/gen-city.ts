@@ -282,9 +282,22 @@ export function generateCity(w: LevelWriter, seed: number): void {
   const rng = new Rng(seed);
   const { pitch, blocks, sidewalk: SW } = CITY;
   const span = pitch * blocks;
+  const shafts = BLOCK_LAYOUT.flatMap((column, bx) =>
+    column.flatMap((kind, bz) => {
+      if (kind !== 'deck') {
+        return [];
+      }
 
-  // ground
-  w.box([-90, -1, -90], [span + 90, 0, span + 90], 'asphalt', { solid: false });
+      const [x0, z0] = blockRect(bx, bz);
+      const origin: V3 = [x0, 0, z0 + 6];
+      return [stairShaft(origin), elevatorShaft(origin)].map(([u0, v0, u1, v1]) => ({ u0, u1, v0, v1 }));
+    }),
+  );
+
+  // Match the collision pits so the street surface does not cross the basement shafts.
+  for (const r of subtractRects({ u0: -90, u1: span + 90, v0: -90, v1: span + 90 }, shafts)) {
+    w.box([r.u0, -1, r.v0], [r.u1, 0, r.v1], 'asphalt', { solid: false });
+  }
 
   // road center dashes
   for (let i = 0; i <= blocks; i++) {
@@ -331,13 +344,7 @@ export function generateCity(w: LevelWriter, seed: number): void {
       const [x0, z0, x1, z1] = blockRect(bx, bz);
       if (kind === 'deck') {
         // Leave stair and elevator openings in the six-meter sidewalk before the deck at z0 + 6.
-        const holes = [stairShaft([x0, 0, z0 + 6]), elevatorShaft([x0, 0, z0 + 6])].map(([u0, v0, u1, v1]) => ({
-          u0,
-          u1,
-          v0,
-          v1,
-        }));
-        for (const r of subtractRects({ u0: x0, u1: x1, v0: z0, v1: z0 + 6 }, holes)) {
+        for (const r of subtractRects({ u0: x0, u1: x1, v0: z0, v1: z0 + 6 }, shafts)) {
           w.box([r.u0, 0, r.v0], [r.u1, SW, r.v1], 'sidewalk');
         }
 

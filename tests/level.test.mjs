@@ -3,13 +3,37 @@ import { test } from 'node:test';
 
 import { loadModules } from './modules.mjs';
 
-const [{ parseLevel }, { generateLevel }, { loadLevel }, { emptyLevel }] = await loadModules(
-  '/src/world/parse-level.ts',
-  '/src/world/generate-level.ts',
-  '/src/world/load-level.ts',
-  '/src/world/level-data.ts',
-);
+const [{ parseLevel }, { generateLevel }, { loadLevel }, { emptyLevel }, { stairShaft, elevatorShaft }] =
+  await loadModules(
+    '/src/world/parse-level.ts',
+    '/src/world/generate-level.ts',
+    '/src/world/load-level.ts',
+    '/src/world/level-data.ts',
+    '/src/world/gen-deck.ts',
+  );
 const generated = JSON.parse(JSON.stringify(generateLevel()));
+
+test('the street surface leaves the basement stair and elevator shafts open', () => {
+  const [x, , z] = generated.deck.min;
+  const shafts = [stairShaft([x, 0, z]), elevatorShaft([x, 0, z])];
+  const ground = generated.boxes.filter((b) => b.mat === 'asphalt' && b.min[1] < 0 && b.max[1] === 0);
+  assert.ok(ground.length > 0, 'retain the surrounding street surface');
+
+  for (const [x0, z0, x1, z1] of shafts) {
+    for (const b of ground) {
+      const overlaps = b.min[0] < x1 && b.max[0] > x0 && b.min[2] < z1 && b.max[2] > z0;
+      assert.equal(overlaps, false, 'no street slab may cross a shaft opening');
+    }
+  }
+
+  const area = ground.reduce((sum, b) => sum + (b.max[0] - b.min[0]) * (b.max[2] - b.min[2]), 0);
+  const holes = shafts.reduce((sum, [x0, z0, x1, z1]) => sum + (x1 - x0) * (z1 - z0), 0);
+  const minX = Math.min(...ground.map((b) => b.min[0]));
+  const maxX = Math.max(...ground.map((b) => b.max[0]));
+  const minZ = Math.min(...ground.map((b) => b.min[2]));
+  const maxZ = Math.max(...ground.map((b) => b.max[2]));
+  assert.ok(Math.abs(area + holes - (maxX - minX) * (maxZ - minZ)) < 1e-8, 'remove only the two shaft openings');
+});
 
 test('generated cities round-trip through the level parser', () => {
   for (const seed of [1, 30, 99]) {

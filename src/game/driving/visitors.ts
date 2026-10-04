@@ -10,7 +10,18 @@ import { done, type Result, running } from '@/engine/sim/action';
 import type { BayDef, ZoneDef } from '@/world/level-data';
 import { NAV, type NavJob, type NavPlanner, type RouteLeg } from '@/world/nav-grid';
 
-import { type Berth, type DriveAction, DriverJob, DriveTo, type DriveWorld, halt, Park, stand } from './drive-actions';
+import {
+  type Berth,
+  type DriveAction,
+  DriverJob,
+  type DriveStep,
+  DriveTo,
+  type DriveWorld,
+  halt,
+  Park,
+  stand,
+  steerClear,
+} from './drive-actions';
 import type { Drivers } from './drivers';
 import type { Fleet } from './fleet';
 
@@ -82,8 +93,10 @@ interface VisitorHooks {
   giveUp(car: Vehicle, coming: boolean): void;
 }
 
+type ArriveStep = DriveStep | { readonly at: 'park'; readonly action: Park };
+
 /** Follow an arrival route, avoid reported threats, and interpolate into the stall before notifying the visitor system. */
-export class Arrive extends DriverJob {
+export class Arrive extends DriverJob<ArriveStep> {
   constructor(
     readonly p: {
       car: Vehicle;
@@ -95,8 +108,9 @@ export class Arrive extends DriverJob {
   ) {
     super(p.car, 'visitor');
     const { car, bay, legs, keepOut } = p;
-    this.next(
-      new DriveTo({
+    this.next({
+      at: 'drive',
+      action: new DriveTo({
         car,
         to: bay.center,
         yaw: bay.yaw,
@@ -106,21 +120,23 @@ export class Arrive extends DriverJob {
         pad: BLOCK_PAD,
         legs,
       }),
-    );
+    });
   }
 
   protected drive(w: DriveWorld, dt: number, seen: Vector3 | null): Result<DriveAction> {
     const { car, bay, hooks } = this.p;
-    if (seen) {
-      this.steerClear(seen);
-    }
-
-    const stage = this.stage;
-    if (!stage) {
+    const step = this.step;
+    if (!step) {
       return done;
     }
 
-    const result = stage.perform(w, dt);
+    const round = seen && step.at === 'drive' ? steerClear(step, seen) : null;
+    if (round) {
+      this.next(round);
+    }
+
+    const now = round ?? step;
+    const result = now.action.perform(w, dt);
     if ('fail' in result) {
       hooks.giveUp(car, true);
       return done;
@@ -130,8 +146,8 @@ export class Arrive extends DriverJob {
       return running;
     }
 
-    if (stage instanceof DriveTo) {
-      this.next(new Park({ car, berth: bay }));
+    if (now.at === 'drive') {
+      this.next({ at: 'park', action: new Park({ car, berth: bay }) });
       return running;
     }
 
@@ -141,7 +157,7 @@ export class Arrive extends DriverJob {
 }
 
 /** Drive from a parked stall to a traffic lane and rejoin when aligned. */
-export class Leave extends DriverJob {
+export class Leave extends DriverJob<DriveStep> {
   constructor(
     readonly p: {
       car: Vehicle;
@@ -153,23 +169,32 @@ export class Leave extends DriverJob {
   ) {
     super(p.car, 'visitor');
     const { car, lane, keepOut } = p;
-    this.next(
-      new DriveTo({ car, to: lane.pos, yaw: lane.yaw, allow: stallZone(car.pos, car.yaw), keepOut, pad: BLOCK_PAD }),
-    );
+    this.next({
+      at: 'drive',
+      action: new DriveTo({
+        car,
+        to: lane.pos,
+        yaw: lane.yaw,
+        allow: stallZone(car.pos, car.yaw),
+        keepOut,
+        pad: BLOCK_PAD,
+      }),
+    });
   }
 
   protected drive(w: DriveWorld, dt: number, seen: Vector3 | null): Result<DriveAction> {
     const { car, lane, join, hooks } = this.p;
-    if (seen) {
-      this.steerClear(seen);
-    }
-
-    const stage = this.stage;
-    if (!stage) {
+    const step = this.step;
+    if (!step) {
       return done;
     }
 
-    const result = stage.perform(w, dt);
+    const round = seen ? steerClear(step, seen) : null;
+    if (round) {
+      this.next(round);
+    }
+
+    const result = (round ?? step).action.perform(w, dt);
     if ('fail' in result) {
       hooks.giveUp(car, false);
       return done;
