@@ -1069,7 +1069,7 @@ export class Game {
     this.ghastIntake(v, di, dt);
     const prev = _prev.copy(v.pos);
     const ev = v.drive(dt, di, this.world.collision);
-    if (di.hop && !v.grounded) this.slime.burst(v.pos, 10, 4, [0.12, 0.25], [0.6, 1], SLIME, 0.6, v.pos.y);
+    if (ev.hopped) this.slime.burst(v.pos, 10, 4, [0.12, 0.25], [0.6, 1], SLIME, 0.6, v.pos.y);
 
     for (const s of ev.smashed) {
       if (s.knockdown) this.knockProp(s, v);
