@@ -1211,6 +1211,8 @@ export class Game {
   private exit(): void {
     const v = this.driving as Vehicle;
     this.driving = null;
+    // An escaped vehicle's roll ends with the drive, so the next vehicle Cody takes is not affected.
+    this.escapedTimer = -1;
     this.hud.setMode('foot');
     this.iso.zoomTarget = Math.min(this.iso.zoomTarget, TUNING.camera.zoom);
     this.hud.setPrompt(null);
@@ -1280,7 +1282,6 @@ export class Game {
 
   private vanish(v: Vehicle): void {
     // the escaped truck dissolves into the night and Cody is left on foot
-    this.escapedTimer = -1;
     const at = _at.copy(v.pos).setY(v.pos.y + 1.5);
     this.slime.burst(at, 50, 9, [0.15, 0.45], [1, 2], SLIME, 1, v.pos.y);
     this.sprites.spray(at, 8, 5, [3, 6], WHITE, 1.5, 3, 1.6, 'ghost', 0.9);
