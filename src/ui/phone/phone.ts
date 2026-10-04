@@ -34,6 +34,8 @@ export interface PhoneApp {
 export interface PhoneStatus {
   /** The time on its status bar. */
   time(): string;
+  /** The current task, or null. */
+  goal(): string | null;
 }
 
 /**
@@ -48,15 +50,12 @@ export interface PhoneStatus {
 export class Phone {
   /** It sounds off (for the game's 'phone' event): starts ringing, stops ringing, a text lands. */
   onBuzz: ((what: 'ring' | 'hangup' | 'text') => void) | null = null;
-  /** The task right now, as shown under the clock (null for none). */
-  goalText: string | null = null;
   private readonly frame: HTMLDivElement;
   private readonly badges = new Map<PhoneApp, HTMLElement>();
   private readonly bodies = new Map<PhoneApp, HTMLElement>();
   private readonly icons: HTMLElement[] = [];
   private readonly pages = new Map<PhoneApp, HTMLElement>();
   private readonly home: HTMLElement;
-  private readonly goalEl: HTMLDivElement;
   private readonly views = new Bindings();
   /** The app on screen, or null for the home screen. */
   private app: PhoneApp | null = null;
@@ -112,7 +111,14 @@ export class Phone {
     el('div', 'name', call, 'RANDY ROLSEN');
     el('div', 'state', call, 'INCOMING CALL');
     el('div', 'buttons', call, '<i class="no"></i><i class="ok"></i>');
-    this.goalEl = el('div', 'burner-goal', hud);
+    const goal = el('div', 'burner-goal', hud);
+    this.views.add({
+      read: () => status.goal(),
+      draw: (task) => {
+        goal.classList.toggle('on', !!task);
+        goal.innerHTML = task ? keyText(task) : '';
+      },
+    });
     // back up from the edge for another look
     this.frame.addEventListener('click', () => {
       if (this.frame.classList.contains('peek')) this.open(this.app?.id);
@@ -178,13 +184,6 @@ export class Phone {
     if (!this.held) this.peek();
   }
 
-  /** What to do now, under the clock; null clears it. HTML is allowed, and `{action}` becomes its key cap. */
-  goal(task: string | null): void {
-    this.goalText = task;
-    this.goalEl.classList.toggle('on', !!task);
-    if (task) this.goalEl.innerHTML = keyText(task);
-  }
-
   /** It buzzes in his hand (a text landed). */
   buzz(): void {
     this.frame.classList.remove('buzz');
@@ -193,11 +192,10 @@ export class Phone {
     this.onBuzz?.('text');
   }
 
-  /** Put away for good (the tutorial's over): no call, no goal. */
+  /** End the call and put the phone away when the tutorial finishes. */
   close(): void {
     this.hangUp();
     this.putAway();
-    this.goal(null);
   }
 
   /** Once a frame: the status bar, the badges, and the app on screen. */

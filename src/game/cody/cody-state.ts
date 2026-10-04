@@ -8,7 +8,7 @@ export type CodyAbility = 'steal' | 'possess' | 'truck' | 'summon';
 
 /**
  * Daytime Cody can steal cars. Phantom Cody can possess cars, drive the monster truck,
- * and summon skeletons. Game.possessable restricts possession to cars inside the deck at night.
+ * and summon skeletons. CodyRide.possessable restricts possession to cars inside the deck at night.
  */
 const ABILITIES: Readonly<Record<CodyForm, readonly CodyAbility[]>> = {
   day: ['steal'],

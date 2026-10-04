@@ -263,10 +263,6 @@ export class Tutorial {
   /** He's picked up the badge Randy threw, and the trigger that says so. */
   private badgeFound = false;
   private badgeGot: (() => void) | null = null;
-  /** The markers up, by id, and the goal under the clock: kept in step with the current step by show(). */
-  private readonly marks = new Set<string>();
-  private shownGoal: string | null | undefined = undefined;
-
   private readonly steps = mind<Tutorial, Steps, TutorialEvents>({
     off: {},
     scene: {
@@ -686,22 +682,8 @@ export class Tutorial {
   /** The goal under the clock and the markers as the current step has them. */
   private show(): void {
     const s = this.quest.state;
-    const goal = this.goalOf(s);
-    if (goal !== this.shownGoal) {
-      this.phone.goal(goal);
-      this.shownGoal = goal;
-    }
-    const wanted = this.marksOf(s);
-    for (const id of this.marks) {
-      if (wanted.some((m) => m.id === id)) continue;
-      this.game.objectives.remove(id);
-      this.marks.delete(id);
-    }
-    for (const m of wanted) {
-      if (this.marks.has(m.id)) continue;
-      this.game.objectives.add(m);
-      this.marks.add(m.id);
-    }
+    this.game.objectives.goal = this.goalOf(s);
+    this.game.objectives.replace(this, this.marksOf(s));
   }
 
   private text(msg: string): void {
@@ -1007,7 +989,7 @@ export function stageOn(level: LevelData, garage: Garage, ground: (x: number, z:
   const truck = spot.center.clone();
   const fx = Math.sin(yaw);
   const fz = Math.cos(yaw);
-  // the side Cody gets out on, as Game.exit has it
+  // the side Cody gets out on, as CodyRide.exit has it
   const sx = -Math.cos(yaw);
   const sz = Math.sin(yaw);
   const launch = ax === 0 ? [k.dir, 0] : [0, k.dir];

@@ -2,7 +2,6 @@ import { Vector3 } from 'three';
 import type { Vehicle } from '../../actors/vehicle';
 import { TUNING } from '../../config';
 import { mind } from '../../engine/sim/mind';
-import type { NavJob } from '../../world/nav-grid';
 import type { SpotRuntime } from '../deck/garage';
 import type { Valet, ValetDrive } from './valet';
 
@@ -19,13 +18,13 @@ export type Job = {
   /** At the stand, waiting for keys. */
   idle: object;
   /** Walking to the car he's been handed. */
-  toCar: { car: Vehicle; spot: SpotRuntime; walk: NavJob | null };
+  toCar: { car: Vehicle; spot: SpotRuntime };
   /** At the door, getting in. */
   boarding: { car: Vehicle; spot: SpotRuntime; t: number };
   /** At the wheel. */
   driving: { car: Vehicle; spot: SpotRuntime; drive: ValetDrive };
   /** Walking back to the stand. */
-  returning: { walk: NavJob | null };
+  returning: object;
 };
 
 /** Whether he's paying anyone attention. */
@@ -47,7 +46,7 @@ export type ValetEvents = {
   talkEnded: object;
 };
 
-const returning = (): { at: 'returning'; walk: null } => ({ at: 'returning', walk: null });
+const returning = (): { at: 'returning' } => ({ at: 'returning' });
 
 /** The job. Being handed a car moves him only while he's free for it: at the stand, or on his way back. */
 export const VALET_JOB = mind<Valet, Job, ValetEvents>({
@@ -70,21 +69,17 @@ export const VALET_JOB = mind<Valet, Job, ValetEvents>({
       if (!talking) v.idleAnim();
       return null;
     },
-    on: { handedCar: (_v, _s, { car, spot }) => ({ at: 'toCar', car, spot, walk: null }) },
+    on: { handedCar: (_v, _s, { car, spot }) => ({ at: 'toCar', car, spot }) },
   },
   toCar: {
     enter: (v, s) => {
-      s.walk = v.crew.walkTo(v, v.crew.doorOf(s.car));
+      v.walker.plan(v.crew.walkTo(v, v.crew.doorOf(s.car)), T.walkPace);
     },
-    exit: (_v, s) => s.walk?.cancel(),
+    exit: (v) => v.walker.cancelPlan(),
     tick: (v, s, dt) => {
       const w = v.walker;
-      if (s.walk?.settled) {
-        if (s.walk.path) w.follow(s.walk.path, T.walkPace);
-        else w.place(v.crew.doorOf(s.car), s.car.yaw);
-        s.walk = null;
-      }
-      if (!w.update(dt, v.crew.nav, v.crew.avoid) && (s.walk || w.walking)) return null;
+      if (w.followPlanned() === 'failed') w.place(v.crew.doorOf(s.car), s.car.yaw);
+      if (!w.update(dt, v.crew.nav, v.crew.avoid) && (w.planning || w.walking)) return null;
       w.face(s.car.pos);
       return { at: 'boarding', car: s.car, spot: s.spot, t: 0 };
     },
@@ -120,33 +115,29 @@ export const VALET_JOB = mind<Valet, Job, ValetEvents>({
     on: { carjacked: returning },
   },
   returning: {
-    enter: (v, s) => {
+    enter: (v) => {
       v.crew.jobOver(v);
-      s.walk = v.crew.walkTo(v, v.home);
+      v.walker.plan(v.crew.walkTo(v, v.home), T.jogPace);
     },
-    exit: (_v, s) => s.walk?.cancel(),
-    tick: (v, s, dt) => {
+    exit: (v) => v.walker.cancelPlan(),
+    tick: (v, _s, dt) => {
       const w = v.walker;
-      if (s.walk?.settled) {
-        if (s.walk.path) w.follow(s.walk.path, T.jogPace);
-        else w.place(v.home, v.homeYaw);
-        s.walk = null;
-      }
+      if (w.followPlanned() === 'failed') w.place(v.home, v.homeYaw);
       if (v.attention.in('facing')) {
         w.stop();
         w.update(dt, v.crew.nav);
         return null;
       }
-      if (w.update(dt, v.crew.nav, v.crew.avoid) || (!s.walk && !w.walking && w.pos.distanceTo(v.home) < HOME_EPS)) {
+      if (w.update(dt, v.crew.nav, v.crew.avoid) || (!w.planning && !w.walking && w.pos.distanceTo(v.home) < HOME_EPS)) {
         w.face(_ahead.set(v.home.x + Math.sin(v.homeYaw), v.home.y, v.home.z + Math.cos(v.homeYaw)));
         return { at: 'idle' };
       }
       // stopped short (a conversation, a replan): head home again
-      if (!s.walk && !w.walking) s.walk = v.crew.walkTo(v, v.home);
+      if (!w.planning && !w.walking) w.plan(v.crew.walkTo(v, v.home), T.jogPace);
       return null;
     },
     // a bribe turns him round
-    on: { handedCar: (_v, _s, { car, spot }) => ({ at: 'toCar', car, spot, walk: null }) },
+    on: { handedCar: (_v, _s, { car, spot }) => ({ at: 'toCar', car, spot }) },
   },
 });
 

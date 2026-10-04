@@ -1,7 +1,7 @@
 import { Vector3 } from 'three';
 import { damp, dampAngle } from '../engine/core/math';
 import { type Polyline, RouteCursor } from '../engine/nav/polyline';
-import { NAV, type NavGrid } from '../world/nav-grid';
+import { NAV, type NavGrid, type NavJob } from '../world/nav-grid';
 import { type Avoidance, PERSON_RADIUS } from './avoidance';
 import { Gait } from './models/person';
 import type { CharacterRig } from './models/rig';
@@ -59,6 +59,7 @@ export class Walker {
   /** Speed the route asks for now: the pace, eased at the start and end. */
   private cruise = 0;
   private cursor: RouteCursor | null = null;
+  private planned: { job: NavJob; pace: number | (() => number) } | null = null;
   private wantYaw = 0;
   private stalled = 0;
   /** Seconds left pushing on past whatever's standing in the way. */
@@ -70,6 +71,36 @@ export class Walker {
 
   get walking(): boolean {
     return this.cursor !== null;
+  }
+
+  /** A route request is pending, or ready to follow after the current route. */
+  get planning(): boolean {
+    return this.planned !== null;
+  }
+
+  /** Own a route request, cancelling any previous request. A lazy pace is chosen only if a route is found. */
+  plan(job: NavJob | null, pace: number | (() => number)): boolean {
+    this.cancelPlan();
+    this.planned = job ? { job, pace } : null;
+    return this.planning;
+  }
+
+  /** Start a ready route once. `afterCurrent` lets a fleeing person finish their initial dash first. */
+  followPlanned(afterCurrent = false): 'waiting' | 'following' | 'failed' | null {
+    const plan = this.planned;
+    if (!plan) return null;
+    const { job, pace } = plan;
+    if (!job.settled || (afterCurrent && job.path && this.walking)) return 'waiting';
+    this.planned = null;
+    if (!job.path) return 'failed';
+    this.follow(job.path, typeof pace === 'number' ? pace : pace());
+    return 'following';
+  }
+
+  /** Cancel the pending request without interrupting a route already being walked. */
+  cancelPlan(): void {
+    this.planned?.job.cancel();
+    this.planned = null;
   }
 
   get remaining(): number {
@@ -87,6 +118,7 @@ export class Walker {
   }
 
   place(p: Vector3, yaw: number): void {
+    this.cancelPlan();
     this.pos.copy(p);
     this.yaw = this.wantYaw = yaw;
     this.cursor = null;

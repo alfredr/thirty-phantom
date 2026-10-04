@@ -49,7 +49,7 @@ export function escapedTruckRollsOnThenDissolves() {
   const car = g.vehicles.find((v) => v.role === 'parked' && v.insideDeck && v.form === 'car' && v.pos.y < 1);
   if (!car) return { ok: false, why: 'no car on the deck floor' };
   g.board(car);
-  const changed = sim.until(() => g.codyRide.state.at === 'driving', 10, []);
+  const changed = sim.until(() => g.codyRide.driving !== null, 10, []);
   const truck = g.driving;
   if (!truck || truck.form !== 'truck') return { ok: false, why: 'no truck', changed: changed.ok };
   // straight out through the side, well clear of any gate
@@ -61,8 +61,8 @@ export function escapedTruckRollsOnThenDissolves() {
   g.events.on('phantom', () => phantoms++);
   truck.place(out.x, 0, out.z, truck.yaw, 0, 0, null);
   sim.run(2);
-  const rolling = g.codyRide.state.at === 'driving' && g.codyRide.state.escape !== null;
-  const gone = sim.until(() => g.codyRide.state.at === 'onFoot', 10, []);
+  const rolling = g.codyRide.escaping;
+  const gone = sim.until(() => g.codyRide.onFoot, 10, []);
   return { ok: phantoms === 1 && rolling && gone.ok && truck.status === 'vanishing', phantoms, rolling, onFootAfter: gone.seconds, status: truck.status };
 }
 

@@ -54,12 +54,11 @@ import { Casualties } from './town/casualties';
 import { CameraController, type CamMode } from './camera-controller';
 import { CallElevator, type CodyAction, type CodyCandidate, Eat, GetOut, GiveTires, InteractWithVehicle, PickFloor, type Play, RANK, RockOver, Summon, TalkToRandy, TalkToValet } from './cody/cody-actions';
 import { CodyState, FRIGHTENING } from './cody/cody-state';
+import { CodyRide, type RideEvents } from './cody/cody-ride';
 import { CLAIMS, type ClaimKind } from './rules/claim-kinds';
 import { Doing, resolveFully } from '../engine/sim/action';
 import { Claims } from '../engine/sim/claims';
-import { Mind, mind } from '../engine/sim/mind';
 import { bestOffers } from '../engine/sim/offers';
-import { Phases } from '../engine/sim/phase';
 import { Space } from '../engine/sim/space';
 import { EYE_HEIGHT, gameReactions, type Perception, react, type Reaction, type Thing } from './rules/reactions';
 import { LEVEL } from './rules/reach';
@@ -85,7 +84,7 @@ import { RandyTalk } from './randy/talk';
 import { TireTrade } from './randy/tire-trade';
 import { Wares } from './randy/wares';
 import { Objectives } from './story/objectives';
-import { Haunting, Quests, TireDeal } from './story/quests';
+import { Haunting, Quests, tireMarks } from './story/quests';
 import { type ItemDeed, Triggers } from './story/triggers';
 import { TransformSequence, type FxKit } from './deck/transform-sequence';
 import { ValetTalk } from './valets/talk';
@@ -131,8 +130,6 @@ const NONE: readonly Vector3[] = [];
 
 /** Cody can get into a car or truck at most this far above or below it (how near: VehicleBreed.enterReach). */
 const ENTER_HEIGHT = 1.8;
-/** Cody steps out this far past the side of the car (m). */
-const DOOR_GAP = 1;
 /** A truck flattens a car outside the deck above this speed (m/s); the hit jolts the truck's body. */
 const CRUSH_SPEED = 4;
 /** A driver pulling round only knocks another driven car loose (its driver out) with a bump this hard (m/s); softer is a shove. */
@@ -140,8 +137,6 @@ const NUDGE_LOOSEN = 2.5;
 /** A car slower than this (m/s) in a deck spot is standing in it: the spot isn't free. */
 const STANDING = 0.5;
 const CRUSH_KICK = 2.5;
-/** An escaped truck rolls on this long (s) before it dissolves. */
-const ESCAPE_ROLL = 2.5;
 /**
  * Dozing off after a big meal: the picture dims to DOZE.dim of itself over
  * `down` seconds, the clock jumps to the next nightfall or sunrise while it's
@@ -163,22 +158,11 @@ const NPC_ROOM = 0.4;
 const FIRE_ROOM = 0.45;
 
 type Mode = 'title' | 'play';
-/** Where Cody is: on foot, in a car changing into the monster truck round him, or at the wheel. */
-type CodyRide = {
-  onFoot: object;
-  changing: { seq: TransformSequence };
-  /** `escape`: got away unseen, seconds the truck rolls on before it dissolves; null till then. */
-  driving: { v: Vehicle; escape: number | null };
-};
 /** What happens in play, for the tutorial (and anything else that follows along). */
-export type GameEvents = {
+export type GameEvents = RideEvents & {
   start: null;
   /** A play frame finished; the payload is dt. */
   frame: number;
-  /** Cody got in: stole, took or (at night, in the deck) possessed a car. */
-  entered: { v: Vehicle; possessed: boolean };
-  /** Cody got out; `spot` is the deck spot it parked in, if any. */
-  exited: { v: Vehicle; spot: SpotRuntime | null };
   /** A driver took fright at phantom Cody (or the monster truck), once each time a fright starts; near the deck they may run for it. */
   spooked: { car: Vehicle };
   /** Cody got, used or gave away an item (game.triggers is the easier way to wait on one). */
@@ -218,8 +202,6 @@ export type GameEvents = {
     | { how: 'landed'; kind: PropKind; at: Vector3; light: Color };
   /** A monster truck (`by`) broke through a parapet; `at` is the piece's middle. */
   smashed: { at: Vector3; by: Vehicle };
-  /** An escaped truck dissolved into the night here. */
-  vanished: { at: Vector3 };
   /** A monster truck (`by`) flattened a car. */
   crushed: { car: Vehicle; by: Vehicle };
   /** A tire went into Randy's fire and it roared up. */
@@ -335,10 +317,9 @@ export class Game {
   private readonly shop: Shop;
   /** Talking to Randy at his fire (off while the tutorial runs). */
   readonly randyTalk: RandyTalk;
-  /** The quests besides the tutorial: the haunting itself, and Randy's tire deal. */
+  /** Saved progress in quests besides the tutorial. */
   readonly quests: Quests;
   private readonly haunting: Haunting;
-  private readonly tireDeal: TireDeal;
   /** Cody's phone: Randy's burner, with its apps. */
   readonly phone: Phone;
   /** Randy Rolsen and anyone else hanging about to be talked to (the tutorial finds them here). */
@@ -372,8 +353,6 @@ export class Game {
   readonly conditions: WorldConditions;
   /** Who holds what: driver's seats, spots on the way to being parked in, the deck's room for diversions. */
   readonly claims = new Claims<ClaimKind>(CLAIMS);
-  /** The owner of the driver's seat Cody holds. It ends when he gets out. */
-  private readonly codySeat = { name: 'Cody at the wheel' };
   /** Where everything that perceives or is perceived is, indexed once at the start of each frame. */
   private readonly space = new Space<Thing>(8, LEVEL.person);
   private readonly things: Thing[] = [];
@@ -384,7 +363,6 @@ export class Game {
     things: this.things,
     sees: (a, b) => !this.world.collision.segmentBlocked(eyeOf(a), eyeOf(b), true),
   };
-  readonly phases = new Phases();
   /** An escaped truck stays Cody's to drive (the tutorial's first ride) instead of rolling to a stop and vanishing. */
   keepEscaped = false;
   /** Trucks already counted as phantoms: a kept one going out again isn't another. */
@@ -405,28 +383,7 @@ export class Game {
     changed: (mode) => this.events.emit('camera', mode),
   }, wantsTouch());
   readonly debug: ReturnType<typeof createGameDebug>;
-  /** Cody's ride, a state at a time: what each frame does with him, on foot or at the wheel. */
-  private readonly RIDE = mind<Game, CodyRide, Record<never, object>>({
-    onFoot: {
-      tick: (g, _s, dt) => {
-        g.updateOnFoot(dt);
-        return null;
-      },
-    },
-    changing: {
-      tick: (_g, s, dt) => {
-        s.seq.update(dt);
-        return s.seq.done ? { at: 'driving', v: s.seq.vehicle, escape: null } : null;
-      },
-    },
-    driving: {
-      tick: (g, s, dt) => {
-        g.updateDriving(s, dt);
-        return null;
-      },
-    },
-  });
-  private readonly codyRide = new Mind<Game, CodyRide, Record<never, object>>(this.RIDE, this, { at: 'onFoot' });
+  private readonly codyRide: CodyRide;
   private time = 0;
   private last = 0;
   private flash = 0;
@@ -452,8 +409,6 @@ export class Game {
   private readonly blockers: { pos: Vector3; r: number }[] = [];
   /** Background transformations (sunrise reverting trucks to cars). */
   private readonly morphs: TransformSequence[] = [];
-  /** The car Cody last got out of: what a valet takes when Cody talks to him on foot. */
-  private lastCar: Vehicle | null = null;
 
   /** The dialogue portraits, rendered on first use (a few offscreen renders: ask before a conversation, not during one). */
   get portraits(): Portraits {
@@ -612,6 +567,23 @@ export class Game {
       shake: (t) => this.shake(t),
       flash: (a, c) => this.doFlash(a, c),
     };
+    this.codyRide = new CodyRide({
+      player: this.player,
+      cody: this.cody,
+      conditions: this.conditions,
+      claims: this.claims,
+      garage: this.garage,
+      collision: this.world.collision,
+      scene: this.scene,
+      money: this.money,
+      vehicles: this.vehicles,
+      events: this.events,
+      carjacked: (car) => this.valet.carjacked(car),
+      bail: (car) => this.crowd.bail(car, this.player.pos),
+      transform: (car) => new TransformSequence(car, 'truck', () => VEHICLE_BREEDS.truck.model(this.assets, car.color), this.fx),
+      onFoot: (dt) => this.updateOnFoot(dt),
+      drive: (car, dt) => this.updateDriving(car, dt),
+    });
     const drips = this.world.slime;
     drips.onSplat = () => {
       _splatSize[0] = drips.splatSize * 0.25;
@@ -671,13 +643,28 @@ export class Game {
       ghast: () => (this.driving?.form === 'truck' ? { fill: this.ghast, burning: this.boosting } : null),
     });
     // Cody's phone, Randy's burner, and its apps; it rings, hangs up and buzzes as the game's 'phone' event
-    this.phone = new Phone(this.hud.root, this.input.focus, { time: () => GameClock.format(this.clock.hours) }, new Messages(), [
-      new Tasks({ goal: () => this.phone.goalText, aim: () => `FILL ALL ${TUNING.garage.spots} SPOTS WITH PHANTOMS.`, marks: () => this.objectives.list }),
+    this.phone = new Phone(this.hud.root, this.input.focus, { time: () => GameClock.format(this.clock.hours), goal: () => this.objectives.goal }, new Messages(), [
+      new Tasks({ goal: () => this.objectives.goal, aim: () => `FILL ALL ${TUNING.garage.spots} SPOTS WITH PHANTOMS.`, marks: () => this.objectives.list }),
       new Phantoms(() => this.phantomReport()),
       new MapApp(),
       new Photos(),
       new Help(helpRows),
     ]);
+    this.events.on('entered', ({ possessed, from, quiet }) => {
+      if (from === null) return; // already at the wheel when moonrise transformed the car
+      this.iso.zoomTarget = Math.max(this.iso.zoomTarget, TUNING.camera.driveZoom);
+      this.hud.setPrompt(null);
+      if (quiet) return;
+      if (from === 'valet') this.hud.toast('HEY!', "THAT'S A GUEST'S CAR", 'warn', 1.8);
+      if ((from === 'traffic' || from === 'visitor') && this.conditions.parking()) this.hud.toast('STOLEN!', 'GET IT TO THE HAUNTED DECK');
+      if (possessed) this.hud.toast(this.cody.phantom ? 'PHANTOM CODY!' : 'POSSESSED!', 'GET IT OUT. NOT THROUGH THE GATE.', '', 2.6);
+    });
+    this.events.on('exited', ({ spot, quiet }) => {
+      this.boosting = false;
+      this.iso.zoomTarget = Math.min(this.iso.zoomTarget, TUNING.camera.zoom);
+      this.hud.setPrompt(null);
+      if (spot && !quiet) this.hud.toast('PARKED', spotLabel(spot), 'purple', 1.6);
+    });
     this.phone.onBuzz = (what) => this.events.emit('phone', what);
     this.hud.initMap(level);
     this.hud.onStart(() => this.start());
@@ -692,11 +679,8 @@ export class Game {
     this.talk = new ValetTalk(this.hud, this.garage, this.valet, this.rng, this.input.focus, {
       me: () => (this.driving ?? this.player).pos,
       onShift: () => this.conditions.valetsOnShift(),
-      carToTake: () => this.carForValet(),
-      handOff: (car) => {
-        if (this.driving === car) this.exit();
-        if (this.lastCar === car) this.lastCar = null;
-      },
+      carToTake: () => this.codyRide.carForValet(),
+      handOff: (car) => this.codyRide.handOff(car),
       cash: () => this.money.cash,
       pay: (amount) => this.money.spend(amount),
     });
@@ -714,9 +698,7 @@ export class Game {
       victory: () => this.hud.showVictory(),
       moved: (step) => this.events.emit('step', { quest: 'haunting', step }),
     });
-    // Randy takes tires when he's open for it (not while the tutorial has him)
-    this.tireDeal = new TireDeal({ randy: () => (this.randyTalk.enabled ? (this.npcs.find('randy')?.pos ?? null) : null) });
-    this.quests = new Quests(this.objectives, [this.haunting, this.tireDeal]);
+    this.quests = new Quests([this.haunting]);
     this.events.on('phantom', ({ n }) => this.haunting.mind.send({ type: 'phantom', n }));
 
     // attract mode: the deck at night, slowly orbiting
@@ -758,23 +740,22 @@ export class Game {
 
   /** What Cody is driving, if anything. */
   private get driving(): Vehicle | null {
-    return this.codyRide.in('driving')?.v ?? null;
+    return this.codyRide.driving;
   }
 
   /** The car turning into the monster truck round him, while it is. */
   private get transform(): TransformSequence | null {
-    return this.codyRide.in('changing')?.seq ?? null;
+    return this.codyRide.transform;
   }
 
   /** He got away unseen, and the truck's rolling on to dissolve. */
   private get escaping(): boolean {
-    const d = this.codyRide.in('driving');
-    return !!d && d.escape !== null;
+    return this.codyRide.escaping;
   }
 
   /** What Cody is driving, or the car turning into a truck around him. */
   private get ride(): Vehicle | null {
-    return this.driving ?? this.transform?.vehicle ?? null;
+    return this.codyRide.vehicle;
   }
 
   /** Scripted camera changes leave the player's saved preference intact. */
@@ -802,10 +783,7 @@ export class Game {
    * he was driving first. `own`: it's his own car, with nothing in the glovebox for him to find.
    */
   board(v: Vehicle, own = false): void {
-    if (this.driving === v) return;
-    if (this.driving) this.exit(true);
-    if (own) this.money.empty(v);
-    this.enter(v, true);
+    this.codyRide.board(v, own);
   }
 
   /** A parked civilian car (scripted scenes): `kind` picks one, else the usual mix. */
@@ -815,7 +793,7 @@ export class Game {
 
   /** Cody gets out of whatever he's driving, if anything (scripted: quietly, no PARKED toast). */
   alight(): void {
-    if (this.driving) this.exit(true);
+    if (this.driving) this.codyRide.exit(true);
   }
 
   /** Cody's outfit change, now, to suit the time of day. */
@@ -842,7 +820,6 @@ export class Game {
     if (this.mode === 'title') this.updateTitle(dt);
     else this.updatePlay(dt);
     this.updateShared(dt);
-    this.phases.enter('present');
     this.hud.update();
     this.phone.update();
     this.gfx.chaseView = this.chaseActive;
@@ -908,7 +885,7 @@ export class Game {
 
   /** Whether Cody is on his feet: not driving, and not inside a car that's turning into the truck. */
   private get onFoot(): boolean {
-    return !this.driving && !this.transform;
+    return this.codyRide.onFoot;
   }
 
   /** Indexes everything that perceives or is perceived, where it stands at the start of the frame. */
@@ -972,12 +949,9 @@ export class Game {
     // read every frame so movement made in the iso view can't jump the chase camera later
     const [mx, my] = inp.consumeMouse();
 
-    // Sense: index where everything is before anything moves this frame.
-    this.phases.enter('sense');
+    // Index bodies before movement for this frame's proximity queries.
     this.claims.newFrame();
     this.sense();
-    // Act: the systems below still decide and move in one pass; later stages split them.
-    this.phases.enter('act');
 
     // the cabs move first, carrying Cody if he's standing in one
     this.elevators.update(dt, this.driving || this.transform ? NONE : this.riders);
@@ -1045,9 +1019,8 @@ export class Game {
     if (this.chaseActive) this.cutaway.off();
     else this.cutaway.update(dt, focus, focusV, this.iso, this.world.collision, this.world.sight);
     this.updateNav(dt);
-    // the tire deal follows the tires Cody has
-    this.tireDeal.mind.send({ type: 'tires', have: this.inventory.count('tire') });
-    this.quests.update();
+    const randy = this.randyTalk.enabled ? (this.npcs.find('randy')?.pos ?? null) : null;
+    this.objectives.replace(this.tires, tireMarks(this.inventory.count('tire'), randy));
     this.updateObjectives();
     this.events.emit('frame', dt);
   }
@@ -1256,9 +1229,9 @@ export class Game {
       cody: this.cody,
       conditions: this.conditions,
       ride: () => this.driving,
-      possessable: (car) => this.possessable(car),
-      enter: (car) => this.enter(car),
-      exit: () => this.exit(),
+      possessable: (car) => this.codyRide.possessable(car),
+      enter: (car) => this.codyRide.enter(car),
+      exit: () => this.codyRide.exit(),
       escaping: () => this.escaping,
       inFreeSpot: (car) => {
         const spot = this.garage.spotAt(car.pos);
@@ -1274,14 +1247,6 @@ export class Game {
     };
   }
 
-  /**
-   * Whether entering this car will possess it. Requires the possession ability and a car
-   * inside the deck at night. Shared by the interaction prompt and enter().
-   */
-  private possessable(v: Vehicle): boolean {
-    return v.form === 'car' && v.insideDeck && this.conditions.deckAwake() && this.cody.can('possess');
-  }
-
   /** Summon skeletons at Cody's position and return the number raised. */
   summon(): number {
     if (!this.cody.can('summon') || this.driving || this.transform) return 0;
@@ -1293,43 +1258,8 @@ export class Game {
     return n;
   }
 
-  /** Cody gets in `v`: steals it, takes it, or possesses it. `quiet` (a scene put him in) says nothing about it on the HUD. */
-  private enter(v: Vehicle, quiet = false): void {
-    // Cody takes the wheel from whoever had it. A driver running for the deck loses the seat, and stops.
-    this.claims.take('driverSeat', this.cody, v, { owner: this.codySeat, preempt: true });
-    this.player.visible = false;
-    this.iso.zoomTarget = Math.max(this.iso.zoomTarget, TUNING.camera.driveZoom);
-    this.hud.setPrompt(null);
-    if (v.role === 'valet') {
-      this.valet.carjacked(v);
-      if (!quiet) this.hud.toast('HEY!', "THAT'S A GUEST'S CAR", 'warn', 1.8);
-    }
-    if (v.role === 'parked' || v.role === 'traffic' || v.role === 'valet' || v.role === 'visitor') v.markRest();
-    if (v.role === 'traffic' || v.role === 'visitor') {
-      // the driver gets out and runs for it (at night it's a frightened driver's car, possessed on its way into the deck)
-      this.crowd.bail(v, this.player.pos);
-      if (this.conditions.parking() && !quiet) this.hud.toast('STOLEN!', 'GET IT TO THE HAUNTED DECK');
-    }
-    // his from here on, turning into the truck round him or not: nothing else drives it
-    v.role = 'player';
-    // phantom Cody possesses a car in the deck (and the tutorial's Cody, after moonrise, his own): it turns into the truck
-    if (this.possessable(v)) {
-      this.codyRide.go({ at: 'changing', seq: new TransformSequence(v, 'truck', () => VEHICLE_BREEDS.truck.model(this.assets, v.color), this.fx) });
-      if (!quiet) this.hud.toast(this.cody.phantom ? 'PHANTOM CODY!' : 'POSSESSED!', 'GET IT OUT. NOT THROUGH THE GATE.', '', 2.6);
-      this.events.emit('entered', { v, possessed: true });
-      return;
-    }
-    const found = this.money.glovebox(v);
-    if (found) this.events.emit('money', { kind: 'glovebox', amount: found });
-    this.codyRide.go({ at: 'driving', v, escape: null });
-    // on a bike he's out in the open: Cody himself rides it
-    if (v.rig.rider) this.player.mount(v.rig.rider.saddle);
-    this.events.emit('entered', { v, possessed: false });
-  }
-
-  /** A frame at the wheel of `s.v`, its escape roll counting down if it got away. */
-  private updateDriving(s: CodyRide['driving'], dt: number): void {
-    const v = s.v;
+  /** Movement, contacts, and effects for Cody's current vehicle. */
+  private updateDriving(v: Vehicle, dt: number): void {
     if (v.rig.rider) this.player.ride(dt);
     const inp = this.input;
     const di: DriveInput = {
@@ -1338,7 +1268,7 @@ export class Game {
       hop: inp.wasPressed('hop'),
       drift: inp.isDown('drift'),
     };
-    if (s.escape !== null) di.throttle = Math.max(di.throttle, 0);
+    if (this.escaping) di.throttle = Math.max(di.throttle, 0);
     this.ghastIntake(v, di, dt);
     const prev = _prev.copy(v.pos);
     const ev = v.drive(dt, di, this.world.collision);
@@ -1362,20 +1292,6 @@ export class Game {
     }
 
     this.interact();
-    if (s.escape !== null) {
-      s.escape -= dt;
-      if (s.escape < 0 && v.grounded) this.vanish(v);
-    }
-  }
-
-  // ---------------------------------------------------------------- valets
-
-  /** The car a valet would take: the one Cody is in, or the one he just got out of. */
-  private carForValet(): Vehicle | null {
-    if (this.driving) return this.driving.form === 'car' ? this.driving : null;
-    const c = this.lastCar;
-    if (!c || c.role !== 'parked' || c.status || c.insideDeck || !this.vehicles.includes(c)) return null;
-    return c.pos.distanceTo(this.player.pos) < TUNING.valet.carReach ? c : null;
   }
 
   /** CSS-pixel screen position of a world point, or null when it's behind the camera. */
@@ -1460,46 +1376,6 @@ export class Game {
     if (!(v.crashing && v.resting)) this.vehicleContacts(v, loosen);
   }
 
-  /** Cody gets out; `quiet` (a scene got him out) skips the PARKED toast. */
-  private exit(quiet = false): void {
-    const v = this.driving;
-    if (!v) return;
-    // on foot again: an escape roll ends with the drive it was part of
-    this.codyRide.go({ at: 'onFoot' });
-    this.claims.release(this.codySeat);
-    this.boosting = false;
-    this.iso.zoomTarget = Math.min(this.iso.zoomTarget, TUNING.camera.zoom);
-    this.hud.setPrompt(null);
-    v.vel.set(0, 0, 0);
-    v.speed = 0;
-    v.role = 'parked';
-    let parkedIn: SpotRuntime | null = null;
-    if (v.insideDeck) {
-      const s = this.garage.spotAt(v.pos);
-      if (s && this.garage.isFree(s, v)) {
-        const flip = Math.cos(v.yaw - s.def.yaw) < 0;
-        v.place(s.center.x, s.center.y, s.center.z, s.def.yaw + (flip ? Math.PI : 0), 0, 0, null);
-        this.garage.occupy(s, v);
-        if (!quiet) this.hud.toast('PARKED', spotLabel(s), 'purple', 1.6);
-        parkedIn = s;
-      } else {
-        this.garage.release(v);
-      }
-    }
-    v.markRest();
-    this.lastCar = v;
-    // step out on the driver's side, then let collision sort it out
-    const side = v.params.radius + DOOR_GAP;
-    _v.set(v.pos.x - Math.cos(v.yaw) * side, v.pos.y, v.pos.z + Math.sin(v.yaw) * side);
-    const p: V3 = [_v.x, _v.y, _v.z];
-    this.world.collision.resolveCircle(p, TUNING.player.radius, TUNING.player.height, TUNING.player.stepUp);
-    _v.set(p[0], this.world.collision.groundAt(p[0], p[2], v.pos.y + 0.5, 1), p[2]);
-    this.player.dismount(this.scene);
-    this.player.place(_v, v.yaw);
-    this.player.visible = true;
-    this.events.emit('exited', { v, spot: parkedIn });
-  }
-
   private onCrossing(c: Crossing): void {
     this.events.emit('crossing', c);
     const v = c.vehicle;
@@ -1528,18 +1404,10 @@ export class Game {
         this.hud.toast(`PHANTOM CODY #${this.garage.phantoms}`, 'OOPS! YOU FORGOT TO BADGE OUT!', '', 2.8);
         this.doFlash(0.35, '#9dff3a');
         this.shake(0.3);
-        const drive = this.codyRide.in('driving');
-        if (drive && !this.keepEscaped) drive.escape = ESCAPE_ROLL;
+        if (!this.keepEscaped) this.codyRide.escaped();
         break;
       }
     }
-  }
-
-  private vanish(v: Vehicle): void {
-    // the escaped truck dissolves into the night and Cody is left on foot
-    this.events.emit('vanished', { at: v.pos.clone() });
-    this.exit();
-    v.setStatus('vanishing');
   }
 
   private smash(solidId: number, v: Vehicle): void {
@@ -1587,17 +1455,7 @@ export class Game {
     this.doFlash(0.6, '#b46bff');
     this.shake(0.3);
     if (!this.cody.holdForm) this.codyFx = 0;
-    // driving at moonrise: the car turns into the monster truck round him (in the tutorial, Cody himself stays Cody)
-    const v = this.driving;
-    if (v && v.form === 'car') {
-      // off the bike's saddle (its rig is about to go), and inside the truck, out of sight
-      if (v.rig.rider) {
-        this.player.dismount(this.scene);
-        this.player.visible = false;
-      }
-      this.codyRide.go({ at: 'changing', seq: new TransformSequence(v, 'truck', () => VEHICLE_BREEDS.truck.model(this.assets, v.color), this.fx) });
-      this.events.emit('entered', { v, possessed: true });
-    }
+    this.codyRide.moonrise();
     this.events.emit('nightfall', null);
   }
 
@@ -1617,7 +1475,7 @@ export class Game {
     // monster trucks fall back asleep as cars
     for (const v of this.vehicles) {
       if (v.form !== 'truck' || v.status) continue;
-      if (v === this.driving) this.exit();
+      if (v === this.driving) this.codyRide.exit();
       this.morphs.push(new TransformSequence(v, 'car', () => VEHICLE_BREEDS[v.kind].model(this.assets, v.color), this.fx));
     }
     // last, so listeners see the repaired deck (and can switch off what isn't built yet)

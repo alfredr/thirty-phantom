@@ -2,8 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { loadModules } from './modules.mjs';
 
-const [{ EventQueue }, { Relation }, { Claims }, action, { Space, _ }, { Mind, mind }] = await loadModules(
-  '/src/engine/sim/event-queue.ts',
+const [{ Relation }, { Claims }, action, { Space, _ }, { Mind, mind }] = await loadModules(
   '/src/engine/sim/relation.ts',
   '/src/engine/sim/claims.ts',
   '/src/engine/sim/action.ts',
@@ -11,25 +10,6 @@ const [{ EventQueue }, { Relation }, { Claims }, action, { Space, _ }, { Mind, m
   '/src/engine/sim/mind.ts',
 );
 const { Action, Doing, done, running, fail, instead } = action;
-
-test('events wait for flush, arrive in order, and stay readable for one frame', () => {
-  const q = new EventQueue();
-  const heard = [];
-  q.on('parked', ({ spot }) => {
-    heard.push(spot);
-    if (spot !== 99) q.emit('parked', { spot: 99 });
-  });
-  q.emit('parked', { spot: 1 });
-  q.emit('parked', { spot: 2 });
-  assert.deepEqual(heard, []);
-  q.flush();
-  assert.deepEqual(heard, [1, 2]);
-  assert.deepEqual(q.happened('parked').map(({ spot }) => spot), [1, 2]);
-  q.flush();
-  assert.deepEqual(heard, [1, 2, 99, 99], 'events emitted by handlers arrive at the next flush');
-  q.flush();
-  assert.deepEqual(q.happened('parked'), []);
-});
 
 test('a relation refuses, evicts or merges when a key is full, and ends rows with their owner', () => {
   const evicted = [];
@@ -213,11 +193,10 @@ test('the space finds what is near, never across levels, in all three query shap
   assert.deepEqual(space.near(_, _, 3), [], 'the rebuild dropped the old answers');
 });
 
-test('a mind decides in think, moves on what its state lists, and holds its own data', () => {
+test('a mind moves on events and ticks, and holds its own state data', () => {
   const log = [];
   const VALET = mind({
     atStand: {
-      think: (v) => v.job && { do: 'park', go: { at: 'fetching', car: v.job } },
       on: { handed: (_v, _s, e) => ({ at: 'fetching', car: e.car }) },
     },
     fetching: {
@@ -230,12 +209,7 @@ test('a mind decides in think, moves on what its state lists, and holds its own 
   });
   const valet = { job: null };
   const m = new Mind(VALET, valet, { at: 'atStand' });
-  assert.equal(m.think({}), null);
-  valet.job = 'red';
-  const decision = m.think({});
-  assert.deepEqual(decision, { do: 'park', go: { at: 'fetching', car: 'red' } });
-  assert.equal(m.state.at, 'atStand', 'thinking changes nothing');
-  m.go(decision.go);
+  assert.equal(m.send({ type: 'handed', car: 'red' }), true);
   assert.equal(m.in('fetching')?.car, 'red', 'the state holds its own data');
   assert.equal(m.send({ type: 'handed', car: 'blue' }), false, 'busy fetching: an event it does not list leaves it as it is');
   assert.equal(m.state.car, 'red');

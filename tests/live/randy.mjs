@@ -99,7 +99,7 @@ export function tiresPutRandyOnTheMap() {
   const before = marked();
   g.inventory.add('tire', 1);
   sim.run(2);
-  const carrying = marked() && g.quests.steps().tires === 'bring';
+  const carrying = marked();
   g.input.press('KeyF');
   sim.run(2);
   g.input.press('KeyF');

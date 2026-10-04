@@ -2,20 +2,20 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { loadModules } from './modules.mjs';
 
-const [{ Triggers }, { SaveGame }, { Emitter }, { Haunting, Quests, TireDeal }] = await loadModules(
+const [{ Triggers }, { SaveGame }, { Emitter }, { Haunting, Quests, tireMarks }, { Objectives }, { Inventory }] = await loadModules(
   '/src/game/story/triggers.ts', '/src/game/save.ts', '/src/engine/core/events.ts', '/src/game/story/quests.ts',
+  '/src/game/story/objectives.ts', '/src/game/items/inventory.ts',
 );
 
 /** What a save reads and writes, standing in for the game. */
 function stand(over = {}) {
-  const objectives = { add() {}, remove() {} };
   const haunting = new Haunting({ needed: 30, victory: () => stand.victories++, moved() {} });
   return {
     events: new Emitter(),
     clock: { day: 2 },
     money: { cash: 40, foundToday: () => [[1, 0, 2, 15]], layOut: (list) => (stand.laidOut = list) },
     inventory: { list: () => [['tire', 2]], add() {} },
-    quests: new Quests(objectives, [haunting, new TireDeal({ randy: () => null })]),
+    quests: new Quests([haunting]),
     haunting,
     wares: { slots: [{ count: 1 }, { count: 128 }] },
     restorePhantom() {},
@@ -108,7 +108,7 @@ test('saves retry failed writes and skip unchanged data after a successful write
     cash: 40,
     items: [['tire', 2]],
     phantoms: [],
-    quests: { haunting: 'haunting', tires: 'waiting' },
+    quests: { haunting: 'haunting' },
     stock: [1, 128],
     found: [[1, 0, 2, 15]],
   });
@@ -202,4 +202,50 @@ test('the haunting is won on the phantom that makes enough, once', () => {
   haunting.mind.send({ type: 'phantom', n: 31 });
   assert.equal(haunting.step, 'won');
   assert.equal(stand.victories, 1);
+});
+
+
+test('restored inventory determines the tire marker, ignoring obsolete quest steps', (t) => {
+  const saved = { v: 2, day: 2, cash: 0, items: [['tire', 2]], phantoms: [], quests: { tires: 'waiting' } };
+  browser(t, { getItem: () => JSON.stringify(saved), setItem() {} });
+  const inventory = new Inventory();
+  const game = stand({ inventory });
+  new SaveGame(game, () => false);
+  game.events.emit('start', null);
+  const randy = { x: 1, y: 0, z: 2 };
+  assert.equal(tireMarks(inventory.count('tire'), randy)[0].at, randy);
+  assert.deepEqual(tireMarks(inventory.count('tire'), null), [], 'Randy is unavailable during a scene');
+  assert.deepEqual(game.quests.steps(), { haunting: 'haunting' });
+  inventory.take('tire', 2);
+  assert.deepEqual(tireMarks(inventory.count('tire'), randy), [], 'the marker goes when the tires go');
+});
+
+test('objective sources replace and clear their own markers without removing another source', () => {
+  const objectives = new Objectives();
+  const tutorial = {};
+  const tires = {};
+  const primary = { id: 'badge', kind: 'primary', label: 'BADGE', at: { x: 0, y: 0, z: 0 } };
+  const optional = { id: 'randy', kind: 'optional', label: 'RANDY', at: { x: 1, y: 0, z: 2 } };
+  objectives.replace(tutorial, [primary]);
+  objectives.replace(tires, [optional]);
+  const moved = { ...optional, label: 'RANDY TAKES TIRES', at: { x: 3, y: 0, z: 4 } };
+  objectives.replace(tires, [moved]);
+  assert.deepEqual(objectives.list, [primary, moved], 'an existing marker can change its label and target');
+  objectives.replace(tutorial, []);
+  assert.deepEqual(objectives.list, [moved]);
+  objectives.replace(tires, []);
+  assert.deepEqual(objectives.list, []);
+});
+
+test('only one primary objective is shown, and clearing it reveals the next source', () => {
+  const objectives = new Objectives();
+  const a = {};
+  const b = {};
+  const first = { id: 'first', kind: 'primary', label: 'FIRST', at: {} };
+  const next = { id: 'next', kind: 'primary', label: 'NEXT', at: {} };
+  objectives.replace(a, [first]);
+  objectives.replace(b, [next]);
+  assert.deepEqual(objectives.list, [first]);
+  objectives.replace(a, []);
+  assert.deepEqual(objectives.list, [next]);
 });
