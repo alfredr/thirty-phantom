@@ -74,13 +74,30 @@ interface Fright {
   left: number;
   /** Seconds held up while panicking. */
   held: number;
+  /** This frame, staying on the road would carry them toward what frightened them, so they stop instead. */
+  cornered: boolean;
+}
+
+/**
+ * Whether staying on the road would carry a driver toward what frightened them: somewhere along
+ * `ahead` comes closer to `from` than the driver is now, and within spooking distance.
+ */
+export function roadLeadsToward(at: Vector3, ahead: readonly Vector3[], from: Vector3, within: number): boolean {
+  const now = Math.hypot(at.x - from.x, at.z - from.z);
+  return ahead.some((p) => {
+    const d = Math.hypot(p.x - from.x, p.z - from.z);
+    return d < now && d < within;
+  });
 }
 
 /**
  * Lane-following AI: cruise along loops, brake for whatever is ahead. A driver
- * who sees ghost Cody up close floors it; held up while panicking, they leave
- * the car where it stands and run. New frights are reported (`scared`), so
- * the game can send drivers near the deck into it instead. Drivers get angry
+ * who sees ghost Cody up close floors it, unless their road would carry them
+ * toward him: then they brake, for as long as it does. Held up while
+ * panicking, they leave the car where it stands and run. New frights are
+ * reported (`scared`), and every frame, drivers whose road leads toward the
+ * fright (`cornered`), so the game can offer them another way out (the deck,
+ * when its turn-in is just ahead). Drivers get angry
  * held up, and calm down on the move: an angry one creeps up closer on what's
  * in front, honks (`honks`), sooner and more often the angrier, and asks to
  * pull round (`fedUp`) what's in the way: something that isn't traffic (a
@@ -93,6 +110,8 @@ export class Traffic {
   readonly abandoned: Vehicle[] = [];
   /** Drivers who just took fright (a new scare, not one still going), and where it came from, since the caller last emptied this. */
   readonly scared: { car: Vehicle; from: Vector3 }[] = [];
+  /** Frightened drivers whose road leads toward the fright this frame, since the caller last emptied this. */
+  readonly cornered: { car: Vehicle; from: Vector3 }[] = [];
   /** Drivers who just leaned on the horn, since the caller last emptied this. */
   readonly honks: Vehicle[] = [];
   /** Drivers who've waited long enough and want to pull round what's in the way, since the caller last emptied this. */
@@ -120,31 +139,65 @@ export class Traffic {
     return null;
   }
 
-  /** A driver takes fright at something at `from` (the reactions table decides who and when). A new fright is reported through `scared`. */
+  /**
+   * A driver sees something frightening at `from` this frame (the reactions table decides who and
+   * when). A new fright is reported through `scared`, and a road that leads toward it through `cornered`.
+   */
   frighten(v: Vehicle, from: Vector3): void {
     if (v.role !== 'traffic' || v.crashing) return;
     let fright = this.fright.get(v);
     if (!fright) {
-      this.fright.set(v, (fright = { left: 0, held: 0 }));
+      this.fright.set(v, (fright = { left: 0, held: 0, cornered: false }));
       this.scared.push({ car: v, from: from.clone() });
     }
     fright.left = TUNING.traffic.panicTime;
+    if (fright.cornered || !this.leadsToward(v, from)) return;
+    fright.cornered = true;
+    this.cornered.push({ car: v, from: from.clone() });
+  }
+
+  /** Whether staying on its lane would carry `v` toward `from`, within spooking distance of it. */
+  leadsToward(v: Vehicle, from: Vector3): boolean {
+    // Anywhere within spooking distance of `from` is within twice that of a driver who sees it.
+    const { panicReach } = TUNING.traffic;
+    return roadLeadsToward(v.pos, this.roadAhead(v, 2 * panicReach), from, panicReach);
   }
 
   /** The point `meters` along `v`'s lane from it (negative is behind it), or null if it isn't on a lane. */
   roadAt(v: Vehicle, meters: number): Vector3 | null {
-    return this.paths[v.pathIndex]?.sample(v.pathS + meters, new Vector3()) ?? null;
+    const path = this.paths[v.pathIndex];
+    return path ? path.sample(this.laneS(v, path) + meters, new Vector3()) : null;
   }
 
   /** Points along `v`'s lane ahead of it, `step` meters apart, up to `meters` on. Empty if it isn't on a lane. */
   roadAhead(v: Vehicle, meters: number, step = 2): Vector3[] {
+    const path = this.paths[v.pathIndex];
+    if (!path) return [];
+    const s = this.laneS(v, path);
     const out: Vector3[] = [];
-    for (let d = step; d <= meters; d += step) {
-      const p = this.roadAt(v, d);
-      if (!p) break;
-      out.push(p);
-    }
+    for (let d = step; d <= meters; d += step) out.push(path.sample(s + d, new Vector3()));
     return out;
+  }
+
+  /** Whether `v` is out on its lane: outside the deck and on the lane's line, give or take a lane's width. */
+  onRoad(v: Vehicle): boolean {
+    const path = this.paths[v.pathIndex];
+    if (!path || v.insideDeck) return false;
+    path.sample(this.laneS(v, path), _p);
+    return Math.hypot(v.pos.x - _p.x, v.pos.z - _p.z) < LANE_HALF;
+  }
+
+  /** A car driving itself near its lane goes back to being traffic on it, frightened by `from`. */
+  rejoin(v: Vehicle, from: Vector3): void {
+    const path = this.paths[v.pathIndex];
+    if (!path) return;
+    this.join(v, v.pathIndex, path.project(v.pos));
+    this.frighten(v, from);
+  }
+
+  /** How far along its lane `v` is: where traffic has it, or the nearest point to where it stands for a car driving itself. */
+  private laneS(v: Vehicle, path: Polyline): number {
+    return v.role === 'traffic' ? v.pathS : path.project(v.pos);
   }
 
   update(dt: number, vehicles: Vehicle[], obstacles: readonly Vector3[]): void {
@@ -157,7 +210,9 @@ export class Traffic {
       const path = this.paths[v.pathIndex];
       if (!path) continue;
       const fright = this.fright.get(v);
-      const cruise = fright ? v.cruise * T.panicBoost : v.cruise;
+      // Frightened, they floor it, or stop while the road leads toward the fright.
+      const cruise = !fright ? v.cruise : fright.cornered ? 0 : v.cruise * T.panicBoost;
+      if (fright) fright.cornered = false;
       const fx = Math.sin(v.yaw);
       const fz = Math.cos(v.yaw);
       // the nearest thing ahead in the lane, as room left before having to stop for it (an angry driver stops shorter);

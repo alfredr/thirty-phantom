@@ -272,7 +272,6 @@ export class Game {
   /** Dark puffs from some cars' tailpipes as they pull away. */
   private readonly exhaust: Exhaust;
   /** Phantom Cody on foot, or the monster truck, this frame: what frightens people (null by day). */
-  private phantomAt: Vector3 | null = null;
   /** Who's where this frame, for people on foot to steer around. */
   private readonly avoid = new Avoidance();
   private readonly blood: BloodSim;
@@ -496,7 +495,7 @@ export class Game {
     this.scene.add(this.blood.root);
     this.casualties = new Casualties(this.world.collision, this.blood);
     this.crowd = new Crowd(this.scene, this.planner, this.nav, this.rng, (at, kind, from) => this.money.drop(at, kind, from), this.casualties);
-    this.reactions = gameReactions({ crowd: this.crowd, traffic: this.traffic });
+    this.reactions = gameReactions({ crowd: this.crowd, drivers: { frighten: (v, from) => this.frightenDriver(v, from) } });
     this.crowd.onFright = (at) => this.events.emit('fright', { at: at.clone() });
     // skeletons: dirt as they climb out, bones as they fall apart, a ghost from everyone they kill
     this.skeletons = new Skeletons(this.world.collision, this.nav, this.planner, this.crowd);
@@ -528,7 +527,9 @@ export class Game {
         fleet: this.fleet,
         entryOnly: this.exitBlocks,
         obstacles: () => this.valetObstacles,
-        roadAhead: (car, meters) => this.traffic.roadAhead(car, meters),
+        roadAhead: (car, meters, step) => this.traffic.roadAhead(car, meters, step),
+        onRoad: (car) => this.traffic.onRoad(car),
+        rejoin: (car, from) => this.traffic.rejoin(car, from),
         steer: (car, input, dt) => {
           const prev = _drivePrev.copy(car.pos);
           car.drive(dt, input, this.world.collision);
@@ -638,6 +639,7 @@ export class Game {
       navDebug: this.navDebug,
       refuge: this.refuge,
       roadAt: (car, meters) => this.traffic.roadAt(car, meters),
+      frighten: (car, from) => this.frightenDriver(car, from),
     });
     (window as unknown as { __game: Game }).__game = this;
   }
@@ -800,8 +802,16 @@ export class Game {
     else if (seen?.kind === 'phantomTruck' && this.driving) things.push({ kind: 'phantomTruck', pos: seen.at, vehicle: this.driving });
     for (const pos of this.skeletons.threats) things.push({ kind: 'skeleton', pos });
     for (const person of this.crowd.living()) things.push({ kind: 'townsperson', pos: person.walker.pos, person });
-    for (const vehicle of this.vehicles) if (vehicle.role === 'traffic' && !vehicle.crashing) things.push({ kind: 'traffic', pos: vehicle.pos, vehicle });
+    for (const vehicle of this.vehicles) {
+      if ((vehicle.role === 'traffic' || this.refuge.has(vehicle)) && !vehicle.crashing) things.push({ kind: 'driver', pos: vehicle.pos, vehicle });
+    }
     this.space.rebuild(things);
+  }
+
+  /** A driver sees phantom Cody or the phantom truck at `from` this frame: one on their way into the deck, or one in traffic. */
+  private frightenDriver(v: Vehicle, from: Vector3): void {
+    if (this.refuge.has(v)) this.refuge.frighten(v, from);
+    else this.traffic.frighten(v, from);
   }
 
   private updatePlay(dt: number): void {
@@ -865,12 +875,9 @@ export class Game {
       this.crowd.bail(v, ghost ?? v.pos);
       this.fleet.abandon(v);
     }
-    // A frightened driver near the deck may turn off and run for it.
-    this.phantomAt = ghost;
-    for (const { car, from } of this.traffic.scared.splice(0)) {
-      this.events.emit('spooked', { car });
-      this.refuge.take(car, from);
-    }
+    // A frightened driver whose road leads toward the fright may turn off for the deck, if it's just ahead.
+    for (const { car } of this.traffic.scared.splice(0)) this.events.emit('spooked', { car });
+    for (const { car, from } of this.traffic.cornered.splice(0)) this.refuge.take(car, from);
     // held up behind something going nowhere: they honk, then pull round it
     for (const v of this.traffic.honks.splice(0)) this.honk(v);
     for (const j of this.traffic.fedUp.splice(0)) this.detours.take(j);
@@ -1575,7 +1582,7 @@ export class Game {
       this.visitors.update(dt, obstacles, this.view.target);
       // a visitor's car crashed on the way: its driver gets out and runs once it stops
       for (const v of this.visitors.stranded.splice(0)) this.shaken.set(v, v.pos.clone());
-      this.refuge.update(dt, this.phantomAt);
+      this.refuge.update(dt);
       this.detours.update(dt, obstacles);
       // a car crashed pulling round: its driver gets out and runs once it stops
       for (const v of this.detours.stranded.splice(0)) this.shaken.set(v, v.pos.clone());

@@ -10,10 +10,6 @@ export const REACH = {
   fright: TUNING.crowd.ghostReach,
   /** Drivers this close to phantom Cody or the phantom truck panic. */
   panic: TUNING.traffic.panicReach,
-  /** A frightened driver this close to the deck's entry gate may turn into the deck. */
-  divert: TUNING.traffic.divertReach,
-  /** How far along their road a frightened driver looks, to see whether staying on it would carry them toward Cody. */
-  roadAhead: 30,
 } as const;
 
 /** How far apart vertically two things can be and still count as on the same level, in meters. */

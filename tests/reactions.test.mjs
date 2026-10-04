@@ -15,10 +15,10 @@ function scene(things, sees = () => true) {
   const frightened = [];
   const panicked = [];
   const crowd = { frighten: (person, from) => frightened.push([person.name, from]) };
-  const traffic = { frighten: (vehicle, from) => panicked.push([vehicle.name, from]) };
+  const drivers = { frighten: (vehicle, from) => panicked.push([vehicle.name, from]) };
   const space = new Space(8, LEVEL.person);
   space.rebuild(things);
-  react({ space, things, sees }, gameReactions({ crowd, traffic }));
+  react({ space, things, sees }, gameReactions({ crowd, drivers }));
   return { frightened: frightened.map(([n]) => n), panicked: panicked.map(([n]) => n) };
 }
 
@@ -38,10 +38,10 @@ test('people flee skeletons too, but plain Cody frightens nobody', () => {
   assert.deepEqual(scene([person]).frightened, []);
 });
 
-test('drivers panic at phantom Cody or the phantom truck within panic reach, and only drivers in traffic react', () => {
+test('drivers panic at phantom Cody or the phantom truck within panic reach, and only drivers react', () => {
   const truck = { kind: 'phantomTruck', pos: at(0, 0, 0), vehicle: { name: 'truck' } };
-  const car = { kind: 'traffic', pos: at(6, 0, 0), vehicle: { name: 'car' } };
-  const distant = { kind: 'traffic', pos: at(40, 0, 0), vehicle: { name: 'distant' } };
+  const car = { kind: 'driver', pos: at(6, 0, 0), vehicle: { name: 'car' } };
+  const distant = { kind: 'driver', pos: at(40, 0, 0), vehicle: { name: 'distant' } };
   const result = scene([truck, car, distant]);
   assert.deepEqual(result.panicked, ['car']);
   assert.deepEqual(result.frightened, []);

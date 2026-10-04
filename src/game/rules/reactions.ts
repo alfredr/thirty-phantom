@@ -1,5 +1,4 @@
 import type { Vector3 } from 'three';
-import type { Traffic } from '../../actors/traffic';
 import type { Vehicle } from '../../actors/vehicle';
 import { _, type Space } from '../../engine/sim/space';
 import type { Crowd, Person } from '../town/crowd';
@@ -11,7 +10,7 @@ export type Thing =
   | { readonly kind: 'phantomTruck'; readonly pos: Vector3; readonly vehicle: Vehicle }
   | { readonly kind: 'skeleton'; readonly pos: Vector3 }
   | { readonly kind: 'townsperson'; readonly pos: Vector3; readonly person: Person }
-  | { readonly kind: 'traffic'; readonly pos: Vector3; readonly vehicle: Vehicle };
+  | { readonly kind: 'driver'; readonly pos: Vector3; readonly vehicle: Vehicle };
 
 export type ThingKind = Thing['kind'];
 export type ThingOf<K extends ThingKind> = Extract<Thing, { kind: K }>;
@@ -26,7 +25,7 @@ export const EYE_HEIGHT: Readonly<Record<ThingKind, number>> = {
   phantomTruck: 1.6,
   skeleton: 1.0,
   townsperson: 1.6,
-  traffic: 1.2,
+  driver: 1.2,
 };
 
 /** This frame's view of the world, as reactions use it. */
@@ -70,7 +69,7 @@ export function reaction<K extends ThingKind>({ who, sees, within, level, then }
 }
 
 /** The game's reactions: who takes fright at what, and how close. Only those who can see it react. */
-export function gameReactions({ crowd, traffic }: { crowd: Crowd; traffic: Traffic }): readonly Reaction[] {
+export function gameReactions({ crowd, drivers }: { crowd: Crowd; drivers: { frighten(vehicle: Vehicle, from: Vector3): void } }): readonly Reaction[] {
   return [
     reaction({
       who: 'townsperson',
@@ -80,11 +79,11 @@ export function gameReactions({ crowd, traffic }: { crowd: Crowd; traffic: Traff
       then: ({ person }, { pos }) => crowd.frighten(person, pos),
     }),
     reaction({
-      who: 'traffic',
+      who: 'driver',
       sees: ['phantom', 'phantomTruck'],
       within: REACH.panic,
       level: LEVEL.vehicle,
-      then: ({ vehicle }, { pos }) => traffic.frighten(vehicle, pos),
+      then: ({ vehicle }, { pos }) => drivers.frighten(vehicle, pos),
     }),
   ];
 }

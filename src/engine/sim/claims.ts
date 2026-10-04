@@ -78,6 +78,11 @@ export class Claims<K extends string> {
     return this.rows.where({ kind, target }).length < this.table[kind].perTarget;
   }
 
+  /** Ends one claim, whoever owns it. */
+  drop(kind: K, holder: object, target: object): void {
+    for (const row of this.rows.where({ kind, holder, target })) this.rows.delete(row);
+  }
+
   /** Ends every claim `owner` holds. */
   release(owner: Owner): void {
     this.rows.end(owner);

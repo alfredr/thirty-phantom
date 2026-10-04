@@ -52,6 +52,16 @@ export class Polyline {
     return this.closed ? mod(s, this.total) : clamp(s, 0, this.total);
   }
 
+  /** The rest of an open line, from arc length `s` on. */
+  from(s: number): Polyline {
+    s = this.wrap(s);
+    const rest = [this.sample(s, new Vector3())];
+    this.points.forEach((p, i) => {
+      if ((this.cum[i] ?? 0) > s) rest.push(p);
+    });
+    return new Polyline(rest);
+  }
+
   /** Point (and unit direction of travel) at arc length s. */
   sample(s: number, pos: Vector3, dir?: Vector3): Vector3 {
     if (this.points.length < 2) {

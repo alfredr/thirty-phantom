@@ -190,7 +190,8 @@ export const TUNING = {
     speedMax: 10,
     /**
      * Ghost Cody within `panicReach` (m) frightens a driver: for `panicTime`
-     * seconds they push on at `panicBoost` times their cruise; held below
+     * seconds they push on at `panicBoost` times their cruise, or brake if
+     * their road would carry them within `panicReach` of him; held below
      * `stuckSpeed` (m/s) for `stuckTime` seconds, they leave the car and run.
      */
     panicReach: 8,
@@ -199,15 +200,23 @@ export const TUNING = {
     stuckSpeed: 1,
     stuckTime: 1.5,
     /**
-     * At night a driver frightened within `divertReach` (m) of the deck's
-     * entry gate turns off into the haunted deck, parks in a free spot and
-     * runs, leaving phantom Cody a car to possess. At most `divertMax` are on
-     * their way at once. No route within `divertWait` seconds (the planner is
-     * shared and deck drives are slow to plan), and they bail where they are.
+     * A frightened driver whose road would carry them toward ghost Cody turns
+     * off into the haunted deck instead when there's room to: their road
+     * passes within `divertGate` (m) of the deck's entry gate, no more than
+     * `divertReach` (m) ahead, and the turn for it starts at least
+     * `divertRoom` (m) ahead. They drive on to the turn while the way in is
+     * planned, swing in, park in a free spot and run,
+     * leaving phantom Cody a car to possess. At most `divertMax` are on their
+     * way at once. No route within `divertWait` seconds (the planner is shared
+     * and deck drives are slow to plan), and they bail where they are.
      */
-    divertReach: 70,
+    divertReach: 20,
+    divertRoom: 4,
+    divertGate: 12,
     divertMax: 2,
     divertWait: 6,
+    /** Parked in the deck and out of phantom Cody's sight, a diverted driver sits this long (s) before getting out. */
+    divertRest: 4,
     /**
      * Impatient drivers. Each driver's anger runs 0 (calm) to 1 (fuming). It
      * rises while they're stopped (below `speed`, m/s): `rise.blocked` a
