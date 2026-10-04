@@ -1,7 +1,7 @@
 import { Vector3 } from 'three';
 import type { Vehicle } from '../../actors/vehicle';
 import { TUNING } from '../../config';
-import type { Action } from '../../core/input';
+import type { Action, Focus } from '../../core/input';
 import type { Rng } from '../../core/rng';
 import type { Bubble, Hud } from '../../ui/hud';
 import { type Garage, spotLabel, type SpotRuntime } from '../deck/garage';
@@ -40,17 +40,30 @@ export interface TalkHooks {
 /** How a car gets handed over: free to the top floor, tipped or bribed to the top floor, or untipped (wherever there's room). */
 type Deal = 'top' | 'tipped' | 'bribed' | 'anywhere';
 
+/** Something Cody can say: its key, its label, whether he can't (can't pay), and the deal it strikes. */
+interface Choice {
+  action: Action;
+  label: string;
+  off: boolean;
+  deal: Deal;
+}
+
 /**
- * Talking to a valet: open from the frame interact was pressed near him until
- * it ends. The first car goes to the top floor free. After that he may name a
- * tip (TUNING.valet.tipChance), bigger each time he asks; paid, the car goes
- * to the top floor, otherwise wherever there's room. A tip he's named stands
- * until a car is handed over, so walking off doesn't make it go away. One
- * caught walking back to the stand takes a car only for a bribe
- * (TUNING.valet.bribe), and then it goes to the top floor.
+ * Talking to a valet: an encounter between Cody and him, open from when Cody
+ * talks to him until one of them walks off, it times out, or he's said his
+ * last line. While it's open he faces Cody (his attention mind) without
+ * dropping what he was doing, and its choices are a focus layer: their keys
+ * go to the talk, not the world. The first car goes to the top floor free.
+ * After that he may name a tip (TUNING.valet.tipChance), bigger each time he
+ * asks; paid, the car goes to the top floor, otherwise wherever there's room.
+ * A tip he's named stands until a car is handed over, so walking off doesn't
+ * make it go away. One caught walking back to the stand takes a car only for
+ * a bribe (TUNING.valet.bribe), and then it goes to the top floor.
  */
 export class ValetTalk {
   private talk: Conversation | null = null;
+  /** Takes the choices' layer away again. */
+  private unfocus: (() => void) | null = null;
   /** Cars handed over so far, and tips asked for. */
   private handed = 0;
   private asked = 0;
@@ -62,6 +75,7 @@ export class ValetTalk {
     private readonly garage: Garage,
     private readonly valets: ValetService,
     private readonly rng: Rng,
+    private readonly focus: Focus,
     private readonly hooks: TalkHooks,
   ) {}
 
@@ -77,50 +91,64 @@ export class ValetTalk {
     if (!bribe && this.tip === null) this.tip = this.handed > 0 && this.rng.chance(V.tipChance) ? V.tipBase * V.tipGrowth ** this.asked++ : 0;
     const line = bribe ? `I'M ON A BREAK. $${V.bribe} SAYS I'M NOT.` : this.handed === 0 ? 'WELCOME TO THE FOXY.' : (this.tip ?? 0) > 0 ? `TOP FLOOR? THAT'LL BE $${this.tip}.` : 'WELCOME BACK.';
     this.talk = { valet, bribe, t: 0, line, closing: -1 };
+    this.unfocus?.();
+    this.unfocus = this.focus.add({
+      controls: () => this.choices().filter((c) => !c.off).map((c) => c.action),
+      press: (control) => this.choose(control),
+    });
     this.hud.setPrompt(null);
   }
 
-  /** `pressed`: whether an action was pressed this frame. */
-  update(dt: number, day: boolean, pressed: (a: Action) => boolean): void {
+  update(dt: number, day: boolean): void {
     const talk = this.talk;
     if (!talk) {
       this.hud.setBubble(null);
       return;
     }
     const w = talk.valet.walker;
-    const me = this.hooks.me();
     talk.t += dt;
     // walk or drive off, wait too long, or let him finish his line: the conversation ends
     const V = TUNING.valet;
-    const gone = w.pos.distanceTo(me) > V.talkBreak || talk.t > V.talkTimeout || (talk.closing >= 0 && (talk.closing -= dt) < 0) || !day;
+    const gone = w.pos.distanceTo(this.hooks.me()) > V.talkBreak || talk.t > V.talkTimeout || (talk.closing >= 0 && (talk.closing -= dt) < 0) || !day;
     if (gone) {
-      talk.valet.hear({ type: 'talkEnded' });
-      this.talk = null;
-      this.hud.setBubble(null);
+      this.end(talk);
       return;
     }
-    const choices: Bubble['choices'] = [];
-    if (talk.closing < 0) {
-      // the opening frame's press only started the conversation
-      const live = talk.t > dt;
-      const tip = this.tip ?? 0;
-      if (talk.bribe) {
-        const can = this.hooks.cash() >= V.bribe;
-        choices.push({ action: 'pay', label: `PAY $${V.bribe}: TOP FLOOR`, off: !can });
-        if (live && can && pressed('pay')) this.handOver(talk, 'bribed');
-      } else if (tip > 0) {
-        const can = this.hooks.cash() >= tip;
-        choices.push({ action: 'pay', label: `PAY $${tip}: TOP FLOOR`, off: !can });
-        choices.push({ action: 'interact', label: 'JUST PARK IT' });
-        if (live && can && pressed('pay')) this.handOver(talk, 'tipped');
-        else if (live && pressed('interact')) this.handOver(talk, 'anywhere');
-      } else {
-        choices.push({ action: 'interact', label: 'PARK IT' });
-        if (live && pressed('interact')) this.handOver(talk, 'top');
-      }
-    }
+    const choices: Bubble['choices'] = this.choices().map(({ action, label, off }) => ({ action, label, off }));
     const at = this.hooks.toScreen(_head.copy(w.pos).setY(w.pos.y + SPEAKER_HEAD));
     this.hud.setBubble(at && { ...at, who: 'FOXY VALET', line: talk.line, choices });
+  }
+
+  /** What Cody can say now: nothing once the valet's saying his last line. */
+  private choices(): Choice[] {
+    const talk = this.talk;
+    if (!talk || talk.closing >= 0) return [];
+    const V = TUNING.valet;
+    const tip = this.tip ?? 0;
+    if (talk.bribe) return [{ action: 'pay', label: `PAY $${V.bribe}: TOP FLOOR`, off: this.hooks.cash() < V.bribe, deal: 'bribed' }];
+    if (tip > 0) {
+      return [
+        { action: 'pay', label: `PAY $${tip}: TOP FLOOR`, off: this.hooks.cash() < tip, deal: 'tipped' },
+        { action: 'interact', label: 'JUST PARK IT', off: false, deal: 'anywhere' },
+      ];
+    }
+    return [{ action: 'interact', label: 'PARK IT', off: false, deal: 'top' }];
+  }
+
+  /** Cody picked the choice on `control`. */
+  private choose(control: Action): void {
+    const talk = this.talk;
+    const choice = this.choices().find((c) => c.action === control && !c.off);
+    if (talk && choice) this.handOver(talk, choice.deal);
+  }
+
+  /** The conversation's over: he stops facing Cody, and the choices' keys go back to the world. */
+  private end(talk: Conversation): void {
+    talk.valet.hear({ type: 'talkEnded' });
+    this.talk = null;
+    this.unfocus?.();
+    this.unfocus = null;
+    this.hud.setBubble(null);
   }
 
   /** The valet drove it in and parked it: same as parking it yourself. */

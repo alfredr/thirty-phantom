@@ -232,8 +232,9 @@ export class Input {
     this.pressed.clear();
   }
 
-  /** Used by automated tests and the debug console. Takes key codes ('KeyW'), not actions. */
+  /** A press from outside the keyboard (a tap on a key cap, a test, the debug console), routed like a key: open layers first. Takes key codes ('KeyW'), not actions. */
   press(code: string): void {
+    if (this.focus.route(code, { repeat: false, shift: false })) return;
     this.pressed.add(code);
   }
 

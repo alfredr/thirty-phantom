@@ -612,7 +612,7 @@ export class Game {
     this.hud.onBuy = (slot, n) => this.buy(slot, n);
     this.hud.setCamera(this.cameras.view);
     this.play = this.makePlay();
-    this.talk = new ValetTalk(this.hud, this.garage, this.valet, this.rng, {
+    this.talk = new ValetTalk(this.hud, this.garage, this.valet, this.rng, this.input.focus, {
       me: () => (this.driving ?? this.player).pos,
       carToTake: () => this.carForValet(),
       handOff: (car) => {
@@ -899,7 +899,7 @@ export class Game {
     if (this.conditions.daylight() && this.skeletons.count) this.skeletons.crumbleAll();
     this.skeletons.update(dt, this.driving ? this.driving.pos : this.player.pos, this.vehicles);
     this.collectMoney(dt);
-    this.talk.update(dt, this.conditions.valetsOnShift(), (a) => inp.wasPressed(a));
+    this.talk.update(dt, this.conditions.valetsOnShift());
     this.fleet.update(dt, this.dayNight.nightness);
     this.fleet.maintain(dt, this.view.target, this.conditions.daylight());
 
