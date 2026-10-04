@@ -16,6 +16,8 @@ export const KEYS = {
   pay: ['KeyG'],
   /** Opens the item menu, and steps through it while it's open. */
   inventory: ['KeyI'],
+  /** Brings Cody's phone up, and puts it away again. */
+  phone: ['Tab'],
   summon: ['KeyX'],
   /** Hold in the monster truck: burn GhASt for a boost. */
   boost: ['KeyB'],
@@ -32,7 +34,7 @@ export const KEYS = {
   reload: ['KeyR'],
   // Menus and panels take these while they're open, through focus layers.
   menuUp: ['ArrowUp'],
-  menuDown: ['ArrowDown', 'Tab'],
+  menuDown: ['ArrowDown'],
   cancel: ['Escape'],
   confirm: ['Enter'],
   slot1: ['Digit1'],
@@ -141,6 +143,8 @@ export class Input {
     window.addEventListener(
       'wheel',
       (e) => {
+        // over something on the HUD that scrolls (the phone's screen), the wheel scrolls it rather than zooming
+        if (e.target instanceof Element && e.target.closest('[data-scroll]')) return;
         this.wheel += Math.sign(e.deltaY);
         e.preventDefault();
       },

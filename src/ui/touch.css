@@ -152,6 +152,14 @@ body.dialogue-open .touch-buttons {
   right: 60px;
   bottom: 176px;
 }
+/* the phone (ui/phone/): up the right edge, clear of the stick and the action buttons */
+.touch-btn.phone {
+  right: 14px;
+  top: 112px;
+}
+.touch-btn.phone b {
+  font-size: 22px;
+}
 /* phantom Cody's skeletons: on foot only */
 .touch-btn.summon {
   right: 106px;

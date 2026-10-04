@@ -1,0 +1,249 @@
+/* The phone's home screen and its apps (ui/phone/). The frame, Randy's texts and the call screen are in ../burner.css. Palette from hud.css :root. */
+
+/* the home screen: a grid of apps */
+.phone-home {
+  display: none;
+  grid-template-columns: repeat(3, 1fr);
+  align-content: start;
+  gap: 18px 4px;
+  padding: 28px 10px 12px;
+}
+.phone-home.on {
+  display: grid;
+}
+.phone-icon {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--bone);
+  font: inherit;
+  cursor: pointer;
+}
+.phone-icon .glyph {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  border: 2px solid var(--ink);
+  background: linear-gradient(160deg, #5a3a8c, #2a1846);
+  color: var(--slime);
+  box-shadow: 0 3px 0 var(--ink);
+}
+.phone-icon.picked .glyph {
+  outline: 2px solid var(--slime);
+  outline-offset: 2px;
+}
+.phone-icon .name {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--lilac);
+}
+/* texts not yet seen */
+.phone-icon .badge {
+  position: absolute;
+  top: -6px;
+  right: 8px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  box-sizing: border-box;
+  border-radius: 9px;
+  border: 2px solid var(--ink);
+  background: #e0393e;
+  color: var(--bone);
+  font-size: 10px;
+  line-height: 14px;
+}
+.phone-icon .badge:empty {
+  display: none;
+}
+
+/* one app at a time, under a bar that goes back home */
+.phone-app {
+  display: none;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.phone-app.on {
+  display: flex;
+}
+.phone-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid rgba(205, 184, 238, 0.15);
+}
+.phone-bar .back {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid var(--ink);
+  background: #3a3150;
+  color: var(--bone);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.phone-bar .title {
+  font-size: 15px;
+  letter-spacing: 0.14em;
+  color: var(--warm);
+}
+/* an app's screen scrolls (wheel, arrows, or a drag on touch), with a thin bar down its edge */
+.phone-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  scrollbar-width: thin;
+  scrollbar-color: var(--lilac) transparent;
+}
+.phone-body::-webkit-scrollbar {
+  width: 5px;
+}
+.phone-body::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: var(--lilac);
+}
+/* the texts fill from the bottom, and scroll back */
+.phone-body .burner-thread {
+  flex: 1 0 auto;
+  overflow: visible;
+}
+
+/* an app's text, in sections */
+.phone-section {
+  padding: 10px 16px 2px;
+}
+.phone-section h4 {
+  margin: 0 0 4px;
+  font-weight: 400;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  color: var(--lilac);
+}
+.phone-section p {
+  margin: 0 0 5px;
+  font-family: 'Bangers', Impact, sans-serif;
+  font-size: 16px;
+  line-height: 1.2;
+  letter-spacing: 0.05em;
+  color: var(--bone);
+}
+.phone-section p b {
+  font-weight: 400;
+  color: var(--slime);
+}
+.phone-section p.none,
+.phone-section .mark.optional {
+  color: var(--lilac);
+}
+.phone-section .mark small {
+  font-size: 0.7em;
+}
+.phone-section kbd {
+  font-size: 0.7em;
+}
+
+/* how many spots are haunted, big */
+.phone-count {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 14px 16px 4px;
+}
+.phone-count b {
+  font-size: 48px;
+  font-weight: 400;
+  line-height: 1;
+  color: var(--slime);
+}
+.phone-count span {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--lilac);
+}
+
+/* the city map, filling the app while it's docked here */
+.phone-map {
+  padding: 10px;
+}
+.hud-map.in-phone {
+  position: static;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+.hud-map.in-phone .map-canvas {
+  width: 100%;
+  height: 300px;
+}
+
+.phone-empty {
+  margin: auto;
+  font-size: 13px;
+  letter-spacing: 0.16em;
+  color: var(--lilac);
+}
+.phone-photos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 10px;
+}
+.phone-photos figure {
+  margin: 0;
+}
+.phone-photos img {
+  display: block;
+  width: 100%;
+  border-radius: 8px;
+  border: 2px solid var(--ink);
+}
+.phone-photos figcaption {
+  margin-top: 3px;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--lilac);
+}
+
+/* every key, and what it does: one to a line, the caps small */
+.phone-keys {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px 16px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--bone);
+}
+.phone-keys p {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+.phone-keys .keys {
+  flex: none;
+  white-space: nowrap;
+}
+.phone-keys kbd {
+  min-width: 1.1em;
+  padding: 1px 4px 0;
+  margin: 0 1px;
+  font-size: 9px;
+}

@@ -37,6 +37,7 @@ const BUTTONS: readonly ButtonSpec[] = [
   { action: 'boost', glyph: 'BOOST', cls: 'small boost' },
   { action: 'rotateLeft', glyph: '↺', cls: 'small rot-l' },
   { action: 'camera', glyph: 'CAM', cls: 'small cam' },
+  { action: 'phone', glyph: '☎', cls: 'small phone' },
   { action: 'rotateRight', glyph: '↻', cls: 'small rot-r' },
 ];
 

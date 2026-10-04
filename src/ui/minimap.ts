@@ -29,7 +29,10 @@ const COLORS = {
   slime: '#8dff1f',
   optional: '#c46bff',
   me: '#efe6ff',
+  compass: '#2a1d3f',
 };
+/** The compass's radius (CSS px); it sits this far in from the map's top corner, with room for its pointer. */
+const COMPASS = 13;
 
 /**
  * Top-down map (desktop): the city baked once from the level's boxes, turned so up on the map is
@@ -46,12 +49,20 @@ export class Minimap {
   private readonly z0: number;
   private readonly marks: readonly { x: number; z: number; label: string; color: string }[];
 
-  constructor(parent: HTMLElement, level: LevelData) {
+  /** `share`: another map of the same level, whose baked city this one draws too (one bake for both). */
+  constructor(parent: HTMLElement, level: LevelData, share?: Minimap) {
     this.root = el('div', 'hud-map', parent);
     this.canvas = el('canvas', 'map-canvas', this.root);
     const ctx = this.canvas.getContext('2d');
     if (!ctx) throw new Error('minimap: no 2d context');
     this.ctx = ctx;
+    if (share) {
+      this.x0 = share.x0;
+      this.z0 = share.z0;
+      this.city = share.city;
+      this.marks = share.marks;
+      return;
+    }
     let [x0, z0, x1, z1] = [Infinity, Infinity, -Infinity, -Infinity];
     for (const b of level.boxes) {
       x0 = Math.min(x0, b.min[0]);
@@ -148,6 +159,27 @@ export class Minimap {
         ctx.restore();
       } else diamond(ctx, p.x, p.y, primary ? 6 : 4.5, color);
     }
+    // a compass in the top corner: N where world north (-z, the deck's north face) lies on the turned map
+    const nx = sin;
+    const ny = -cos;
+    ctx.save();
+    ctx.translate(cw - COMPASS - 8, COMPASS + 8);
+    dot(ctx, 0, 0, COMPASS, COLORS.edge, COLORS.compass);
+    // a pointer on the rim, toward north, and the N just inside it
+    ctx.beginPath();
+    ctx.moveTo(nx * (COMPASS + 3), ny * (COMPASS + 3));
+    ctx.lineTo(nx * (COMPASS - 3) - ny * 3.5, ny * (COMPASS - 3) + nx * 3.5);
+    ctx.lineTo(nx * (COMPASS - 3) + ny * 3.5, ny * (COMPASS - 3) - nx * 3.5);
+    ctx.closePath();
+    ctx.fillStyle = COLORS.slime;
+    ctx.strokeStyle = COLORS.edge;
+    ctx.lineWidth = 1;
+    ctx.fill();
+    ctx.stroke();
+    ctx.font = '11px Anton, Impact, sans-serif';
+    ctx.fillStyle = COLORS.me;
+    ctx.fillText('N', nx * 3, ny * 3 + 0.5);
+    ctx.restore();
     // Cody: a chevron the way he faces
     const fx = Math.sin(v.yaw);
     const fz = Math.cos(v.yaw);
@@ -169,11 +201,11 @@ export class Minimap {
     ctx.restore();
   }
 
-  /** On foot in the corner, or in the dash unit's screen while driving. */
-  dock(dash: HTMLElement | null, corner: HTMLElement): void {
-    const parent = dash ?? corner;
+  /** Moves it into `parent`: the dash unit's screen while driving, the phone's Map app, or the screen's corner. */
+  dock(parent: HTMLElement, as: 'dash' | 'phone' | 'corner'): void {
     if (this.root.parentElement !== parent) parent.appendChild(this.root);
-    this.root.classList.toggle('in-dash', !!dash);
+    this.root.classList.toggle('in-dash', as === 'dash');
+    this.root.classList.toggle('in-phone', as === 'phone');
   }
 }
 

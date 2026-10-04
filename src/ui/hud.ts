@@ -37,11 +37,16 @@ export function keyText(text: string): string {
   return text.replace(/\{(\w+)\}/g, (m, name: string) => (isAction(name) ? kbd(name) : m));
 }
 
-const HELP: [keys: string, what: string][] = [
+/** On foot the map lives in the phone (its Map app); 'corner' puts it back in the screen's corner as well. */
+const MAP_ON_FOOT: 'phone' | 'corner' = 'phone';
+
+/** Every key and what it does, for the phone's Help app: made when it's shown, so the caps match the device in use. */
+export const helpRows = (): [keys: string, what: string][] => [
   [kbd('forward', 'left', 'back', 'right'), 'walk'],
   [kbd('interact'), 'steal / get in / talk'],
   [kbd('pay'), 'tip the valet'],
   [kbd('inventory'), 'items: eat, use'],
+  [kbd('phone'), 'phone: texts, tasks, map'],
   [`${kbd('interact')} ${kbd('pay')}`, 'elevator: call, floor up / down'],
   [kbd('summon'), 'summon skeletons (night, on foot)'],
   [kbd('boost'), 'burn GhASt (monster truck)'],
@@ -55,7 +60,7 @@ const HELP: [keys: string, what: string][] = [
   [kbd('nextPhase'), 'skip to next phase'],
   // no mute key when there's no sound (?sound=0)
   ...(SOUND_ON ? [[kbd('mute'), 'sound on / off'] satisfies [string, string]] : []),
-  [kbd('help'), 'hide this'],
+  [kbd('help'), 'this list'],
 ];
 
 const LOGO = `<div class="title-30 slime-text">30</div>
@@ -146,7 +151,6 @@ export class Hud {
   private readonly sign: OccupancySign;
   private readonly prompt: HTMLElement;
   private readonly bubble: HTMLElement;
-  private readonly help: HTMLElement;
   private readonly dash: HTMLElement;
   private readonly dashUnit: HTMLElement;
   /** Where the minimap docks while driving. */
@@ -156,6 +160,8 @@ export class Hud {
   private readonly camEl: HTMLElement;
   private readonly marks: ObjectiveMarks;
   private map: Minimap | null = null;
+  /** The map in the phone's Map app: a second map of the same city, so the dash keeps its own. */
+  private phoneMap: Minimap | null = null;
   private camTimer = 0;
   private readonly dashForm: HTMLElement;
   private readonly toasts: HTMLElement;
@@ -197,7 +203,6 @@ export class Hud {
 
     this.prompt = el('div', 'hud-prompt plate', root);
     this.bubble = el('div', 'hud-bubble plate', root);
-    this.help = el('div', 'hud-help plate hide', root, HELP.map(([keys, what]) => `<span class="keys">${keys}</span><span>${what}</span>`).join(''));
 
     // one dash unit: the minimap's screen in the middle, the speedometer and GhASt pods on its ends
     const dash = el('div', 'hud-dash', root);
@@ -212,7 +217,7 @@ export class Hud {
     this.camEl = el('div', 'hud-cam plate', root);
     this.title = el('div', 'hud-title', container, TITLE);
     this.victory = el('div', 'hud-victory hide', container, VICTORY);
-    this.hudBits = [logo, status, this.inv.root, this.wares.root, this.help, this.marks.root];
+    this.hudBits = [logo, status, this.inv.root, this.wares.root, this.marks.root];
     this.fps = urlFlag('fps') ? el('div', 'fps', root, '') : null;
     this.drawMode('title');
   }
@@ -280,7 +285,6 @@ export class Hud {
     this.title.classList.toggle('hide', m !== 'title');
     for (const b of this.hudBits) b.style.display = m === 'title' ? 'none' : '';
     this.dash.classList.toggle('show', m === 'drive');
-    this.help.style.visibility = m === 'drive' ? 'hidden' : '';
   }
 
   /** Prompt placement depends on where the camera puts Cody on screen. */
@@ -305,27 +309,36 @@ export class Hud {
     this.camTimer = window.setTimeout(() => c.classList.remove('show', 'flash'), flash ? 5000 : 1800);
   }
 
-  toggleHelp(): void {
-    this.help.classList.toggle('hide');
-  }
-
   /** The minimap's city, baked once from the level (desktop only: touch screens hide it). */
   initMap(level: LevelData): void {
     this.map = new Minimap(this.root, level);
+    this.phoneMap = new Minimap(this.root, level, this.map);
+    this.phoneMap.root.classList.add('off');
     this.hudBits.push(this.map.root);
   }
 
-  /** Where the minimap is this frame: in the corner on foot, in the dash while driving. null hides it. */
-  setMap(v: MapView | null): void {
+  /**
+   * The minimaps this frame: one in the dash while driving (or, with MAP_ON_FOOT 'corner', in the
+   * corner on foot), and one in the phone's Map app while that's up (`phone`, its screen), driving
+   * or not. null hides them.
+   */
+  setMap(v: MapView | null, phone: HTMLElement | null): void {
     const m = this.map;
-    if (!m) return;
-    // touch screens have no room for it beside the controls
-    const on = !!v && !document.body.classList.contains('touch');
-    m.root.classList.toggle('off', !on);
-    if (!on) return;
-    m.dock(v.driving ? this.dashScreen : null, this.root);
-    this.dashUnit.classList.toggle('with-map', v.driving);
-    m.draw(v);
+    const pm = this.phoneMap;
+    if (!m || !pm) return;
+    // touch screens have no room beside the controls for the dash's or the corner's, but the phone has
+    const touch = document.body.classList.contains('touch');
+    const dash = !!v && !touch && v.driving;
+    const corner = !!v && !touch && !v.driving && MAP_ON_FOOT === 'corner';
+    m.root.classList.toggle('off', !dash && !corner);
+    this.dashUnit.classList.toggle('with-map', dash);
+    if (v && dash) m.dock(this.dashScreen, 'dash');
+    else if (v && corner) m.dock(this.root, 'corner');
+    if (v && (dash || corner)) m.draw(v);
+    pm.root.classList.toggle('off', !v || !phone);
+    if (!v || !phone) return;
+    pm.dock(phone, 'phone');
+    pm.draw(v);
   }
 
   /** Objective markers this frame (ui/objective-marks.ts): `project` puts a world point on screen, `from` is Cody. */

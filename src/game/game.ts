@@ -37,7 +37,10 @@ import { LightPool } from '../render/light-pool';
 import { MaterialLibrary, softInk, withCutaway } from '../render/materials';
 import { PALETTE } from '../render/palette';
 import { SunLight } from '../render/sun-light';
-import { Hud } from '../ui/hud';
+import { helpRows, Hud } from '../ui/hud';
+import { Help, MapApp, type PhantomReport, Phantoms, Photos, Tasks } from '../ui/phone/apps';
+import { Messages } from '../ui/phone/messages';
+import { Phone } from '../ui/phone/phone';
 import { wantsTouch } from '../ui/touch-controls';
 import { type BreakablePiece, buildWorld, type BuiltWorld } from '../world/build-world';
 import type { Solid } from '../world/collision';
@@ -321,6 +324,8 @@ export class Game {
   private readonly shop: Shop;
   /** Talking to Randy at his fire (off while the tutorial runs). */
   readonly randyTalk: RandyTalk;
+  /** Cody's phone: Randy's burner, with its apps. */
+  readonly phone: Phone;
   /** Randy Rolsen and anyone else hanging about to be talked to (the tutorial finds them here). */
   readonly npcs: Npcs;
   /** The elevators' cabs and doors (the deck's, beside the stair tower). */
@@ -628,6 +633,15 @@ export class Game {
       // the GhASt dial (and the touch BOOST button) while he's driving the monster truck
       ghast: () => (this.driving?.form === 'truck' ? { fill: this.ghast, burning: this.boosting } : null),
     });
+    // Cody's phone, Randy's burner, and its apps; it rings, hangs up and buzzes as the game's 'phone' event
+    this.phone = new Phone(this.hud.root, this.input.focus, { time: () => GameClock.format(this.clock.hours) }, new Messages(), [
+      new Tasks({ goal: () => this.phone.goalText, aim: () => `FILL ALL ${TUNING.garage.spots} SPOTS WITH PHANTOMS.`, marks: () => this.objectives.list }),
+      new Phantoms(() => this.phantomReport()),
+      new MapApp(),
+      new Photos(),
+      new Help(helpRows),
+    ]);
+    this.phone.onBuzz = (what) => this.events.emit('phone', what);
     this.hud.initMap(level);
     this.hud.onStart(() => this.start());
     this.hud.onItemAction = (kind, id) => {
@@ -761,6 +775,7 @@ export class Game {
     this.updateShared(dt);
     this.phases.enter('present');
     this.hud.update();
+    this.phone.update();
     this.gfx.chaseView = this.chaseActive;
     if (this.rendering) this.gfx.render(this.time);
     this.input.endFrame();
@@ -774,6 +789,7 @@ export class Game {
   }
 
   start(): void {
+    this.phone.setAvatar(this.portraits.randy);
     if (this.mode === 'play') return;
     this.mode = 'play';
     this.clock.paused = false;
@@ -862,7 +878,8 @@ export class Game {
       if (inp.wasPressed('rotateLeft')) this.iso.rotate(-1);
       if (inp.wasPressed('rotateRight')) this.iso.rotate(1);
     }
-    if (inp.wasPressed('help')) this.hud.toggleHelp();
+    if (inp.wasPressed('phone')) this.phone.toggle();
+    if (inp.wasPressed('help')) this.phone.toggle('help');
     if (inp.wasPressed('reload')) reloadIfPending();
     const wheel = inp.consumeWheel();
     if (wheel) this.view.zoomBy(wheel);
@@ -1642,7 +1659,20 @@ export class Game {
     (this.gfx.grade.uniforms.flashColor!.value as Color).copy(this.flashColor);
   }
 
-  /** Objective markers over their targets (none under a cutscene), and the minimap around Cody. */
+  /** How the haunting's going, for the phone's Phantoms app. */
+  private phantomReport(): PhantomReport {
+    const haunted = this.garage.spots.filter((s) => s.phantom);
+    return {
+      onBoard: this.garage.phantomOccupancy(this.vehicles),
+      spots: TUNING.garage.spots,
+      escapes: this.garage.phantoms,
+      logged: this.garage.logged,
+      inDeck: this.garage.actual(this.vehicles),
+      where: haunted.map(spotLabel),
+    };
+  }
+
+  /** Objective markers over their targets (none under a cutscene), and the minimap around Cody, in the dash or the phone. */
   private updateObjectives(): void {
     const me = this.ride ?? this.player;
     const list = this.objectives.list;
@@ -1656,7 +1686,7 @@ export class Game {
       upZ: up.z,
       driving: this.ride !== null,
       marks: list.map((o) => ({ x: o.at.x, z: o.at.z, kind: o.kind })),
-    });
+    }, this.phone.showing('map') ? this.phone.body('map') : null);
   }
 
   /** The arrow over Cody's ride points along a planned route to the current objective. */

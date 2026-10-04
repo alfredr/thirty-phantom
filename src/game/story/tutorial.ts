@@ -2,8 +2,8 @@ import { type Mesh, type Object3D, Raycaster, Vector3 } from 'three';
 import { TUNING } from '../../config';
 import type { Vehicle } from '../../actors/vehicle';
 import { ISO_ELEVATION } from '../../render/iso-camera';
-import { Burner } from '../../ui/burner';
 import { Dialogue, type DialogueLine } from '../../ui/dialogue';
+import type { Phone } from '../../ui/phone/phone';
 import { Signpost } from '../../ui/signpost';
 import { el } from '../../ui/dom';
 import { wantsTouch } from '../../ui/touch-controls';
@@ -241,11 +241,14 @@ const nightJob = (): { at: 'possess'; quiet: boolean } => ({ at: 'possess', quie
  * move is announced as a `step` game event.
  */
 export class Tutorial {
-  private readonly burner: Burner;
   /** Run it on the next start. */
   private wanted = !remembered(DONE_KEY);
   private active = false;
   private readonly dialogue: Dialogue;
+  /** Cody's phone (the game's): Randy texts and rings on it, and the goal line is its. */
+  private get phone(): Phone {
+    return this.game.phone;
+  }
   private readonly sign: Signpost;
   private randy: Npc | null = null;
   private truck: Vehicle | null = null;
@@ -292,11 +295,11 @@ export class Tutorial {
       on: { entered: (t, s, e) => t.boardedBeforeJump(s.at, e) },
     },
     sorry: {
-      enter: (t) => t.burner.call(),
+      enter: (t) => t.phone.call(),
       tick: (t, s, dt) => {
         if ((s.t += dt) > RING && !s.talking && !t.dialogue.open) {
           s.talking = true;
-          t.play('sorry', t.sorry(), () => t.burner.endCall());
+          t.play('sorry', t.sorry(), () => t.phone.endCall());
         }
         return null;
       },
@@ -342,11 +345,11 @@ export class Tutorial {
       },
     },
     tell: {
-      enter: (t) => t.burner.call(),
+      enter: (t) => t.phone.call(),
       tick: (t, s, dt) => {
         if ((s.t += dt) > RING && !s.talking && !t.dialogue.open) {
           s.talking = true;
-          t.play('tell', TELL, () => t.burner.endCall());
+          t.play('tell', TELL, () => t.phone.endCall());
         }
         return null;
       },
@@ -399,11 +402,11 @@ export class Tutorial {
       },
     },
     call: {
-      enter: (t) => t.burner.call(),
+      enter: (t) => t.phone.call(),
       tick: (t, s, dt) => {
         if ((s.t += dt) > RING && !s.talking && !t.dialogue.open) {
           s.talking = true;
-          t.play('call', t.call(), () => t.burner.endCall());
+          t.play('call', t.call(), () => t.phone.endCall());
         }
         return null;
       },
@@ -489,7 +492,7 @@ export class Tutorial {
       enter: (t) => t.arrive('done'),
       tick: (t, s, dt) => {
         if ((s.t += dt) <= DONE_WAIT) return null;
-        t.burner.close();
+        t.phone.close();
         t.active = false;
         t.game.randyTalk.enabled = true;
         return { at: 'over' };
@@ -510,8 +513,6 @@ export class Tutorial {
     private readonly level: LevelData,
   ) {
     this.dialogue = new Dialogue({ left: 'RANDY ROLSEN', right: 'CODY' }, game.input.focus);
-    this.burner = new Burner(game.hud.root);
-    this.burner.onBuzz = (what) => game.events.emit('phone', what);
     this.sign = new Signpost(game.hud.root, game.input.focus);
     this.quest = new Mind<Tutorial, Steps, TutorialEvents>(this.steps, this, { at: 'off' }, {
       on: {
@@ -584,7 +585,7 @@ export class Tutorial {
     const { randy, cody } = g.portraits;
     this.dialogue.setPortrait('left', randy);
     this.dialogue.setPortrait('right', cody);
-    this.burner.setAvatar(randy);
+    this.phone.setAvatar(randy);
     g.hud.clearToasts();
     g.hud.showLedger(false);
     g.haunt(false);
@@ -628,7 +629,6 @@ export class Tutorial {
 
   private frame(dt: number): void {
     if (!this.active) return;
-    this.burner.setTime(GameClock.format(this.game.clock.hours));
     this.quest.tick(dt);
     this.show();
   }
@@ -688,7 +688,7 @@ export class Tutorial {
     const s = this.quest.state;
     const goal = this.goalOf(s);
     if (goal !== this.shownGoal) {
-      this.burner.objective(goal);
+      this.phone.goal(goal);
       this.shownGoal = goal;
     }
     const wanted = this.marksOf(s);
@@ -705,7 +705,7 @@ export class Tutorial {
   }
 
   private text(msg: string): void {
-    this.burner.text(msg.replace('{turn}', this.stage?.turn ?? 'RIGHT'));
+    this.phone.text(msg.replace('{turn}', this.stage?.turn ?? 'RIGHT'));
   }
 
   /** Plays one of its dialogues; when it's over, `after`, and the step hears it's done. */
@@ -723,7 +723,7 @@ export class Tutorial {
     // (sat in the pickup through 7: it turned round him before the moonrise news, same as getting back in)
     if (from === 'out') this.moonrise();
     // got in while Randy's still ringing: he can save it (a call he's on finishes, then hangs up)
-    if (from === 'sorry' && !this.dialogue.open) this.burner.endCall();
+    if (from === 'sorry' && !this.dialogue.open) this.phone.endCall();
     this.cam = g.cameraMode;
     g.setCamera('chase');
     g.chase.snapBehind(e.v.yaw);
