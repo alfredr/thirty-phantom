@@ -35,6 +35,37 @@ export function wreckSmashesThroughAParapet() {
   return { ok: broken > 0 && holes === 0, broken, holes };
 }
 
+/**
+ * Phantom Cody possesses a car in the deck and gets the truck out without going through the gate:
+ * a phantom's left behind, the truck rolls on a moment, dissolves, and leaves him on foot.
+ */
+export function escapedTruckRollsOnThenDissolves() {
+  const g = window.__game;
+  const sim = window.__sim;
+  g.start();
+  sim.run(30);
+  g.debug.night();
+  sim.until(() => g.player.form === 'night', 20, []);
+  const car = g.vehicles.find((v) => v.role === 'parked' && v.insideDeck && v.form === 'car' && v.pos.y < 1);
+  if (!car) return { ok: false, why: 'no car on the deck floor' };
+  g.board(car);
+  const changed = sim.until(() => g.codyRide.state.at === 'driving', 10, []);
+  const truck = g.driving;
+  if (!truck || truck.form !== 'truck') return { ok: false, why: 'no truck', changed: changed.ok };
+  // straight out through the side, well clear of any gate
+  const out = truck.pos.clone();
+  while (g.garage.inFootprint(out)) out.x -= 1;
+  out.x -= 8;
+  if (g.world.gates.inZone(out)) return { ok: false, why: 'came out by a gate' };
+  let phantoms = 0;
+  g.events.on('phantom', () => phantoms++);
+  truck.place(out.x, 0, out.z, truck.yaw, 0, 0, null);
+  sim.run(2);
+  const rolling = g.codyRide.state.at === 'driving' && g.codyRide.state.escape !== null;
+  const gone = sim.until(() => g.codyRide.state.at === 'onFoot', 10, []);
+  return { ok: phantoms === 1 && rolling && gone.ok && truck.status === 'vanishing', phantoms, rolling, onFootAfter: gone.seconds, status: truck.status };
+}
+
 /** Cody's monster truck runs over a parked car outside the deck: it's flattened, nobody's to drive it, and it's gone a few seconds later. */
 export function truckCrushesACar() {
   const g = window.__game;

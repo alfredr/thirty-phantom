@@ -57,6 +57,7 @@ import { CodyState, FRIGHTENING } from './cody/cody-state';
 import { CLAIMS, type ClaimKind } from './rules/claim-kinds';
 import { Doing, resolveFully } from '../engine/sim/action';
 import { Claims } from '../engine/sim/claims';
+import { Mind, mind } from '../engine/sim/mind';
 import { bestOffers } from '../engine/sim/offers';
 import { Phases } from '../engine/sim/phase';
 import { Space } from '../engine/sim/space';
@@ -161,6 +162,13 @@ const NPC_ROOM = 0.4;
 const FIRE_ROOM = 0.45;
 
 type Mode = 'title' | 'play';
+/** Where Cody is: on foot, in a car changing into the monster truck round him, or at the wheel. */
+type CodyRide = {
+  onFoot: object;
+  changing: { seq: TransformSequence };
+  /** `escape`: got away unseen, seconds the truck rolls on before it dissolves; null till then. */
+  driving: { v: Vehicle; escape: number | null };
+};
 /** What happens in play, for the tutorial (and anything else that follows along). */
 export type GameEvents = {
   start: null;
@@ -392,15 +400,34 @@ export class Game {
     changed: (mode) => this.events.emit('camera', mode),
   }, wantsTouch());
   readonly debug: ReturnType<typeof createGameDebug>;
-  private driving: Vehicle | null = null;
-  private transform: TransformSequence | null = null;
+  /** Cody's ride, a state at a time: what each frame does with him, on foot or at the wheel. */
+  private readonly RIDE = mind<Game, CodyRide, Record<never, object>>({
+    onFoot: {
+      tick: (g, _s, dt) => {
+        g.updateOnFoot(dt);
+        return null;
+      },
+    },
+    changing: {
+      tick: (_g, s, dt) => {
+        s.seq.update(dt);
+        return s.seq.done ? { at: 'driving', v: s.seq.vehicle, escape: null } : null;
+      },
+    },
+    driving: {
+      tick: (g, s, dt) => {
+        g.updateDriving(s, dt);
+        return null;
+      },
+    },
+  });
+  private readonly codyRide = new Mind<Game, CodyRide, Record<never, object>>(this.RIDE, this, { at: 'onFoot' });
   private time = 0;
   private last = 0;
   private flash = 0;
   private readonly flashColor = new Color();
   private readonly cutaway = new Cutaway();
   private exhaustTimer = 0;
-  private escapedTimer = -1;
   private codyFx = -1;
   private readonly fpsAcc = { t: 0, n: 0 };
   /** Headless simulation (tests): advance the game without drawing it. */
@@ -716,6 +743,22 @@ export class Game {
     return this.chaseActive ? this.chase : this.iso;
   }
 
+  /** What Cody is driving, if anything. */
+  private get driving(): Vehicle | null {
+    return this.codyRide.in('driving')?.v ?? null;
+  }
+
+  /** The car turning into the monster truck round him, while it is. */
+  private get transform(): TransformSequence | null {
+    return this.codyRide.in('changing')?.seq ?? null;
+  }
+
+  /** He got away unseen, and the truck's rolling on to dissolve. */
+  private get escaping(): boolean {
+    const d = this.codyRide.in('driving');
+    return !!d && d.escape !== null;
+  }
+
   /** What Cody is driving, or the car turning into a truck around him. */
   private get ride(): Vehicle | null {
     return this.driving ?? this.transform?.vehicle ?? null;
@@ -925,19 +968,7 @@ export class Game {
 
     // the cabs move first, carrying Cody if he's standing in one
     this.elevators.update(dt, this.driving || this.transform ? NONE : this.riders);
-    if (this.transform) {
-      this.transform.update(dt);
-      if (this.transform.done) {
-        const v = this.transform.vehicle;
-        v.role = 'player';
-        this.driving = v;
-        this.transform = null;
-      }
-    } else if (this.driving) {
-      this.updateDriving(dt);
-    } else {
-      this.updateOnFoot(dt);
-    }
+    this.codyRide.tick(dt);
 
     this.updateMorphs(dt);
     this.updateCodyFx(dt);
@@ -1217,7 +1248,7 @@ export class Game {
       possessable: (car) => this.possessable(car),
       enter: (car) => this.enter(car),
       exit: () => this.exit(),
-      escaping: () => this.escapedTimer >= 0,
+      escaping: () => this.escaping,
       inFreeSpot: (car) => {
         const spot = this.garage.spotAt(car.pos);
         return !!spot && this.garage.isFree(spot, car);
@@ -1271,21 +1302,22 @@ export class Game {
     v.role = 'player';
     // phantom Cody possesses a car in the deck (and the tutorial's Cody, after moonrise, his own): it turns into the truck
     if (this.possessable(v)) {
-      this.transform = new TransformSequence(v, 'truck', () => VEHICLE_BREEDS.truck.model(this.assets, v.color), this.fx);
+      this.codyRide.go({ at: 'changing', seq: new TransformSequence(v, 'truck', () => VEHICLE_BREEDS.truck.model(this.assets, v.color), this.fx) });
       this.hud.toast(this.cody.phantom ? 'PHANTOM CODY!' : 'POSSESSED!', 'GET IT OUT. NOT THROUGH THE GATE.', '', 2.6);
       this.events.emit('entered', { v, possessed: true });
       return;
     }
     const found = this.money.glovebox(v);
     if (found) this.events.emit('money', { kind: 'glovebox', amount: found });
-    this.driving = v;
+    this.codyRide.go({ at: 'driving', v, escape: null });
     // on a bike he's out in the open: Cody himself rides it
     if (v.rig.rider) this.player.mount(v.rig.rider.saddle);
     this.events.emit('entered', { v, possessed: false });
   }
 
-  private updateDriving(dt: number): void {
-    const v = this.driving as Vehicle;
+  /** A frame at the wheel of `s.v`, its escape roll counting down if it got away. */
+  private updateDriving(s: CodyRide['driving'], dt: number): void {
+    const v = s.v;
     if (v.rig.rider) this.player.ride(dt);
     const inp = this.input;
     const di: DriveInput = {
@@ -1294,7 +1326,7 @@ export class Game {
       hop: inp.wasPressed('hop'),
       drift: inp.isDown('drift'),
     };
-    if (this.escapedTimer >= 0) di.throttle = Math.max(di.throttle, 0);
+    if (s.escape !== null) di.throttle = Math.max(di.throttle, 0);
     this.ghastIntake(v, di, dt);
     const prev = _prev.copy(v.pos);
     const ev = v.drive(dt, di, this.world.collision);
@@ -1318,9 +1350,9 @@ export class Game {
     }
 
     this.interact();
-    if (this.escapedTimer >= 0) {
-      this.escapedTimer -= dt;
-      if (this.escapedTimer < 0 && v.grounded) this.vanish(v);
+    if (s.escape !== null) {
+      s.escape -= dt;
+      if (s.escape < 0 && v.grounded) this.vanish(v);
     }
   }
 
@@ -1416,12 +1448,12 @@ export class Game {
 
   /** Cody gets out; `quiet` (a scene got him out) skips the PARKED toast. */
   private exit(quiet = false): void {
-    const v = this.driving as Vehicle;
-    this.driving = null;
+    const v = this.driving;
+    if (!v) return;
+    // on foot again: an escape roll ends with the drive it was part of
+    this.codyRide.go({ at: 'onFoot' });
     this.claims.release(this.codySeat);
     this.boosting = false;
-    // An escaped vehicle's roll ends with the drive, so the next vehicle Cody takes is not affected.
-    this.escapedTimer = -1;
     this.iso.zoomTarget = Math.min(this.iso.zoomTarget, TUNING.camera.zoom);
     this.hud.setPrompt(null);
     v.vel.set(0, 0, 0);
@@ -1482,7 +1514,8 @@ export class Game {
         this.hud.toast(`PHANTOM CODY #${this.garage.phantoms}`, 'OOPS! YOU FORGOT TO BADGE OUT!', '', 2.8);
         this.doFlash(0.35, '#9dff3a');
         this.shake(0.3);
-        if (!this.keepEscaped) this.escapedTimer = ESCAPE_ROLL;
+        const drive = this.codyRide.in('driving');
+        if (drive && !this.keepEscaped) drive.escape = ESCAPE_ROLL;
         break;
       }
     }
@@ -1542,14 +1575,13 @@ export class Game {
     if (!this.cody.holdForm) this.codyFx = 0;
     // driving at moonrise: the car turns into the monster truck round him (in the tutorial, Cody himself stays Cody)
     const v = this.driving;
-    if (v && v.form === 'car' && !this.transform) {
-      this.driving = null;
+    if (v && v.form === 'car') {
       // off the bike's saddle (its rig is about to go), and inside the truck, out of sight
       if (v.rig.rider) {
         this.player.dismount(this.scene);
         this.player.visible = false;
       }
-      this.transform = new TransformSequence(v, 'truck', () => VEHICLE_BREEDS.truck.model(this.assets, v.color), this.fx);
+      this.codyRide.go({ at: 'changing', seq: new TransformSequence(v, 'truck', () => VEHICLE_BREEDS.truck.model(this.assets, v.color), this.fx) });
       this.events.emit('entered', { v, possessed: true });
     }
     this.events.emit('nightfall', null);
@@ -1706,7 +1738,7 @@ export class Game {
         if (!v.insideDeck) query = this.entryQuery;
       }
       this.arrow.setColor(PALETTE.slime);
-    } else if (v && v.form === 'truck' && v.insideDeck && this.escapedTimer < 0) {
+    } else if (v && v.form === 'truck' && v.insideDeck && !this.escaping) {
       // at night: the nearest unbroken parapet, preferring this floor
       const floor = this.garage.floorOf(v.pos.y);
       let best: BreakablePiece | null = null;
