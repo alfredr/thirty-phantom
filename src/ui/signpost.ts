@@ -1,6 +1,7 @@
 import type { Focus } from '@/engine/input/input';
 import { el } from '@/engine/ui/dom';
 import type { Control } from '@/game/controls';
+
 import './signpost.css';
 
 /** These dismiss it, and are kept from the game while it's up. */
@@ -8,9 +9,9 @@ import './signpost.css';
 const DISMISS: readonly Control[] = ['interact', 'start'];
 
 /**
- * A signpost pinned to a point in the world (the tutorial's first phantom imprint): a plate on a
- * post, the post's foot on the point with a ring pulsing round it. place() it at the point's
- * screen position every frame; a click, a tap, F, Space or Enter dismisses it.
+ * A signpost pinned to a point in the world (the tutorial's first phantom imprint): a plate on a post, the post's foot
+ * on the point with a ring pulsing round it. place() it at the point's screen position every frame; a click, a tap, F,
+ * Space or Enter dismisses it.
  */
 export class Signpost {
   private readonly root: HTMLDivElement;
@@ -32,7 +33,9 @@ export class Signpost {
     focus.add({
       controls: () => (this.open ? DISMISS : []),
       press: (_control, { repeat }) => {
-        if (!repeat) this.dismiss();
+        if (!repeat) {
+          this.dismiss();
+        }
       },
     });
   }
@@ -53,7 +56,10 @@ export class Signpost {
   /** Where its foot stands on screen (CSS px), or null to hide it while the point's off camera. */
   place(at: { x: number; y: number } | null): void {
     this.root.style.visibility = at ? '' : 'hidden';
-    if (at) this.root.style.translate = `${at.x}px ${at.y}px`;
+
+    if (at) {
+      this.root.style.translate = `${at.x}px ${at.y}px`;
+    }
   }
 
   /** Hide without advancing the scene that opened it. */
@@ -63,7 +69,10 @@ export class Signpost {
   }
 
   dismiss(): void {
-    if (!this.open) return;
+    if (!this.open) {
+      return;
+    }
+
     const done = this.dismissed;
     this.cancel();
     done?.();

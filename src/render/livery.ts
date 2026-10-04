@@ -1,6 +1,8 @@
 import type { CanvasTexture } from 'three';
+
 import { TAU } from '@/engine/core/math';
 import { Rng } from '@/engine/core/rng';
+
 import { PALETTE } from './palette';
 import { drawSkull, drawSlimeTop, FONT, fitFont } from './signs';
 import { addNoise, makeCanvas, toTexture, type Ctx } from './textures';
@@ -45,7 +47,10 @@ const cache = new Map<string, Livery>();
 export function truckLivery(text: LiveryText = { name: 'ROADIE', number: '30' }): Livery {
   const key = `${text.name}|${text.number}`;
   const hit = cache.get(key);
-  if (hit) return hit;
+  if (hit) {
+    return hit;
+  }
+
   const rng = new Rng(30);
 
   // body side: 5.3 x 0.9 world units
@@ -68,12 +73,14 @@ export function truckLivery(text: LiveryText = { name: 'ROADIE', number: '30' })
     const y = rng.range(0, H * 0.75);
     blobs.push([rng.range(0, W), y, rng.range(14, 46), Math.max(0, H - y - rng.range(0, 40))]);
   }
+
   for (const [pass, c] of [
     [0, a.ctx],
     [1, a.ctx],
     [1, e.ctx],
   ] as const) {
     c.fillStyle = pass === 0 ? PALETTE.ink : c === e.ctx ? SLIME_GLOW : PALETTE.slime;
+
     for (const [x, y, r, len] of blobs) {
       c.beginPath();
       c.arc(x, y, r + (pass === 0 ? 4 : 0), 0, TAU);
@@ -81,12 +88,15 @@ export function truckLivery(text: LiveryText = { name: 'ROADIE', number: '30' })
       c.fillRect(x - r * 0.35 - (pass === 0 ? 4 : 0), y, r * 0.7 + (pass === 0 ? 8 : 0), len);
     }
   }
+
   a.ctx.fillStyle = PALETTE.slimeHot;
+
   for (const [x, y, r] of blobs) {
     a.ctx.beginPath();
     a.ctx.arc(x - r * 0.3, y - r * 0.3, r * 0.25, 0, TAU);
     a.ctx.fill();
   }
+
   splats([a.ctx, e.ctx], W, H, rng, 60, e.ctx);
   drawSlimeTop([a.ctx, e.ctx], W, 30, rng, 1.5, e.ctx);
   // name
@@ -131,6 +141,7 @@ export function truckLivery(text: LiveryText = { name: 'ROADIE', number: '30' })
   he.ctx.fillStyle = '#000';
   he.ctx.fillRect(0, 0, S, S);
   splats([ha.ctx, he.ctx], S, S, rng, 26, he.ctx);
+
   for (const [c, em] of [
     [ha.ctx, false],
     [he.ctx, true],
@@ -141,6 +152,7 @@ export function truckLivery(text: LiveryText = { name: 'ROADIE', number: '30' })
     drawSkull(c, S / 2, S / 2, S * 0.62, em ? '#5cd60f' : PALETTE.slime, em ? '#000' : BODY);
     c.restore();
   }
+
   addNoise(ha.ctx, S, S, rng, 10);
   const hood = { map: toTexture(ha.c), emissive: toTexture(he.c) };
 

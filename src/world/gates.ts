@@ -1,9 +1,11 @@
 import { BoxGeometry, Color, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
+
 import { TUNING } from '@/config';
 import { clamp, damp } from '@/engine/core/math';
 import { bodyHalf } from '@/engine/physics/vehicle-params';
 import { whiteColors } from '@/render/geometry';
 import { withCutaway, type MaterialLibrary } from '@/render/materials';
+
 import { facingYaw, type GateDef } from './level-data';
 import type { PropKind, Props } from './props';
 
@@ -40,9 +42,8 @@ export interface GateRuntime {
 }
 
 /**
- * Barrier arms that lift for nearby vehicles, and the badge scanners' status
- * lamps. The arms themselves are props (see attach): the gate tips them, and
- * a car going through one before it's up snaps it off like a lamp post.
+ * Barrier arms that lift for nearby vehicles, and the badge scanners' status lamps. The arms themselves are props (see
+ * attach): the gate tips them, and a car going through one before it's up snaps it off like a lamp post.
  */
 export class Gates {
   readonly root = new Group();
@@ -83,8 +84,8 @@ export class Gates {
 
   /**
    * @param movers positions of all moving vehicles (arms open when one is near)
-   * @param cars all vehicles: if given, an arm only opens for one near that's slowed down for it,
-   *   and one going through it at speed while it's down snaps it off
+   * @param cars all vehicles: if given, an arm only opens for one near that's slowed down for it, and one going through
+   *   it at speed while it's down snaps it off
    */
   update(dt: number, movers: readonly Vector3[], cars: readonly GateCrasher[] | null = null): void {
     for (let k = 0; k < this.list.length; k++) {
@@ -92,22 +93,34 @@ export class Gates {
       let want = 0;
       if (cars) {
         for (const v of cars) {
-          if (v.gone || v.role === 'parked' || v.vel.x * v.vel.x + v.vel.z * v.vel.z > OPEN_SPEED * OPEN_SPEED) continue;
+          if (v.gone || v.role === 'parked' || v.vel.x * v.vel.x + v.vel.z * v.vel.z > OPEN_SPEED * OPEN_SPEED) {
+            continue;
+          }
+
           const dx = v.pos.x - g.center.x;
           const dz = v.pos.z - g.center.z;
-          if (v.pos.y < OPEN_BELOW && dx * dx + dz * dz < OPEN_REACH * OPEN_REACH) want = 1;
+          if (v.pos.y < OPEN_BELOW && dx * dx + dz * dz < OPEN_REACH * OPEN_REACH) {
+            want = 1;
+          }
         }
       } else {
         for (const p of movers) {
-          if (p.y < OPEN_BELOW && Math.hypot(p.x - g.center.x, p.z - g.center.z) < OPEN_REACH) want = 1;
+          if (p.y < OPEN_BELOW && Math.hypot(p.x - g.center.x, p.z - g.center.z) < OPEN_REACH) {
+            want = 1;
+          }
         }
       }
+
       g.open = damp(g.open, want, OPEN_RATE, dt);
       const arm = this.arms[k];
       if (this.props && arm !== undefined && this.props.standing(arm)) {
         this.props.hold(arm, Math.PI / 2 - g.open * LIFT);
-        if (cars) this.strike(g, arm, cars);
+
+        if (cars) {
+          this.strike(g, arm, cars);
+        }
       }
+
       g.flash = Math.max(0, g.flash - dt);
       const ok = g.flash > 0;
       g.lamp.emissive.copy(ok ? SCANNED : want ? NEAR : SHUT);
@@ -126,7 +139,10 @@ export class Gates {
     const rise = Math.tan(a);
     for (const v of cars) {
       const K = TUNING.knockdown.speed;
-      if (v.gone || v.vel.x * v.vel.x + v.vel.z * v.vel.z < K * K) continue;
+      if (v.gone || v.vel.x * v.vel.x + v.vel.z * v.vel.z < K * K) {
+        continue;
+      }
+
       const P = v.params;
       const half = bodyHalf(P);
       const fx = Math.sin(v.yaw);
@@ -138,11 +154,20 @@ export class Gates {
         const s = clamp((px - h[0]) * dx + (pz - h[2]) * dz, 0, reach);
         const ox = px - (h[0] + dx * s);
         const oz = pz - (h[2] + dz * s);
-        if (ox * ox + oz * oz > P.radius * P.radius) continue;
+        if (ox * ox + oz * oz > P.radius * P.radius) {
+          continue;
+        }
+
         const y = h[1] + s * rise;
-        if (y < v.pos.y + 0.2 || y > v.pos.y + P.height) continue;
+        if (y < v.pos.y + 0.2 || y > v.pos.y + P.height) {
+          continue;
+        }
+
         const kind = this.props?.release(arm, v.vel.x * 0.7, 2.5, v.vel.z * 0.7);
-        if (kind) this.onSnapped?.(g, kind);
+        if (kind) {
+          this.onSnapped?.(g, kind);
+        }
+
         return;
       }
     }
@@ -151,8 +176,11 @@ export class Gates {
   inZone(p: Vector3): GateRuntime | null {
     for (const g of this.list) {
       const { min, max } = g.def;
-      if (p.x >= min[0] && p.x <= max[0] && p.z >= min[2] && p.z <= max[2] && p.y <= max[1]) return g;
+      if (p.x >= min[0] && p.x <= max[0] && p.z >= min[2] && p.z <= max[2] && p.y <= max[1]) {
+        return g;
+      }
     }
+
     return null;
   }
 }

@@ -5,21 +5,25 @@ import type { Synth } from './synth';
 export type Bus = 'sfx' | 'ambience';
 
 /**
- * A sound: one of synth.ts's recipes with its params, or a file under public/audio/ (lazy-loaded,
- * mp3 or m4a for iOS; CC0 only, each credited in public/audio/CREDITS.md). Synthesis first; a
- * file stands in where it doesn't do well (the screams, the engines).
- * `vol` trims one sound against the rest of its cue; a file's `vary` plays it up to that much
- * faster or slower each time (0.06: within 6%), so a recording isn't the same every time. An
- * `engine` is a recording cut into tagged cycles (`marks`, from tools/engine-grains.py), played
- * by its revs and load (grains.ts).
+ * A sound: one of synth.ts's recipes with its params, or a file under public/audio/ (lazy-loaded, mp3 or m4a for iOS;
+ * CC0 only, each credited in public/audio/CREDITS.md). Synthesis first; a file stands in where it doesn't do well (the
+ * screams, the engines). `vol` trims one sound against the rest of its cue; a file's `vary` plays it up to that much
+ * faster or slower each time (0.06: within 6%), so a recording isn't the same every time. An `engine` is a recording
+ * cut into tagged cycles (`marks`, from tools/engine-grains.py), played by its revs and load (grains.ts).
  */
-export type Source = Synth | { file: string; vol?: number; vary?: number } | { file: string; marks: string; engine: EngineP; vol?: number };
+export type Source =
+  | Synth
+  | { file: string; vol?: number; vary?: number }
+  | { file: string; marks: string; engine: EngineP; vol?: number };
 
 export interface Cue {
   bus: Bus;
   /** Level at the source, before distance (0..1). */
   vol: number;
-  /** Heard out to this far (m), falling off from TUNING.audio.near; null: everywhere at full level (Cody's own, the phone, ambience). */
+  /**
+   * Heard out to this far (m), falling off from TUNING.audio.near; null: everywhere at full level (Cody's own, the
+   * phone, ambience).
+   */
   range: number | null;
   /** At most this many playing at once. */
   max: number;
@@ -30,9 +34,9 @@ export interface Cue {
 }
 
 /**
- * The cue table: every sound in the game, by cue (what happened) and name (which sound). The
- * console shows `[sound] cue: name` as each one starts, so a weird one can be looked up here and
- * retuned, or swapped for a file. src/audio/sound.ts says what triggers each cue.
+ * The cue table: every sound in the game, by cue (what happened) and name (which sound). The console shows `[sound]
+ * cue: name` as each one starts, so a weird one can be looked up here and retuned, or swapped for a file.
+ * src/audio/sound.ts says what triggers each cue.
  */
 export const CUES = {
   /** Traffic held up, leaning on the horn ('honk'): by kind of car, and angrier for longer and harsher. */
@@ -46,11 +50,22 @@ export const CUES = {
       'horn-sedan-angry': { synth: 'horn', p: { f: [415, 523], dur: 1.1, wave: 'sawtooth', tone: 2400, drive: 2.5 } },
       'horn-pickup': { synth: 'horn', p: { f: [330, 415], dur: 0.55, wave: 'sawtooth', tone: 1700 } },
       'horn-pickup-angry': { synth: 'horn', p: { f: [330, 415], dur: 1.3, wave: 'sawtooth', tone: 1900, drive: 2.5 } },
-      'horn-bike': { synth: 'horn', p: { f: [622], dur: 0.12, beeps: 2, gap: 0.07, wave: 'square', tone: 2600 }, vol: 0.5 },
-      'horn-bike-angry': { synth: 'horn', p: { f: [622], dur: 0.12, beeps: 5, gap: 0.05, wave: 'square', tone: 2800, drive: 2 }, vol: 0.7 },
+      'horn-bike': {
+        synth: 'horn',
+        p: { f: [622], dur: 0.12, beeps: 2, gap: 0.07, wave: 'square', tone: 2600 },
+        vol: 0.5,
+      },
+      'horn-bike-angry': {
+        synth: 'horn',
+        p: { f: [622], dur: 0.12, beeps: 5, gap: 0.05, wave: 'square', tone: 2800, drive: 2 },
+        vol: 0.7,
+      },
     },
   },
-  /** Engines running: Cody's ride, and the nearest traffic. CC0 recordings cut into cycles and played by the engine's revs and load (grains.ts, engine-state.ts). */
+  /**
+   * Engines running: Cody's ride, and the nearest traffic. CC0 recordings cut into cycles and played by the engine's
+   * revs and load (grains.ts, engine-state.ts).
+   */
   engine: {
     bus: 'sfx',
     vol: 0.9,
@@ -61,22 +76,56 @@ export const CUES = {
       'engine-sedan': {
         file: 'engine-sedan.mp3',
         marks: 'engine-sedan.json',
-        engine: { idle: 106, top: 400, rate: 45, tone: [2500, 9000], gain: 1, breath: { band: [500, 2400], vol: 0.12 }, burble: { rate: 10, fade: 1.5, vol: 0.25 } },
+        engine: {
+          idle: 106,
+          top: 400,
+          rate: 45,
+          tone: [2500, 9000],
+          gain: 1,
+          breath: { band: [500, 2400], vol: 0.12 },
+          burble: { rate: 10, fade: 1.5, vol: 0.25 },
+        },
       },
       'engine-pickup': {
         file: 'engine-pickup.mp3',
         marks: 'engine-pickup.json',
-        engine: { idle: 43.4, top: 138, rate: 45, tone: [1800, 7000], gain: 1.7, breath: { band: [400, 1800], vol: 0.12 }, burble: { rate: 6, fade: 1.2, vol: 0.2 } },
+        engine: {
+          idle: 43.4,
+          top: 138,
+          rate: 45,
+          tone: [1800, 7000],
+          gain: 1.7,
+          breath: { band: [400, 1800], vol: 0.12 },
+          burble: { rate: 6, fade: 1.2, vol: 0.2 },
+        },
       },
       'engine-bike': {
         file: 'engine-bike.mp3',
         marks: 'engine-bike.json',
-        engine: { idle: 45, top: 175, rate: 50, tone: [3000, 10000], gain: 1.6, breath: { band: [700, 3200], vol: 0.15 }, burble: { rate: 12, fade: 1.2, vol: 0.2 } },
+        engine: {
+          idle: 45,
+          top: 175,
+          rate: 50,
+          tone: [3000, 10000],
+          gain: 1.6,
+          breath: { band: [700, 3200], vol: 0.15 },
+          burble: { rate: 12, fade: 1.2, vol: 0.2 },
+        },
       },
       'engine-truck': {
         file: 'engine-truck.mp3',
         marks: 'engine-truck.json',
-        engine: { idle: 34, top: 85, rate: 45, tone: [1500, 6000], gain: 1.1, lope: 0.45, cyl: 8, breath: { band: [300, 1400], vol: 0.14 }, burble: { rate: 8, fade: 1.8, vol: 0.35 } },
+        engine: {
+          idle: 34,
+          top: 85,
+          rate: 45,
+          tone: [1500, 6000],
+          gain: 1.1,
+          lope: 0.45,
+          cyl: 8,
+          breath: { band: [300, 1400], vol: 0.14 },
+          burble: { rate: 8, fade: 1.8, vol: 0.35 },
+        },
       },
     },
   },
@@ -95,7 +144,9 @@ export const CUES = {
     vol: 0.7,
     range: 60,
     max: 1,
-    sounds: { 'boost-ignite': { synth: 'whoosh', p: { f: [200, 1400, 600], q: 0.9, len: 0.7, peak: 0.25, vol: 1, boom: 60 } } },
+    sounds: {
+      'boost-ignite': { synth: 'whoosh', p: { f: [200, 1400, 600], q: 0.9, len: 0.7, peak: 0.25, vol: 1, boom: 60 } },
+    },
   },
   /** A knock between cars, or into a wall ('impact', soft). */
   bump: {
@@ -104,8 +155,22 @@ export const CUES = {
     range: 50,
     max: 3,
     sounds: {
-      'bump-car': { synth: 'foley', p: { thump: { from: 110, to: 55, len: 0.12, vol: 0.9 }, body: { f: 700, len: 0.12, vol: 0.5 }, crunch: { f: 1400, q: 1, len: 0.05, vol: 0.2 } } },
-      'bump-wall': { synth: 'foley', p: { thump: { from: 100, to: 50, len: 0.13, vol: 1 }, body: { f: 500, len: 0.15, vol: 0.6 }, rattle: { n: 2, f: 1100, len: 0.1, vol: 0.2 } } },
+      'bump-car': {
+        synth: 'foley',
+        p: {
+          thump: { from: 110, to: 55, len: 0.12, vol: 0.9 },
+          body: { f: 700, len: 0.12, vol: 0.5 },
+          crunch: { f: 1400, q: 1, len: 0.05, vol: 0.2 },
+        },
+      },
+      'bump-wall': {
+        synth: 'foley',
+        p: {
+          thump: { from: 100, to: 50, len: 0.13, vol: 1 },
+          body: { f: 500, len: 0.15, vol: 0.6 },
+          rattle: { n: 2, f: 1100, len: 0.1, vol: 0.2 },
+        },
+      },
     },
   },
   /** A crash: car into car, or into a wall ('impact', hard). The harder, the darker and lower. */
@@ -152,8 +217,22 @@ export const CUES = {
     range: 60,
     max: 2,
     sounds: {
-      'land-car': { synth: 'foley', p: { thump: { from: 85, to: 42, len: 0.14, vol: 1 }, body: { f: 450, len: 0.2, vol: 0.7 }, rattle: { n: 3, f: 900, len: 0.2, vol: 0.25 } } },
-      'land-truck': { synth: 'foley', p: { thump: { from: 60, to: 30, len: 0.15, vol: 1 }, body: { f: 300, len: 0.35, vol: 1 }, crunch: { f: 600, q: 1, len: 0.2, vol: 0.5 } } },
+      'land-car': {
+        synth: 'foley',
+        p: {
+          thump: { from: 85, to: 42, len: 0.14, vol: 1 },
+          body: { f: 450, len: 0.2, vol: 0.7 },
+          rattle: { n: 3, f: 900, len: 0.2, vol: 0.25 },
+        },
+      },
+      'land-truck': {
+        synth: 'foley',
+        p: {
+          thump: { from: 60, to: 30, len: 0.15, vol: 1 },
+          body: { f: 300, len: 0.35, vol: 1 },
+          crunch: { f: 600, q: 1, len: 0.2, vol: 0.5 },
+        },
+      },
     },
   },
   /** The monster truck flattening a car ('crushed'). */
@@ -192,14 +271,24 @@ export const CUES = {
       },
     },
   },
-  /** Street furniture going over, smashed, or a lamp landing ('prop'), by its kind: metal clanks and crunches, wood knocks, leaves. */
+  /**
+   * Street furniture going over, smashed, or a lamp landing ('prop'), by its kind: metal clanks and crunches, wood
+   * knocks, leaves.
+   */
   prop: {
     bus: 'sfx',
     vol: 1,
     range: 60,
     max: 6,
     sounds: {
-      'prop-lamp': { synth: 'foley', p: { thump: { from: 110, to: 55, len: 0.08, vol: 0.78 }, crunch: { f: 2600, q: 1.1, len: 0.1, vol: 0.91 }, body: { f: 1500, len: 0.12, vol: 0.52 } } },
+      'prop-lamp': {
+        synth: 'foley',
+        p: {
+          thump: { from: 110, to: 55, len: 0.08, vol: 0.78 },
+          crunch: { f: 2600, q: 1.1, len: 0.1, vol: 0.91 },
+          body: { f: 1500, len: 0.12, vol: 0.52 },
+        },
+      },
       'prop-lamp-down': {
         synth: 'foley',
         p: {
@@ -210,9 +299,31 @@ export const CUES = {
         },
         vol: 0.77,
       },
-      'prop-fence': { synth: 'foley', p: { crunch: { f: 2400, q: 1, len: 0.1, vol: 0.8 }, rattle: { n: 8, f: 1700, len: 0.35, vol: 0.8 }, thump: { from: 110, to: 55, len: 0.08, vol: 0.64 } } },
-      'prop-guardrail': { synth: 'foley', p: { thump: { from: 100, to: 50, len: 0.12, vol: 0.8 }, body: { f: 1000, len: 0.25, vol: 0.6 }, crunch: { f: 1900, q: 0.9, len: 0.18, vol: 0.6 } }, vol: 0.81 },
-      'prop-railing': { synth: 'foley', p: { crunch: { f: 2100, q: 1, len: 0.12, vol: 0.79 }, rattle: { n: 6, f: 1500, len: 0.35, vol: 0.71 }, thump: { from: 110, to: 55, len: 0.08, vol: 0.63 } } },
+      'prop-fence': {
+        synth: 'foley',
+        p: {
+          crunch: { f: 2400, q: 1, len: 0.1, vol: 0.8 },
+          rattle: { n: 8, f: 1700, len: 0.35, vol: 0.8 },
+          thump: { from: 110, to: 55, len: 0.08, vol: 0.64 },
+        },
+      },
+      'prop-guardrail': {
+        synth: 'foley',
+        p: {
+          thump: { from: 100, to: 50, len: 0.12, vol: 0.8 },
+          body: { f: 1000, len: 0.25, vol: 0.6 },
+          crunch: { f: 1900, q: 0.9, len: 0.18, vol: 0.6 },
+        },
+        vol: 0.81,
+      },
+      'prop-railing': {
+        synth: 'foley',
+        p: {
+          crunch: { f: 2100, q: 1, len: 0.12, vol: 0.79 },
+          rattle: { n: 6, f: 1500, len: 0.35, vol: 0.71 },
+          thump: { from: 110, to: 55, len: 0.08, vol: 0.63 },
+        },
+      },
       'prop-gate-arm': {
         synth: 'foley',
         p: {
@@ -222,7 +333,15 @@ export const CUES = {
           rattle: { n: 3, f: 1300, len: 0.3, vol: 0.66 },
         },
       },
-      'prop-bench': { synth: 'foley', p: { snap: { f: 1100, q: 1.6, len: 0.04, vol: 1 }, thump: { from: 110, to: 55, len: 0.1, vol: 0.8 }, rattle: { n: 4, f: 900, len: 0.3, vol: 0.45 } }, vol: 0.83 },
+      'prop-bench': {
+        synth: 'foley',
+        p: {
+          snap: { f: 1100, q: 1.6, len: 0.04, vol: 1 },
+          thump: { from: 110, to: 55, len: 0.1, vol: 0.8 },
+          rattle: { n: 4, f: 900, len: 0.3, vol: 0.45 },
+        },
+        vol: 0.83,
+      },
       'prop-tree': {
         synth: 'foley',
         p: {
@@ -263,7 +382,12 @@ export const CUES = {
     range: 30,
     max: 2,
     loop: true,
-    sounds: { 'fire-crackle': { synth: 'fire', p: { rate: [9, 40], body: [450, 1600], vol: 1, lap: 0.13, hiss: 0.25, wander: 1, clusters: 0.1, shifts: 0.025 } } },
+    sounds: {
+      'fire-crackle': {
+        synth: 'fire',
+        p: { rate: [9, 40], body: [450, 1600], vol: 1, lap: 0.13, hiss: 0.25, wander: 1, clusters: 0.1, shifts: 0.025 },
+      },
+    },
   },
   /** A tire going into Randy's fire, which plumes up ('stoked'). */
   stoke: {
@@ -271,7 +395,9 @@ export const CUES = {
     vol: 0.52,
     range: 40,
     max: 2,
-    sounds: { 'fire-whoomph': { synth: 'whoosh', p: { f: [150, 900, 300], q: 0.8, len: 1.1, peak: 0.2, vol: 1, boom: 55 } } },
+    sounds: {
+      'fire-whoomph': { synth: 'whoosh', p: { f: [150, 900, 300], q: 0.8, len: 1.1, peak: 0.2, vol: 1, boom: 55 } },
+    },
   },
   /** Ghosts sucked into the monster truck's intake ('swallowed'). */
   swallow: {
@@ -279,7 +405,23 @@ export const CUES = {
     vol: 0.48,
     range: null,
     max: 2,
-    sounds: { 'ghast-slurp': { synth: 'wail', p: { from: 900, to: 220, len: 0.7, vibrato: 0.03, voices: 2, cents: 25, wave: 'sine', air: 0.6, vol: 1, rise: 0.15 } } },
+    sounds: {
+      'ghast-slurp': {
+        synth: 'wail',
+        p: {
+          from: 900,
+          to: 220,
+          len: 0.7,
+          vibrato: 0.03,
+          voices: 2,
+          cents: 25,
+          wave: 'sine',
+          air: 0.6,
+          vol: 1,
+          rise: 0.15,
+        },
+      },
+    },
   },
   /** Someone vanishing in a puff of smoke ('puff': Randy at 7pm). */
   puff: {
@@ -287,7 +429,9 @@ export const CUES = {
     vol: 0.6,
     range: 50,
     max: 2,
-    sounds: { 'puff-smoke': { synth: 'whoosh', p: { f: [500, 1200, 250], q: 0.7, len: 0.6, peak: 0.12, vol: 1, boom: 90 } } },
+    sounds: {
+      'puff-smoke': { synth: 'whoosh', p: { f: [500, 1200, 250], q: 0.7, len: 0.6, peak: 0.12, vol: 1, boom: 90 } },
+    },
   },
   /** Cody picking up money ('money'). */
   money: {
@@ -296,9 +440,18 @@ export const CUES = {
     range: null,
     max: 3,
     sounds: {
-      'coin-cash': { synth: 'chime', p: { notes: [1319, 1760], step: 0.07, decay: 0.25, wave: 'triangle', bell: 2.76, vol: 1 } },
-      'coin-wallet': { synth: 'chime', p: { notes: [1047, 1319, 1568, 2093], step: 0.06, decay: 0.3, wave: 'triangle', bell: 2.76, vol: 1 } },
-      'coin-glovebox': { synth: 'chime', p: { notes: [1568, 2093], step: 0.09, decay: 0.3, wave: 'triangle', bell: 2.76, vol: 1 } },
+      'coin-cash': {
+        synth: 'chime',
+        p: { notes: [1319, 1760], step: 0.07, decay: 0.25, wave: 'triangle', bell: 2.76, vol: 1 },
+      },
+      'coin-wallet': {
+        synth: 'chime',
+        p: { notes: [1047, 1319, 1568, 2093], step: 0.06, decay: 0.3, wave: 'triangle', bell: 2.76, vol: 1 },
+      },
+      'coin-glovebox': {
+        synth: 'chime',
+        p: { notes: [1568, 2093], step: 0.09, decay: 0.3, wave: 'triangle', bell: 2.76, vol: 1 },
+      },
     },
   },
   /** Cody picking up a car part, a tire, or something handed or sold to him ('item', got). */
@@ -309,8 +462,15 @@ export const CUES = {
     max: 3,
     sounds: {
       'item-part': { synth: 'chime', p: { notes: [523, 784], step: 0.06, decay: 0.12, wave: 'square', vol: 0.72 } },
-      'item-tire': { synth: 'foley', p: { thump: { from: 180, to: 90, len: 0.15, vol: 1.1 }, rattle: { n: 2, f: 600, len: 0.12, vol: 0.44, q: 4 } } },
-      'item-gift': { synth: 'chime', p: { notes: [784, 988, 1175, 1568], step: 0.07, decay: 0.35, wave: 'triangle', bell: 2, vol: 0.9 }, vol: 0.84 },
+      'item-tire': {
+        synth: 'foley',
+        p: { thump: { from: 180, to: 90, len: 0.15, vol: 1.1 }, rattle: { n: 2, f: 600, len: 0.12, vol: 0.44, q: 4 } },
+      },
+      'item-gift': {
+        synth: 'chime',
+        p: { notes: [784, 988, 1175, 1568], step: 0.07, decay: 0.35, wave: 'triangle', bell: 2, vol: 0.9 },
+        vol: 0.84,
+      },
     },
   },
   /** Randy calling on the burner ('phone' ring, till the call's over). */
@@ -328,7 +488,12 @@ export const CUES = {
     vol: 0.36,
     range: null,
     max: 2,
-    sounds: { 'phone-text': { synth: 'buzz', p: { f: 170, pulses: 2, len: 0.14, gap: 0.1, ding: [1760, 2637], step: 0.1, vol: 1 } } },
+    sounds: {
+      'phone-text': {
+        synth: 'buzz',
+        p: { f: 170, pulses: 2, len: 0.14, gap: 0.1, ding: [1760, 2637], step: 0.1, vol: 1 },
+      },
+    },
   },
   /** Moonrise at 7pm ('nightfall'): a gong and an eerie chord. */
   moonrise: {
@@ -336,7 +501,12 @@ export const CUES = {
     vol: 0.45,
     range: null,
     max: 1,
-    sounds: { 'stinger-moonrise': { synth: 'stinger', p: { gong: 82, chord: [146.8, 174.6, 220, 277.2], swell: 1.2, len: 5, vol: 1 } } },
+    sounds: {
+      'stinger-moonrise': {
+        synth: 'stinger',
+        p: { gong: 82, chord: [146.8, 174.6, 220, 277.2], swell: 1.2, len: 5, vol: 1 },
+      },
+    },
   },
   /** Sunrise ('sunrise'): a brighter, softer chord. */
   dawn: {
@@ -344,7 +514,12 @@ export const CUES = {
     vol: 0.33,
     range: null,
     max: 1,
-    sounds: { 'stinger-dawn': { synth: 'stinger', p: { gong: 196, chord: [261.6, 329.6, 392, 523.3], swell: 0.8, len: 3.5, vol: 1 } } },
+    sounds: {
+      'stinger-dawn': {
+        synth: 'stinger',
+        p: { gong: 196, chord: [261.6, 329.6, 392, 523.3], swell: 0.8, len: 3.5, vol: 1 },
+      },
+    },
   },
   /** Cody's outfit swap in a puff ('outfit'): into phantom Cody, or back. */
   outfit: {
@@ -353,8 +528,26 @@ export const CUES = {
     range: 40,
     max: 1,
     sounds: {
-      'outfit-phantom': { synth: 'wail', p: { from: 400, to: 620, len: 1, vibrato: 0.025, voices: 3, cents: 20, wave: 'triangle', air: 0.8, vol: 1, rise: 0.5 } },
-      'outfit-day': { synth: 'chime', p: { notes: [1568, 1976, 2349, 3136], step: 0.05, decay: 0.4, wave: 'sine', bell: 2, vol: 0.7 }, vol: 0.87 },
+      'outfit-phantom': {
+        synth: 'wail',
+        p: {
+          from: 400,
+          to: 620,
+          len: 1,
+          vibrato: 0.025,
+          voices: 3,
+          cents: 20,
+          wave: 'triangle',
+          air: 0.8,
+          vol: 1,
+          rise: 0.5,
+        },
+      },
+      'outfit-day': {
+        synth: 'chime',
+        p: { notes: [1568, 1976, 2349, 3136], step: 0.05, decay: 0.4, wave: 'sine', bell: 2, vol: 0.7 },
+        vol: 0.87,
+      },
     },
   },
   /** A car turning into the monster truck ('entered', possessed), or one turning back at sunrise. */
@@ -374,7 +567,23 @@ export const CUES = {
     vol: 0.72,
     range: null,
     max: 1,
-    sounds: { 'phantom-imprint': { synth: 'wail', p: { from: 330, to: 494, len: 1.6, vibrato: 0.02, voices: 3, cents: 18, wave: 'triangle', air: 0.5, vol: 1, rise: 0.3 } } },
+    sounds: {
+      'phantom-imprint': {
+        synth: 'wail',
+        p: {
+          from: 330,
+          to: 494,
+          len: 1.6,
+          vibrato: 0.02,
+          voices: 3,
+          cents: 18,
+          wave: 'triangle',
+          air: 0.5,
+          vol: 1,
+          rise: 0.3,
+        },
+      },
+    },
   },
   /** Someone on foot taking fright and running ('fright'): CC0 recordings, public/audio/CREDITS.md. */
   scream: {
@@ -426,7 +635,23 @@ export const CUES = {
     vol: 0.3,
     range: null,
     max: 1,
-    sounds: { 'night-moan': { synth: 'wail', p: { from: 210, to: 150, len: 2.8, vibrato: 0.02, voices: 2, cents: 14, wave: 'triangle', air: 0.4, vol: 1, rise: 0.4 } } },
+    sounds: {
+      'night-moan': {
+        synth: 'wail',
+        p: {
+          from: 210,
+          to: 150,
+          len: 2.8,
+          vibrato: 0.02,
+          voices: 2,
+          cents: 14,
+          wave: 'triangle',
+          air: 0.4,
+          vol: 1,
+          rise: 0.4,
+        },
+      },
+    },
   },
 } satisfies Record<string, Cue>;
 

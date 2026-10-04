@@ -1,12 +1,20 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+
 import { Group, Scene, Vector3 } from 'three';
+
 import { loadModules } from './modules.mjs';
 
-const [{ CodyRide }, { CodyState }, { Claims }, { CLAIMS }, { Vehicle }, { CollisionWorld }, { Emitter }] = await loadModules(
-  '/src/game/cody/cody-ride.ts', '/src/game/cody/cody-state.ts', '/src/engine/sim/claims.ts',
-  '/src/game/rules/claim-kinds.ts', '/src/actors/vehicle.ts', '/src/engine/physics/collision.ts', '/src/engine/core/events.ts',
-);
+const [{ CodyRide }, { CodyState }, { Claims }, { CLAIMS }, { Vehicle }, { CollisionWorld }, { Emitter }] =
+  await loadModules(
+    '/src/game/cody/cody-ride.ts',
+    '/src/game/cody/cody-state.ts',
+    '/src/engine/sim/claims.ts',
+    '/src/game/rules/claim-kinds.ts',
+    '/src/actors/vehicle.ts',
+    '/src/engine/physics/collision.ts',
+    '/src/engine/core/events.ts',
+  );
 
 function rig() {
   return { root: new Group(), body: new Group(), wheels: [], lights: [], materials: [], height: 2, scale: 1 };
@@ -14,16 +22,28 @@ function rig() {
 
 function setup({ night = false, role = 'parked', insideDeck = true, spot = null } = {}) {
   const player = {
-    form: night ? 'night' : 'day', pos: new Vector3(), visible: true, saddle: null,
-    mount(saddle) { this.saddle = saddle; },
-    dismount() { this.saddle = null; },
-    place(pos) { this.pos.copy(pos); },
+    form: night ? 'night' : 'day',
+    pos: new Vector3(),
+    visible: true,
+    saddle: null,
+    mount(saddle) {
+      this.saddle = saddle;
+    },
+    dismount() {
+      this.saddle = null;
+    },
+    place(pos) {
+      this.pos.copy(pos);
+    },
   };
   const cody = new CodyState(player);
   const claims = new Claims(CLAIMS);
   const events = new Emitter();
   const log = [];
-  for (const type of ['entered', 'exited', 'vanished', 'money']) events.on(type, (data) => log.push({ type, ...data }));
+  for (const type of ['entered', 'exited', 'vanished', 'money']) {
+    events.on(type, (data) => log.push({ type, ...data }));
+  }
+
   const car = new Vehicle('car', rig(), '#fff', role);
   car.insideDeck = insideDeck;
   const vehicles = [car];
@@ -31,21 +51,30 @@ function setup({ night = false, role = 'parked', insideDeck = true, spot = null 
   const garage = {
     spotAt: () => spot,
     isFree: () => !spot?.occupant,
-    occupy(s, v) { s.occupant = v; },
+    occupy(s, v) {
+      s.occupant = v;
+    },
     release() {},
   };
   const world = {
-    player, cody, claims, events, garage, vehicles,
-    scene: new Scene(), collision: new CollisionWorld(),
+    player,
+    cody,
+    claims,
+    events,
+    garage,
+    vehicles,
+    scene: new Scene(),
+    collision: new CollisionWorld(),
     conditions: { deckAwake: () => night },
-    money: { empty: (v) => empty.add(v), glovebox: (v) => empty.has(v) ? 0 : 5 },
+    money: { empty: (v) => empty.add(v), glovebox: (v) => (empty.has(v) ? 0 : 5) },
     carjacked: () => log.push({ type: 'carjacked' }),
     bail: () => log.push({ type: 'bailed' }),
     // Complete the animation in one tick; vehicle state and seat ownership use the real classes.
     transform(v) {
       v.setStatus('transforming');
       return {
-        vehicle: v, done: false,
+        vehicle: v,
+        done: false,
         update() {
           v.setForm('truck', rig());
           v.setStatus(null);
@@ -53,7 +82,8 @@ function setup({ night = false, role = 'parked', insideDeck = true, spot = null 
         },
       };
     },
-    onFoot() {}, drive() {},
+    onFoot() {},
+    drive() {},
   };
   const ride = new CodyRide(world);
   return { ride, world, player, cody, car, claims, log };
@@ -73,7 +103,11 @@ test('possession takes the seat before transforming, and exiting releases it aft
   assert.equal(ride.vehicle, car);
   assert.equal(player.visible, false);
   assert.ok(log.some((e) => e.type === 'carjacked'));
-  assert.equal(log.some((e) => e.type === 'money'), false, 'possessing does not search the glovebox');
+  assert.equal(
+    log.some((e) => e.type === 'money'),
+    false,
+    'possessing does not search the glovebox',
+  );
   ride.tick(1 / 30);
   assert.equal(ride.driving, car);
   ride.exit();
@@ -89,7 +123,10 @@ test('scripted boarding stays quiet and handing off a car forgets it for the nex
   const { ride, car, claims, log } = setup({ insideDeck: false });
   ride.board(car, true);
   assert.equal(ride.driving, car);
-  assert.equal(log.some((e) => e.type === 'money'), false);
+  assert.equal(
+    log.some((e) => e.type === 'money'),
+    false,
+  );
   assert.equal(log.at(-1).quiet, true);
   ride.exit(true);
   assert.equal(ride.carForValet(), car);
@@ -101,9 +138,15 @@ test('scripted boarding stays quiet and handing off a car forgets it for the nex
 test('stealing announces entry before glovebox money, with the ride already established', () => {
   const { ride, world, car, player, log } = setup({ role: 'traffic', insideDeck: false });
   const seen = [];
-  for (const event of ['entered', 'money']) world.events.on(event, () => seen.push({ event, driving: ride.driving, visible: player.visible }));
+  for (const event of ['entered', 'money']) {
+    world.events.on(event, () => seen.push({ event, driving: ride.driving, visible: player.visible }));
+  }
+
   ride.enter(car);
-  assert.deepEqual(log.map((e) => e.type), ['bailed', 'entered', 'money']);
+  assert.deepEqual(
+    log.map((e) => e.type),
+    ['bailed', 'entered', 'money'],
+  );
   assert.deepEqual(seen, [
     { event: 'entered', driving: car, visible: false },
     { event: 'money', driving: car, visible: false },

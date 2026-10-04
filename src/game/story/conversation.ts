@@ -1,4 +1,5 @@
 import { Vector3 } from 'three';
+
 import type { Focus } from '@/engine/input/input';
 import type { Control } from '@/game/controls';
 
@@ -13,14 +14,20 @@ export interface Choice<D> {
   does: D;
 }
 
-/** How long a conversation lasts: till they're `breakAt` apart (m), `timeout` seconds in, or `lineTime` seconds after the last line. */
+/**
+ * How long a conversation lasts: till they're `breakAt` apart (m), `timeout` seconds in, or `lineTime` seconds after
+ * the last line.
+ */
 export interface Pacing {
   readonly breakAt: number;
   readonly timeout: number;
   readonly lineTime: number;
 }
 
-/** What a conversation shows this frame: who's speaking and from where (over their head), their line, and Cody's choices. */
+/**
+ * What a conversation shows this frame: who's speaking and from where (over their head), their line, and Cody's
+ * choices.
+ */
 export interface Said {
   at: Vector3;
   who: string;
@@ -29,12 +36,10 @@ export interface Said {
 }
 
 /**
- * A conversation between Cody and someone: an encounter, open from when Cody
- * starts it until one of them walks off, it times out, or they've said their
- * last line. While it's open its choices are a focus layer, so their keys go
- * to the talk and not the world. The game shows what's said; a subclass says
- * what's said, what each choice does, and what the other side is told when it
- * starts and ends.
+ * A conversation between Cody and someone: an encounter, open from when Cody starts it until one of them walks off, it
+ * times out, or they've said their last line. While it's open its choices are a focus layer, so their keys go to the
+ * talk and not the world. The game shows what's said; a subclass says what's said, what each choice does, and what the
+ * other side is told when it starts and ends.
  */
 export abstract class Conversation<Who, D> {
   private talk: { who: Who; t: number; line: string; closing: number } | null = null;
@@ -54,14 +59,23 @@ export abstract class Conversation<Who, D> {
   /** One frame of it; `me` is where Cody is. What's said, or null with no conversation open. */
   update(dt: number, me: Vector3): Said | null {
     const talk = this.talk;
-    if (!talk) return null;
+    if (!talk) {
+      return null;
+    }
+
     talk.t += dt;
     const { breakAt, timeout } = this.pacing;
     const at = this.where(talk.who);
-    if (at.distanceTo(me) > breakAt || talk.t > timeout || (talk.closing >= 0 && (talk.closing -= dt) < 0) || !this.goingOn(talk.who)) {
+    if (
+      at.distanceTo(me) > breakAt ||
+      talk.t > timeout ||
+      (talk.closing >= 0 && (talk.closing -= dt) < 0) ||
+      !this.goingOn(talk.who)
+    ) {
       this.close();
       return null;
     }
+
     const choices = this.offered().map(({ action, label, off }) => ({ action, label, off }));
     return { at: this.head.copy(at).setY(at.y + SPEAKER_HEAD), who: this.name(talk.who), line: talk.line, choices };
   }
@@ -69,7 +83,10 @@ export abstract class Conversation<Who, D> {
   /** Ends it now. */
   close(): void {
     const talk = this.talk;
-    if (!talk) return;
+    if (!talk) {
+      return;
+    }
+
     this.talk = null;
     this.unfocus?.();
     this.unfocus = null;
@@ -81,14 +98,20 @@ export abstract class Conversation<Who, D> {
     this.close();
     this.talk = { who, t: 0, line, closing: -1 };
     this.unfocus = this.focus.add({
-      controls: () => this.offered().filter((c) => !c.off).map((c) => c.action),
+      controls: () =>
+        this.offered()
+          .filter((c) => !c.off)
+          .map((c) => c.action),
       press: (control) => this.choose(control),
     });
   }
 
   /** They say `line`, then the conversation ends. */
   protected lastLine(line: string): void {
-    if (!this.talk) return;
+    if (!this.talk) {
+      return;
+    }
+
     this.talk.line = line;
     this.talk.closing = this.pacing.lineTime;
   }
@@ -118,6 +141,8 @@ export abstract class Conversation<Who, D> {
   private choose(control: Control): void {
     const talk = this.talk;
     const choice = this.offered().find((c) => c.action === control && !c.off);
-    if (talk && choice) this.chose(talk.who, choice.does);
+    if (talk && choice) {
+      this.chose(talk.who, choice.does);
+    }
   }
 }

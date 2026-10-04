@@ -10,9 +10,13 @@ import {
   type WebGLRenderer,
   WebGLRenderTarget,
 } from 'three';
+
 import { PALETTE } from './palette';
 
-/** Head-and-shoulders framing: the top this share of the figure's height (plus HEADROOM of that above the head), seen from a little above and to one side. */
+/**
+ * Head-and-shoulders framing: the top this share of the figure's height (plus HEADROOM of that above the head), seen
+ * from a little above and to one side.
+ */
 const FRAME_SHARE = 0.36;
 const HEADROOM = 0.12;
 const FOV = 24;
@@ -26,13 +30,11 @@ const FILL = { sky: '#b9a8ff', ground: '#2a1a36', intensity: 1.9 };
 const BACKDROP = PALETTE.night;
 
 /**
- * A head-and-shoulders portrait of a character (Randy, Cody) for the HUD's
- * dialogue: rendered once with the game's renderer into an offscreen target,
- * same framing, light and backdrop for everyone, turned three-quarters to
- * look toward the frame's left or right side (`looks`: the speaker on the
- * left looks right, toward the other). `root` is posed and dressed by the
- * caller, feet at y=0 facing +Z; it's borrowed for the render and put back
- * where it was. Returns a PNG data URL.
+ * A head-and-shoulders portrait of a character (Randy, Cody) for the HUD's dialogue: rendered once with the game's
+ * renderer into an offscreen target, same framing, light and backdrop for everyone, turned three-quarters to look
+ * toward the frame's left or right side (`looks`: the speaker on the left looks right, toward the other). `root` is
+ * posed and dressed by the caller, feet at y=0 facing +Z; it's borrowed for the render and put back where it was.
+ * Returns a PNG data URL.
  */
 export function renderPortrait(renderer: WebGLRenderer, root: Object3D, looks: 'left' | 'right', size = 256): string {
   const parent = root.parent;
@@ -76,11 +78,18 @@ export function renderPortrait(renderer: WebGLRenderer, root: Object3D, looks: '
   canvas.width = canvas.height = size;
   const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
   const img = ctx.createImageData(size, size);
-  for (let y = 0; y < size; y++) img.data.set(pixels.subarray((size - 1 - y) * size * 4, (size - y) * size * 4), y * size * 4);
+  for (let y = 0; y < size; y++) {
+    img.data.set(pixels.subarray((size - 1 - y) * size * 4, (size - y) * size * 4), y * size * 4);
+  }
+
   ctx.putImageData(img, 0, 0);
 
   stage.remove(root);
-  if (parent) parent.add(root);
+
+  if (parent) {
+    parent.add(root);
+  }
+
   root.position.copy(was.pos);
   root.rotation.y = was.rot;
   root.visible = was.visible;

@@ -1,5 +1,7 @@
 import type { Vector3 } from 'three';
+
 import { Mind, mind, type MindEvent, type State } from '@/engine/sim/mind';
+
 import type { Objective } from './objectives';
 
 /** Quest progress that survives a reload. */
@@ -24,7 +26,9 @@ export class Quests {
   restore(steps: Readonly<Record<string, string>>): void {
     for (const q of this.all) {
       const step = steps[q.id];
-      if (step !== undefined) q.restore(step);
+      if (step !== undefined) {
+        q.restore(step);
+      }
     }
   }
 }
@@ -32,12 +36,10 @@ export class Quests {
 // ---------------------------------------------------------------- the haunting: the main quest
 
 /** Leaving phantoms till there are enough, then it's won (`announced`: the victory's been shown). */
-export type HauntState =
-  | State<'haunting'>
-  | State<'won', { announced: boolean }>;
+export type HauntState = State<'haunting'> | State<'won', { announced: boolean }>;
 export type HauntEvent =
   /** A phantom was left: the `n`th so far. */
-  | MindEvent<'phantom', { n: number }>;
+  MindEvent<'phantom', { n: number }>;
 
 /** What the haunting needs from the game. */
 export interface HauntWorld {
@@ -55,7 +57,10 @@ const HAUNTING = mind<Haunting, HauntState, HauntEvent>({
   },
   won: {
     enter: (q, s) => {
-      if (s.announced) return;
+      if (s.announced) {
+        return;
+      }
+
       s.announced = true;
       q.world.victory();
     },
@@ -68,7 +73,12 @@ export class Haunting implements Quest {
   readonly mind: Mind<Haunting, HauntState, HauntEvent>;
 
   constructor(readonly world: HauntWorld) {
-    this.mind = new Mind<Haunting, HauntState, HauntEvent>(HAUNTING, this, { at: 'haunting' }, { moved: (q, _from, to) => q.world.moved(to.at) });
+    this.mind = new Mind<Haunting, HauntState, HauntEvent>(
+      HAUNTING,
+      this,
+      { at: 'haunting' },
+      { moved: (q, _from, to) => q.world.moved(to.at) },
+    );
   }
 
   get step(): string {
@@ -76,7 +86,9 @@ export class Haunting implements Quest {
   }
 
   restore(step: string): void {
-    if (step === 'won' && !this.mind.in('won')) this.mind.go({ at: 'won', announced: true });
+    if (step === 'won' && !this.mind.in('won')) {
+      this.mind.go({ at: 'won', announced: true });
+    }
   }
 }
 

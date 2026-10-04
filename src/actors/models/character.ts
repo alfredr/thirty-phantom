@@ -1,5 +1,7 @@
 import { type AnimationAction, AnimationMixer, type AnimationClip, Group, type Object3D, Vector3 } from 'three';
+
 import { clamp } from '@/engine/core/math';
+
 import { buildCodyDay, buildCodyNight, CODY_DAY, CODY_NIGHT } from './cody';
 import { stride } from './person';
 import type { CharacterRig } from './rig';
@@ -36,27 +38,43 @@ export class GltfCharacter implements CharacterModel {
     this.inner = scene;
     this.root.add(scene);
     scene.traverse((o) => {
-      if (o.name.startsWith('day_')) this.outfits.day.push(o);
-      if (o.name.startsWith('night_')) this.outfits.night.push(o);
+      if (o.name.startsWith('day_')) {
+        this.outfits.day.push(o);
+      }
+
+      if (o.name.startsWith('night_')) {
+        this.outfits.night.push(o);
+      }
     });
     scene.updateWorldMatrix(true, true);
     this.hip = scene.getObjectByName('hips')?.getWorldPosition(new Vector3()).y ?? CODY_DAY.hip;
     this.mixer = new AnimationMixer(scene);
+
     for (const name of CLIPS) {
       const clip = clips.find((c) => c.name === name);
-      if (!clip) continue;
+      if (!clip) {
+        continue;
+      }
+
       const a = this.mixer.clipAction(clip);
       a.play();
       a.setEffectiveWeight(name === 'idle' ? 1 : 0);
       this.actions[name] = a;
     }
+
     this.setForm('day');
   }
 
   setForm(form: CodyForm): void {
     this.form = form;
-    for (const o of this.outfits.day) o.visible = form === 'day';
-    for (const o of this.outfits.night) o.visible = form === 'night';
+
+    for (const o of this.outfits.day) {
+      o.visible = form === 'day';
+    }
+
+    for (const o of this.outfits.night) {
+      o.visible = form === 'night';
+    }
   }
 
   seat(on: boolean): void {
@@ -67,6 +85,7 @@ export class GltfCharacter implements CharacterModel {
     this.t += dt;
     const { idle, walk, run, ride } = this.actions;
     ride?.setEffectiveWeight(this.seated ? 1 : 0);
+
     if (this.seated) {
       idle?.setEffectiveWeight(0);
       walk?.setEffectiveWeight(0);
@@ -75,6 +94,7 @@ export class GltfCharacter implements CharacterModel {
       this.inner.position.y = -this.hip;
       return;
     }
+
     // blend weights by speed, and match cadence to ground speed so feet don't skate
     const w = grounded ? clamp((speed - 0.4) / 2.5, 0, 1) : 0.3;
     const r = grounded ? clamp((speed - 7) / 3, 0, 1) : 0;
@@ -121,6 +141,7 @@ export class ProceduralCharacter implements CharacterModel {
 
   animate(dt: number, hs: number): void {
     this.t += dt;
+
     if (this.seated) {
       const r = this.rigs[this.form];
       r.legL.rotation.x = r.legR.rotation.x = SIT_LEGS;
@@ -128,13 +149,17 @@ export class ProceduralCharacter implements CharacterModel {
       r.body.position.y = 0;
       return;
     }
+
     this.walk += hs * dt * 1.6;
     const r = this.rigs[this.form];
     const amp = Math.min(1, hs / 6);
     const bob = stride(r, this.walk * 2.2, amp);
     if (this.form === 'night') {
       r.body.position.y = 0.12 + Math.sin(this.t * 2.4) * 0.06 + bob;
-      if (r.robe) r.robe.rotation.x = -amp * 0.18 + Math.sin(this.t * 3) * 0.03;
+
+      if (r.robe) {
+        r.robe.rotation.x = -amp * 0.18 + Math.sin(this.t * 3) * 0.03;
+      }
     } else {
       r.body.position.y = bob;
     }

@@ -17,21 +17,37 @@ async function loadFonts(): Promise<void> {
 
 async function boot(): Promise<void> {
   const app = document.getElementById('app');
-  if (!app) throw new Error('#app missing');
+  if (!app) {
+    throw new Error('#app missing');
+  }
+
   const [, assets, level] = await Promise.all([loadFonts(), AssetRegistry.load(), loadLevel(urlParam('level'))]);
   const game = new Game(app, level, assets);
   const tutorial = new Tutorial(game, level);
   // Register after Tutorial so its start handler decides whether to restore a save.
   new SaveGame(game, () => tutorial.running);
-  if (wantsTouch()) new TouchControls(game.input);
+
+  if (wantsTouch()) {
+    new TouchControls(game.input);
+  }
+
   // Load audio only when enabled (on by default; ?sound=0 disables it).
-  if (SOUND_ON) void import('./audio/sound').then(({ Sound }) => new Sound(game));
+  if (SOUND_ON) {
+    void import('./audio/sound').then(({ Sound }) => new Sound(game));
+  }
+
   // ?manual: no RAF loop; frames are stepped externally (headless tests)
-  if (!urlFlag('manual')) game.run();
-  else game.frame(1 / 60);
+  if (!urlFlag('manual')) {
+    game.run();
+  } else {
+    game.frame(1 / 60);
+  }
 }
 
 boot().catch((err: unknown) => {
   console.error(err);
-  document.body.insertAdjacentHTML('beforeend', `<pre style="color:#9dff2e;padding:20px;font:14px monospace">${String(err)}</pre>`);
+  document.body.insertAdjacentHTML(
+    'beforeend',
+    `<pre style="color:#9dff2e;padding:20px;font:14px monospace">${String(err)}</pre>`,
+  );
 });

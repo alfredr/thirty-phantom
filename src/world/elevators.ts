@@ -1,11 +1,13 @@
 import { type BufferAttribute, BoxGeometry, Group, type Material, Mesh, Sphere, Vector3 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+
 import { TUNING } from '@/config';
 import type { V3 } from '@/engine/core/math';
 import type { RouteCursor } from '@/engine/nav/polyline';
 import type { CollisionWorld, Solid } from '@/engine/physics/collision';
 import { GeometryBatch, NO_TINT, whiteColors } from '@/render/geometry';
 import type { MaterialLibrary, MatKey } from '@/render/materials';
+
 import { doorPoint, facingAxis, landingPoint, LIFT, shaftCenter } from './elevator-shaft';
 import type { ElevatorDef, Facing } from './level-data';
 import { NavRoute, type NavHop } from './nav-grid';
@@ -13,38 +15,31 @@ import { NavRoute, type NavHop } from './nav-grid';
 /**
  * Elevators: the design.
  *
- * Data: an ElevatorDef (level-data.ts) is a shaft footprint, a door width and
- * stops (floor height, which side its door faces, a panel label). writeElevator
- * (elevator-shaft.ts) writes the shaft itself as ordinary level boxes; what
- * moves is built here.
+ * Data: an ElevatorDef (level-data.ts) is a shaft footprint, a door width and stops (floor height, which side its door
+ * faces, a panel label). writeElevator (elevator-shaft.ts) writes the shaft itself as ordinary level boxes; what moves
+ * is built here.
  *
- * Runtime: one cab per elevator, eased up and down toward a target stop. It
- * keeps the set of stops it's been called or sent to: parked with its doors
- * shut it heads for the nearest one the way it last went (else the nearest),
- * and on the way it takes any call ahead it can still stop for. At a stop the
- * doors open, dwell (longer while anyone's in the doorway) and shut before it
- * moves.
+ * Runtime: one cab per elevator, eased up and down toward a target stop. It keeps the set of stops it's been called or
+ * sent to: parked with its doors shut it heads for the nearest one the way it last went (else the nearest), and on the
+ * way it takes any call ahead it can still stop for. At a stop the doors open, dwell (longer while anyone's in the
+ * doorway) and shut before it moves.
  *
- * Collision: the cab's floor is an ordinary solid moved up and down in place
- * (CollisionWorld.setHeight), so everything that asks for the ground sees it
- * where it is, and the cab lifts whoever stands in it by however far it moved.
- * The shaft's walls are the cab's walls. Each landing's closed doors are a
- * solid that's off only while they're open with the cab there. The doorways
- * are too narrow for a car (a motorcycle squeezes in).
+ * Collision: the cab's floor is an ordinary solid moved up and down in place (CollisionWorld.setHeight), so everything
+ * that asks for the ground sees it where it is, and the cab lifts whoever stands in it by however far it moved. The
+ * shaft's walls are the cab's walls. Each landing's closed doors are a solid that's off only while they're open with
+ * the cab there. The doorways are too narrow for a car (a motorcycle squeezes in).
  *
- * Nav: the grid leaves out whatever is inside a shaft, and links an elevator's
- * landings to each other at the cost of a ride. A route asked for with
- * `elevators: true` may ride, and comes back as a NavRoute with its `hops`. A
- * Walker on one hands itself over here at a hop (ride()): it waits at the
- * landing, walks in, rides, walks out and carries on along its route.
+ * Nav: the grid leaves out whatever is inside a shaft, and links an elevator's landings to each other at the cost of a
+ * ride. A route asked for with `elevators: true` may ride, and comes back as a NavRoute with its `hops`. A Walker on
+ * one hands itself over here at a hop (ride()): it waits at the landing, walks in, rides, walks out and carries on
+ * along its route.
  *
- * Cody uses them through actions in game/cody/cody-actions.ts: F calls the cab at a
- * landing; in the cab F picks a floor up and G a floor down.
+ * Cody uses them through actions in game/cody/cody-actions.ts: F calls the cab at a landing; in the cab F picks a floor
+ * up and G a floor down.
  *
- * Indoors (ElevatorDef.indoors, the walk-in buildings' lifts): it runs and
- * collides the same, but nothing's drawn until its building's rooms are
- * (world/interiors.ts calls show()), and then only the cab and the landing
- * nearest Cody's feet, without shadows: there are dozens of them.
+ * Indoors (ElevatorDef.indoors, the walk-in buildings' lifts): it runs and collides the same, but nothing's drawn until
+ * its building's rooms are (world/interiors.ts calls show()), and then only the cab and the landing nearest Cody's
+ * feet, without shadows: there are dozens of them.
  */
 
 /** Doors this far open let people through: the doorway's solid is off and riders get on and off. */
@@ -56,8 +51,8 @@ const CARRY_BELOW = 0.3;
 /** Feet within this of a landing's floor are on it. */
 const SAME_FLOOR = 1;
 /**
- * The doorway, for holding the doors: within this of the wall's thickness either side, across the
- * door's width. A little more than a body's radius, so walking up to shut doors opens them again.
+ * The doorway, for holding the doors: within this of the wall's thickness either side, across the door's width. A
+ * little more than a body's radius, so walking up to shut doors opens them again.
  */
 const DOORWAY = 0.5;
 /** A walker this close to where a ride starts gets on. */
@@ -91,7 +86,10 @@ function approach(x: number, to: number, step: number): number {
   return x < to ? Math.min(to, x + step) : Math.max(to, x - step);
 }
 
-/** A box `across` wide, `h` tall and `depth` deep for a wall facing f, its vertex colors white (world materials tint by them). */
+/**
+ * A box `across` wide, `h` tall and `depth` deep for a wall facing f, its vertex colors white (world materials tint by
+ * them).
+ */
 function wallBox(f: Facing, across: number, h: number, depth: number): BoxGeometry {
   return whiteColors(facingAxis(f).axis === 2 ? new BoxGeometry(across, h, depth) : new BoxGeometry(depth, h, across));
 }
@@ -102,9 +100,8 @@ function acrossOf(f: Facing): 'x' | 'z' {
 }
 
 /**
- * A pair of sliding door panels, drawn closed about `center` (the doorway's
- * middle, half way up) and slid apart `open` (0..1). One mesh: the panels are
- * slid by moving their vertices, only when they move (a draw call per pair, not two).
+ * A pair of sliding door panels, drawn closed about `center` (the doorway's middle, half way up) and slid apart `open`
+ * (0..1). One mesh: the panels are slid by moving their vertices, only when they move (a draw call per pair, not two).
  */
 class DoorPair {
   readonly mesh: Mesh;
@@ -136,7 +133,10 @@ class DoorPair {
   }
 
   set(open: number): void {
-    if (open === this.shown) return;
+    if (open === this.shown) {
+      return;
+    }
+
     this.shown = open;
     const k = acrossOf(this.facing) === 'x' ? 0 : 2;
     const off = this.width / 4 + (open * this.width) / 2;
@@ -149,6 +149,7 @@ class DoorPair {
         a[(n + i) * 3 + c] = c === k ? v + off : v;
       }
     }
+
     this.pos.needsUpdate = true;
   }
 }
@@ -212,7 +213,9 @@ export class Elevator {
     // it starts at the stop nearest street level
     let home = 0;
     def.stops.forEach((s, i) => {
-      if (Math.abs(s.y) < Math.abs(def.stops[home]?.y ?? Infinity)) home = i;
+      if (Math.abs(s.y) < Math.abs(def.stops[home]?.y ?? Infinity)) {
+        home = i;
+      }
     });
     this.at = this.target = home;
     this.y = def.stops[home]?.y ?? 0;
@@ -235,27 +238,40 @@ export class Elevator {
       const solid = collision.add(lo, hi);
       this.landings.push({ look: null, solid });
     });
+
     // indoors, nothing's drawn until its building's rooms are (show())
     if (!def.indoors) {
       this.buildCab();
       def.stops.forEach((_, i) => this.buildLanding(i));
     }
+
     this.sync();
   }
 
   /**
-   * An indoor elevator's looks, while its building's rooms are built: the cab
-   * and the landing nearest height `y` (Cody's feet: the others are out of
-   * sight behind floors), or nothing for null. Others are always drawn.
+   * An indoor elevator's looks, while its building's rooms are built: the cab and the landing nearest height `y`
+   * (Cody's feet: the others are out of sight behind floors), or nothing for null. Others are always drawn.
    */
   show(y: number | null): void {
-    if (!this.def.indoors) return;
+    if (!this.def.indoors) {
+      return;
+    }
+
     const near = y === null ? -1 : this.nearestTo(y);
-    if (y !== null && this.cab.children.length === 0) this.buildCab();
-    if (y === null) this.dropCab();
+    if (y !== null && this.cab.children.length === 0) {
+      this.buildCab();
+    }
+
+    if (y === null) {
+      this.dropCab();
+    }
+
     this.landings.forEach((l, i) => {
-      if (i === near && !l.look) this.buildLanding(i);
-      else if (i !== near && l.look) this.dropLanding(l);
+      if (i === near && !l.look) {
+        this.buildLanding(i);
+      } else if (i !== near && l.look) {
+        this.dropLanding(l);
+      }
     });
     this.sync();
   }
@@ -264,11 +280,21 @@ export class Elevator {
   private buildLanding(i: number): void {
     const s = this.def.stops[i];
     const l = this.landings[i];
-    if (!s || !l) return;
+    if (!s || !l) {
+      return;
+    }
+
     const def = this.def;
     // the doors, in the middle of the wall's thickness
     doorPoint(def, i, LIFT.wall / 2, _p);
-    const doors = new DoorPair(s.facing, def.door, new Vector3(_p[0], s.y + LIFT.doorTop / 2, _p[2]), LANDING_DOOR, this.mats.get('metalLight'), !def.indoors);
+    const doors = new DoorPair(
+      s.facing,
+      def.door,
+      new Vector3(_p[0], s.y + LIFT.doorTop / 2, _p[2]),
+      LANDING_DOOR,
+      this.mats.get('metalLight'),
+      !def.indoors,
+    );
     // the call button on its plate, beside the door
     const P = LIFT.plate;
     doorPoint(def, i, LIFT.wall + LIFT.trim + BUTTON[2] / 2, _p);
@@ -283,18 +309,26 @@ export class Elevator {
       lantern.position.set(_p[0], s.y + LIFT.lantern.y + LIFT.lantern.h / 2, _p[2]);
       this.root.add(lantern);
     }
+
     this.root.add(doors.mesh, button);
     l.look = { doors, button, lantern };
   }
 
   private dropLanding(l: Landing): void {
-    if (!l.look) return;
+    if (!l.look) {
+      return;
+    }
+
     const { doors, button, lantern } = l.look;
     for (const m of [doors.mesh, button, lantern]) {
-      if (!m) continue;
+      if (!m) {
+        continue;
+      }
+
       this.root.remove(m);
       m.geometry.dispose();
     }
+
     l.look = null;
   }
 
@@ -303,6 +337,7 @@ export class Elevator {
       this.cab.remove(o);
       (o as Mesh).geometry?.dispose();
     }
+
     this.cabDoors.clear();
   }
 
@@ -310,7 +345,9 @@ export class Elevator {
   private nearestTo(y: number): number {
     let best = 0;
     this.def.stops.forEach((s, i) => {
-      if (Math.abs(s.y - y) < Math.abs(this.stopY(best) - y)) best = i;
+      if (Math.abs(s.y - y) < Math.abs(this.stopY(best) - y)) {
+        best = i;
+      }
     });
     return best;
   }
@@ -327,7 +364,9 @@ export class Elevator {
 
   /** Call the cab to stop i (a landing's button, a walker waiting there, a rider's floor). */
   call(i: number): void {
-    if (this.def.stops[i]) this.requests.add(i);
+    if (this.def.stops[i]) {
+      this.requests.add(i);
+    }
   }
 
   /** Standing at stop i with the doors open enough to get on or off. */
@@ -336,31 +375,49 @@ export class Elevator {
   }
 
   /**
-   * The cab's panel: pick the next floor up (dir 1) or down (-1) from the
-   * last one picked, or from where the cab is, wrapping round past the top or
-   * bottom. The doors shut a moment after the last pick.
+   * The cab's panel: pick the next floor up (dir 1) or down (-1) from the last one picked, or from where the cab is,
+   * wrapping round past the top or bottom. The doors shut a moment after the last pick.
    */
   pick(dir: 1 | -1): void {
     const n = this.def.stops.length;
     const i = ((this.picked ?? this.at ?? this.nearest()) + dir + n) % n;
-    if (this.picked !== null && this.picked !== i) this.requests.delete(this.picked);
+    if (this.picked !== null && this.picked !== i) {
+      this.requests.delete(this.picked);
+    }
+
     this.picked = i;
     this.requests.add(i);
+
     // open (or opening): they shut a moment after this; already shutting, they carry on
-    if (this.dwell > 0) this.dwell = TUNING.elevator.panelDelay;
+    if (this.dwell > 0) {
+      this.dwell = TUNING.elevator.panelDelay;
+    }
   }
 
   /** Is p standing in the cab (as it stands at height `y`)? */
   holds(p: Vector3, y = this.y): boolean {
     const { min, max } = this.def;
-    return p.x >= min[0] && p.x <= max[0] && p.z >= min[2] && p.z <= max[2] && p.y >= y - CARRY_BELOW && p.y <= y + LIFT.cabHeight;
+    return (
+      p.x >= min[0] &&
+      p.x <= max[0] &&
+      p.z >= min[2] &&
+      p.z <= max[2] &&
+      p.y >= y - CARRY_BELOW &&
+      p.y <= y + LIFT.cabHeight
+    );
   }
 
   /** Is p in the doorway where the cab stands (so the doors mustn't shut on it)? */
   inDoorway(p: Vector3): boolean {
-    if (this.at === null) return false;
+    if (this.at === null) {
+      return false;
+    }
+
     const s = this.def.stops[this.at];
-    if (!s || Math.abs(p.y - s.y) > SAME_FLOOR) return false;
+    if (!s || Math.abs(p.y - s.y) > SAME_FLOOR) {
+      return false;
+    }
+
     const { axis, sign } = facingAxis(s.facing);
     const face = sign > 0 ? this.def.max[axis] : this.def.min[axis];
     const out = ((axis === 0 ? p.x : p.z) - face) * sign;
@@ -372,13 +429,25 @@ export class Elevator {
   /** Move the cab and work its doors. `held`: someone's in the doorway, keep them open. Returns how far the cab moved. */
   update(dt: number, held: boolean): number {
     const E = TUNING.elevator;
-    if (this.picked !== null && !this.requests.has(this.picked)) this.picked = null;
+    if (this.picked !== null && !this.requests.has(this.picked)) {
+      this.picked = null;
+    }
+
     const y0 = this.y;
     const at = this.at;
     if (at !== null) {
-      if (this.requests.delete(at)) this.dwell = Math.max(this.dwell, E.dwell);
-      if (this.picked === at) this.picked = null;
-      if (held) this.dwell = Math.max(this.dwell, E.hold);
+      if (this.requests.delete(at)) {
+        this.dwell = Math.max(this.dwell, E.dwell);
+      }
+
+      if (this.picked === at) {
+        this.picked = null;
+      }
+
+      if (held) {
+        this.dwell = Math.max(this.dwell, E.hold);
+      }
+
       this.dwell = Math.max(0, this.dwell - dt);
       this.door = approach(this.door, this.dwell > 0 ? 1 : 0, dt / E.doorTime);
       const next = this.door === 0 ? this.next(false) : null;
@@ -387,7 +456,11 @@ export class Elevator {
         this.at = null;
       }
     }
-    if (this.at === null) this.move(dt);
+
+    if (this.at === null) {
+      this.move(dt);
+    }
+
     this.sync();
     return this.y - y0;
   }
@@ -396,7 +469,10 @@ export class Elevator {
   private move(dt: number): void {
     const E = TUNING.elevator;
     const next = this.next(true);
-    if (next !== null) this.target = next;
+    if (next !== null) {
+      this.target = next;
+    }
+
     const goal = this.stopY(this.target);
     const d = goal - this.y;
     const want = Math.sign(d) * Math.min(E.speed, Math.sqrt(2 * E.accel * Math.abs(d)));
@@ -407,17 +483,25 @@ export class Elevator {
       this.v = 0;
       this.at = this.target;
       this.requests.delete(this.target);
-      if (this.picked === this.target) this.picked = null;
+
+      if (this.picked === this.target) {
+        this.picked = null;
+      }
+
       this.dwell = E.dwell;
       return;
     }
+
     this.y += step;
-    if (this.v !== 0) this.dir = this.v > 0 ? 1 : -1;
+
+    if (this.v !== 0) {
+      this.dir = this.v > 0 ? 1 : -1;
+    }
   }
 
   /**
-   * The call to answer next: the nearest ahead (the way it last went) that it
-   * can still stop for, else the nearest either way; null with none.
+   * The call to answer next: the nearest ahead (the way it last went) that it can still stop for, else the nearest
+   * either way; null with none.
    */
   private next(moving: boolean): number | null {
     const brake = moving ? (this.v * this.v) / (2 * TUNING.elevator.accel) : 0;
@@ -430,7 +514,11 @@ export class Elevator {
         best = i;
       }
     }
-    if (best !== null) return best;
+
+    if (best !== null) {
+      return best;
+    }
+
     for (const i of this.requests) {
       const d = Math.abs(this.stopY(i) - this.y);
       if (d < bd) {
@@ -438,6 +526,7 @@ export class Elevator {
         best = i;
       }
     }
+
     return best;
   }
 
@@ -451,22 +540,31 @@ export class Elevator {
     this.cab.position.y = this.y;
     this.collision.setHeight(this.floor, this.y - LIFT.floor, this.y);
     const here = this.at !== null ? this.def.stops[this.at] : undefined;
-    for (const [f, pair] of this.cabDoors) pair.set(here?.facing === f ? this.door : 0);
+    for (const [f, pair] of this.cabDoors) {
+      pair.set(here?.facing === f ? this.door : 0);
+    }
+
     this.landings.forEach((l, i) => {
       const open = this.at === i ? this.door : 0;
       l.solid.enabled = open < DOOR_PASS;
-      if (!l.look) return;
+
+      if (!l.look) {
+        return;
+      }
+
       l.look.doors.set(open);
       l.look.button.material = this.requests.has(i) ? this.lights.lit : this.lights.button;
-      if (l.look.lantern) l.look.lantern.material = this.at === i && this.door > 0 ? this.lights.lit : this.lights.lantern;
+
+      if (l.look.lantern) {
+        l.look.lantern.material = this.at === i && this.door > 0 ? this.lights.lit : this.lights.lantern;
+      }
     });
   }
 
   /**
-   * The cab: a floor slab, walls round it with a doorway on each side a stop
-   * faces, a lit ceiling, its doors. Indoors it's plainer to draw: its walls
-   * share one material, its lights another, and nothing in it casts a shadow
-   * (the sun can't reach).
+   * The cab: a floor slab, walls round it with a doorway on each side a stop faces, a lit ceiling, its doors. Indoors
+   * it's plainer to draw: its walls share one material, its lights another, and nothing in it casts a shadow (the sun
+   * can't reach).
    */
   private buildCab(): void {
     const mats = this.mats;
@@ -478,23 +576,47 @@ export class Elevator {
     const T = CAB_WALL;
     const batches = new Map<MatKey, GeometryBatch>();
     const box = (key: MatKey, lo: V3, hi: V3): void => {
-      const mat: MatKey = !indoors ? key : key === 'linePurple' || key === 'lampGreen' ? 'neonGreen' : key === 'metalLight' ? 'metal' : key;
+      const mat: MatKey = !indoors
+        ? key
+        : key === 'linePurple' || key === 'lampGreen'
+          ? 'neonGreen'
+          : key === 'metalLight'
+            ? 'metal'
+            : key;
       let b = batches.get(mat);
-      if (!b) batches.set(mat, (b = new GeometryBatch()));
+      if (!b) {
+        batches.set(mat, (b = new GeometryBatch()));
+      }
+
       b.box(lo, hi, NO_TINT, 2, true);
     };
+
     /** A slab on side f of the cab, `a0..a1` along it, `d0..d1` in from its outside, between heights y0 and y1. */
-    const onSide = (mat: MatKey, f: Facing, a0: number, a1: number, y0: number, y1: number, d0: number, d1: number): void => {
+    const onSide = (
+      mat: MatKey,
+      f: Facing,
+      a0: number,
+      a1: number,
+      y0: number,
+      y1: number,
+      d0: number,
+      d1: number,
+    ): void => {
       const { axis, sign } = facingAxis(f);
       const face = sign * (axis === 0 ? hw : hd);
       const c0 = face - sign * d0;
       const c1 = face - sign * d1;
-      if (axis === 2) box(mat, [a0, y0, Math.min(c0, c1)], [a1, y1, Math.max(c0, c1)]);
-      else box(mat, [Math.min(c0, c1), y0, a0], [Math.max(c0, c1), y1, a1]);
+      if (axis === 2) {
+        box(mat, [a0, y0, Math.min(c0, c1)], [a1, y1, Math.max(c0, c1)]);
+      } else {
+        box(mat, [Math.min(c0, c1), y0, a0], [Math.max(c0, c1), y1, a1]);
+      }
     };
+
     const facings = new Set(this.def.stops.map((s) => s.facing));
     const door = this.def.door / 2;
     box('metal', [-hw, -LIFT.floor, -hd], [hw, 0, hd]);
+
     for (const f of ['x-', 'x+', 'z-', 'z+'] as Facing[]) {
       const ax = facingAxis(f).axis;
       // the x walls run the cab's full depth, the z walls fit between them
@@ -505,6 +627,7 @@ export class Elevator {
         onSide('linePurple', f, a0 + T, a1 - T, 0.95, 1.0, T, T + 0.02);
         continue;
       }
+
       onSide('metalLight', f, a0, -door, 0, H, 0, T);
       onSide('metalLight', f, door, a1, 0, H, 0, T);
       onSide('metal', f, -door, door, LIFT.doorTop, H, 0, T);
@@ -519,10 +642,12 @@ export class Elevator {
       this.cab.add(pair.mesh);
       this.cabDoors.set(f, pair);
     }
+
     box('metal', [-hw, H, -hd], [hw, H + 0.08, hd]);
     box('lampGreen', [-0.5, H - 0.03, -0.3], [0.5, H, 0.3]);
     // the crosshead the cables hang it by
     box('metal', [-hw * 0.6, H + 0.08, -0.1], [hw * 0.6, H + 0.3, 0.1]);
+
     for (const [mat, b] of batches) {
       const m = new Mesh(b.build(), mats.get(mat));
       m.castShadow = !indoors && (mat === 'metal' || mat === 'metalLight');
@@ -555,9 +680,8 @@ interface Ride {
 }
 
 /**
- * Every elevator in the level, built from level.elevators: the cabs and the
- * landings' doors and lights, Cody carried in a cab, and walkers riding them
- * on their routes.
+ * Every elevator in the level, built from level.elevators: the cabs and the landings' doors and lights, Cody carried in
+ * a cab, and walkers riding them on their routes.
  */
 export class Elevators {
   readonly root = new Group();
@@ -566,7 +690,11 @@ export class Elevators {
 
   constructor(defs: readonly ElevatorDef[], collision: CollisionWorld, mats: MaterialLibrary) {
     this.root.name = 'elevators';
-    const lights: Lights = { lit: mats.get('neonGreen'), button: mats.get('metalLight'), lantern: mats.get('neonPurple') };
+    const lights: Lights = {
+      lit: mats.get('neonGreen'),
+      button: mats.get('metalLight'),
+      lantern: mats.get('neonPurple'),
+    };
     this.list = defs.map((d) => new Elevator(d, collision, mats, lights, this.root));
   }
 
@@ -577,43 +705,72 @@ export class Elevators {
 
   /** Run the cabs. `riders`: people on foot the cabs carry and hold their doors for (Cody). */
   update(dt: number, riders: readonly Vector3[]): void {
-    for (const [w, r] of this.rides) if ((r.idle += dt) > RIDE_STALE) this.rides.delete(w);
+    for (const [w, r] of this.rides) {
+      if ((r.idle += dt) > RIDE_STALE) {
+        this.rides.delete(w);
+      }
+    }
+
     for (const e of this.list) {
       let held = false;
-      for (const p of riders) held ||= e.inDoorway(p);
+      for (const p of riders) {
+        held ||= e.inDoorway(p);
+      }
+
       for (const r of this.rides.values()) {
-        if (this.list[r.hop.lift] !== e) continue;
+        if (this.list[r.hop.lift] !== e) {
+          continue;
+        }
+
         held ||= (r.phase === 'in' && e.at === r.hop.from) || (r.phase === 'out' && e.at === r.hop.to);
       }
+
       const y0 = e.y;
       const dy = e.update(dt, held);
-      if (dy !== 0) for (const p of riders) if (e.holds(p, y0)) p.y += dy;
+      if (dy !== 0) {
+        for (const p of riders) {
+          if (e.holds(p, y0)) {
+            p.y += dy;
+          }
+        }
+      }
     }
   }
 
   /** The elevator whose cab p is standing in, or null. */
   cabAt(p: Vector3): Elevator | null {
-    for (const e of this.list) if (e.holds(p)) return e;
-    return null;
-  }
-
-  /** The landing p is standing at (within `reach` of where you'd wait for the cab, on its floor, there to be called to), or null. */
-  landingAt(p: Vector3, reach: number): { elevator: Elevator; stop: number } | null {
     for (const e of this.list) {
-      for (let i = 0; i < e.def.stops.length; i++) {
-        landingPoint(e.def, i, _p);
-        if (Math.abs(p.y - _p[1]) < SAME_FLOOR && Math.hypot(p.x - _p[0], p.z - _p[2]) < reach) return { elevator: e, stop: i };
+      if (e.holds(p)) {
+        return e;
       }
     }
+
     return null;
   }
 
   /**
-   * A walker hands itself over each frame (Walker.update): at the start of a
-   * ride on its route, or partway through one, the elevator takes it from
-   * there and this returns true; it walks it in, carries it and walks it out,
-   * then moves its route's cursor past the ride and lets it go (false). Once
-   * on board it rides to the end whatever happens to its route.
+   * The landing p is standing at (within `reach` of where you'd wait for the cab, on its floor, there to be called to),
+   * or null.
+   */
+  landingAt(p: Vector3, reach: number): { elevator: Elevator; stop: number } | null {
+    for (const e of this.list) {
+      for (let i = 0; i < e.def.stops.length; i++) {
+        landingPoint(e.def, i, _p);
+
+        if (Math.abs(p.y - _p[1]) < SAME_FLOOR && Math.hypot(p.x - _p[0], p.z - _p[2]) < reach) {
+          return { elevator: e, stop: i };
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * A walker hands itself over each frame (Walker.update): at the start of a ride on its route, or partway through one,
+   * the elevator takes it from there and this returns true; it walks it in, carries it and walks it out, then moves its
+   * route's cursor past the ride and lets it go (false). Once on board it rides to the end whatever happens to its
+   * route.
    */
   ride(w: ElevatorRider, cursor: RouteCursor | null, dt: number): boolean {
     let r = this.rides.get(w);
@@ -622,23 +779,30 @@ export class Elevators {
       this.rides.delete(w);
       r = undefined;
     }
+
     if (!r) {
       const hop = cursor && this.hopAt(w.pos, cursor);
-      if (!hop || !cursor) return false;
+      if (!hop || !cursor) {
+        return false;
+      }
+
       r = { hop, cursor, phase: 'call', slot: 0, at: w.pos.clone(), idle: 0 };
       this.rides.set(w, r);
     }
+
     r.idle = 0;
     const e = this.list[r.hop.lift];
     if (!e) {
       this.rides.delete(w);
       return false;
     }
+
     const { from, to } = r.hop;
     switch (r.phase) {
       case 'call':
         // to the landing, then wait for the cab facing the door
         e.call(from);
+
         if (this.walkTo(w, _v.fromArray(landingPoint(e.def, from, _p)), dt)) {
           w.face(_w.fromArray(doorPoint(e.def, from, 0, _p)));
           // a full cab goes without them: they wait for the next
@@ -648,29 +812,41 @@ export class Elevators {
             r.phase = 'in';
           }
         }
+
         break;
       case 'in':
         if (this.walkTo(w, this.slotPoint(e, from, r.slot, _v), dt)) {
           w.face(_w.fromArray(doorPoint(e.def, from, 0, _p)));
           r.phase = 'ride';
         }
+
         break;
       case 'ride':
         e.call(to);
         w.pos.copy(this.slotPoint(e, from, r.slot, _v)).setY(e.y);
         w.vel.set(0, 0, 0);
         w.speed = 0;
-        if (e.openAt(to)) r.phase = 'out';
+
+        if (e.openAt(to)) {
+          r.phase = 'out';
+        }
+
         break;
       case 'out':
         if (this.walkTo(w, _v.fromArray(landingPoint(e.def, to, _p)), dt)) {
           this.rides.delete(w);
+
           // back on its route, just past the ride
-          if (cursor && cursor === r.cursor) cursor.s = r.hop.s1;
+          if (cursor && cursor === r.cursor) {
+            cursor.s = r.hop.s1;
+          }
+
           return false;
         }
+
         break;
     }
+
     r.at.copy(w.pos);
     return true;
   }
@@ -678,15 +854,28 @@ export class Elevators {
   /** The ride starting where w stands on its route, if it's at one. */
   private hopAt(pos: Vector3, cursor: RouteCursor): NavHop | null {
     const path = cursor.path;
-    if (!(path instanceof NavRoute)) return null;
+    if (!(path instanceof NavRoute)) {
+      return null;
+    }
+
     for (const h of path.hops) {
-      if (h.s1 <= cursor.s) continue;
-      if (cursor.s < h.s0 - BOARD_REACH) return null;
+      if (h.s1 <= cursor.s) {
+        continue;
+      }
+
+      if (cursor.s < h.s0 - BOARD_REACH) {
+        return null;
+      }
+
       const e = this.list[h.lift];
-      if (!e) return null;
+      if (!e) {
+        return null;
+      }
+
       landingPoint(e.def, h.from, _p);
       return Math.abs(pos.y - _p[1]) < SAME_FLOOR && Math.hypot(pos.x - _p[0], pos.z - _p[2]) < BOARD_REACH ? h : null;
     }
+
     return null;
   }
 
@@ -694,9 +883,15 @@ export class Elevators {
   private freeSlot(e: Elevator): number | null {
     for (let k = 0; k < SLOTS.length; k++) {
       let taken = false;
-      for (const r of this.rides.values()) taken ||= this.list[r.hop.lift] === e && r.phase !== 'call' && r.slot === k;
-      if (!taken) return k;
+      for (const r of this.rides.values()) {
+        taken ||= this.list[r.hop.lift] === e && r.phase !== 'call' && r.slot === k;
+      }
+
+      if (!taken) {
+        return k;
+      }
     }
+
     return null;
   }
 
@@ -706,10 +901,18 @@ export class Elevators {
     const [inward, across] = SLOTS[k] ?? [0, 0];
     shaftCenter(e.def, e.y, _p);
     out.fromArray(_p);
-    if (!s) return out;
+
+    if (!s) {
+      return out;
+    }
+
     const { axis, sign } = facingAxis(s.facing);
-    if (axis === 0) out.set(out.x + sign * inward, out.y, out.z + across);
-    else out.set(out.x + across, out.y, out.z + sign * inward);
+    if (axis === 0) {
+      out.set(out.x + sign * inward, out.y, out.z + across);
+    } else {
+      out.set(out.x + across, out.y, out.z + sign * inward);
+    }
+
     return out;
   }
 
@@ -725,6 +928,7 @@ export class Elevators {
       w.speed = 0;
       return true;
     }
+
     w.vel.set((dx / d) * pace, 0, (dz / d) * pace);
     w.pos.set(w.pos.x + w.vel.x * dt, p.y, w.pos.z + w.vel.z * dt);
     w.speed = pace;

@@ -1,13 +1,14 @@
 import type { Object3D } from 'three';
+
 import type { V3 } from '@/engine/core/math';
-import { FACE_INK } from './person';
+
 import { type Box, box, build, cylinder, group, model, NO_CAST, type Part, pivot, SIDES, solid } from './part';
+import { FACE_INK } from './person';
 import { type CharacterRig, characterRig, limb } from './rig';
 
 /**
- * Randy Rolsen's look: lanky, round-bodied and round-headed; a long black
- * trench coat (purple lining, beef brisket in butcher paper and a burner
- * phone tucked inside), short salt-and-pepper hair and a full goatee, no hat.
+ * Randy Rolsen's look: lanky, round-bodied and round-headed; a long black trench coat (purple lining, beef brisket in
+ * butcher paper and a burner phone tucked inside), short salt-and-pepper hair and a full goatee, no hat.
  */
 const RANDY = {
   coat: '#1d1b21',
@@ -32,7 +33,25 @@ const RANDY = {
   band: '#2f5fd0',
 };
 
-type Mat = 'coat' | 'lining' | 'shirt' | 'slacks' | 'shoes' | 'skin' | 'grey' | 'salt' | 'pepper' | 'paper' | 'bark' | 'ring' | 'phone' | 'screen' | 'stick' | 'card' | 'band' | 'ink';
+type Mat =
+  | 'coat'
+  | 'lining'
+  | 'shirt'
+  | 'slacks'
+  | 'shoes'
+  | 'skin'
+  | 'grey'
+  | 'salt'
+  | 'pepper'
+  | 'paper'
+  | 'bark'
+  | 'ring'
+  | 'phone'
+  | 'screen'
+  | 'stick'
+  | 'card'
+  | 'band'
+  | 'ink';
 
 /** His build: thinner than the townsfolk, a round torso and head (radii, heights, m). */
 const SHAPE = {
@@ -47,7 +66,10 @@ const SHAPE = {
   /** Sides on the round parts. */
   segments: 16,
 };
-/** The coat: an eight-sided shell this far out from his middle (to each panel), from just below the knee to the shoulders. */
+/**
+ * The coat: an eight-sided shell this far out from his middle (to each panel), from just below the knee to the
+ * shoulders.
+ */
 const COAT_R = 0.27;
 /** A hand holds a flap open by its front edge: this far in from the corner (m) and this share of the way up the coat. */
 const GRIP = { in: 0.03, up: 0.62 };
@@ -68,10 +90,9 @@ const FLECKS: readonly (readonly [number, number, 'salt' | 'pepper'])[] = [
   [0.08, 0.02, 'salt'],
 ];
 /**
- * His roasting stick, in the right hand: this long (m), hanging this far
- * below level (rad) with the arm down, so that with the arm lifted forward
- * to roast (ROAST_LIFT) it reaches out level-ish over a fire about an arm
- * and a stick's length in front of him.
+ * His roasting stick, in the right hand: this long (m), hanging this far below level (rad) with the arm down, so that
+ * with the arm lifted forward to roast (ROAST_LIFT) it reaches out level-ish over a fire about an arm and a stick's
+ * length in front of him.
  */
 const STICK = 1;
 const STICK_DROP = 0.79;
@@ -80,9 +101,8 @@ export const ROAST_LIFT = 0.7;
 
 export interface RandyRig extends CharacterRig {
   /**
-   * The coat's front flaps (its front quarters), hinged at his sides. Left
-   * opens by turning it about y negatively, right positively; past a quarter
-   * turn the lining (and what's pinned to it) faces forward.
+   * The coat's front flaps (its front quarters), hinged at his sides. Left opens by turning it about y negatively,
+   * right positively; past a quarter turn the lining (and what's pinned to it) faces forward.
    */
   flaps: [Object3D, Object3D];
   /** On each flap, the front edge his hand takes hold of to pull it open (an empty node that swings with it). */
@@ -112,7 +132,10 @@ function tucked(a: number, up: number, b: Box): Box {
 /** Brisket proportions inside `at`: the paper it sits in, and how far down the smoke ring runs under the crust (m). */
 const BRISKET = { paper: 0.035, ring: 0.022, ringDown: 0.05 };
 
-/** A slab of smoked brisket (turned to angle `a`): dark bark all over, a red smoke ring showing at the sides, sitting in kraft paper. */
+/**
+ * A slab of smoked brisket (turned to angle `a`): dark bark all over, a red smoke ring showing at the sides, sitting in
+ * kraft paper.
+ */
 function brisket(name: string, at: Box, a: number): Part<Mat> {
   const [w, h, d] = at.size;
   const B = BRISKET;
@@ -146,7 +169,10 @@ function badge(hand: Box): Part<Mat> {
   ]);
 }
 
-/** A feature on the front of his round head: x across and y from the head's middle (`mid`), `w` wide, set into the curve (pushed `out`). */
+/**
+ * A feature on the front of his round head: x across and y from the head's middle (`mid`), `w` wide, set into the curve
+ * (pushed `out`).
+ */
 function onFace(x: number, y: number, w: number, h: number, d: number, mid: number, out = 0): Box {
   const r = SHAPE.headR;
   const edge = Math.min(r, Math.abs(x) + w / 2);
@@ -168,15 +194,30 @@ export function randy() {
     const side = (s * 3 * seg) / 2;
     // the left flap is the one he flashes, held by its front edge: its brisket hangs on the side panel, where his arm doesn't cover it
     const at = s < 0 ? side : front;
-    const wares: Part<Mat>[] = [brisket(s < 0 ? 'brisketL' : 'brisketR', tucked(at, h - 0.44, box(0.22, 0.22, 0.07)), at)];
+    const wares: Part<Mat>[] = [
+      brisket(s < 0 ? 'brisketL' : 'brisketR', tucked(at, h - 0.44, box(0.22, 0.22, 0.07)), at),
+    ];
     if (s > 0) {
       const phone = tucked(side, h - 0.2, box(0.07, 0.13, 0.025));
       const screen = phone.sized(0.05, 0.07, 0.01).move(-Math.sin(side) * 0.012, 0.02, -Math.cos(side) * 0.012);
-      wares.push(group({ name: 'phone' }, [solid(phone, 'phone', { cast: false, rot: [0, side, 0] }), solid(screen, 'screen', { cast: false, rot: [0, side, 0] })]));
+      wares.push(
+        group({ name: 'phone' }, [
+          solid(phone, 'phone', { cast: false, rot: [0, side, 0] }),
+          solid(screen, 'screen', { cast: false, rot: [0, side, 0] }),
+        ]),
+      );
     }
+
     // where a hand holds it: on the front edge (the coat's front corner), a little over halfway up
-    const grip = group<Mat>({ name: s < 0 ? 'gripL' : 'gripR', at: [s * GRIP.in, COAT_HEM + h * GRIP.up, hinge - GRIP.in] }, []);
-    return pivot(s < 0 ? 'flapL' : 'flapR', [s * hinge, COAT_HEM, 0], [panel(front, panelW, h), panel(side, panelW, h), ...wares, grip]);
+    const grip = group<Mat>(
+      { name: s < 0 ? 'gripL' : 'gripR', at: [s * GRIP.in, COAT_HEM + h * GRIP.up, hinge - GRIP.in] },
+      [],
+    );
+    return pivot(
+      s < 0 ? 'flapL' : 'flapR',
+      [s * hinge, COAT_HEM, 0],
+      [panel(front, panelW, h), panel(side, panelW, h), ...wares, grip],
+    );
   });
   const back = [5, 7, 9, 11].map((k) => panel((k * seg) / 2, panelW, h));
   const headMid = torsoTop + 0.04 + S.headH / 2;
@@ -222,8 +263,12 @@ export function randy() {
     [
       group({ name: 'body' }, [
         ...SIDES.map((s) => {
-          const leg = box(...S.leg).x(s * S.stance).under(S.hip);
-          return limb<Mat>(s < 0 ? 'legL' : 'legR', leg, 'slacks', [solid(leg.sized(0.22, 0.12, 0.34).on(0).move(0, 0, 0.05), 'shoes')]);
+          const leg = box(...S.leg)
+            .x(s * S.stance)
+            .under(S.hip);
+          return limb<Mat>(s < 0 ? 'legL' : 'legR', leg, 'slacks', [
+            solid(leg.sized(0.22, 0.12, 0.34).on(0).move(0, 0, 0.05), 'shoes'),
+          ]);
         }),
         cylinder(S.torsoR, S.torsoH, S.segments, 'shirt', { at: [0, S.hip + S.torsoH / 2, 0] }),
         ...back,
@@ -232,9 +277,14 @@ export function randy() {
         cylinder(COAT_R + 0.01, 0.06, 8, 'coat', { at: [0, top, 0], rot: [0, Math.PI / 8, 0] }),
         cylinder(0.16, 0.1, S.segments, 'coat', { at: [0, top + 0.07, -0.01], cast: false }),
         ...SIDES.map((s) => {
-          const arm = box(...S.arm).under(top - 0.03).x(s * (hinge + S.arm[0] / 2 - 0.02));
+          const arm = box(...S.arm)
+            .under(top - 0.03)
+            .x(s * (hinge + S.arm[0] / 2 - 0.02));
           const hand = arm.sized(0.14, 0.14, 0.16).under(arm.bottom + 0.01);
-          return limb<Mat>(s < 0 ? 'armL' : 'armR', arm, 'coat', [solid(hand, 'skin'), ...(s > 0 ? [skewer(hand)] : [badge(hand)])]);
+          return limb<Mat>(s < 0 ? 'armL' : 'armR', arm, 'coat', [
+            solid(hand, 'skin'),
+            ...(s > 0 ? [skewer(hand)] : [badge(hand)]),
+          ]);
         }),
         pivot('head', [0, torsoTop + 0.02, 0], headParts),
       ]),

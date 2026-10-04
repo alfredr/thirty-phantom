@@ -1,9 +1,9 @@
 import { TUNING } from '@/config';
 
 /**
- * How far things reach, by name, as distances on the ground plane in meters. Each value is what
- * its system used before the reaches were gathered here. Merging values that look alike would
- * change how things feel, so that is left as a deliberate, separate step.
+ * How far things reach, by name, as distances on the ground plane in meters. Each value is what its system used before
+ * the reaches were gathered here. Merging values that look alike would change how things feel, so that is left as a
+ * deliberate, separate step.
  */
 export const REACH = {
   /** Phantom Cody, the phantom truck or a skeleton frightens people this close. */

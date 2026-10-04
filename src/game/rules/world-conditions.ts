@@ -3,9 +3,9 @@ import type { GameClock } from '@/game/game-clock';
 export type WorldConditionName = 'deckAwake' | 'valetsOnShift' | 'parking' | 'daylight';
 
 /**
- * What the time of day means, by name. The clock is the only source of time; these readers say
- * what it implies for each rule, so rules ask a question ("is the deck awake?") instead of reading
- * the clock. A script can pin a condition to a value without stopping the clock.
+ * What the time of day means, by name. The clock is the only source of time; these readers say what it implies for each
+ * rule, so rules ask a question ("is the deck awake?") instead of reading the clock. A script can pin a condition to a
+ * value without stopping the clock.
  */
 export class WorldConditions {
   private readonly pins = new Map<WorldConditionName, boolean>();

@@ -1,4 +1,5 @@
 import { PALETTE } from '@/render/palette';
+
 import { buildPerson, type Outfit } from './person';
 import type { CharacterRig } from './rig';
 

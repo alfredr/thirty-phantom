@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+
 import { Vector3 } from 'three';
+
 import { loadModules } from './modules.mjs';
 
 const [{ createGameDebug }] = await loadModules('/src/game/debug.ts');
@@ -12,12 +14,20 @@ function fixture() {
   let frightAt = null;
   const game = {
     clock: { hours: 8, phase: 'day', isDay: true },
-    player: { pos: new Vector3(), yaw: 1, place(pos) { this.pos.copy(pos); } },
+    player: {
+      pos: new Vector3(),
+      yaw: 1,
+      place(pos) {
+        this.pos.copy(pos);
+      },
+    },
     iso: { snapTo() {} },
     chase: { yaw: 1, snapBehind() {} },
     vehicles: [],
     garage: { inFootprint: (pos) => pos.x >= 0, actual: () => 1, logged: 3, phantoms: 2 },
-    board: (car) => { boarded = car; },
+    board: (car) => {
+      boarded = car;
+    },
     summon: () => 0,
   };
   const debug = createGameDebug(game, {
@@ -25,9 +35,21 @@ function fixture() {
     mode: () => 'play',
     refuge: { entry: new Vector3(10, 0, 0) },
     roadAt: (car, meters) => car.pos.clone().setZ(meters),
-    frighten: (car, from) => { frightened = car; frightAt = from; },
+    frighten: (car, from) => {
+      frightened = car;
+      frightAt = from;
+    },
   });
-  return { game, debug, drive: (car) => { driving = car; }, boarded: () => boarded, frightened: () => frightened, frightAt: () => frightAt };
+  return {
+    game,
+    debug,
+    drive: (car) => {
+      driving = car;
+    },
+    boarded: () => boarded,
+    frightened: () => frightened,
+    frightAt: () => frightAt,
+  };
 }
 
 test('debug teleport reads the current vehicle and preserves the state output', () => {
@@ -42,9 +64,15 @@ test('debug teleport reads the current vehicle and preserves the state output', 
   assert.deepEqual(car.vel.toArray(), [0, 0, 0]);
   assert.deepEqual(game.player.pos.toArray(), [1, 2, 3]);
   assert.deepEqual(debug.state(), {
-    mode: 'play', hours: 8, phase: 'day',
+    mode: 'play',
+    hours: 8,
+    phase: 'day',
     driving: { form: 'truck', pos: [4, 5, 6], inside: true },
-    player: [1, 2, 3], logged: 3, actual: 1, phantoms: 2, vehicles: 1,
+    player: [1, 2, 3],
+    logged: 3,
+    actual: 1,
+    phantoms: 2,
+    vehicles: 1,
   });
   drive(null);
   debug.teleport(-1, 0, 0);

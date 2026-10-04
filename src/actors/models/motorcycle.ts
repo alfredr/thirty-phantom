@@ -1,5 +1,7 @@
 import { Color } from 'three';
+
 import type { V3 } from '@/engine/core/math';
+
 import { box, build, cylinder, group, model, NO_CAST, type Part, SIDES, solid } from './part';
 import { BIKE_WHEELS, vehicleRig, type VehicleRig } from './rig';
 
@@ -19,10 +21,9 @@ export const MOTORCYCLE = {
 export type MotorcycleParams = typeof MOTORCYCLE;
 
 /**
- * Street bike with a seated rider (+Z forward). Everything, wheels included, hangs off the
- * sprung "body" node, so the whole bike leans into turns about its tire contact line.
- * The rider is its own "rider" node, shown only while the bike is ridden by someone
- * other than Cody, who sits on the "saddle" node himself.
+ * Street bike with a seated rider (+Z forward). Everything, wheels included, hangs off the sprung "body" node, so the
+ * whole bike leans into turns about its tire contact line. The rider is its own "rider" node, shown only while the bike
+ * is ridden by someone other than Cody, who sits on the "saddle" node himself.
  */
 export function motorcycle(params: Partial<MotorcycleParams> = {}) {
   const p = { ...MOTORCYCLE, ...params };
@@ -92,6 +93,11 @@ export function motorcycle(params: Partial<MotorcycleParams> = {}) {
 export function buildMotorcycleRig(color: string): VehicleRig {
   const b = build(motorcycle({ color }));
   const rig = vehicleRig(b, ['head', 'tail'], MOTORCYCLE.height, BIKE_WHEELS);
-  rig.rider = { root: b.node('rider'), jacket: b.mats.jacket, ownJacket: new Color(MOTORCYCLE.jacket), saddle: b.node('saddle') };
+  rig.rider = {
+    root: b.node('rider'),
+    jacket: b.mats.jacket,
+    ownJacket: new Color(MOTORCYCLE.jacket),
+    saddle: b.node('saddle'),
+  };
   return rig;
 }

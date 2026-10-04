@@ -9,27 +9,21 @@ import {
   Vector3,
   type WebGLProgramParametersWithUniforms,
 } from 'three';
-import type { MatKey } from '@/world/level-kinds';
+
 import type { LampColor } from '@/world/level-data';
+import type { MatKey } from '@/world/level-kinds';
+
 import { CURVE_ON, curveVertex, markCurved } from './curvature';
 import { withFacade } from './facade';
 import { PALETTE } from './palette';
-import {
-  asphaltTexture,
-  concreteTexture,
-  grassTexture,
-  hazardTexture,
-  sidewalkTexture,
-} from './textures';
+import { asphaltTexture, concreteTexture, grassTexture, hazardTexture, sidewalkTexture } from './textures';
 
 export { MAT_KEYS, type MatKey } from '@/world/level-kinds';
 
 /**
- * Occlusion cutaway shared by every world material.
- * Inside a cylinder along the view ray through the focus point, fragments are
- * dropped if they sit between the camera and the focus (above the focus floor),
- * or anywhere above the ceiling over the focus, so the player stays visible
- * under parking-deck slabs and behind towers.
+ * Occlusion cutaway shared by every world material. Inside a cylinder along the view ray through the focus point,
+ * fragments are dropped if they sit between the camera and the focus (above the focus floor), or anywhere above the
+ * ceiling over the focus, so the player stays visible under parking-deck slabs and behind towers.
  */
 export const cutUniforms = {
   uCutCenter: { value: new Vector3() },
@@ -40,7 +34,10 @@ export const cutUniforms = {
   uCutNear: { value: 0.8 },
   /** Everything above this height is cut, in front of the focus or not (the slab overhead). */
   uCutCeil: { value: 1e9 },
-  /** Slime-green edge of the cutaway hole, round the player whenever under a slab: past 1 so it glows, kept low enough not to haze. */
+  /**
+   * Slime-green edge of the cutaway hole, round the player whenever under a slab: past 1 so it glows, kept low enough
+   * not to haze.
+   */
   uCutRim: { value: new Color(0.45, 1.6, 0.1) },
   /** World-space dirt strength for materials compiled with GRIME. */
   uGrime: { value: 1 },
@@ -110,9 +107,8 @@ const CUT_VERT = /* glsl */ `#include <project_vertex>
 `;
 
 /**
- * Soft ink: the outline pass draws no crease lines on this material and only a
- * thin, light silhouette around it. For small glowing bits (slime lips, drips,
- * splats) that the full ink would otherwise bury in black borders.
+ * Soft ink: the outline pass draws no crease lines on this material and only a thin, light silhouette around it. For
+ * small glowing bits (slime lips, drips, splats) that the full ink would otherwise bury in black borders.
  */
 export function softInk<T extends Material>(mat: T): T {
   mat.userData.softInk = true;
@@ -123,27 +119,46 @@ const patched = new WeakSet<Material>();
 
 /** Idempotent: clones (which don't carry onBeforeCompile) get patched afresh, shared materials only once. */
 export function withCutaway<T extends Material>(mat: T): T {
-  if (patched.has(mat)) return mat;
+  if (patched.has(mat)) {
+    return mat;
+  }
+
   patched.add(mat);
   const prev = mat.onBeforeCompile.bind(mat);
   mat.onBeforeCompile = (shader: WebGLProgramParametersWithUniforms, renderer) => {
     prev(shader, renderer);
     Object.assign(shader.uniforms, cutUniforms);
-    shader.vertexShader = 'varying vec3 vCutWorld;\nvarying vec3 vCutNormal;\n' + shader.vertexShader.replace('#include <project_vertex>', CUT_VERT);
+    shader.vertexShader =
+      'varying vec3 vCutWorld;\nvarying vec3 vCutNormal;\n' +
+      shader.vertexShader.replace('#include <project_vertex>', CUT_VERT);
     // world curvature (render/curvature.ts): drawn bent, and the window is cut where things are drawn
     const bent = CURVE_ON && curveVertex(shader, 'vCutBent');
-    if (bent) shader.vertexShader = 'varying vec3 vCutBent;\n' + shader.vertexShader;
+    if (bent) {
+      shader.vertexShader = 'varying vec3 vCutBent;\n' + shader.vertexShader;
+    }
+
     shader.fragmentShader =
       (bent ? 'varying vec3 vCutBent;\n' : '#define vCutBent vCutWorld\n') +
       CUT_FRAG_HEADER +
       shader.fragmentShader
         .replace('void main() {', 'void main() {\n' + CUT_FRAG_BODY)
-        .replace('#include <color_fragment>', '#include <color_fragment>\n#ifdef GRIME\n  diffuseColor.rgb = applyGrime(diffuseColor.rgb, vCutWorld, normalize(vCutNormal));\n#endif')
-        .replace('#include <dithering_fragment>', '#include <dithering_fragment>\n  gl_FragColor.rgb = mix(gl_FragColor.rgb, uCutRim, cutRim);');
+        .replace(
+          '#include <color_fragment>',
+          '#include <color_fragment>\n#ifdef GRIME\n  diffuseColor.rgb = applyGrime(diffuseColor.rgb, vCutWorld, normalize(vCutNormal));\n#endif',
+        )
+        .replace(
+          '#include <dithering_fragment>',
+          '#include <dithering_fragment>\n  gl_FragColor.rgb = mix(gl_FragColor.rgb, uCutRim, cutRim);',
+        );
   };
+
   const prevKey = mat.customProgramCacheKey.bind(mat);
   mat.customProgramCacheKey = () => prevKey() + '|cut4';
-  if (CURVE_ON) markCurved(mat);
+
+  if (CURVE_ON) {
+    markCurved(mat);
+  }
+
   return mat;
 }
 
@@ -152,8 +167,6 @@ export type EmissiveChannel = 'neon' | 'windows' | 'lamps' | 'signs' | 'slime' |
 /** The facade material's emissive strength at full night (the 'windows' channel scales it). */
 export const FACADE_GLOW = 1.5;
 
-
-
 interface GlowSpec {
   color: string;
   emissive: string;
@@ -161,8 +174,8 @@ interface GlowSpec {
 }
 
 /**
- * Lit lamp-head glass by lamp color: the world's lamp materials and the street lamp props.
- * Bright enough to bloom; brighter, and the deck's ceiling fixtures fog the chase view.
+ * Lit lamp-head glass by lamp color: the world's lamp materials and the street lamp props. Bright enough to bloom;
+ * brighter, and the deck's ceiling fixtures fog the chase view.
  */
 export const LAMP_GLASS: Readonly<Record<LampColor, GlowSpec>> = {
   green: { color: '#e9ffd0', emissive: '#9dff3a', emissiveIntensity: 3.6 },
@@ -173,10 +186,9 @@ export const LAMP_GLASS: Readonly<Record<LampColor, GlowSpec>> = {
 export const METAL = { color: '#2a2233', roughness: 0.55, metalness: 0.4 };
 export const GLASS = { color: '#1a1030', roughness: 0.2, metalness: 0.6 };
 /**
- * Landscaping (world/decor-models.ts): leaves (street trees, hedges, bushes), darker needles
- * (pines, cypresses), bark, and petals in the poster's slime green and hot purple that glow
- * faintly by day and brighter at night (the neon channel). Leaves, needles and bark share a
- * roughness so the decor bakes them into one mesh (part.ts baked()).
+ * Landscaping (world/decor-models.ts): leaves (street trees, hedges, bushes), darker needles (pines, cypresses), bark,
+ * and petals in the poster's slime green and hot purple that glow faintly by day and brighter at night (the neon
+ * channel). Leaves, needles and bark share a roughness so the decor bakes them into one mesh (part.ts baked()).
  */
 export const FOLIAGE = { color: '#33573f', roughness: 0.9 };
 export const NEEDLES = { color: '#24453f', roughness: 0.9 };
@@ -210,7 +222,10 @@ export type ChannelLevels = Record<EmissiveChannel, number>;
 /** A world material: vertex-colored, cut away near the camera, with grime unless `grime` is false. */
 function worldMat(p: MeshStandardMaterialParameters, grime = true): MeshStandardMaterial {
   const m = withCutaway(new MeshStandardMaterial({ roughness: 0.92, metalness: 0, vertexColors: true, ...p }));
-  if (grime) m.defines = { ...m.defines, GRIME: '' };
+  if (grime) {
+    m.defines = { ...m.defines, GRIME: '' };
+  }
+
   return m;
 }
 
@@ -265,14 +280,18 @@ export class MaterialLibrary {
   }
 
   /**
-   * One material for every facade key, so their boxes batch together: each box
-   * brings its own paint (vertex color) and the facade shader draws its windows
-   * and the rooms behind them (render/facade.ts), lit at night on the windows channel.
+   * One material for every facade key, so their boxes batch together: each box brings its own paint (vertex color) and
+   * the facade shader draws its windows and the rooms behind them (render/facade.ts), lit at night on the windows
+   * channel.
    */
   private facade(keys: readonly MatKey[]): void {
     const m = withFacade(worldMat({ emissive: '#ffffff', emissiveIntensity: FACADE_GLOW, roughness: 0.9 }));
     m.name = 'facade';
-    for (const k of keys) this.world.set(k, m);
+
+    for (const k of keys) {
+      this.world.set(k, m);
+    }
+
     this.register(m, 'windows');
   }
 
@@ -285,14 +304,20 @@ export class MaterialLibrary {
     extra: MeshStandardMaterialParameters = {},
   ): void {
     const m = worldMat({ color, emissive, emissiveIntensity: intensity, roughness: 0.5, ...extra }, false);
-    if (channel === 'slime') softInk(m);
+    if (channel === 'slime') {
+      softInk(m);
+    }
+
     this.set(key, m);
     this.register(m, channel);
   }
 
   get(key: MatKey): MeshStandardMaterial {
     const m = this.world.get(key);
-    if (!m) throw new Error(`unknown material ${key}`);
+    if (!m) {
+      throw new Error(`unknown material ${key}`);
+    }
+
     return m;
   }
 
@@ -302,15 +327,19 @@ export class MaterialLibrary {
   }
 
   setChannels(levels: ChannelLevels): void {
-    for (const e of this.emissive) e.mat.emissiveIntensity = e.base * levels[e.channel];
+    for (const e of this.emissive) {
+      e.mat.emissiveIntensity = e.base * levels[e.channel];
+    }
   }
 
   /**
-   * Normal material for the ink-outline pass (with the same cutaway so holes match).
-   * Alpha tags the ink class: 1 = full ink, 0.5 = soft ink, 0 (cleared) = background.
+   * Normal material for the ink-outline pass (with the same cutaway so holes match). Alpha tags the ink class: 1 = full
+   * ink, 0.5 = soft ink, 0 (cleared) = background.
    */
   static normalMaterial(soft = false): MeshNormalMaterial {
     // NoBlending keeps OPAQUE undefined so the shader writes opacity as alpha, unblended
-    return withCutaway(new MeshNormalMaterial({ side: DoubleSide, ...(soft ? { opacity: 0.5, blending: NoBlending } : {}) }));
+    return withCutaway(
+      new MeshNormalMaterial({ side: DoubleSide, ...(soft ? { opacity: 0.5, blending: NoBlending } : {}) }),
+    );
   }
 }

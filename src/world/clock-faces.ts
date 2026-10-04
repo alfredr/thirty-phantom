@@ -1,8 +1,10 @@
 import { BoxGeometry, Group, Mesh, MeshStandardMaterial, type Object3D, PlaneGeometry } from 'three';
+
 import { TAU } from '@/engine/core/math';
 import { withCutaway, type MaterialLibrary } from '@/render/materials';
 import { PALETTE } from '@/render/palette';
 import { signMaterial, signTextures } from '@/render/signs';
+
 import { facingYaw, type ClockDef } from './level-data';
 
 /** Working clock dials with hour and minute hands driven by the game clock. */
@@ -14,7 +16,9 @@ export class ClockFaces {
     const dialMat = signMaterial(signTextures('dial', [], 1, 1, 3), 0.6);
     mats.register(dialMat, 'signs');
     const handMat = withCutaway(new MeshStandardMaterial({ color: '#140920', roughness: 0.4, metalness: 0.3 }));
-    const tipMat = withCutaway(new MeshStandardMaterial({ color: '#2a0d47', emissive: PALETTE.purpleHot, emissiveIntensity: 2.5 }));
+    const tipMat = withCutaway(
+      new MeshStandardMaterial({ color: '#2a0d47', emissive: PALETTE.purpleHot, emissiveIntensity: 2.5 }),
+    );
     mats.register(tipMat, 'neon');
 
     for (const d of defs) {
@@ -25,6 +29,7 @@ export class ClockFaces {
       dial.position.z = 0.02;
       dial.receiveShadow = true;
       g.add(dial);
+
       const mk = (len: number, width: number, z: number): Object3D => {
         const pivot = new Group();
         pivot.position.z = z;
@@ -39,6 +44,7 @@ export class ClockFaces {
         g.add(pivot);
         return pivot;
       };
+
       const hour = mk(d.size * 0.25, 0.22, 0.09);
       const minute = mk(d.size * 0.38, 0.14, 0.15);
       const hub = new Mesh(new BoxGeometry(0.34, 0.34, 0.12), handMat);

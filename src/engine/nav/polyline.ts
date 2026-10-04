@@ -1,19 +1,21 @@
 import { Vector3 } from 'three';
+
 import { clamp, lerp, mod, type V3 } from '@/engine/core/math';
 
 const _a = new Vector3();
 const _d = new Vector3();
 /**
- * Height counts this many times over horizontal distance when matching a point to the line, so a route that doubles back on another floor (ramps, stairs) never captures a follower from the floor below.
- * Up to LEVEL_SLACK of it doesn't count: feet on a landing or a tread sit that far off the route's straight line down a flight, and weighing that pinned a walker's cursor at a stair corner.
+ * Height counts this many times over horizontal distance when matching a point to the line, so a route that doubles
+ * back on another floor (ramps, stairs) never captures a follower from the floor below. Up to LEVEL_SLACK of it doesn't
+ * count: feet on a landing or a tread sit that far off the route's straight line down a flight, and weighing that
+ * pinned a walker's cursor at a stair corner.
  */
 const LEVEL_WEIGHT = 8;
 const LEVEL_SLACK = 0.5;
 
 /**
- * A path through points, measured by arc length: traffic loops (closed) and
- * planned routes (open) alike. Followers keep an arc-length cursor and look
- * ahead along it.
+ * A path through points, measured by arc length: traffic loops (closed) and planned routes (open) alike. Followers keep
+ * an arc-length cursor and look ahead along it.
  */
 export class Polyline {
   readonly points: Vector3[];
@@ -31,6 +33,7 @@ export class Polyline {
       acc += this.at(i).distanceTo(this.at(i + 1));
       this.cum.push(acc);
     }
+
     this.total = acc;
   }
 
@@ -56,7 +59,9 @@ export class Polyline {
     s = this.wrap(s);
     const rest = [this.sample(s, new Vector3())];
     this.points.forEach((p, i) => {
-      if ((this.cum[i] ?? 0) > s) rest.push(p);
+      if ((this.cum[i] ?? 0) > s) {
+        rest.push(p);
+      }
     });
     return new Polyline(rest);
   }
@@ -67,26 +72,33 @@ export class Polyline {
       dir?.set(0, 0, 1);
       return pos.copy(this.points[0] ?? _a.set(0, 0, 0));
     }
+
     s = this.wrap(s);
     let lo = 0;
     let hi = this.segments - 1;
     while (lo < hi) {
       const mid = (lo + hi + 1) >> 1;
-      if ((this.cum[mid] ?? 0) <= s) lo = mid;
-      else hi = mid - 1;
+      if ((this.cum[mid] ?? 0) <= s) {
+        lo = mid;
+      } else {
+        hi = mid - 1;
+      }
     }
+
     const a = this.at(lo);
     const b = this.at(lo + 1);
     const segLen = (this.cum[lo + 1] ?? this.total) - (this.cum[lo] ?? 0);
     const t = segLen > 0 ? (s - (this.cum[lo] ?? 0)) / segLen : 0;
-    if (dir) dir.subVectors(b, a).normalize();
+    if (dir) {
+      dir.subVectors(b, a).normalize();
+    }
+
     return pos.lerpVectors(a, b, t);
   }
 
   /**
-   * Arc length of the point on the line nearest to p, considering only the
-   * stretch [from, from + window]: followers pass their current cursor so
-   * progress never jumps to a stacked or looping part of the route.
+   * Arc length of the point on the line nearest to p, considering only the stretch [from, from + window]: followers
+   * pass their current cursor so progress never jumps to a stacked or looping part of the route.
    */
   project(p: Vector3, from = 0, window = Infinity): number {
     let best = from;
@@ -95,7 +107,10 @@ export class Polyline {
     for (let i = 0; i < n; i++) {
       const s0 = this.cum[i] ?? 0;
       const s1 = this.cum[i + 1] ?? this.total;
-      if (!this.closed && (s1 < from || s0 > from + window)) continue;
+      if (!this.closed && (s1 < from || s0 > from + window)) {
+        continue;
+      }
+
       const a = this.at(i);
       const b = this.at(i + 1);
       _d.subVectors(b, a);
@@ -109,14 +124,14 @@ export class Polyline {
         best = lerp(s0, s1, t);
       }
     }
+
     return this.closed ? best : Math.max(from, best);
   }
 }
 
 /**
- * Something following a Polyline: an arc-length cursor that only moves
- * forward, and a look-ahead point to steer at. Shared by the guidance arrow,
- * the car autopilot and walkers.
+ * Something following a Polyline: an arc-length cursor that only moves forward, and a look-ahead point to steer at.
+ * Shared by the guidance arrow, the car autopilot and walkers.
  */
 export class RouteCursor {
   s = 0;

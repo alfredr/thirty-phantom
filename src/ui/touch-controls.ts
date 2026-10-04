@@ -2,6 +2,7 @@ import { urlFlag } from '@/engine/core/url-flags';
 import type { Input } from '@/engine/input/input';
 import { el } from '@/engine/ui/dom';
 import { type Control, isControl, KEYS } from '@/game/controls';
+
 import './touch.css';
 
 /** Phones and tablets (a coarse pointer), or ?touch to try the controls with a mouse. */
@@ -44,19 +45,23 @@ const BUTTONS: readonly ButtonSpec[] = [
 
 /** The on-screen button for `action` (the one sending its key, so drift finds RUN), for key caps in HUD text. */
 export function touchGlyph(action: Control): string | undefined {
-  if (STICK.has(action)) return 'STICK';
+  if (STICK.has(action)) {
+    return 'STICK';
+  }
+
   return BUTTONS.find((b) => KEYS[b.action][0] === KEYS[action][0])?.glyph;
 }
 
 /**
  * On-screen controls for touch screens, all fed through Input like the keyboard:
+ *
  * - a stick under the left thumb, wherever it lands (walk; throttle and steer)
  * - buttons under the right thumb (F use, hop, run / drift, summon on foot, boost in the truck, camera, iso rotate)
  * - drag anywhere else to look (chase view), pinch to zoom
  * - the prompt and speech-bubble choices can be tapped
- * - driving is always in the chase view (game.ts), and CAM switches top-down / chase on foot
- * Off on the title screen, which takes a tap to start. In portrait, a card asks for landscape;
- * turned sideways, where the browser allows it, a card offers fullscreen (it needs that tap).
+ * - driving is always in the chase view (game.ts), and CAM switches top-down / chase on foot Off on the title screen,
+ *   which takes a tap to start. In portrait, a card asks for landscape; turned sideways, where the browser allows it, a
+ *   card offers fullscreen (it needs that tap).
  */
 export class TouchControls {
   readonly root: HTMLDivElement;
@@ -84,7 +89,10 @@ export class TouchControls {
     this.base = el('div', 'touch-stick', this.root);
     this.knob = el('div', 'touch-knob', this.base);
     const buttons = el('div', 'touch-buttons', this.root);
-    for (const b of BUTTONS) this.button(buttons, b);
+    for (const b of BUTTONS) {
+      this.button(buttons, b);
+    }
+
     const rotate = el('div', 'touch-rotate', document.body);
     el('div', 'phone', rotate);
     el('div', 'say', rotate, 'TURN YOUR PHONE<br>SIDEWAYS');
@@ -96,8 +104,9 @@ export class TouchControls {
     go.addEventListener('click', () => void goFullscreen());
     // where pages can't go fullscreen (iPhones), the corner button brings back the home-screen how-to
     this.fullButton.addEventListener('click', () => {
-      if (canFullscreen()) void goFullscreen();
-      else {
+      if (canFullscreen()) {
+        void goFullscreen();
+      } else {
         this.homeSeen = false;
         this.syncFullscreen();
       }
@@ -128,12 +137,18 @@ export class TouchControls {
 
     this.pad.addEventListener('pointerdown', (e) => this.padDown(e));
     this.pad.addEventListener('pointermove', (e) => this.padMove(e));
-    for (const t of ['pointerup', 'pointercancel'] as const) this.pad.addEventListener(t, (e) => this.padUp(e));
+
+    for (const t of ['pointerup', 'pointercancel'] as const) {
+      this.pad.addEventListener(t, (e) => this.padUp(e));
+    }
+
     // the prompt and the speech bubble's choices: a tap does what they say
     document.addEventListener('pointerdown', (e) => {
       const t = (e.target as Element | null)?.closest<HTMLElement>('#hud [data-action]');
       const action = t?.dataset.action;
-      if (action && isControl(action)) this.input.press(KEYS[action][0]);
+      if (action && isControl(action)) {
+        this.input.press(KEYS[action][0]);
+      }
     });
     this.followMode();
   }
@@ -145,6 +160,7 @@ export class TouchControls {
       btn.classList.remove('on');
       this.input.hold(code, false);
     };
+
     btn.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       btn.setPointerCapture(e.pointerId);
@@ -159,6 +175,7 @@ export class TouchControls {
   private padDown(e: PointerEvent): void {
     e.preventDefault();
     this.pad.setPointerCapture(e.pointerId);
+
     if (this.stickId < 0 && e.clientX < innerWidth * STICK_SIDE) {
       this.stickId = e.pointerId;
       this.stickX0 = e.clientX;
@@ -169,8 +186,12 @@ export class TouchControls {
       this.knob.style.transform = '';
       return;
     }
+
     this.looks.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (this.looks.size === 2) this.spread = this.fingerSpread();
+
+    if (this.looks.size === 2) {
+      this.spread = this.fingerSpread();
+    }
   }
 
   private padMove(e: PointerEvent): void {
@@ -182,18 +203,24 @@ export class TouchControls {
         dx /= len;
         dy /= len;
       }
+
       this.knob.style.transform = `translate(${dx * STICK_REACH}px, ${dy * STICK_REACH}px)`;
       // screen up is forward; inside the dead zone the stick rests
       const resting = Math.min(1, len) < DEAD_ZONE;
       this.input.setStick(resting ? 0 : dx, resting ? 0 : -dy);
       return;
     }
+
     const p = this.looks.get(e.pointerId);
-    if (!p) return;
+    if (!p) {
+      return;
+    }
+
     const dx = e.clientX - p.x;
     const dy = e.clientY - p.y;
     p.x = e.clientX;
     p.y = e.clientY;
+
     if (this.looks.size >= 2) {
       // spreading the fingers zooms in, as the wheel does rolled forward
       const s = this.fingerSpread();
@@ -201,12 +228,15 @@ export class TouchControls {
         this.input.zoom(-1);
         this.spread += PINCH_STEP;
       }
+
       while (this.spread - s > PINCH_STEP) {
         this.input.zoom(1);
         this.spread -= PINCH_STEP;
       }
+
       return;
     }
+
     this.input.look(dx * LOOK_GAIN, dy * LOOK_GAIN);
   }
 
@@ -217,8 +247,12 @@ export class TouchControls {
       this.base.classList.remove('on');
       return;
     }
+
     this.looks.delete(e.pointerId);
-    if (this.looks.size === 2) this.spread = this.fingerSpread();
+
+    if (this.looks.size === 2) {
+      this.spread = this.fingerSpread();
+    }
   }
 
   private fingerSpread(): number {
@@ -227,16 +261,20 @@ export class TouchControls {
   }
 
   /**
-   * Mirror the HUD's mode (title / foot / drive): the controls hide on the title screen, and the
-   * buttons for one mode only (boost in the truck) follow it; summon shows while Cody can summon.
+   * Mirror the HUD's mode (title / foot / drive): the controls hide on the title screen, and the buttons for one mode
+   * only (boost in the truck) follow it; summon shows while Cody can summon.
    */
   private followMode(): void {
     const hud = document.getElementById('hud');
-    if (!hud) return;
+    if (!hud) {
+      return;
+    }
+
     const sync = (): void => {
       this.root.dataset.mode = hud.dataset.mode ?? '';
       this.root.dataset.summon = hud.dataset.summon ?? '';
     };
+
     new MutationObserver(sync).observe(hud, { attributes: true, attributeFilter: ['data-mode', 'data-summon'] });
     sync();
   }
@@ -244,7 +282,10 @@ export class TouchControls {
   /** Offer fullscreen when it's possible and not on yet: the card once held sideways, then the corner button. */
   private syncFullscreen(): void {
     // been fullscreen once: leaving it gets the corner button, not the card again
-    if (document.fullscreenElement) this.fullDismissed = true;
+    if (document.fullscreenElement) {
+      this.fullDismissed = true;
+    }
+
     const landscape = matchMedia('(orientation: landscape)').matches;
     const offer = canFullscreen() && !document.fullscreenElement && landscape;
     // Apple phones: only the home screen gets rid of the bars, so the card says how (and the corner button asks again)
@@ -264,7 +305,10 @@ function isAppleMobile(): boolean {
 
 /** Started from the home screen: no browser bars to get rid of. */
 function isHomeScreenApp(): boolean {
-  return (navigator as Navigator & { standalone?: boolean }).standalone === true || matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches;
+  return (
+    (navigator as Navigator & { standalone?: boolean }).standalone === true ||
+    matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches
+  );
 }
 
 function remembered(key: string): boolean {
@@ -284,11 +328,14 @@ function remember(key: string): void {
 }
 
 /**
- * Android browsers and iPads can put a page fullscreen. iPhones can't (every iPhone browser is
- * Safari underneath), though some report fullscreenEnabled anyway, and the request does nothing.
+ * Android browsers and iPads can put a page fullscreen. iPhones can't (every iPhone browser is Safari underneath),
+ * though some report fullscreenEnabled anyway, and the request does nothing.
  */
 function canFullscreen(): boolean {
-  if (/iPhone|iPod/.test(navigator.userAgent)) return false;
+  if (/iPhone|iPod/.test(navigator.userAgent)) {
+    return false;
+  }
+
   return document.fullscreenEnabled && typeof document.documentElement.requestFullscreen === 'function';
 }
 
@@ -299,7 +346,10 @@ const SHARE_ICON =
 /** Fullscreen, held in landscape where the browser lets a page lock it. Must run inside a tap. */
 async function goFullscreen(): Promise<void> {
   try {
-    if (!document.fullscreenElement) await document.documentElement.requestFullscreen?.({ navigationUI: 'hide' });
+    if (!document.fullscreenElement) {
+      await document.documentElement.requestFullscreen?.({ navigationUI: 'hide' });
+    }
+
     await (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }).lock?.('landscape');
   } catch {
     // not allowed here: the rotate card still asks for landscape

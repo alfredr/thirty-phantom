@@ -32,7 +32,10 @@ export interface Solid {
   breakable?: boolean;
   /** Street furniture any vehicle knocks over at TUNING.knockdown.speed (lamp posts). */
   knockdown?: boolean;
-  /** A knockdown solid only a vehicle that smashes things (the monster truck) breaks, at its smashSpeed; to the rest it's a wall (a street tree). */
+  /**
+   * A knockdown solid only a vehicle that smashes things (the monster truck) breaks, at its smashSpeed; to the rest
+   * it's a wall (a street tree).
+   */
   heavy?: boolean;
   enabled: boolean;
   /** Dedup stamp for grid queries. */
@@ -52,8 +55,8 @@ export interface CircleHit {
 }
 
 /**
- * 2.5D collision over axis-aligned solids (plus ramps: AABBs whose top slopes
- * along one axis). Actors are vertical cylinders; vehicles use a few circles.
+ * 2.5D collision over axis-aligned solids (plus ramps: AABBs whose top slopes along one axis). Actors are vertical
+ * cylinders; vehicles use a few circles.
  */
 export class CollisionWorld {
   readonly solids: Solid[] = [];
@@ -72,12 +75,19 @@ export class CollisionWorld {
   /** The bare ground at (x, z) with nothing on it: y=0, or a pit's floor. Cheap and allocation-free. */
   groundPlane(x: number, z: number): number {
     for (const p of this.pits) {
-      if (x >= p.min[0] && x <= p.max[0] && z >= p.min[2] && z <= p.max[2]) return p.min[1];
+      if (x >= p.min[0] && x <= p.max[0] && z >= p.min[2] && z <= p.max[2]) {
+        return p.min[1];
+      }
     }
+
     return 0;
   }
 
-  add(min: V3, max: V3, extra: { ramp?: RampShape; breakable?: boolean; knockdown?: boolean; heavy?: boolean } = {}): Solid {
+  add(
+    min: V3,
+    max: V3,
+    extra: { ramp?: RampShape; breakable?: boolean; knockdown?: boolean; heavy?: boolean } = {},
+  ): Solid {
     const s: Solid = {
       id: this.solids.length,
       min,
@@ -95,10 +105,14 @@ export class CollisionWorld {
       for (let iz = Math.floor(min[2] / c); iz <= Math.floor(max[2] / c); iz++) {
         const k = this.key(ix, iz);
         let list = this.grid.get(k);
-        if (!list) this.grid.set(k, (list = []));
+        if (!list) {
+          this.grid.set(k, (list = []));
+        }
+
         list.push(s);
       }
     }
+
     return s;
   }
 
@@ -106,7 +120,10 @@ export class CollisionWorld {
     return (ix + 2048) * 4096 + (iz + 2048);
   }
 
-  /** Move a solid up or down in place (an elevator cab's floor): solids are filed by footprint, so its grid cells stay right. */
+  /**
+   * Move a solid up or down in place (an elevator cab's floor): solids are filed by footprint, so its grid cells stay
+   * right.
+   */
   setHeight(s: Solid, y0: number, y1: number): void {
     s.min[1] = y0;
     s.max[1] = y1;
@@ -121,25 +138,42 @@ export class CollisionWorld {
     for (let ix = Math.floor(minX / c); ix <= Math.floor(maxX / c); ix++) {
       for (let iz = Math.floor(minZ / c); iz <= Math.floor(maxZ / c); iz++) {
         const list = this.grid.get(this.key(ix, iz));
-        if (!list) continue;
+        if (!list) {
+          continue;
+        }
+
         for (const s of list) {
-          if (s.stamp === st || !s.enabled) continue;
+          if (s.stamp === st || !s.enabled) {
+            continue;
+          }
+
           s.stamp = st;
-          if (s.max[0] < minX || s.min[0] > maxX || s.max[2] < minZ || s.min[2] > maxZ) continue;
+
+          if (s.max[0] < minX || s.min[0] > maxX || s.max[2] < minZ || s.min[2] > maxZ) {
+            continue;
+          }
+
           out.push(s);
         }
       }
     }
+
     return out;
   }
 
   topAt(s: Solid, x: number, z: number): number {
     const r = s.ramp;
-    if (!r) return s.max[1];
+    if (!r) {
+      return s.max[1];
+    }
+
     const a = r.axis === 'x' ? 0 : 2;
     const v = r.axis === 'x' ? x : z;
     let t = clamp((v - s.min[a]) / (s.max[a] - s.min[a]), 0, 1);
-    if (r.dir < 0) t = 1 - t;
+    if (r.dir < 0) {
+      t = 1 - t;
+    }
+
     return lerp(r.low, s.max[1], t);
   }
 
@@ -151,17 +185,27 @@ export class CollisionWorld {
   /** groundAt over a candidate list that already holds every solid containing (x,z). */
   private groundIn(list: readonly Solid[], x: number, z: number, y: number, stepUp: number, hit?: GroundHit): number {
     let g = this.groundPlane(x, z);
-    if (hit) hit.solid = null;
+    if (hit) {
+      hit.solid = null;
+    }
+
     // indexed rather than for-of: this runs every frame for every vehicle and falling drop
     for (let i = 0; i < list.length; i++) {
       const s = list[i] as Solid;
-      if (x < s.min[0] || x > s.max[0] || z < s.min[2] || z > s.max[2]) continue;
+      if (x < s.min[0] || x > s.max[0] || z < s.min[2] || z > s.max[2]) {
+        continue;
+      }
+
       const top = this.topAt(s, x, z);
       if (top <= y + stepUp && top > g) {
         g = top;
-        if (hit) hit.solid = s;
+
+        if (hit) {
+          hit.solid = s;
+        }
       }
     }
+
     return g;
   }
 
@@ -169,14 +213,17 @@ export class CollisionWorld {
   ceilingAt(x: number, z: number, r: number, fromY: number): number {
     let c = Infinity;
     for (const s of this.query(x - r, z - r, x + r, z + r)) {
-      if (s.min[1] >= fromY && s.min[1] < c && !s.ramp) c = s.min[1];
+      if (s.min[1] >= fromY && s.min[1] < c && !s.ramp) {
+        c = s.min[1];
+      }
     }
+
     return c;
   }
 
   /**
-   * Push a vertical cylinder (center p, radius r, feet at p[1], given height)
-   * out of every solid it overlaps that it can't step onto. Mutates p.
+   * Push a vertical cylinder (center p, radius r, feet at p[1], given height) out of every solid it overlaps that it
+   * can't step onto. Mutates p.
    */
   resolveCircle(p: V3, r: number, height: number, stepUp: number, hits?: CircleHit[]): boolean {
     let any = false;
@@ -184,19 +231,31 @@ export class CollisionWorld {
       let moved = false;
       const near = this.query(p[0] - r, p[2] - r, p[0] + r, p[2] + r);
       for (const s of near) {
-        if (s.min[1] >= p[1] + height) continue;
+        if (s.min[1] >= p[1] + height) {
+          continue;
+        }
+
         const qx = clamp(p[0], s.min[0], s.max[0]);
         const qz = clamp(p[2], s.min[2], s.max[2]);
         const top = this.topAt(s, qx, qz);
-        if (top <= p[1] + stepUp) continue;
+        if (top <= p[1] + stepUp) {
+          continue;
+        }
+
         let dx = p[0] - qx;
         let dz = p[2] - qz;
         const d2 = dx * dx + dz * dz;
-        if (d2 >= r * r) continue;
+        if (d2 >= r * r) {
+          continue;
+        }
+
         // overhead (a slab edge at the foot of a ramp): clearance counts from the ground under that edge,
         // which on a slope can sit well below the ground under the circle center. `near` holds every
         // solid under (qx,qz), which lies inside the queried rect.
-        if (s.min[1] > p[1] + stepUp && s.min[1] >= this.groundIn(near, qx, qz, p[1], stepUp) + height) continue;
+        if (s.min[1] > p[1] + stepUp && s.min[1] >= this.groundIn(near, qx, qz, p[1], stepUp) + height) {
+          continue;
+        }
+
         let push: number;
         if (d2 > 1e-10) {
           const d = Math.sqrt(d2);
@@ -217,31 +276,42 @@ export class CollisionWorld {
           dz = best[2];
           push = best[0] + r;
         }
+
         p[0] += dx * push;
         p[2] += dz * push;
         hits?.push({ solid: s, nx: dx, nz: dz });
         moved = true;
         any = true;
       }
-      if (!moved) break;
+
+      if (!moved) {
+        break;
+      }
     }
+
     return any;
   }
 
   /** Is the point inside any enabled solid (ramps use their sloped top)? */
   containsPoint(x: number, y: number, z: number): boolean {
     for (const s of this.query(x, z, x, z)) {
-      if (x <= s.min[0] || x >= s.max[0] || z <= s.min[2] || z >= s.max[2]) continue;
-      if (y > s.min[1] && y < this.topAt(s, x, z)) return true;
+      if (x <= s.min[0] || x >= s.max[0] || z <= s.min[2] || z >= s.max[2]) {
+        continue;
+      }
+
+      if (y > s.min[1] && y < this.topAt(s, x, z)) {
+        return true;
+      }
     }
+
     return false;
   }
 
   /**
-   * Sweep a sphere of radius `pad` from a to b (solids grown by pad) and return the fraction of the
-   * segment that is clear, 1 if nothing is hit. Ramps are hit on their sloped top. Solids that already
-   * contain `a` are ignored, so a camera boom starting against a wall still finds the open side.
-   * Thin slabs (floors, curbs) are skipped as in segmentBlocked.
+   * Sweep a sphere of radius `pad` from a to b (solids grown by pad) and return the fraction of the segment that is
+   * clear, 1 if nothing is hit. Ramps are hit on their sloped top. Solids that already contain `a` are ignored, so a
+   * camera boom starting against a wall still finds the open side. Thin slabs (floors, curbs) are skipped as in
+   * segmentBlocked.
    */
   raycast(a: V3, b: V3, pad: number): number {
     const d = segment(a, b);
@@ -253,7 +323,10 @@ export class CollisionWorld {
       Math.max(a[2], b[2]) + pad,
     );
     for (const s of near) {
-      if (s.max[1] - s.min[1] < THIN_SLAB) continue;
+      if (s.max[1] - s.min[1] < THIN_SLAB) {
+        continue;
+      }
+
       let t0 = 0;
       let t1 = best;
       let inside = true;
@@ -263,46 +336,75 @@ export class CollisionWorld {
         const di = d[i] as number;
         const lo = (s.min[i] as number) - pad;
         const hi = (s.max[i] as number) + pad;
-        if (o <= lo || o >= hi) inside = false;
+        if (o <= lo || o >= hi) {
+          inside = false;
+        }
+
         if (Math.abs(di) < 1e-9) {
           if (o < lo || o > hi) {
             miss = true;
             break;
           }
+
           continue;
         }
+
         let ta = (lo - o) / di;
         let tb = (hi - o) / di;
-        if (ta > tb) [ta, tb] = [tb, ta];
-        if (ta > t0) t0 = ta;
-        if (tb < t1) t1 = tb;
+        if (ta > tb) {
+          [ta, tb] = [tb, ta];
+        }
+
+        if (ta > t0) {
+          t0 = ta;
+        }
+
+        if (tb < t1) {
+          t1 = tb;
+        }
+
         if (t0 > t1) {
           miss = true;
           break;
         }
       }
-      if (miss) continue;
-      if (!s.ramp) {
-        if (!inside) best = t0;
+
+      if (miss) {
         continue;
       }
+
+      if (!s.ramp) {
+        if (!inside) {
+          best = t0;
+        }
+
+        continue;
+      }
+
       // a ramp is solid only under its sloped top, which varies linearly along the ray inside the box
       const above = (t: number): number => a[1] + d[1] * t - (this.topAt(s, a[0] + d[0] * t, a[2] + d[2] * t) + pad);
       const h0 = above(t0);
       if (h0 <= 0) {
-        if (!inside) best = t0;
+        if (!inside) {
+          best = t0;
+        }
+
         continue;
       }
+
       const h1 = above(t1);
-      if (h1 <= 0) best = t0 + ((t1 - t0) * h0) / (h0 - h1);
+      if (h1 <= 0) {
+        best = t0 + ((t1 - t0) * h0) / (h0 - h1);
+      }
     }
+
     return best;
   }
 
   /**
-   * True if the segment a->b passes through any solid (ramps treated as boxes). Thin slabs such as
-   * floors and curbs are skipped unless `slabs` is set; a line of sight sets it, so a deck floor
-   * between two people blocks their view of each other.
+   * True if the segment a->b passes through any solid (ramps treated as boxes). Thin slabs such as floors and curbs are
+   * skipped unless `slabs` is set; a line of sight sets it, so a deck floor between two people blocks their view of
+   * each other.
    */
   segmentBlocked(a: V3, b: V3, slabs = false): boolean {
     const minX = Math.min(a[0], b[0]);
@@ -311,7 +413,10 @@ export class CollisionWorld {
     const maxZ = Math.max(a[2], b[2]);
     const d = segment(a, b);
     for (const s of this.query(minX, minZ, maxX, maxZ)) {
-      if (!slabs && s.max[1] - s.min[1] < THIN_SLAB) continue;
+      if (!slabs && s.max[1] - s.min[1] < THIN_SLAB) {
+        continue;
+      }
+
       let t0 = 0;
       let t1 = 1;
       let hit = true;
@@ -328,17 +433,25 @@ export class CollisionWorld {
         } else {
           let ta = (lo - o) / di;
           let tb = (hi - o) / di;
-          if (ta > tb) [ta, tb] = [tb, ta];
+          if (ta > tb) {
+            [ta, tb] = [tb, ta];
+          }
+
           t0 = Math.max(t0, ta);
           t1 = Math.min(t1, tb);
+
           if (t0 > t1) {
             hit = false;
             break;
           }
         }
       }
-      if (hit) return true;
+
+      if (hit) {
+        return true;
+      }
     }
+
     return false;
   }
 }

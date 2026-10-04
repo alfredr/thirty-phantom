@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+
 import { Vector3 } from 'three';
+
 import { loadModules } from './modules.mjs';
 
 const [{ CodyState, FRIGHTENING }] = await loadModules('/src/game/cody/cody-state.ts');
@@ -12,9 +14,15 @@ function cody(form) {
 
 test("each form's abilities: Cody steals, phantom Cody possesses, drives the truck and raises the dead", () => {
   const { player, state } = cody('day');
-  assert.deepEqual(['steal', 'possess', 'truck', 'summon'].filter((a) => state.can(a)), ['steal']);
+  assert.deepEqual(
+    ['steal', 'possess', 'truck', 'summon'].filter((a) => state.can(a)),
+    ['steal'],
+  );
   player.form = 'night';
-  assert.deepEqual(['steal', 'possess', 'truck', 'summon'].filter((a) => state.can(a)), ['possess', 'truck', 'summon']);
+  assert.deepEqual(
+    ['steal', 'possess', 'truck', 'summon'].filter((a) => state.can(a)),
+    ['possess', 'truck', 'summon'],
+  );
 });
 
 test("a held Cody keeps his form's abilities plus the granted ones, until released", () => {
@@ -31,7 +39,7 @@ test("a held Cody keeps his form's abilities plus the granted ones, until releas
   assert.equal(state.can('possess'), false);
 });
 
-test("who frightens: his form on foot, the truck at the wheel, never the clock", () => {
+test('who frightens: his form on foot, the truck at the wheel, never the clock', () => {
   const { player, state } = cody('day');
   // On the tutorial's first night, Cody keeps his daytime form while on foot.
   state.hold('truck', 'possess');

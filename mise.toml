@@ -30,8 +30,13 @@ description = "Run regression tests"
 depends = ["install"]
 run = "npm test"
 
+[tasks.fmt]
+description = "Add braces and blank lines, then format"
+depends = ["install"]
+run = "npm run fmt"
+
 [tasks.check]
-description = "Check imports, types, and regression tests"
+description = "Check lint, formatting, types, and regression tests"
 depends = ["install"]
 run = "npm run check"
 

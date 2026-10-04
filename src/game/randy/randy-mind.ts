@@ -1,5 +1,7 @@
 import type { Vector3 } from 'three';
+
 import { type EventOf, mind, type MindEvent, type State, type StateOf } from '@/engine/sim/mind';
+
 import type { Npc } from './npcs';
 
 /** He holds the coat open this long (s), then closes it and waits this long before the next pitch. */
@@ -24,7 +26,10 @@ export type Pitch =
 export type Work =
   /** Roasting on the stick, as always. */
   | State<'roasting'>
-  /** Tires going into the fire one by one: how many are still to go of how many, the time since the last, and where they come from (Cody's hands). */
+  /**
+   * Tires going into the fire one by one: how many are still to go of how many, the time since the last, and where they
+   * come from (Cody's hands).
+   */
   | State<'feeding', { left: number; of: number; t: number; from: Vector3 }>;
 
 /** What can happen to Randy. Either of his minds can be sent any of these; each moves only on the ones its state lists. */
@@ -42,9 +47,16 @@ export type RandyEvent =
   /** Cody's handed him `n` tires, from his hands at `from`. */
   | MindEvent<'given', { n: number; from: Vector3 }>;
 
-const directed = (_n: Npc, _s: Pitch, { face }: EventOf<RandyEvent, 'held'>): StateOf<Pitch, 'directed'> => ({ at: 'directed', open: false, face });
+const directed = (_n: Npc, _s: Pitch, { face }: EventOf<RandyEvent, 'held'>): StateOf<Pitch, 'directed'> => ({
+  at: 'directed',
+  open: false,
+  face,
+});
 
-/** The pitch: open for a while when Cody's close, shut for a while, again; held open while he browses, and as a scene says while it has him. */
+/**
+ * The pitch: open for a while when Cody's close, shut for a while, again; held open while he browses, and as a scene
+ * says while it has him.
+ */
 export const RANDY_PITCH = mind<Npc, Pitch, RandyEvent>({
   resting: {
     tick: (n, s, dt) => ((s.t += dt) > PITCH_REST && n.near ? { at: 'pitching', t: 0 } : null),
@@ -53,8 +65,12 @@ export const RANDY_PITCH = mind<Npc, Pitch, RandyEvent>({
   pitching: {
     tick: (n, s, dt) => {
       s.t += dt;
+
       // Cody's gone: shut, but the rest counts from the pitch's start, so he's soon at it again if Cody's back
-      if (!n.near) return { at: 'resting', t: s.t };
+      if (!n.near) {
+        return { at: 'resting', t: s.t };
+      }
+
       return s.t > PITCH_HOLD ? { at: 'resting', t: 0 } : null;
     },
     on: { held: directed, browse: () => ({ at: 'browsing' }) },
@@ -80,14 +96,22 @@ export const RANDY_WORK = mind<Npc, Work, RandyEvent>({
   feeding: {
     tick: (n, s, dt) => {
       s.t += dt;
+
       if (s.left > 0) {
-        if (s.t < FEED_EVERY) return null;
+        if (s.t < FEED_EVERY) {
+          return null;
+        }
+
         s.t = 0;
         s.left--;
         n.npcs.feedTire(n, s.from);
         return null;
       }
-      if (s.t < FEED_EVERY + FEED_AFTER) return null;
+
+      if (s.t < FEED_EVERY + FEED_AFTER) {
+        return null;
+      }
+
       n.npcs.fed(n, s.of);
       return { at: 'roasting' };
     },

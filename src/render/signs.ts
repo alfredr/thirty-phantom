@@ -1,10 +1,12 @@
 import { type CanvasTexture, MeshStandardMaterial } from 'three';
+
 import { TAU } from '@/engine/core/math';
 import { Rng } from '@/engine/core/rng';
 import type { SignStyle } from '@/world/level-kinds';
+
 import { withCutaway } from './materials';
-import { addNoise, makeCanvas, toTexture, type Ctx } from './textures';
 import { PALETTE } from './palette';
+import { addNoise, makeCanvas, toTexture, type Ctx } from './textures';
 
 export { SIGN_STYLES, type SignStyle } from '@/world/level-kinds';
 
@@ -17,7 +19,15 @@ export interface SignTextures {
 
 /** A lit sign's material: its art, glowing through the emissive map. Register it for a day/night channel. */
 export function signMaterial(t: SignTextures, roughness: number): MeshStandardMaterial {
-  return withCutaway(new MeshStandardMaterial({ map: t.map, emissiveMap: t.emissive, emissive: 0xffffff, emissiveIntensity: t.glow, roughness }));
+  return withCutaway(
+    new MeshStandardMaterial({
+      map: t.map,
+      emissiveMap: t.emissive,
+      emissive: 0xffffff,
+      emissiveIntensity: t.glow,
+      roughness,
+    }),
+  );
 }
 
 const PX = 112; // canvas pixels per world unit
@@ -33,7 +43,10 @@ export function fitFont(ctx: Ctx, text: string, family: string, maxW: number, ma
   let px = maxPx;
   ctx.font = `${px}px ${family}`;
   const w = ctx.measureText(text).width;
-  if (w > maxW) px = Math.floor((px * maxW) / w);
+  if (w > maxW) {
+    px = Math.floor((px * maxW) / w);
+  }
+
   ctx.font = `${px}px ${family}`;
   return px;
 }
@@ -65,8 +78,8 @@ export function drawSkull(ctx: Ctx, cx: number, cy: number, s: number, fill: str
 }
 
 /**
- * Slime band along the top edge with drips, drawn to every context given
- * (so a color map and its emissive map get identical shapes).
+ * Slime band along the top edge with drips, drawn to every context given (so a color map and its emissive map get
+ * identical shapes).
  */
 export function drawSlimeTop(ctxs: Ctx[], w: number, band: number, rng: Rng, scale = 1, emissiveOnlyCtx?: Ctx): void {
   const drips: { x: number; w: number; l: number }[] = [];
@@ -77,9 +90,11 @@ export function drawSlimeTop(ctxs: Ctx[], w: number, band: number, rng: Rng, sca
     drips.push({ x, w: dw, l: long ? rng.range(band * 0.8, band * 3.2) : rng.range(band * 0.1, band * 0.7) });
     x += dw + rng.range(-3, 14) * scale;
   }
+
   const shape = (ctx: Ctx, grow: number): void => {
     ctx.beginPath();
     ctx.rect(-grow, -grow, w + grow * 2, band + grow * 2);
+
     for (const d of drips) {
       const r = d.w / 2 + grow;
       ctx.rect(d.x - grow, band - 2, d.w + grow * 2, d.l);
@@ -87,6 +102,7 @@ export function drawSlimeTop(ctxs: Ctx[], w: number, band: number, rng: Rng, sca
       ctx.arc(d.x + d.w / 2, band + d.l, r, 0, TAU);
     }
   };
+
   for (const ctx of ctxs) {
     const isEm = ctx === emissiveOnlyCtx;
     if (!isEm) {
@@ -94,13 +110,16 @@ export function drawSlimeTop(ctxs: Ctx[], w: number, band: number, rng: Rng, sca
       shape(ctx, 3 * scale);
       ctx.fill();
     }
+
     ctx.fillStyle = isEm ? '#5cd60f' : PALETTE.slime;
     shape(ctx, 0);
     ctx.fill();
     ctx.fillStyle = isEm ? '#b9ff52' : PALETTE.slimeHot;
+
     for (const d of drips) {
       ctx.fillRect(d.x + d.w * 0.22, band * 0.3, Math.max(1.5, d.w * 0.16), band * 0.5 + d.l * 0.7);
     }
+
     ctx.fillStyle = isEm ? '#2a7a00' : PALETTE.slimeDeep;
     ctx.fillRect(0, band * 0.78, w, band * 0.22);
   }
@@ -109,12 +128,14 @@ export function drawSlimeTop(ctxs: Ctx[], w: number, band: number, rng: Rng, sca
 function distress(ctx: Ctx, w: number, h: number, rng: Rng, n: number): void {
   ctx.save();
   ctx.globalCompositeOperation = 'destination-out';
+
   for (let i = 0; i < n; i++) {
     ctx.fillStyle = `rgba(0,0,0,${rng.range(0.2, 0.7)})`;
     ctx.beginPath();
     ctx.arc(rng.range(0, w), rng.range(0, h), rng.range(0.5, 2.2), 0, TAU);
     ctx.fill();
   }
+
   ctx.restore();
 }
 
@@ -184,11 +205,13 @@ function levelSign(lines: string[], w: number, h: number, rng: Rng): SignTexture
       ctx.fillStyle = '#d9b8ff';
       ctx.fillText(small, W / 2, H * 0.28);
     }
+
     fitFont(ctx, big, FONT.label, W * 0.8, small ? H * 0.5 : H * 0.7);
     ctx.fillStyle = em ? '#c87bff' : '#e7d2ff';
     ctx.fillText(big, W / 2, small ? H * 0.64 : H * 0.53);
     ctx.shadowBlur = 0;
   }
+
   addNoise(a.ctx, W, H, rng, 10);
   return finish(a.c, e.c, 1.1);
 }
@@ -210,6 +233,7 @@ function checkerSign(lines: string[], w: number, h: number, rng: Rng): SignTextu
       }
     }
   }
+
   const text = lines[0] ?? 'ROADIE';
   ctx.save();
   ctx.translate(W / 2, H * 0.58);
@@ -258,6 +282,7 @@ function neonSign(lines: string[], w: number, h: number, color: string, family: 
     });
     ctx.shadowBlur = 0;
   }
+
   addNoise(a.ctx, W, H, rng, 8);
   return finish(a.c, e.c, 2.2);
 }
@@ -289,11 +314,13 @@ function billboardSign(lines: string[], w: number, h: number, rng: Rng): SignTex
     c.fill();
     c.restore();
   }
+
   drawSlimeTop([ctx, e.ctx], W, H * 0.07, rng, H / 260, e.ctx);
   const [top, mid, bottom] = [lines[0] ?? '', lines[1] ?? '', lines[2] ?? ''];
   for (const c of [ctx, e.ctx]) {
     c.textAlign = 'center';
     c.textBaseline = 'middle';
+
     if (top) {
       fitFont(c, top, FONT.title, W * 0.5, H * 0.42);
       c.lineWidth = H * 0.03;
@@ -302,6 +329,7 @@ function billboardSign(lines: string[], w: number, h: number, rng: Rng): SignTex
       c.fillStyle = c === ctx ? PALETTE.slime : '#7fe82a';
       c.fillText(top, W * 0.36, H * 0.36);
     }
+
     if (mid) {
       fitFont(c, mid, FONT.title, W * 0.9, H * 0.3);
       c.lineWidth = H * 0.025;
@@ -310,12 +338,14 @@ function billboardSign(lines: string[], w: number, h: number, rng: Rng): SignTex
       c.fillStyle = c === ctx ? PALETTE.slime : '#7fe82a';
       c.fillText(mid, W / 2, H * 0.68);
     }
+
     if (bottom) {
       fitFont(c, bottom, FONT.label, W * 0.8, H * 0.1);
       c.fillStyle = c === ctx ? '#d9c4ff' : '#5a3a80';
       c.fillText(bottom, W / 2, H * 0.89);
     }
   }
+
   addNoise(ctx, W, H, rng, 12);
   return finish(a.c, e.c, 1.2);
 }
@@ -343,6 +373,7 @@ function scannerSign(w: number, h: number, rng: Rng): SignTextures {
     fitFont(ctx, 'BADGE', FONT.label, W * 0.8, H * 0.18);
     ctx.fillText('BADGE', W / 2, H * 0.8);
   }
+
   addNoise(a.ctx, W, H, rng, 8);
   return finish(a.c, e.c, 1.4);
 }
@@ -370,6 +401,7 @@ function dialSign(rng: Rng): SignTextures {
     ctx.arc(c, c, S * 0.41, 0, TAU);
     ctx.lineWidth = 3;
     ctx.stroke();
+
     for (let i = 0; i < 60; i++) {
       const ang = (i / 60) * TAU;
       const big = i % 5 === 0;
@@ -382,16 +414,22 @@ function dialSign(rng: Rng): SignTextures {
       ctx.strokeStyle = em ? PALETTE.slime : PALETTE.ink;
       ctx.stroke();
     }
+
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.font = `${S * 0.085}px ${FONT.label}`;
     ctx.fillStyle = em ? '#a8ff4a' : PALETTE.ink;
+
     for (let i = 1; i <= 12; i++) {
       const ang = (i / 12) * TAU;
       ctx.fillText(String(i), c + Math.sin(ang) * S * 0.3, c - Math.cos(ang) * S * 0.3 + 2);
     }
-    if (!em) drawSkull(ctx, c, c + S * 0.14, S * 0.12, '#cbbfdd', '#e9e1f2');
+
+    if (!em) {
+      drawSkull(ctx, c, c + S * 0.14, S * 0.12, '#cbbfdd', '#e9e1f2');
+    }
   }
+
   addNoise(a.ctx, S, S, rng, 10);
   return finish(a.c, e.c, 1.6);
 }
@@ -401,7 +439,10 @@ const cache = new Map<string, SignTextures>();
 export function signTextures(style: SignStyle, lines: string[], w: number, h: number, seed = 1): SignTextures {
   const key = `${style}|${lines.join('/')}|${w}|${h}|${seed}`;
   const hit = cache.get(key);
-  if (hit) return hit;
+  if (hit) {
+    return hit;
+  }
+
   const rng = new Rng(seed * 7919 + lines.join('').length);
   let out: SignTextures;
   switch (style) {
@@ -433,6 +474,7 @@ export function signTextures(style: SignStyle, lines: string[], w: number, h: nu
       out = dialSign(rng);
       break;
   }
+
   cache.set(key, out);
   return out;
 }

@@ -1,16 +1,34 @@
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
-export function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', parent?: HTMLElement, html?: string): HTMLElementTagNameMap[K] {
+export function el<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  cls = '',
+  parent?: HTMLElement,
+  html?: string,
+): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
-  if (cls) e.className = cls;
-  if (html !== undefined) e.innerHTML = html;
+  if (cls) {
+    e.className = cls;
+  }
+
+  if (html !== undefined) {
+    e.innerHTML = html;
+  }
+
   parent?.appendChild(e);
   return e;
 }
 
-export function svg<K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string, string | number>, parent?: Element): SVGElementTagNameMap[K] {
+export function svg<K extends keyof SVGElementTagNameMap>(
+  tag: K,
+  attrs: Record<string, string | number>,
+  parent?: Element,
+): SVGElementTagNameMap[K] {
   const e = document.createElementNS(SVG_NS, tag);
-  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v));
+  for (const [k, v] of Object.entries(attrs)) {
+    e.setAttribute(k, String(v));
+  }
+
   parent?.appendChild(e);
   return e;
 }

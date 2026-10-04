@@ -9,13 +9,14 @@ import {
   type WebGLRenderTarget,
 } from 'three';
 import { FullScreenQuad, Pass } from 'three/addons/postprocessing/Pass.js';
+
 import { GHOST_LAYER } from '@/render/layers';
+
 import { FULLSCREEN_VERT } from './fullscreen';
 
 /**
- * Draws the GHOST_LAYER (a faded Cody) on top of the image after the sky pass,
- * so a see-through figure against the sky isn't painted over. The scene's depth
- * is copied in first, so walls in front still hide it; the ghost's own depth
+ * Draws the GHOST_LAYER (a faded Cody) on top of the image after the sky pass, so a see-through figure against the sky
+ * isn't painted over. The scene's depth is copied in first, so walls in front still hide it; the ghost's own depth
  * twins then keep only its nearest surface. Not drawn into the ink normals at all.
  */
 export class GhostPass extends Pass {
@@ -51,13 +52,19 @@ export class GhostPass extends Pass {
 
   override render(renderer: WebGLRenderer, _writeBuffer: WebGLRenderTarget, readBuffer: WebGLRenderTarget): void {
     const cam = this.camera;
-    if (!cam || !this.depthTexture) return;
+    if (!cam || !this.depthTexture) {
+      return;
+    }
+
     if (!this.lit) {
       this.scene.traverse((o) => {
-        if ((o as Light).isLight) o.layers.enable(GHOST_LAYER);
+        if ((o as Light).isLight) {
+          o.layers.enable(GHOST_LAYER);
+        }
       });
       this.lit = true;
     }
+
     this.copyMat.uniforms.tDepth!.value = this.depthTexture;
     const autoClear = renderer.autoClear;
     const autoShadow = renderer.shadowMap.autoUpdate;

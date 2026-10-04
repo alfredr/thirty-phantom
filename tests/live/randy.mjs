@@ -7,25 +7,42 @@ const standBy = (meters) => {
   g.start();
   sim.run(30);
   const r = g.npcs.find('randy');
-  if (!r) return null;
+  if (!r) {
+    return null;
+  }
+
   const P = g.player.pos.constructor;
-  g.player.place(new P(r.pos.x + Math.sin(r.homeYaw) * meters, r.pos.y, r.pos.z + Math.cos(r.homeYaw) * meters), r.homeYaw + Math.PI);
+  g.player.place(
+    new P(r.pos.x + Math.sin(r.homeYaw) * meters, r.pos.y, r.pos.z + Math.cos(r.homeYaw) * meters),
+    r.homeYaw + Math.PI,
+  );
   return r;
 };
 
-/** Close by, Randy pitches; while Cody browses his wares the coat stays open past a pitch's length; when Cody walks off, it shuts. */
+/**
+ * Close by, Randy pitches; while Cody browses his wares the coat stays open past a pitch's length; when Cody walks off,
+ * it shuts.
+ */
 export function keepsHisCoatOpenWhileCodyBrowses() {
   const g = window.__game;
   const sim = window.__sim;
   const r = sim.standBy(2);
-  if (!r) return { ok: false, why: 'no Randy' };
+  if (!r) {
+    return { ok: false, why: 'no Randy' };
+  }
+
   const pitched = sim.until(() => r.pitch.state.at === 'browsing', 15, []);
   sim.run(30 * 6);
   const stillOpen = r.pitch.state.at === 'browsing' && r.pitching;
   const P = g.player.pos.constructor;
   g.player.place(new P(r.pos.x + 12, r.pos.y, r.pos.z), 0);
   sim.run(10);
-  return { ok: pitched.ok && stillOpen && !r.pitching, browsedAfter: pitched.seconds, stillOpenAfter6s: stillOpen, shutWhenGone: !r.pitching };
+  return {
+    ok: pitched.ok && stillOpen && !r.pitching,
+    browsedAfter: pitched.seconds,
+    stillOpenAfter6s: stillOpen,
+    shutWhenGone: !r.pitching,
+  };
 }
 
 /** Given tires, Randy pays the brisket there and then, takes no more while they burn, and goes back to roasting. */
@@ -33,7 +50,10 @@ export function paysForTiresAtOnceThenBurnsThem() {
   const g = window.__game;
   const sim = window.__sim;
   const r = sim.standBy(1.5);
-  if (!r) return { ok: false, why: 'no Randy' };
+  if (!r) {
+    return { ok: false, why: 'no Randy' };
+  }
+
   g.inventory.add('tire', 2);
   const before = g.inventory.count('brisket');
   const taker = g.tires.taker(g.player.pos);
@@ -41,15 +61,27 @@ export function paysForTiresAtOnceThenBurnsThem() {
   const paidAtOnce = g.inventory.count('brisket') - before;
   const busy = r.work.state.at === 'feeding' && g.tires.taker(g.player.pos) === null;
   const done = sim.until(() => r.work.state.at === 'roasting', 5, []);
-  return { ok: gave === 2 && paidAtOnce === 2 && busy && done.ok && g.tires.taker(g.player.pos) === r, gave, paidAtOnce, busyWhileBurning: busy, backToRoastingAfter: done.seconds };
+  return {
+    ok: gave === 2 && paidAtOnce === 2 && busy && done.ok && g.tires.taker(g.player.pos) === r,
+    gave,
+    paidAtOnce,
+    busyWhileBurning: busy,
+    backToRoastingAfter: done.seconds,
+  };
 }
 
-/** A scene holds Randy: no pitching of his own with Cody close; the coat opens and shuts as the scene says; released, he's back to his routine. */
+/**
+ * A scene holds Randy: no pitching of his own with Cody close; the coat opens and shuts as the scene says; released,
+ * he's back to his routine.
+ */
 export function aSceneDirectsHim() {
   const g = window.__game;
   const sim = window.__sim;
   const r = sim.standBy(2);
-  if (!r) return { ok: false, why: 'no Randy' };
+  if (!r) {
+    return { ok: false, why: 'no Randy' };
+  }
+
   r.send({ type: 'held', face: null });
   sim.run(30 * 6);
   const quiet = !r.pitching;
@@ -58,15 +90,26 @@ export function aSceneDirectsHim() {
   const flashed = r.pitching;
   r.send({ type: 'released' });
   const back = sim.until(() => r.pitching, 10, []);
-  return { ok: quiet && flashed && back.ok, quietWhileHeld: quiet, flashedOnCue: flashed, pitchingAgainAfter: back.seconds };
+  return {
+    ok: quiet && flashed && back.ok,
+    quietWhileHeld: quiet,
+    flashedOnCue: flashed,
+    pitchingAgainAfter: back.seconds,
+  };
 }
 
-/** Cody walks up to Randy carrying tires and presses F: they talk, F again gives him the tires (paid there and then), and when the talk's over Randy's back to his routine. */
+/**
+ * Cody walks up to Randy carrying tires and presses F: they talk, F again gives him the tires (paid there and then),
+ * and when the talk's over Randy's back to his routine.
+ */
 export function talkToGiveHimTires() {
   const g = window.__game;
   const sim = window.__sim;
   const r = sim.standBy(1.5);
-  if (!r) return { ok: false, why: 'no Randy' };
+  if (!r) {
+    return { ok: false, why: 'no Randy' };
+  }
+
   g.inventory.add('tire', 2);
   const brisket = g.inventory.count('brisket');
   sim.run(2);
@@ -93,7 +136,10 @@ export function tiresPutRandyOnTheMap() {
   const g = window.__game;
   const sim = window.__sim;
   const r = sim.standBy(1.5);
-  if (!r) return { ok: false, why: 'no Randy' };
+  if (!r) {
+    return { ok: false, why: 'no Randy' };
+  }
+
   const marked = () => g.objectives.has('tires-randy');
   sim.run(2);
   const before = marked();
@@ -113,7 +159,10 @@ export function noTalkDuringTheTutorial() {
   const g = window.__game;
   const sim = window.__sim;
   const r = sim.standBy(1.5);
-  if (!r) return { ok: false, why: 'no Randy' };
+  if (!r) {
+    return { ok: false, why: 'no Randy' };
+  }
+
   g.inventory.add('tire', 1);
   g.randyTalk.enabled = false;
   sim.run(2);
@@ -127,11 +176,18 @@ export function shopAndInventoryFollowState() {
   const g = window.__game;
   const sim = window.__sim;
   const r = sim.standBy(2);
-  if (!r) return { ok: false, why: 'no Randy' };
+  if (!r) {
+    return { ok: false, why: 'no Randy' };
+  }
+
   const slot = g.wares.slotOf('brisket');
   const price = g.wares.price('brisket');
   g.money.cash = price * 2;
-  if (!sim.until(() => r.pitch.state.at === 'browsing', 15, []).ok) return { ok: false, why: 'shop never opened' };
+
+  if (!sim.until(() => r.pitch.state.at === 'browsing', 15, []).ok) {
+    return { ok: false, why: 'shop never opened' };
+  }
+
   const selector = `.ware-slot[data-id="${slot.id}"]`;
   const before = document.querySelector(selector);
   sim.run(3);
@@ -139,7 +195,9 @@ export function shopAndInventoryFollowState() {
   g.input.press('Digit2');
   sim.run(3);
   const bought = g.inventory.count('brisket') === 1 && g.money.cash === price && slot.count === 127;
-  const redrawn = document.querySelector(selector) !== before && document.querySelector(`${selector} .ware-count`)?.textContent === '127';
+  const redrawn =
+    document.querySelector(selector) !== before &&
+    document.querySelector(`${selector} .ware-count`)?.textContent === '127';
   g.inventory.add('tire');
   sim.run(2);
   const tireTag = () => [...document.querySelectorAll('.inv-item')].find((el) => el.textContent.includes('TIRE'));
@@ -149,7 +207,15 @@ export function shopAndInventoryFollowState() {
   sim.run(3);
   const noGive = !tireTag()?.classList.contains('usable');
   const closed = !document.querySelector('.hud-wares.on');
-  return { ok: stable && bought && redrawn && canGive && noGive && closed, stable, bought, redrawn, canGive, noGive, closed };
+  return {
+    ok: stable && bought && redrawn && canGive && noGive && closed,
+    stable,
+    bought,
+    redrawn,
+    canGive,
+    noGive,
+    closed,
+  };
 }
 
 /** Steps shared by this set's cases, installed on window.__sim before each one. */

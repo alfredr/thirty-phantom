@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+
 import {
   BufferGeometry,
   Frustum,
@@ -12,6 +13,7 @@ import {
   Sprite,
   Vector3,
 } from 'three';
+
 import { loadModules } from './modules.mjs';
 
 const [{ curveCull, curveFrame }] = await loadModules('/src/render/curvature.ts');
@@ -28,7 +30,8 @@ function setup(t, radius = 2) {
   curveCull(camera, center, radius);
   const frustum = new Frustum().setFromProjectionMatrix(
     new Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse),
-    camera.coordinateSystem, camera.reversedDepth,
+    camera.coordinateSystem,
+    camera.reversedDepth,
   );
   t.after(() => curveCull(null));
   return { center, frustum, right: new Vector3(1, 0, -1).normalize() };

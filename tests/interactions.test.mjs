@@ -1,38 +1,92 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+
 import { Vector3 } from 'three';
+
 import { loadModules } from './modules.mjs';
 
-const [{ Interactions }, { ScriptedOffer }, { Inventory }] = await loadModules('/src/game/cody/interactions.ts', '/src/game/cody/cody-actions.ts', '/src/game/items/inventory.ts');
+const [{ Interactions }, { ScriptedOffer }, { Inventory }] = await loadModules(
+  '/src/game/cody/interactions.ts',
+  '/src/game/cody/cody-actions.ts',
+  '/src/game/items/inventory.ts',
+);
 
 function setup() {
-  const state = { blocked: false, valet: null, randy: null, ride: null, taker: null, eat: true, owned: new Set(), pressed: new Set(), vehicles: [] };
+  const state = {
+    blocked: false,
+    valet: null,
+    randy: null,
+    ride: null,
+    taker: null,
+    eat: true,
+    owned: new Set(),
+    pressed: new Set(),
+    vehicles: [],
+  };
   const log = [];
   const play = {
     cody: { can: (a) => a === 'steal' },
     conditions: { valetsOnShift: () => true, parking: () => true },
-    ride: () => state.ride, possessable: () => false, escaping: () => false, inFreeSpot: () => false,
-    enter: (v) => log.push(['enter', v.name]), exit: () => log.push(['exit']),
-    talkToValet: () => log.push(['valet']), talkToRandy: () => log.push(['randy']),
-    canEat: () => state.eat, eat: () => { log.push(['eat']); return true; },
-    tireTaker: () => state.taker, giveTires: (to) => { log.push(['give', to]); return true; },
+    ride: () => state.ride,
+    possessable: () => false,
+    escaping: () => false,
+    inFreeSpot: () => false,
+    enter: (v) => log.push(['enter', v.name]),
+    exit: () => log.push(['exit']),
+    talkToValet: () => log.push(['valet']),
+    talkToRandy: () => log.push(['randy']),
+    canEat: () => state.eat,
+    eat: () => {
+      log.push(['eat']);
+      return true;
+    },
+    tireTaker: () => state.taker,
+    giveTires: (to) => {
+      log.push(['give', to]);
+      return true;
+    },
   };
   const world = {
-    player: { pos: new Vector3() }, vehicles: state.vehicles,
-    valet: { talkable: () => state.valet }, randyTalk: { talkable: () => state.randy },
+    player: { pos: new Vector3() },
+    vehicles: state.vehicles,
+    valet: { talkable: () => state.valet },
+    randyTalk: { talkable: () => state.randy },
     elevators: { cabAt: () => null, landingAt: () => null },
-    playing: () => true, blocked: () => state.blocked,
+    playing: () => true,
+    blocked: () => state.blocked,
   };
-  const input = { focus: { owns: (key) => state.owned.has(key) }, wasPressed: (key) => !state.owned.has(key) && state.pressed.delete(key) };
+  const input = {
+    focus: { owns: (key) => state.owned.has(key) },
+    wasPressed: (key) => !state.owned.has(key) && state.pressed.delete(key),
+  };
   const shown = { prompt: null, refused: null, performed: [], failed: [] };
   const interactions = new Interactions(play, world, input, {
-    prompt: (text) => { shown.prompt = text; }, refused: (reason) => { shown.refused = reason; },
-    performed: (a) => shown.performed.push(a), failed: (a, reason) => shown.failed.push([a, reason]),
+    prompt: (text) => {
+      shown.prompt = text;
+    },
+    refused: (reason) => {
+      shown.refused = reason;
+    },
+    performed: (a) => shown.performed.push(a),
+    failed: (a, reason) => shown.failed.push([a, reason]),
   });
-  const press = (key = 'interact') => { state.pressed.add(key); interactions.update(); };
+  const press = (key = 'interact') => {
+    state.pressed.add(key);
+    interactions.update();
+  };
+
   return { state, log, shown, interactions, press };
 }
-const car = (name, x) => ({ name, pos: new Vector3(x, 0, 0), form: 'car', role: 'parked', insideDeck: false, grounded: true, breed: { enterReach: 4 } });
+
+const car = (name, x) => ({
+  name,
+  pos: new Vector3(x, 0, 0),
+  form: 'car',
+  role: 'parked',
+  insideDeck: false,
+  grounded: true,
+  breed: { enterReach: 4 },
+});
 
 test('discovery keeps scripts above conversations and the nearest vehicle first', () => {
   const { state, log, shown, interactions, press } = setup();

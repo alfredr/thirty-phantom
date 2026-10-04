@@ -22,10 +22,9 @@ interface Face {
 const PLANE_EPS = 1e-4;
 
 /**
- * Same-facing faces of different boxes in one plane z-fight: each draws its
- * own texture, tint and AO gradient there (columns flush with walls, slab
- * edges flush with parapets, cubes snapped together in Blender). For every
- * such overlap the smaller face keeps it and the larger one gets it cut out.
+ * Same-facing faces of different boxes in one plane z-fight: each draws its own texture, tint and AO gradient there
+ * (columns flush with walls, slab edges flush with parapets, cubes snapped together in Blender). For every such overlap
+ * the smaller face keeps it and the larger one gets it cut out.
  *
  * Returns the holes per face, keyed `box * 6 + face`.
  */
@@ -38,38 +37,67 @@ export function coplanarHoles(boxes: readonly FaceSource[]): Map<number, FaceRec
       const rect = faceRect(b.min, b.max, axis);
       const key = `${face}|${Math.round(plane / PLANE_EPS)}`;
       let list = planes.get(key);
-      if (!list) planes.set(key, (list = []));
+      if (!list) {
+        planes.set(key, (list = []));
+      }
+
       list.push({ box, face, rect, area: (rect.u1 - rect.u0) * (rect.v1 - rect.v0), yields: b.yields });
     }
   });
 
   const holes = new Map<number, FaceRect[]>();
   for (const list of planes.values()) {
-    if (list.length < 2) continue;
+    if (list.length < 2) {
+      continue;
+    }
+
     list.sort((a, b) => a.rect.u0 - b.rect.u0);
+
     for (let i = 0; i < list.length; i++) {
       const a = list[i] as Face;
       for (let j = i + 1; j < list.length; j++) {
         const b = list[j] as Face;
-        if (b.rect.u0 >= a.rect.u1) break;
+        if (b.rect.u0 >= a.rect.u1) {
+          break;
+        }
+
         const r = intersectRects(a.rect, b.rect);
-        if (r.u1 - r.u0 < PLANE_EPS || r.v1 - r.v0 < PLANE_EPS) continue;
+        if (r.u1 - r.u0 < PLANE_EPS || r.v1 - r.v0 < PLANE_EPS) {
+          continue;
+        }
+
         const loser = pickLoser(a, b);
-        if (!loser) continue;
+        if (!loser) {
+          continue;
+        }
+
         const key = loser.box * 6 + loser.face;
         let h = holes.get(key);
-        if (!h) holes.set(key, (h = []));
+        if (!h) {
+          holes.set(key, (h = []));
+        }
+
         h.push(r);
       }
     }
   }
+
   return holes;
 }
 
 /** The face that gets the overlap cut out, or null to leave both (two breakables). */
 function pickLoser(a: Face, b: Face): Face | null {
-  if (a.yields !== b.yields) return a.yields ? a : b;
-  if (a.yields) return null;
-  if (a.area !== b.area) return a.area > b.area ? a : b;
+  if (a.yields !== b.yields) {
+    return a.yields ? a : b;
+  }
+
+  if (a.yields) {
+    return null;
+  }
+
+  if (a.area !== b.area) {
+    return a.area > b.area ? a : b;
+  }
+
   return a.box > b.box ? a : b;
 }

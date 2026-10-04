@@ -1,10 +1,13 @@
 import type { Focus } from '@/engine/input/input';
 import { Bindings } from '@/engine/ui/binding';
 import { el } from '@/engine/ui/dom';
-import { keyText } from '@/ui/hud';
-import '@/ui/burner.css';
 import type { Control } from '@/game/controls';
+
+import '@/ui/burner.css';
+import { keyText } from '@/ui/hud';
+
 import type { Messages } from './messages';
+
 import './phone.css';
 
 /** Real milliseconds the phone stays up after coming up by itself (a text) before it slides back to the edge. */
@@ -39,13 +42,10 @@ export interface PhoneStatus {
 }
 
 /**
- * Cody's phone: Randy's burner. ~ (or the phone button) brings it up on its
- * home screen of apps; it also comes up by itself when Randy texts or calls,
- * and slides back to a strip at the edge after (click or tap that to bring
- * it back). Up in Cody's hand, its keys are its own: 1 to 9 open an app, the
- * arrows or Tab move between them and Enter opens one, Esc goes back and then
- * puts it away. The task right now sits in a line under the clock, phone up or
- * not.
+ * Cody's phone: Randy's burner. ~ (or the phone button) brings it up on its home screen of apps; it also comes up by
+ * itself when Randy texts or calls, and slides back to a strip at the edge after (click or tap that to bring it back).
+ * Up in Cody's hand, its keys are its own: 1 to 9 open an app, the arrows or Tab move between them and Enter opens one,
+ * Esc goes back and then puts it away. The task right now sits in a line under the clock, phone up or not.
  */
 export class Phone {
   /** It sounds off (for the game's 'phone' event): starts ringing, stops ringing, a text lands. */
@@ -88,7 +88,12 @@ export class Phone {
     const home = el('div', 'phone-home', screen);
     this.home = home;
     apps.forEach((app, i) => {
-      const icon = el('button', 'phone-icon', home, `<span class="glyph">${app.icon}</span><span class="name">${app.name}</span>`);
+      const icon = el(
+        'button',
+        'phone-icon',
+        home,
+        `<span class="glyph">${app.icon}</span><span class="name">${app.name}</span>`,
+      );
       icon.dataset.act = 'app';
       icon.addEventListener('click', () => this.go(app));
       this.badges.set(app, el('span', 'badge', icon, ''));
@@ -121,15 +126,20 @@ export class Phone {
     });
     // back up from the edge for another look
     this.frame.addEventListener('click', () => {
-      if (this.frame.classList.contains('peek')) this.open(this.app?.id);
+      if (this.frame.classList.contains('peek')) {
+        this.open(this.app?.id);
+      }
     });
     this.showScreen();
   }
 
   /** Up (on the home screen, or on app `id`) if it's away, or away if it's up. */
   toggle(id?: string): void {
-    if (this.held && (!id || this.app?.id === id)) this.putAway();
-    else this.open(id);
+    if (this.held && (!id || this.app?.id === id)) {
+      this.putAway();
+    } else {
+      this.open(id);
+    }
   }
 
   /** Cody brings it up, on app `id` or the home screen. It stays up till he puts it away. */
@@ -154,12 +164,18 @@ export class Phone {
 
   /** Shows app `id` (a text came in): up by itself for a while if Cody hasn't got it up, then back to the edge. */
   notify(id: string): void {
-    if (this.held) return;
+    if (this.held) {
+      return;
+    }
+
     this.go(this.apps.find((a) => a.id === id) ?? null);
     this.raise();
   }
 
-  /** A text from Randy: up comes the phone on his thread (if Cody hasn't got it up), he types, it lands. HTML is allowed, and `{action}` becomes its key cap. */
+  /**
+   * A text from Randy: up comes the phone on his thread (if Cody hasn't got it up), he types, it lands. HTML is
+   * allowed, and `{action}` becomes its key cap.
+   */
   text(msg: string): void {
     this.hangUp();
     this.notify('messages');
@@ -168,7 +184,9 @@ export class Phone {
 
   /** Randy's face (a data URL), for his contact and the call screen. */
   setAvatar(url: string): void {
-    for (const a of this.frame.querySelectorAll<HTMLElement>('.burner-avatar')) a.style.backgroundImage = `url(${url})`;
+    for (const a of this.frame.querySelectorAll<HTMLElement>('.burner-avatar')) {
+      a.style.backgroundImage = `url(${url})`;
+    }
   }
 
   /** Randy ringing: the incoming-call screen, the phone up and buzzing, till endCall. */
@@ -181,7 +199,10 @@ export class Phone {
   /** The call's over: back to what was on screen, and (unless Cody has it up) back to the edge. */
   endCall(): void {
     this.hangUp();
-    if (!this.held) this.peek();
+
+    if (!this.held) {
+      this.peek();
+    }
   }
 
   /** It buzzes in his hand (a text landed). */
@@ -201,12 +222,18 @@ export class Phone {
   /** Once a frame: the status bar, the badges, and the app on screen. */
   update(): void {
     this.views.update();
+
     for (const [app, badge] of this.badges) {
       const n = app.unseen?.() ?? 0;
       const text = n > 0 ? String(n) : '';
-      if (badge.textContent !== text) badge.textContent = text;
+      if (badge.textContent !== text) {
+        badge.textContent = text;
+      }
     }
-    if (this.app && this.frame.classList.contains('up')) this.app.update?.();
+
+    if (this.app && this.frame.classList.contains('up')) {
+      this.app.update?.();
+    }
   }
 
   /** Whether app `id` is on screen with the phone up. */
@@ -221,18 +248,27 @@ export class Phone {
   }
 
   private controls(): readonly Control[] {
-    if (this.app) return ['phone', 'cancel', 'menuUp', 'menuDown'];
+    if (this.app) {
+      return ['phone', 'cancel', 'menuUp', 'menuDown'];
+    }
+
     return ['phone', 'cancel', 'menuUp', 'menuDown', 'confirm', ...APP_KEYS.slice(0, this.apps.length)];
   }
 
   private press(control: Control): void {
-    if (control === 'phone') this.putAway();
-    else if (control === 'cancel') {
-      if (this.app) this.go(null);
-      else this.putAway();
+    if (control === 'phone') {
+      this.putAway();
+    } else if (control === 'cancel') {
+      if (this.app) {
+        this.go(null);
+      } else {
+        this.putAway();
+      }
     } else if (this.app) {
       const body = this.bodies.get(this.app);
-      if (body) body.scrollTop += control === 'menuUp' ? -SCROLL : control === 'menuDown' ? SCROLL : 0;
+      if (body) {
+        body.scrollTop += control === 'menuUp' ? -SCROLL : control === 'menuDown' ? SCROLL : 0;
+      }
     } else if (control === 'menuUp' || control === 'menuDown') {
       const n = this.apps.length;
       this.pick = (this.pick + (control === 'menuUp' ? n - 1 : 1)) % n;
@@ -241,16 +277,25 @@ export class Phone {
       this.go(this.apps[this.pick] ?? null);
     } else {
       const i = APP_KEYS.indexOf(control);
-      if (i >= 0) this.go(this.apps[i] ?? null);
+      if (i >= 0) {
+        this.go(this.apps[i] ?? null);
+      }
     }
   }
 
   /** App `app` on screen, or the home screen. */
   private go(app: PhoneApp | null): void {
-    if (app === this.app) return;
+    if (app === this.app) {
+      return;
+    }
+
     this.app?.shown?.(false);
     this.app = app;
-    if (app) this.pick = Math.max(0, this.apps.indexOf(app));
+
+    if (app) {
+      this.pick = Math.max(0, this.apps.indexOf(app));
+    }
+
     app?.shown?.(true);
     this.showScreen();
   }
@@ -258,12 +303,19 @@ export class Phone {
   private showScreen(): void {
     this.frame.dataset.screen = this.app?.id ?? 'home';
     this.home.classList.toggle('on', !this.app);
-    for (const [app, page] of this.pages) page.classList.toggle('on', app === this.app);
+
+    for (const [app, page] of this.pages) {
+      page.classList.toggle('on', app === this.app);
+    }
+
     this.icons.forEach((icon, i) => icon.classList.toggle('picked', i === this.pick));
   }
 
   private hangUp(): void {
-    if (!this.frame.classList.contains('calling')) return;
+    if (!this.frame.classList.contains('calling')) {
+      return;
+    }
+
     this.frame.classList.remove('calling');
     this.onBuzz?.('hangup');
   }
@@ -273,12 +325,19 @@ export class Phone {
     this.frame.classList.remove('peek');
     this.frame.classList.add('up');
     window.clearTimeout(this.lower);
-    if (lower) this.lower = window.setTimeout(() => this.peek(), HOLD);
+
+    if (lower) {
+      this.lower = window.setTimeout(() => this.peek(), HOLD);
+    }
   }
 
   private peek(): void {
     window.clearTimeout(this.lower);
-    if (this.held) return;
+
+    if (this.held) {
+      return;
+    }
+
     this.frame.classList.remove('up');
     this.frame.classList.add('peek');
   }

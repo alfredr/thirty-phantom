@@ -1,4 +1,5 @@
 import type { V3 } from '@/engine/core/math';
+
 import { box, build, group, model, NO_CAST, SIDES, solid } from './part';
 import { vehicleRig, wheels, type VehicleRig, type WheelSpec } from './rig';
 
@@ -21,7 +22,9 @@ export type SedanParams = typeof SEDAN;
 export function sedan(params: Partial<SedanParams> = {}) {
   const p = { ...SEDAN, ...params };
   const lower = box(...p.body).on(p.clearance);
-  const cabin = box(...p.cabin).on(lower).z(-p.cabinBack);
+  const cabin = box(...p.cabin)
+    .on(lower)
+    .z(-p.cabinBack);
   return model(
     {
       paint: { color: p.color, roughness: 0.45, metalness: 0.35 },
@@ -40,10 +43,24 @@ export function sedan(params: Partial<SedanParams> = {}) {
         solid(cabin.sized(1.6, 0.42, 0.08).onFace(cabin, '+z'), 'glass'),
         solid(cabin.sized(1.6, 0.38, 0.08).onFace(cabin, '-z'), 'glass'),
         solid(box(2.04, 0.12, 4.0).onFace(lower, '-y'), 'dark'),
-        ...(['+z', '-z'] as const).map((f) => solid(box(2.08, 0.22, 0.3).inside(lower, '-y').onFace(lower, f, -0.06), 'dark')),
+        ...(['+z', '-z'] as const).map((f) =>
+          solid(box(2.08, 0.22, 0.3).inside(lower, '-y').onFace(lower, f, -0.06), 'dark'),
+        ),
         ...SIDES.flatMap((s) => [
-          solid(box(0.44, 0.18, 0.06).at(s * 0.64, 0.86, 0).onFace(lower, '+z', 0.02), 'head', NO_CAST),
-          solid(box(0.44, 0.16, 0.06).at(s * 0.66, 0.9, 0).onFace(lower, '-z', 0.02), 'tail', NO_CAST),
+          solid(
+            box(0.44, 0.18, 0.06)
+              .at(s * 0.64, 0.86, 0)
+              .onFace(lower, '+z', 0.02),
+            'head',
+            NO_CAST,
+          ),
+          solid(
+            box(0.44, 0.16, 0.06)
+              .at(s * 0.66, 0.9, 0)
+              .onFace(lower, '-z', 0.02),
+            'tail',
+            NO_CAST,
+          ),
         ]),
       ]),
       ...wheels(p.wheels, 'tire', 'hub'),
@@ -52,9 +69,8 @@ export function sedan(params: Partial<SedanParams> = {}) {
 }
 
 /**
- * Sedans are modelled at SEDAN's sizes and built at this scale: a touch
- * smaller, so a car turns around inside the deck's floors without backing up.
- * TUNING.car's dimensions match.
+ * Sedans are modelled at SEDAN's sizes and built at this scale: a touch smaller, so a car turns around inside the
+ * deck's floors without backing up. TUNING.car's dimensions match.
  */
 export const SEDAN_SCALE = 0.92;
 
@@ -66,6 +82,10 @@ export function buildCarRig(color: string): VehicleRig {
 export function atSedanScale(rig: VehicleRig): VehicleRig {
   rig.root.scale.setScalar(SEDAN_SCALE);
   rig.scale = SEDAN_SCALE;
-  for (const w of rig.wheels) w.radius *= SEDAN_SCALE;
+
+  for (const w of rig.wheels) {
+    w.radius *= SEDAN_SCALE;
+  }
+
   return rig;
 }

@@ -2,7 +2,10 @@ import type { PartKind } from '@/actors/models/junk';
 import type { SoundOf } from '@/audio/cues';
 import { ITEM_ICONS } from '@/ui/item-icons';
 
-/** What Cody can carry: car parts picked up after smashes, Randy's brisket, what's left of his badge, and the burner phone Randy gives him. */
+/**
+ * What Cody can carry: car parts picked up after smashes, Randy's brisket, what's left of his badge, and the burner
+ * phone Randy gives him.
+ */
 export type ItemKind = PartKind | 'brisket' | 'badge' | 'burner';
 
 /** One kind of thing Cody can carry: everything that differs from one kind to the next. */
@@ -33,7 +36,13 @@ export const ITEM_BREEDS: Readonly<Record<ItemKind, ItemBreed>> = {
   brisket: { name: 'BRISKET', sound: 'item-gift', icon: ITEM_ICONS.brisket, price: 10 },
   badge: { name: 'UNREADABLE BADGE', note: 'COVERED IN BBQ SAUCE', sound: 'item-gift' },
   // on the house
-  burner: { name: 'BURNER PHONE', note: "RANDY'S NUMBER'S THE ONLY ONE IN IT", sound: 'item-gift', icon: ITEM_ICONS.burner, price: 0 },
+  burner: {
+    name: 'BURNER PHONE',
+    note: "RANDY'S NUMBER'S THE ONLY ONE IN IT",
+    sound: 'item-gift',
+    icon: ITEM_ICONS.burner,
+    price: 0,
+  },
 };
 
 /** Whether a name (from the HUD, say) is one of the items. */

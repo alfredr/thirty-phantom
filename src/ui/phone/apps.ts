@@ -2,6 +2,7 @@ import { Bindings } from '@/engine/ui/binding';
 import { el } from '@/engine/ui/dom';
 import type { ObjectiveKind } from '@/game/story/objectives';
 import { keyText } from '@/ui/hud';
+
 import { ICONS } from './icons';
 import type { PhoneApp } from './phone';
 
@@ -31,10 +32,16 @@ export class Tasks implements PhoneApp {
       draw: (g) => (now.innerHTML = `<h4>RIGHT NOW</h4><p>${g ? keyText(g) : 'NOTHING IN PARTICULAR.'}</p>`),
     });
     this.views.add({
-      read: () => list.marks().map((m) => `${m.kind}:${m.label}`).join('|'),
+      read: () =>
+        list
+          .marks()
+          .map((m) => `${m.kind}:${m.label}`)
+          .join('|'),
       draw: () => {
         const marks = list.marks();
-        marked.innerHTML = marks.length ? `<h4>MARKED</h4>${marks.map((m) => `<p class="mark ${m.kind}">${m.label}${m.kind === 'optional' ? ' <small>(OPTIONAL)</small>' : ''}</p>`).join('')}` : '';
+        marked.innerHTML = marks.length
+          ? `<h4>MARKED</h4>${marks.map((m) => `<p class="mark ${m.kind}">${m.label}${m.kind === 'optional' ? ' <small>(OPTIONAL)</small>' : ''}</p>`).join('')}`
+          : '';
       },
     });
     this.views.add({ read: () => list.aim(), draw: (a) => (aim.innerHTML = `<h4>THE BIG ONE</h4><p>${a}</p>`) });
@@ -45,7 +52,10 @@ export class Tasks implements PhoneApp {
   }
 }
 
-/** What the Phantoms app reads: the board's phantom count (the badge log less the cars really there) of how many spots, all the escapes, the badge log, cars really in the deck, and the spots their imprints haunt. */
+/**
+ * What the Phantoms app reads: the board's phantom count (the badge log less the cars really there) of how many spots,
+ * all the escapes, the badge log, cars really in the deck, and the spots their imprints haunt.
+ */
 export interface PhantomReport {
   onBoard: number;
   spots: number;
@@ -70,7 +80,13 @@ export class Phantoms implements PhoneApp {
     const where = el('section', 'phone-section', root);
     this.views.add({
       read: () => this.report(),
-      same: (a, b) => a.onBoard === b.onBoard && a.spots === b.spots && a.escapes === b.escapes && a.logged === b.logged && a.inDeck === b.inDeck && a.where.join() === b.where.join(),
+      same: (a, b) =>
+        a.onBoard === b.onBoard &&
+        a.spots === b.spots &&
+        a.escapes === b.escapes &&
+        a.logged === b.logged &&
+        a.inDeck === b.inDeck &&
+        a.where.join() === b.where.join(),
       draw: (r) => {
         count.innerHTML = `<b>${r.onBoard}</b><span>/ ${r.spots} ON THE BOARD</span>`;
         log.innerHTML = `<p>ESCAPES <b>${r.escapes}</b></p><p>BADGE LOG <b>${r.logged}</b></p><p>CARS IN THE DECK <b>${r.inDeck}</b></p>`;
@@ -115,8 +131,11 @@ export class Photos implements PhoneApp {
       el('p', 'phone-empty', root, 'NO PHOTOS YET.');
       return;
     }
+
     const grid = el('div', 'phone-photos', root);
-    for (const p of PHOTOS) el('figure', '', grid, `<img src="${p.src}" alt=""><figcaption>${p.caption}</figcaption>`);
+    for (const p of PHOTOS) {
+      el('figure', '', grid, `<img src="${p.src}" alt=""><figcaption>${p.caption}</figcaption>`);
+    }
   }
 }
 
@@ -134,7 +153,10 @@ export class Help implements PhoneApp {
   }
 
   shown(on: boolean): void {
-    if (!on || !this.root) return;
+    if (!on || !this.root) {
+      return;
+    }
+
     this.root.innerHTML = `<div class="phone-keys">${this.rows()
       .map(([keys, what]) => `<p><span class="keys">${keys}</span><span class="what">${what}</span></p>`)
       .join('')}</div>`;

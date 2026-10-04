@@ -1,9 +1,15 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+
 import { Vector3 } from 'three';
+
 import { loadModules } from './modules.mjs';
 
-const [{ Walker }, { Polyline }, { NavJob, NAV }] = await loadModules('/src/actors/walker.ts', '/src/engine/nav/polyline.ts', '/src/world/nav-grid.ts');
+const [{ Walker }, { Polyline }, { NavJob, NAV }] = await loadModules(
+  '/src/actors/walker.ts',
+  '/src/engine/nav/polyline.ts',
+  '/src/world/nav-grid.ts',
+);
 
 const request = (x) => new NavJob(new Vector3(), new Vector3(x, 0, 0), NAV.person);
 function finish(job) {
@@ -51,7 +57,10 @@ test('a failed route is reported once and does not choose a walking pace', () =>
   const walker = new Walker({});
   const job = request(3);
   let choices = 0;
-  walker.plan(job, () => { choices++; return 2; });
+  walker.plan(job, () => {
+    choices++;
+    return 2;
+  });
   job.status = 'failed';
   assert.equal(walker.followPlanned(), 'failed');
   assert.equal(walker.followPlanned(), null);

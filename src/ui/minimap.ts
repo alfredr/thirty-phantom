@@ -35,10 +35,10 @@ const COLORS = {
 const COMPASS = 13;
 
 /**
- * Top-down map (desktop): the city baked once from the level's boxes, turned so up on the map is
- * up on screen. A 16:10 screen in a plate in the corner on foot; while driving, the middle of the
- * dash unit, between the speedometer and GhASt pods. Objectives show as slime (primary) and lilac (optional), pinned to the
- * rim when out of range. Not on touch screens: there's no room beside the controls.
+ * Top-down map (desktop): the city baked once from the level's boxes, turned so up on the map is up on screen. A 16:10
+ * screen in a plate in the corner on foot; while driving, the middle of the dash unit, between the speedometer and
+ * GhASt pods. Objectives show as slime (primary) and lilac (optional), pinned to the rim when out of range. Not on
+ * touch screens: there's no room beside the controls.
  */
 export class Minimap {
   readonly root: HTMLDivElement;
@@ -54,8 +54,12 @@ export class Minimap {
     this.root = el('div', 'hud-map', parent);
     this.canvas = el('canvas', 'map-canvas', this.root);
     const ctx = this.canvas.getContext('2d');
-    if (!ctx) throw new Error('minimap: no 2d context');
+    if (!ctx) {
+      throw new Error('minimap: no 2d context');
+    }
+
     this.ctx = ctx;
+
     if (share) {
       this.x0 = share.x0;
       this.z0 = share.z0;
@@ -63,6 +67,7 @@ export class Minimap {
       this.marks = share.marks;
       return;
     }
+
     let [x0, z0, x1, z1] = [Infinity, Infinity, -Infinity, -Infinity];
     for (const b of level.boxes) {
       x0 = Math.min(x0, b.min[0]);
@@ -70,6 +75,7 @@ export class Minimap {
       x1 = Math.max(x1, b.max[0]);
       z1 = Math.max(z1, b.max[2]);
     }
+
     this.x0 = x0 - 20;
     this.z0 = z0 - 20;
     this.city = bake(level, this.x0, this.z0, x1 + 20 - this.x0, z1 + 20 - this.z0);
@@ -82,7 +88,10 @@ export class Minimap {
   }
 
   draw(v: MapView): void {
-    if (this.root.offsetParent === null) return;
+    if (this.root.offsetParent === null) {
+      return;
+    }
+
     const cw = this.canvas.clientWidth;
     const ch = this.canvas.clientHeight;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -90,6 +99,7 @@ export class Minimap {
       this.canvas.width = Math.round(cw * dpr);
       this.canvas.height = Math.round(ch * dpr);
     }
+
     const ctx = this.ctx;
     const k = v.driving ? ZOOM.drive : ZOOM.foot;
     // turn the world so the camera's up points up the map
@@ -122,19 +132,25 @@ export class Minimap {
         sx /= over;
         sy /= over;
       }
+
       return { x: cw / 2 + sx, y: ch / 2 + sy, out: over > 1 };
     };
 
     ctx.font = '9px Anton, Impact, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+
     for (const m of this.marks) {
       const p = toMap(m.x, m.z);
-      if (p.out) continue;
+      if (p.out) {
+        continue;
+      }
+
       dot(ctx, p.x, p.y, 6, COLORS.edge, m.color);
       ctx.fillStyle = COLORS.edge;
       ctx.fillText(m.label, p.x, p.y + 0.5);
     }
+
     // optional first, so the primary sits on top
     for (const m of [...v.marks].sort((a, b) => (a.kind === b.kind ? 0 : a.kind === 'optional' ? -1 : 1))) {
       const p = toMap(m.x, m.z);
@@ -157,8 +173,11 @@ export class Minimap {
         ctx.fill();
         ctx.stroke();
         ctx.restore();
-      } else diamond(ctx, p.x, p.y, primary ? 6 : 4.5, color);
+      } else {
+        diamond(ctx, p.x, p.y, primary ? 6 : 4.5, color);
+      }
     }
+
     // a compass in the top corner: N where world north (-z, the deck's north face) lies on the turned map
     const nx = sin;
     const ny = -cos;
@@ -203,7 +222,10 @@ export class Minimap {
 
   /** Moves it into `parent`: the dash unit's screen while driving, the phone's Map app, or the screen's corner. */
   dock(parent: HTMLElement, as: 'dash' | 'phone' | 'corner'): void {
-    if (this.root.parentElement !== parent) parent.appendChild(this.root);
+    if (this.root.parentElement !== parent) {
+      parent.appendChild(this.root);
+    }
+
     this.root.classList.toggle('in-dash', as === 'dash');
     this.root.classList.toggle('in-phone', as === 'phone');
   }
@@ -215,7 +237,10 @@ function bake(level: LevelData, x0: number, z0: number, w: number, d: number): H
   c.width = Math.ceil(w * BAKE);
   c.height = Math.ceil(d * BAKE);
   const ctx = c.getContext('2d');
-  if (!ctx) return c;
+  if (!ctx) {
+    return c;
+  }
+
   ctx.fillStyle = COLORS.road;
   ctx.fillRect(0, 0, c.width, c.height);
   const rect = (b: { min: V3; max: V3 }): [number, number, number, number] => [
@@ -227,15 +252,25 @@ function bake(level: LevelData, x0: number, z0: number, w: number, d: number): H
   const boxes = level.boxes.filter(shown).sort((a, b) => a.max[1] - b.max[1]);
   for (const b of boxes) {
     const flat = b.max[1] <= 0.35;
-    ctx.fillStyle = flat ? (b.mat === 'grass' ? COLORS.grass : b.mat === 'asphalt' ? COLORS.road : COLORS.walk) : b.mat === 'slime' ? COLORS.slime : COLORS.building;
+    ctx.fillStyle = flat
+      ? b.mat === 'grass'
+        ? COLORS.grass
+        : b.mat === 'asphalt'
+          ? COLORS.road
+          : COLORS.walk
+      : b.mat === 'slime'
+        ? COLORS.slime
+        : COLORS.building;
     const [x, y, rw, rh] = rect(b);
     ctx.fillRect(x, y, rw, rh);
+
     if (!flat) {
       ctx.strokeStyle = COLORS.edge;
       ctx.lineWidth = 1.5;
       ctx.strokeRect(x, y, rw, rh);
     }
   }
+
   const [x, y, rw, rh] = rect(level.deck);
   ctx.fillStyle = COLORS.deck;
   ctx.fillRect(x, y, rw, rh);
@@ -247,7 +282,10 @@ function bake(level: LevelData, x0: number, z0: number, w: number, d: number): H
 
 /** Boxes worth drawing from above: not the invisible ones, the paint, or lamp posts and other slivers. */
 function shown(b: BoxDef): boolean {
-  if (b.mat === 'invisible' || b.mat === 'marking' || b.mat.startsWith('lamp') || b.mat.startsWith('line')) return false;
+  if (b.mat === 'invisible' || b.mat === 'marking' || b.mat.startsWith('lamp') || b.mat.startsWith('line')) {
+    return false;
+  }
+
   const area = (b.max[0] - b.min[0]) * (b.max[2] - b.min[2]);
   return area >= 4;
 }

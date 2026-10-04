@@ -25,4 +25,14 @@ export const PALETTE = {
 } as const;
 
 /** Muted civilian car colors so the monster trucks pop. */
-export const CAR_COLORS = ['#5b5470', '#3d4a5c', '#6b5a7a', '#2f3540', '#7a6f86', '#4a3f5a', '#8a8398', '#3a2f48', '#56607a'];
+export const CAR_COLORS = [
+  '#5b5470',
+  '#3d4a5c',
+  '#6b5a7a',
+  '#2f3540',
+  '#7a6f86',
+  '#4a3f5a',
+  '#8a8398',
+  '#3a2f48',
+  '#56607a',
+];

@@ -1,8 +1,7 @@
 /**
- * Dubins paths: the shortest ways for a car that can only drive forward with a
- * minimum turning radius to get from one pose to another, built from Left /
- * Right arcs and Straights (LSL, RSR, LSR, RSL, RLR, LRL). Poses use the game's
- * yaw convention: forward = (sin yaw, cos yaw) in (x, z).
+ * Dubins paths: the shortest ways for a car that can only drive forward with a minimum turning radius to get from one
+ * pose to another, built from Left / Right arcs and Straights (LSL, RSR, LSR, RSL, RLR, LRL). Poses use the game's yaw
+ * convention: forward = (sin yaw, cos yaw) in (x, z).
  */
 
 import { mod, TAU } from '@/engine/core/math';
@@ -43,10 +42,14 @@ export function dubins(a: Pose, b: Pose, r: number): DubinsPath[] {
   const cab = Math.cos(al - be);
   const out: DubinsPath[] = [];
   const add = (word: Word, t: number, p: number, q: number): void => {
-    if (!(t >= 0 && p >= 0 && q >= 0) || !Number.isFinite(t + p + q)) return;
+    if (!(t >= 0 && p >= 0 && q >= 0) || !Number.isFinite(t + p + q)) {
+      return;
+    }
+
     const lengths: [number, number, number] = [t * r, p * r, q * r];
     out.push({ word, lengths, total: lengths[0] + lengths[1] + lengths[2] });
   };
+
   {
     const p2 = 2 + d * d - 2 * cab + 2 * d * (sa - sb);
     if (p2 >= 0) {
@@ -54,6 +57,7 @@ export function dubins(a: Pose, b: Pose, r: number): DubinsPath[] {
       add('LSL', mod2pi(-al + tmp), Math.sqrt(p2), mod2pi(be - tmp));
     }
   }
+
   {
     const p2 = 2 + d * d - 2 * cab + 2 * d * (sb - sa);
     if (p2 >= 0) {
@@ -61,6 +65,7 @@ export function dubins(a: Pose, b: Pose, r: number): DubinsPath[] {
       add('RSR', mod2pi(al - tmp), Math.sqrt(p2), mod2pi(-be + tmp));
     }
   }
+
   {
     const p2 = -2 + d * d + 2 * cab + 2 * d * (sa + sb);
     if (p2 >= 0) {
@@ -69,6 +74,7 @@ export function dubins(a: Pose, b: Pose, r: number): DubinsPath[] {
       add('LSR', mod2pi(-al + tmp), p, mod2pi(-mod2pi(be) + tmp));
     }
   }
+
   {
     const p2 = -2 + d * d + 2 * cab - 2 * d * (sa + sb);
     if (p2 >= 0) {
@@ -77,6 +83,7 @@ export function dubins(a: Pose, b: Pose, r: number): DubinsPath[] {
       add('RSL', mod2pi(al - tmp), p, mod2pi(be - tmp));
     }
   }
+
   {
     const tmp = (6 - d * d + 2 * cab + 2 * d * (sa - sb)) / 8;
     if (Math.abs(tmp) <= 1) {
@@ -85,6 +92,7 @@ export function dubins(a: Pose, b: Pose, r: number): DubinsPath[] {
       add('RLR', t, p, mod2pi(al - be - t + p));
     }
   }
+
   {
     const tmp = (6 - d * d + 2 * cab + 2 * d * (sb - sa)) / 8;
     if (Math.abs(tmp) <= 1) {
@@ -93,6 +101,7 @@ export function dubins(a: Pose, b: Pose, r: number): DubinsPath[] {
       add('LRL', t, p, mod2pi(be - al - t + p));
     }
   }
+
   return out.sort((x, y) => x.total - y.total);
 }
 
@@ -120,8 +129,10 @@ export function sampleDubins(a: Pose, path: DubinsPath, r: number, step: number)
         x = cx + s * r * Math.sin(th);
         y = cy - s * r * Math.cos(th);
       }
+
       out.push({ x, z: y, yaw: Math.PI / 2 - th });
     }
   }
+
   return out;
 }

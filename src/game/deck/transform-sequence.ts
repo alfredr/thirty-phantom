@@ -1,4 +1,5 @@
 import { Color, type Scene, Vector3 } from 'three';
+
 import type { VehicleRig } from '@/actors/models/rig';
 import type { Vehicle, VehicleForm } from '@/actors/vehicle';
 import { easeOutElastic } from '@/engine/core/math';
@@ -23,8 +24,8 @@ const _v = new Vector3();
 const _at = new Vector3();
 
 /**
- * Car -> monster truck (and back at sunrise): the old body shudders and lifts,
- * pops in a slime burst, and the new one springs out of it.
+ * Car -> monster truck (and back at sunrise): the old body shudders and lifts, pops in a slime burst, and the new one
+ * springs out of it.
  */
 export class TransformSequence {
   private t = 0;
@@ -45,26 +46,38 @@ export class TransformSequence {
   }
 
   update(dt: number): void {
-    if (this.done) return;
+    if (this.done) {
+      return;
+    }
+
     this.t += dt;
     const v = this.vehicle;
     const { slime } = this.fx;
     if (!this.swapped) {
       const k = Math.min(1, this.t / SHUDDER);
       const r = this.oldRig.root;
-      r.position.set(v.pos.x + (Math.random() - 0.5) * 0.25 * k, v.pos.y + k * 0.6, v.pos.z + (Math.random() - 0.5) * 0.25 * k);
+      r.position.set(
+        v.pos.x + (Math.random() - 0.5) * 0.25 * k,
+        v.pos.y + k * 0.6,
+        v.pos.z + (Math.random() - 0.5) * 0.25 * k,
+      );
       r.rotation.z = (Math.random() - 0.5) * 0.12 * k;
       r.scale.setScalar(this.oldRig.scale * (1 + Math.sin(this.t * 40) * 0.04 * k));
+
       if (Math.random() < 0.6) {
         _v.set((Math.random() - 0.5) * 3, Math.random() * 4, (Math.random() - 0.5) * 3);
         slime.spawn(_at.copy(r.position).setY(r.position.y + 1), _v, 0.15 + Math.random() * 0.15, 0.8, SLIME, v.pos.y);
       }
-      if (this.t >= SHUDDER) this.swap();
+
+      if (this.t >= SHUDDER) {
+        this.swap();
+      }
     } else {
       const k = Math.min(1, (this.t - SHUDDER) / SPRING);
       const nr = this.newRig as VehicleRig;
       // springs out to the scale it was built at (sedans are built smaller than modelled)
       nr.root.scale.setScalar(nr.scale * Math.max(0.05, easeOutElastic(k)));
+
       if (k >= 1) {
         nr.root.scale.setScalar(nr.scale);
         v.setStatus(null);

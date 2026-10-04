@@ -1,7 +1,19 @@
-import { Box3, Color, DynamicDrawUsage, Group, InstancedMesh, type Material, type Object3D, Sphere, Vector3 } from 'three';
+import {
+  Box3,
+  Color,
+  DynamicDrawUsage,
+  Group,
+  InstancedMesh,
+  type Material,
+  type Object3D,
+  Sphere,
+  Vector3,
+} from 'three';
+
 import { Rng } from '@/engine/core/rng';
 import { CHUNK, GeometryBatch, NO_TINT } from '@/render/geometry';
 import { PALETTE } from '@/render/palette';
+
 import { BULB, type DripSpec, type FilmSpec } from './drips';
 
 /** Where drops collect into a puddle, and how far it can spread there before running off the edge. */
@@ -17,9 +29,8 @@ const LEAK = 1 / 20;
 /** Fraction of a puddle that evaporates per second. */
 const EVAP = 1 / 45;
 /**
- * Wall drips: the lip keeps a bulb topped up to WALL_FILL of full. Past
- * SLIDE_AT it's too heavy for the wall to hold and slides, running slime into
- * the strand, until it's down to SLIDE_TO.
+ * Wall drips: the lip keeps a bulb topped up to WALL_FILL of full. Past SLIDE_AT it's too heavy for the wall to hold
+ * and slides, running slime into the strand, until it's down to SLIDE_TO.
  */
 const WALL_FILL = 0.85;
 const SLIDE_AT = 0.7;
@@ -73,24 +84,20 @@ interface Batch {
 }
 
 /**
- * Live edge slime, by volume. Each lip feeds its drips' bulbs at a steady rate
- * and every bulb leaks a little; a bulb's size is just how much it holds.
+ * Live edge slime, by volume. Each lip feeds its drips' bulbs at a steady rate and every bulb leaks a little; a bulb's
+ * size is just how much it holds.
  *
- * On a wall the lip keeps the bulb topped up past what the wall can hold, so
- * it slides down, running slime into the strand, until the drip reaches as far
- * as it goes. There it settles where inflow and leak balance. Hanging free past
- * the end of its face, a bulb's weight stretches the neck against cohesion. A
- * lightly fed one settles, sagging; a heavily fed one fills until it pinches
- * off and the rest springs back. Drops fall, splat and feed a puddle, and
+ * On a wall the lip keeps the bulb topped up past what the wall can hold, so it slides down, running slime into the
+ * strand, until the drip reaches as far as it goes. There it settles where inflow and leak balance. Hanging free past
+ * the end of its face, a bulb's weight stretches the neck against cohesion. A lightly fed one settles, sagging; a
+ * heavily fed one fills until it pinches off and the rest springs back. Drops fall, splat and feed a puddle, and
  * puddles evaporate.
  *
- * Underside slime has no lip feeding it. Each run of it slides down to its
- * under edge, its films shrinking as they go, and collects in the drips there
- * until they fall; once it's spent, it's gone.
+ * Underside slime has no lip feeding it. Each run of it slides down to its under edge, its films shrinking as they go,
+ * and collects in the drips there until they fall; once it's spent, it's gone.
  *
- * All state lives in typed arrays sized at build time, the hot loops make no
- * calls that return numbers, and instance matrices are written in place
- * (axis-aligned boxes: scale and translation only), so a frame allocates nothing.
+ * All state lives in typed arrays sized at build time, the hot loops make no calls that return numbers, and instance
+ * matrices are written in place (axis-aligned boxes: scale and translation only), so a frame allocates nothing.
  */
 export class SlimeSim {
   readonly root = new Group();
@@ -173,15 +180,25 @@ export class SlimeSim {
     const groupFor = (owner: Object3D | null, x: number, z: number) => {
       const key = owner ? `o${owner.id}` : `${Math.floor(x / CHUNK)}|${Math.floor(z / CHUNK)}`;
       let g = groups.get(key);
-      if (!g) groups.set(key, (g = { owner, specs: [], films: [] }));
+      if (!g) {
+        groups.set(key, (g = { owner, specs: [], films: [] }));
+      }
+
       return g;
     };
+
     for (const { spec, owner } of entries) {
-      groupFor(owner, spec.axis === 'x' ? spec.along : spec.face, spec.axis === 'x' ? spec.face : spec.along).specs.push(spec);
+      groupFor(
+        owner,
+        spec.axis === 'x' ? spec.along : spec.face,
+        spec.axis === 'x' ? spec.face : spec.along,
+      ).specs.push(spec);
     }
+
     for (const { film, owner } of filmEntries) {
       groupFor(owner, (film.min[0] + film.max[0]) / 2, (film.min[2] + film.max[2]) / 2).films.push(film);
     }
+
     const n = entries.length;
     const nf = filmEntries.length;
     this.film = new Float32Array(nf * 7);
@@ -240,6 +257,7 @@ export class SlimeSim {
       const fstart = fk;
       let slots = 0;
       bounds.makeEmpty();
+
       for (const s of specs) {
         this.axisZ[k] = s.axis === 'z' ? 1 : 0;
         this.out[k] = s.out;
@@ -257,6 +275,7 @@ export class SlimeSim {
         slots += s.hang > 0 ? 4 : 2;
         const full = bulbVolume(s.w, s.hang > 0);
         this.full[k] = full;
+
         // start each drip somewhere in its life, as if it had been oozing a while
         if (s.run >= 0) {
           // underside: empty, waiting on its run
@@ -281,14 +300,18 @@ export class SlimeSim {
           this.vol[k] = f * full;
           this.stretch[k] = s.hang * (0.2 + 0.8 * f * f);
           const period = Math.log((c - REST) / (c - 1)) / LEAK;
-          if (s.pool >= 0) inflow[s.pool] = (inflow[s.pool] as number) + ((1 - REST) * full) / period;
+          if (s.pool >= 0) {
+            inflow[s.pool] = (inflow[s.pool] as number) + ((1 - REST) * full) / period;
+          }
         }
+
         const x = s.axis === 'x' ? s.along : s.face;
         const z = s.axis === 'x' ? s.face : s.along;
         bounds.expandByPoint(p.set(x, s.top + 0.3, z));
         bounds.expandByPoint(p.set(x, s.drops ? s.landY : s.top - s.reach - s.hang * 1.5 - 0.6, z));
         k++;
       }
+
       for (const f of films) {
         const o = fk * 7;
         this.film.set([f.min[0], f.min[1], f.min[2], f.max[0], f.max[1], f.max[2], f.edge], o);
@@ -301,6 +324,7 @@ export class SlimeSim {
         bounds.expandByPoint(p.set(f.max[0], f.max[1], f.max[2]));
         fk++;
       }
+
       bounds.expandByScalar(0.6);
       const mesh = new InstancedMesh(geo, mat, slots);
       mesh.instanceMatrix.setUsage(DynamicDrawUsage);
@@ -348,13 +372,16 @@ export class SlimeSim {
       this.paspect[i] = rng.range(PUDDLE.aspect[0], PUDDLE.aspect[1]);
     });
 
-    for (const b of this.batches) this.draw(b);
+    for (const b of this.batches) {
+      this.draw(b);
+    }
+
     this.drawPuddles();
   }
 
   /**
-   * How much slime the world has, at once: 0 none at all (lips, drips, puddles hidden), 1 all of
-   * it. In between, drips reach part way out of their lips and the rest dissolves in.
+   * How much slime the world has, at once: 0 none at all (lips, drips, puddles hidden), 1 all of it. In between, drips
+   * reach part way out of their lips and the rest dissolves in.
    */
   setPresence(f: number): void {
     this.presence = Math.min(1, Math.max(0, f));
@@ -369,7 +396,10 @@ export class SlimeSim {
 
   /** Another material to fade in and out with the slime (the fountain and pond pools). */
   fadeWith(mat: Material): void {
-    if (!this.fading.includes(mat)) this.fading.push(mat);
+    if (!this.fading.includes(mat)) {
+      this.fading.push(mat);
+    }
+
     this.applyPresence();
   }
 
@@ -378,6 +408,7 @@ export class SlimeSim {
     for (const m of this.fading) {
       m.visible = f > 0;
       m.opacity = f;
+
       // solid ones dissolve in with dithered alpha (no sorting trouble); decals already blend
       if (!m.transparent && m.alphaHash !== f < 1) {
         m.alphaHash = f < 1;
@@ -388,33 +419,55 @@ export class SlimeSim {
 
   update(dt: number, focus: { x: number; z: number }): void {
     this.dt = Math.min(dt, 0.1);
+
     if (this.emerging > 0) {
       this.presence = Math.min(1, this.presence + this.dt * this.emerging);
-      if (this.presence >= 1) this.emerging = 0;
+
+      if (this.presence >= 1) {
+        this.emerging = 0;
+      }
+
       this.applyPresence();
     }
+
     // underside runs slide down to their edge drips, shared out evenly
     const rv = this.runVol;
     for (let r = 0; r < rv.length; r++) {
       const v = rv[r] as number;
-      if (v === 0) continue;
+      if (v === 0) {
+        continue;
+      }
+
       const d = v < 1e-6 ? v : v * DRAIN * this.dt;
       rv[r] = v - d;
       const n = this.runDrips[r] as number;
       this.runShare[r] = n > 0 ? d / n : 0;
     }
+
     for (let i = 0; i < this.batches.length; i++) {
       const b = this.batches[i] as Batch;
-      if (b.owner && !b.owner.visible) continue;
-      for (let k = b.start; k < b.end; k++) this.step(k, focus);
+      if (b.owner && !b.owner.visible) {
+        continue;
+      }
+
+      for (let k = b.start; k < b.end; k++) {
+        this.step(k, focus);
+      }
+
       const dx = b.cx - focus.x;
       const dz = b.cz - focus.z;
       const near = b.r + NEAR;
-      if (dx * dx + dz * dz < near * near) this.draw(b);
+      if (dx * dx + dz * dz < near * near) {
+        this.draw(b);
+      }
     }
+
     const pv = this.pv;
     const evap = 1 - EVAP * this.dt;
-    for (let i = 0; i < pv.length; i++) pv[i] = (pv[i] as number) * evap;
+    for (let i = 0; i < pv.length; i++) {
+      pv[i] = (pv[i] as number) * evap;
+    }
+
     this.drawPuddles();
   }
 
@@ -424,7 +477,10 @@ export class SlimeSim {
     // in from the lip (or the run it collects), out by leaking
     const run = this.run[k] as number;
     let vol = (this.vol[k] as number) + ((this.feed[k] as number) - LEAK * (this.vol[k] as number)) * dt;
-    if (run >= 0) vol += this.runShare[run] as number;
+    if (run >= 0) {
+      vol += this.runShare[run] as number;
+    }
+
     if (this.hang[k] === 0) {
       // on the wall: too heavy to hold, it slides and runs into the strand
       const reach = this.reach[k] as number;
@@ -436,12 +492,15 @@ export class SlimeSim {
           len += d;
           vol -= d * section;
         }
+
         this.sliding[k] = d > 0 && len < reach && vol > SLIDE_TO * full ? 1 : 0;
         this.len[k] = len;
       }
+
       this.vol[k] = vol;
       return;
     }
+
     // hanging free: the neck springs toward where the bulb's weight pulls it
     const f = vol / full;
     const hang = this.hang[k] as number;
@@ -450,6 +509,7 @@ export class SlimeSim {
     let v = this.stretchV[k] as number;
     v += ((target - e) * STIFF - v * DAMPING) * dt;
     e = Math.max(0, e + v * dt);
+
     if (this.drops[k] && f >= 1 && this.dropVol[k] === 0) {
       // pinch off: the bulb drops and the neck springs back
       const w = this.w[k] as number;
@@ -460,11 +520,15 @@ export class SlimeSim {
       vol = REST * full;
       v = -hang * 3;
     }
+
     this.vol[k] = vol;
     this.stretch[k] = e;
     this.stretchV[k] = v;
     const dropVol = this.dropVol[k] as number;
-    if (dropVol === 0) return;
+    if (dropVol === 0) {
+      return;
+    }
+
     const vy = (this.dropV[k] as number) - GRAVITY * dt;
     const y = (this.dropY[k] as number) + vy * dt;
     const w = this.w[k] as number;
@@ -473,17 +537,27 @@ export class SlimeSim {
       this.dropY[k] = y;
       return;
     }
+
     // splat
     this.dropVol[k] = 0;
     const pool = this.pool[k] as number;
-    if (pool >= 0) this.pv[pool] = (this.pv[pool] as number) + dropVol;
-    if (!this.onSplat) return;
+    if (pool >= 0) {
+      this.pv[pool] = (this.pv[pool] as number) + dropVol;
+    }
+
+    if (!this.onSplat) {
+      return;
+    }
+
     const c = (this.face[k] as number) + (this.out[k] as number) * 0.035;
     const x = this.axisZ[k] ? c : (this.along[k] as number);
     const z = this.axisZ[k] ? (this.along[k] as number) : c;
     const dx = x - focus.x;
     const dz = z - focus.z;
-    if (dx * dx + dz * dz > SPLASH * SPLASH) return;
+    if (dx * dx + dz * dz > SPLASH * SPLASH) {
+      return;
+    }
+
     this.splat.set(x, this.landY[k] as number, z);
     this.splatSize = w;
     this.onSplat();
@@ -519,6 +593,7 @@ export class SlimeSim {
         this.box(m, s + 16, k);
         continue;
       }
+
       const face = top - (this.reach[k] as number) * g;
       const end = face - (this.stretch[k] as number) * g;
       // an underside drip is only there while it has slime in it
@@ -559,6 +634,7 @@ export class SlimeSim {
         m[s + 58] = 0;
       }
     }
+
     // underside films sink toward their edge as their run drains
     const fl = this.film;
     for (let i = b.fstart; i < b.fend; i++) {
@@ -577,6 +653,7 @@ export class SlimeSim {
       m[o + 13] = (y0 + y1) * 0.5;
       m[o + 14] = ((fl[j + 2] as number) + (fl[j + 5] as number)) * 0.5;
     }
+
     b.mesh.instanceMatrix.needsUpdate = true;
   }
 
@@ -600,6 +677,7 @@ export class SlimeSim {
       m[o + 12] = along;
       m[o + 14] = c;
     }
+
     m[o + 5] = y1 > y0 ? y1 - y0 : 0;
     m[o + 13] = (y0 + y1) * 0.5;
   }
@@ -625,6 +703,7 @@ export class SlimeSim {
       m[o + 13] = this.py[i] as number;
       m[o + 14] = this.pz[i] as number;
     }
+
     this.puddles.instanceMatrix.needsUpdate = true;
   }
 }
@@ -632,5 +711,10 @@ export class SlimeSim {
 /** Slime in a full bulb off a drip of width w (bulbSize at f = 1). */
 function bulbVolume(w: number, free: boolean): number {
   const across = w * BULB_W;
-  return across * across * (1 + (free ? BULB.stretchFree : BULB.stretchWall)) * (BULB.depth + (free ? BULB.bulge * across : 0));
+  return (
+    across *
+    across *
+    (1 + (free ? BULB.stretchFree : BULB.stretchWall)) *
+    (BULB.depth + (free ? BULB.bulge * across : 0))
+  );
 }

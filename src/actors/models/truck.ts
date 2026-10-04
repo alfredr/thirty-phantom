@@ -1,11 +1,13 @@
 import { AdditiveBlending, Mesh, MeshBasicMaterial, PlaneGeometry } from 'three';
+
 import { TAU, type V3 } from '@/engine/core/math';
 import { Rng } from '@/engine/core/rng';
+import { FX_LAYER } from '@/render/layers';
 import { truckLivery } from '@/render/livery';
 import { withCutaway } from '@/render/materials';
 import { PALETTE } from '@/render/palette';
-import { FX_LAYER } from '@/render/layers';
 import { radialGlowTexture } from '@/render/textures';
+
 import { box, type Box, build, type Face, group, model, NO_CAST, type Part, SIDES, solid, torus } from './part';
 import { vehicleRig, wheels, type VehicleRig, type WheelSpec } from './rig';
 
@@ -41,13 +43,14 @@ function drip(b: Box, face: Face, u: number, len: number, w: number): Part<'slim
 
 /** Calls `fn` at random steps along `b` on `axis`, inset from both ends. */
 function along(rng: Rng, b: Box, axis: 0 | 2, inset: number, step: [number, number], fn: (v: number) => void): void {
-  for (let v = b.min[axis] + inset; v < b.max[axis] - inset; v += rng.range(step[0], step[1])) fn(v);
+  for (let v = b.min[axis] + inset; v < b.max[axis] - inset; v += rng.range(step[0], step[1])) {
+    fn(v);
+  }
 }
 
 /**
- * The phantom monster truck (+Z forward): lifted slime-green frame, purple
- * glowing rims, name/number livery with slime pouring off every edge, roof
- * light bar. The green underglow is added by buildTruckRig.
+ * The phantom monster truck (+Z forward): lifted slime-green frame, purple glowing rims, name/number livery with slime
+ * pouring off every edge, roof light bar. The green underglow is added by buildTruckRig.
  */
 export function monsterTruck(params: Partial<TruckParams> = {}) {
   const p = { ...TRUCK, ...params };
@@ -57,14 +60,23 @@ export function monsterTruck(params: Partial<TruckParams> = {}) {
 
   const beam = box(3.2, 0.3, 0.3).y(W.r);
   const tub = box(...p.tub).on(p.lift);
-  const cab = box(...p.cab).on(tub).z(p.cabZ);
+  const cab = box(...p.cab)
+    .on(tub)
+    .z(p.cabZ);
   const windows = cab.grow(0.03, -0.225, -0.25).move(0, 0.06, 0.05);
   const bed = box(2.7, 0.32, 2.05).on(tub).inside(tub, '-z', 0.025);
   const tailgate = bed.sized(2.7, 0.32, 0.16).onFace(tub, '-z', 0.05);
   const bar = box(2.2, 0.16, 0.34).on(cab).z(0.6);
 
   const chassis = [
-    ...SIDES.map((s) => solid(box(0.24, 0.24, 5.4).x(s * 0.62).on(beam), 'frame')),
+    ...SIDES.map((s) =>
+      solid(
+        box(0.24, 0.24, 5.4)
+          .x(s * 0.62)
+          .on(beam),
+        'frame',
+      ),
+    ),
     ...SIDES.map((s) => solid(beam.z((s * W.base) / 2), 'metal')),
     // shocks with glowing rings
     ...SIDES.flatMap((sx) =>
@@ -90,20 +102,52 @@ export function monsterTruck(params: Partial<TruckParams> = {}) {
     solid(tailgate, 'base'),
     solid(bed.sized(2.36, 0.12, 1.9).on(tub), 'slime', NO_CAST),
     // bumpers, grille, lights
-    ...(['+z', '-z'] as const).map((f) => solid(box(2.9, 0.34, 0.36).on(tub.bottom - 0.07).onFace(tub, f, 0.07), 'metal')),
+    ...(['+z', '-z'] as const).map((f) =>
+      solid(
+        box(2.9, 0.34, 0.36)
+          .on(tub.bottom - 0.07)
+          .onFace(tub, f, 0.07),
+        'metal',
+      ),
+    ),
     solid(tub.sized(1.6, 0.5, 0.06).outside(tub, '+z').move(0, 0.05), 'metal'),
     ...SIDES.flatMap((s) => {
-      const stack = box(0.2, 1.1, 0.2).at(s * 1.0, 3.6, 0).outside(cab, '-z');
+      const stack = box(0.2, 1.1, 0.2)
+        .at(s * 1.0, 3.6, 0)
+        .outside(cab, '-z');
       return [
-        solid(tub.sized(0.5, 0.26, 0.08).outside(tub, '+z').move(s * 0.95, 0.15), 'lightG', NO_CAST),
-        solid(tub.sized(0.42, 0.2, 0.08).outside(tub, '-z').move(s * 1.0, 0.15), 'lightP', NO_CAST),
+        solid(
+          tub
+            .sized(0.5, 0.26, 0.08)
+            .outside(tub, '+z')
+            .move(s * 0.95, 0.15),
+          'lightG',
+          NO_CAST,
+        ),
+        solid(
+          tub
+            .sized(0.42, 0.2, 0.08)
+            .outside(tub, '-z')
+            .move(s * 1.0, 0.15),
+          'lightP',
+          NO_CAST,
+        ),
         solid(stack, 'metal'),
         solid(stack.sized(0.24, 0.1, 0.24).on(stack), 'lightG', NO_CAST),
       ];
     }),
     // roof light bar
     solid(bar, 'metal'),
-    ...[0, 1, 2, 3].map((i) => solid(bar.sized(0.34, 0.18, 0.3).onFace(bar, '+y', 0.02).x((i - 1.5) * 0.52), 'lightG', NO_CAST)),
+    ...[0, 1, 2, 3].map((i) =>
+      solid(
+        bar
+          .sized(0.34, 0.18, 0.3)
+          .onFace(bar, '+y', 0.02)
+          .x((i - 1.5) * 0.52),
+        'lightG',
+        NO_CAST,
+      ),
+    ),
   ];
 
   // slime drips off the tub, cab and tailgate edges
@@ -111,10 +155,15 @@ export function monsterTruck(params: Partial<TruckParams> = {}) {
   for (const s of SIDES) {
     const f: Face = s > 0 ? '+x' : '-x';
     along(rng, tub, 2, 0.15, [0.25, 0.7], (z) => {
-      drips.push(...drip(tub, f, z, rng.chance(0.3) ? rng.range(0.5, 1.1) : rng.range(0.12, 0.35), rng.range(0.1, 0.22)));
+      drips.push(
+        ...drip(tub, f, z, rng.chance(0.3) ? rng.range(0.5, 1.1) : rng.range(0.12, 0.35), rng.range(0.1, 0.22)),
+      );
     });
-    along(rng, cab, 2, 0.05, [0.3, 0.6], (z) => drips.push(...drip(cab, f, z, rng.range(0.15, 0.4), rng.range(0.1, 0.18))));
+    along(rng, cab, 2, 0.05, [0.3, 0.6], (z) =>
+      drips.push(...drip(cab, f, z, rng.range(0.15, 0.4), rng.range(0.1, 0.18))),
+    );
   }
+
   along(rng, tub, 0, 0.15, [0.25, 0.6], (x) => {
     drips.push(...drip(tub, '+z', x, rng.range(0.1, 0.5), rng.range(0.1, 0.2)));
     drips.push(...drip(tailgate, '-z', x, rng.range(0.15, 0.7), rng.range(0.1, 0.2)));
@@ -125,7 +174,9 @@ export function monsterTruck(params: Partial<TruckParams> = {}) {
     const a = (i / p.lugs) * TAU;
     return solid(box(W.w * 1.02, 0.22, 0.32).at(0, Math.cos(a) * W.r, Math.sin(a) * W.r), 'tire', { rot: [a, 0, 0] });
   });
-  const rims = SIDES.map((s) => torus(0.62, 0.09, 8, 28, 'rim', { at: [s * (W.w / 2 + 0.02), 0, 0], rot: [0, Math.PI / 2, 0] }));
+  const rims = SIDES.map((s) =>
+    torus(0.62, 0.09, 8, 28, 'rim', { at: [s * (W.w / 2 + 0.02), 0, 0], rot: [0, Math.PI / 2, 0] }),
+  );
 
   const lit = { emissive: '#ffffff', emissiveIntensity: 0.9, roughness: 0.45 };
   return model(
@@ -157,7 +208,17 @@ export function buildTruckRig(params: Partial<TruckParams> = {}): VehicleRig {
 export function addUnderglow(rig: VehicleRig): void {
   const ug = new Mesh(
     new PlaneGeometry(7.5, 9),
-    withCutaway(new MeshBasicMaterial({ map: radialGlowTexture(), color: '#6dff1a', transparent: true, blending: AdditiveBlending, depthWrite: false, opacity: 0.75, toneMapped: false })),
+    withCutaway(
+      new MeshBasicMaterial({
+        map: radialGlowTexture(),
+        color: '#6dff1a',
+        transparent: true,
+        blending: AdditiveBlending,
+        depthWrite: false,
+        opacity: 0.75,
+        toneMapped: false,
+      }),
+    ),
   );
   ug.rotation.x = -Math.PI / 2;
   ug.position.y = 0.06;

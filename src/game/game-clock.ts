@@ -30,16 +30,28 @@ export class GameClock {
     const ev = this.ev;
     ev.nightfall = false;
     ev.sunrise = false;
-    if (this.paused) return ev;
+
+    if (this.paused) {
+      return ev;
+    }
+
     const before = this.phase;
     this.hours += (dt * this.rate) / TUNING.clock.secondsPerGameHour;
-    if (this.hours >= 24) this.hours -= 24;
+
+    if (this.hours >= 24) {
+      this.hours -= 24;
+    }
+
     const after = this.phase;
-    if (before === 'day' && after === 'night') ev.nightfall = true;
+    if (before === 'day' && after === 'night') {
+      ev.nightfall = true;
+    }
+
     if (before === 'night' && after === 'day') {
       ev.sunrise = true;
       this.day++;
     }
+
     return ev;
   }
 

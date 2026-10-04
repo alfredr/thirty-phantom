@@ -1,27 +1,28 @@
 import type { Controls, Kit, Voice } from './synth';
 
 /**
- * An engine, sounding as a function of its state (revs and load) and nothing else: no stretch of
- * the recording is ever played through in time, so none of its own rev-ups and spin-downs come
- * through. Three state-driven sources:
+ * An engine, sounding as a function of its state (revs and load) and nothing else: no stretch of the recording is ever
+ * played through in time, so none of its own rev-ups and spin-downs come through. Three state-driven sources:
  *
- * - Grains of recorded engine cycles (the base). The recording is cut into cycles offline
- *   (tools/engine-grains.py), each tagged with its firing rate, whether the engine was pulling
- *   or falling, and its level. Each grain is a cycle or two picked by the firing rate the revs
- *   ask for (and the load), centred on its firing pulse and fired on a grid at the target period
- *   (pitch-synchronous overlap-add), so the pitch is set by the revs alone and holds steady while
- *   they do. A grain is barely resampled (a few percent): the spacing does the rest, so the
- *   exhaust's and the body's resonances stay where they are as the firing rate climbs, as they
- *   do on a real engine, and a recording's range stretches past what it covers.
+ * - Grains of recorded engine cycles (the base). The recording is cut into cycles offline (tools/engine-grains.py), each
+ *   tagged with its firing rate, whether the engine was pulling or falling, and its level. Each grain is a cycle or two
+ *   picked by the firing rate the revs ask for (and the load), centred on its firing pulse and fired on a grid at the
+ *   target period (pitch-synchronous overlap-add), so the pitch is set by the revs alone and holds steady while they
+ *   do. A grain is barely resampled (a few percent): the spacing does the rest, so the exhaust's and the body's
+ *   resonances stay where they are as the firing rate climbs, as they do on a real engine, and a recording's range
+ *   stretches past what it covers.
  * - Breath: the intake and exhaust under load, noise in a band rising with the revs.
  * - Burble: pops in the exhaust on the overrun, when the throttle's shut at speed.
  *
- * Granular synthesis from a recording was rated the most realistic engine sound for games in a
- * listening test (af Malmborg, "Evaluation of Car Engine Sound Design Methods in Video Games",
- * Luleå University of Technology, 2021), ahead of crossfaded pitched loops and a physical model.
+ * Granular synthesis from a recording was rated the most realistic engine sound for games in a listening test (af
+ * Malmborg, "Evaluation of Car Engine Sound Design Methods in Video Games", Luleå University of Technology, 2021),
+ * ahead of crossfaded pitched loops and a physical model.
  */
 
-/** A tagged cycle: [time in the file (s), firing rate (Hz, the recording's units), pulling 1 / steady 0.5 / falling 0, level]. */
+/**
+ * A tagged cycle: [time in the file (s), firing rate (Hz, the recording's units), pulling 1 / steady 0.5 / falling 0,
+ * level].
+ */
 export type Mark = readonly [number, number, number, number];
 
 export interface EngineP {
@@ -72,9 +73,13 @@ class Table {
     let hi = order.length;
     while (lo < hi) {
       const mid = (lo + hi) >> 1;
-      if ((m[order[mid] ?? 0]?.[1] ?? 0) < hz) lo = mid + 1;
-      else hi = mid;
+      if ((m[order[mid] ?? 0]?.[1] ?? 0) < hz) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
     }
+
     let best = -1;
     let score = Infinity;
     for (let j = Math.max(0, lo - 30); j < Math.min(order.length, lo + 30); j++) {
@@ -82,15 +87,22 @@ class Table {
       const a = m[i - k];
       const b = m[i + k];
       const c = m[i];
-      if (!a || !b || !c) continue;
+      if (!a || !b || !c) {
+        continue;
+      }
+
       // the cycles either side must run on from it (not across a cut between stretches)
-      if (b[0] - a[0] > (2.6 * k) / c[1]) continue;
+      if (b[0] - a[0] > (2.6 * k) / c[1]) {
+        continue;
+      }
+
       const s = Math.abs(Math.log(c[1] / hz)) * 20 + Math.abs(c[2] - load) * 0.8 + Math.random() * 0.35;
       if (s < score) {
         score = s;
         best = i;
       }
     }
+
     return best;
   }
 }
@@ -98,11 +110,17 @@ class Table {
 /** Grain tables, worked out once per set of marks. */
 const tables = new WeakMap<readonly Mark[], Table>();
 
-/** Loop: the engine in `buf`, its cycles in `marks` (see above). Controls: rpm (0 idle, 1 redline), load (0 coasting, 1 flat out). */
+/**
+ * Loop: the engine in `buf`, its cycles in `marks` (see above). Controls: rpm (0 idle, 1 redline), load (0 coasting, 1
+ * flat out).
+ */
 export function engine(k: Kit, out: AudioNode, t: number, buf: AudioBuffer, marks: readonly Mark[], p: EngineP): Voice {
   const ctx = k.ctx;
   let table = tables.get(marks);
-  if (!table) tables.set(marks, (table = new Table(marks)));
+  if (!table) {
+    tables.set(marks, (table = new Table(marks)));
+  }
+
   const tab = table;
   const tone = ctx.createBiquadFilter();
   tone.type = 'lowpass';
@@ -136,7 +154,11 @@ export function engine(k: Kit, out: AudioNode, t: number, buf: AudioBuffer, mark
     const dt = Math.max(0, at - last);
     last = at;
     coasting = load < 0.15 ? coasting + dt : 0;
-    if (next < at + LEAD) next = at + LEAD;
+
+    if (next < at + LEAD) {
+      next = at + LEAD;
+    }
+
     while (next < at + LEAD + 0.1) {
       const hz = p.idle + (p.top - p.idle) * rpm;
       // within the recording's range a grain can be several cycles; pitched past it, its cycles
@@ -145,8 +167,14 @@ export function engine(k: Kit, out: AudioNode, t: number, buf: AudioBuffer, mark
       // one, if the nearest cycle is further off than a nudge (its cycles would fight the grid)
       let n = Math.max(1, Math.ceil(hz / p.rate));
       let i = tab.pick(hz, load, n);
-      while (i < 0 && n > 1) i = tab.pick(hz, load, --n);
-      if (n > 1 && Math.abs(Math.log(hz / (marks[i]?.[1] ?? hz))) > NUDGE) i = tab.pick(hz, load, (n = 1));
+      while (i < 0 && n > 1) {
+        i = tab.pick(hz, load, --n);
+      }
+
+      if (n > 1 && Math.abs(Math.log(hz / (marks[i]?.[1] ?? hz))) > NUDGE) {
+        i = tab.pick(hz, load, (n = 1));
+      }
+
       const c = marks[i];
       const a = marks[i - n];
       const b = marks[i + n];
@@ -161,17 +189,26 @@ export function engine(k: Kit, out: AudioNode, t: number, buf: AudioBuffer, mark
         const lope = 1 - (p.lope ?? 0) * clamp(1 - rpm * 3, 0, 1) * (beat[cycle % beat.length] ?? 0);
         const g = ctx.createGain();
         g.gain.value = 0;
-        g.gain.setValueCurveAtTime(HANN.map((v) => v * (tab.norm[i] ?? 1) * Math.min(1, (c[1] * r) / hz) * lope), start, dur);
+        g.gain.setValueCurveAtTime(
+          HANN.map((v) => v * (tab.norm[i] ?? 1) * Math.min(1, (c[1] * r) / hz) * lope),
+          start,
+          dur,
+        );
         src.connect(g).connect(tone);
         src.start(start, a[0], b[0] - a[0]);
         src.stop(start + dur + 0.01);
       }
+
       cycle += n;
       next += n / hz;
     }
+
     // overrun: the odd pop in the exhaust, dying away as it coasts on
     const burble = p.burble.rate * rpm * Math.max(0, 1 - coasting / p.burble.fade);
-    if (popAt < at) popAt = at;
+    if (popAt < at) {
+      popAt = at;
+    }
+
     while (burble > 0.5 && popAt < at + 0.1) {
       popAt += -Math.log(1 - Math.random()) / burble;
       const len = rand(0.015, 0.045);
@@ -189,6 +226,7 @@ export function engine(k: Kit, out: AudioNode, t: number, buf: AudioBuffer, mark
       n.start(popAt, Math.random() * (k.noise.duration - 0.1), len + 0.05);
     }
   };
+
   tick(t);
   return {
     end: Infinity,

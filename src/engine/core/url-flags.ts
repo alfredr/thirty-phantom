@@ -1,6 +1,6 @@
 /**
- * Read URL options once at startup. See README.md for supported flags.
- * Node tools have no location and use an empty query string.
+ * Read URL options once at startup. See README.md for supported flags. Node tools have no location and use an empty
+ * query string.
  */
 const params = new URLSearchParams(globalThis.location?.search ?? '');
 

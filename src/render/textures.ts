@@ -1,6 +1,8 @@
 import { CanvasTexture, RepeatWrapping, SRGBColorSpace } from 'three';
+
 import { TAU } from '@/engine/core/math';
 import { Rng } from '@/engine/core/rng';
+
 import { PALETTE } from './palette';
 
 export type Ctx = CanvasRenderingContext2D;
@@ -10,17 +12,24 @@ export function makeCanvas(w: number, h: number): { c: HTMLCanvasElement; ctx: C
   c.width = w;
   c.height = h;
   const ctx = c.getContext('2d', { willReadFrequently: false });
-  if (!ctx) throw new Error('2D canvas unavailable');
+  if (!ctx) {
+    throw new Error('2D canvas unavailable');
+  }
+
   return { c, ctx };
 }
 
 export function toTexture(c: HTMLCanvasElement, opts: { repeat?: boolean; srgb?: boolean } = {}): CanvasTexture {
   const t = new CanvasTexture(c);
-  if (opts.srgb !== false) t.colorSpace = SRGBColorSpace;
+  if (opts.srgb !== false) {
+    t.colorSpace = SRGBColorSpace;
+  }
+
   if (opts.repeat) {
     t.wrapS = RepeatWrapping;
     t.wrapT = RepeatWrapping;
   }
+
   t.anisotropy = 8;
   t.needsUpdate = true;
   return t;
@@ -36,6 +45,7 @@ export function addNoise(ctx: Ctx, w: number, h: number, rng: Rng, amount: numbe
     d[i + 1] = (d[i + 1] ?? 0) + n;
     d[i + 2] = (d[i + 2] ?? 0) + n * 1.1;
   }
+
   ctx.putImageData(img, 0, 0);
 }
 
@@ -45,7 +55,10 @@ function wrappedBlob(ctx: Ctx, S: number, x: number, y: number, r: number, color
     for (const oy of [-S, 0, S]) {
       const cx = x + ox;
       const cy = y + oy;
-      if (cx + r < 0 || cx - r > S || cy + r < 0 || cy - r > S) continue;
+      if (cx + r < 0 || cx - r > S || cy + r < 0 || cy - r > S) {
+        continue;
+      }
+
       const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
       g.addColorStop(0, color);
       g.addColorStop(1, 'rgba(0,0,0,0)');
@@ -62,6 +75,7 @@ export function concreteTexture(base: string, seed: number, seams = true): Canva
   const rng = new Rng(seed);
   ctx.fillStyle = base;
   ctx.fillRect(0, 0, S, S);
+
   for (let i = 0; i < 46; i++) {
     const dark = rng.chance(0.65);
     wrappedBlob(
@@ -73,6 +87,7 @@ export function concreteTexture(base: string, seed: number, seams = true): Canva
       dark ? `rgba(25,12,40,${rng.range(0.05, 0.14)})` : `rgba(255,245,255,${rng.range(0.03, 0.08)})`,
     );
   }
+
   // water streaks running down
   for (let i = 0; i < 14; i++) {
     const x = rng.range(0, S);
@@ -84,15 +99,21 @@ export function concreteTexture(base: string, seed: number, seams = true): Canva
     g.addColorStop(1, 'rgba(20,10,30,0)');
     ctx.fillStyle = g;
     ctx.fillRect(x, y, w, len);
-    if (y + len > S) ctx.fillRect(x, y - S, w, len);
+
+    if (y + len > S) {
+      ctx.fillRect(x, y - S, w, len);
+    }
   }
+
   for (let i = 0; i < 1400; i++) {
     ctx.fillStyle = `rgba(15,6,25,${rng.range(0.08, 0.35)})`;
     const s = rng.chance(0.85) ? 1 : 2;
     ctx.fillRect(rng.int(0, S - 1), rng.int(0, S - 1), s, s);
   }
+
   // cracks
   ctx.lineCap = 'round';
+
   for (let i = 0; i < 5; i++) {
     let x = rng.range(0, S);
     let y = rng.range(0, S);
@@ -105,12 +126,15 @@ export function concreteTexture(base: string, seed: number, seams = true): Canva
       x += rng.range(-16, 16);
       y += rng.range(-16, 16);
       ctx.lineTo(x, y);
+
       if (rng.chance(0.25)) {
         ctx.moveTo(x, y);
       }
     }
+
     ctx.stroke();
   }
+
   // grime speckle clusters
   for (let i = 0; i < 18; i++) {
     const cx = rng.range(0, S);
@@ -120,6 +144,7 @@ export function concreteTexture(base: string, seed: number, seams = true): Canva
       ctx.fillRect(cx + rng.range(-14, 14), cy + rng.range(-14, 14), rng.int(1, 3), rng.int(1, 3));
     }
   }
+
   if (seams) {
     ctx.fillStyle = 'rgba(20,8,32,0.45)';
     ctx.fillRect(0, 0, S, 2);
@@ -128,6 +153,7 @@ export function concreteTexture(base: string, seed: number, seams = true): Canva
     ctx.fillRect(0, 2, S, 1);
     ctx.fillRect(2, 0, 1, S);
   }
+
   addNoise(ctx, S, S, rng, 16);
   return toTexture(c, { repeat: true });
 }
@@ -138,32 +164,40 @@ export function asphaltTexture(seed: number): CanvasTexture {
   const rng = new Rng(seed);
   ctx.fillStyle = PALETTE.asphalt;
   ctx.fillRect(0, 0, S, S);
+
   for (let i = 0; i < 30; i++) {
     wrappedBlob(ctx, S, rng.range(0, S), rng.range(0, S), rng.range(20, 80), `rgba(10,4,18,${rng.range(0.08, 0.2)})`);
   }
+
   for (let i = 0; i < 6; i++) {
     wrappedBlob(ctx, S, rng.range(0, S), rng.range(0, S), rng.range(10, 30), 'rgba(120,80,170,0.10)');
   }
+
   for (let i = 0; i < 3000; i++) {
     const v = rng.chance(0.5);
     ctx.fillStyle = v ? `rgba(160,150,180,${rng.range(0.05, 0.18)})` : `rgba(0,0,0,${rng.range(0.1, 0.3)})`;
     ctx.fillRect(rng.int(0, S - 1), rng.int(0, S - 1), 1, 1);
   }
+
   // cracks
   ctx.strokeStyle = 'rgba(8,3,14,0.55)';
   ctx.lineWidth = 1;
+
   for (let i = 0; i < 4; i++) {
     let x = rng.range(0, S);
     let y = rng.range(0, S);
     ctx.beginPath();
     ctx.moveTo(x, y);
+
     for (let k = 0; k < 8; k++) {
       x += rng.range(-14, 14);
       y += rng.range(-14, 14);
       ctx.lineTo(x, y);
     }
+
     ctx.stroke();
   }
+
   addNoise(ctx, S, S, rng, 10);
   return toTexture(c, { repeat: true });
 }
@@ -174,14 +208,18 @@ export function sidewalkTexture(seed: number): CanvasTexture {
   const rng = new Rng(seed);
   ctx.fillStyle = PALETTE.sidewalk;
   ctx.fillRect(0, 0, S, S);
+
   for (let i = 0; i < 20; i++) {
     wrappedBlob(ctx, S, rng.range(0, S), rng.range(0, S), rng.range(15, 50), `rgba(20,10,35,${rng.range(0.06, 0.15)})`);
   }
+
   ctx.fillStyle = 'rgba(15,6,25,0.5)';
+
   for (let i = 0; i < 4; i++) {
     ctx.fillRect(i * 64, 0, 2, S);
     ctx.fillRect(0, i * 64, S, 2);
   }
+
   addNoise(ctx, S, S, rng, 14);
   return toTexture(c, { repeat: true });
 }
@@ -192,13 +230,23 @@ export function grassTexture(seed: number): CanvasTexture {
   const rng = new Rng(seed);
   ctx.fillStyle = '#23301f';
   ctx.fillRect(0, 0, S, S);
+
   for (let i = 0; i < 30; i++) {
-    wrappedBlob(ctx, S, rng.range(0, S), rng.range(0, S), rng.range(15, 60), `rgba(${rng.chance(0.5) ? '60,20,80' : '10,20,5'},0.18)`);
+    wrappedBlob(
+      ctx,
+      S,
+      rng.range(0, S),
+      rng.range(0, S),
+      rng.range(15, 60),
+      `rgba(${rng.chance(0.5) ? '60,20,80' : '10,20,5'},0.18)`,
+    );
   }
+
   for (let i = 0; i < 2500; i++) {
     ctx.fillStyle = rng.chance(0.5) ? 'rgba(90,120,60,0.25)' : 'rgba(5,10,5,0.35)';
     ctx.fillRect(rng.int(0, S - 1), rng.int(0, S - 1), 1, rng.int(1, 3));
   }
+
   return toTexture(c, { repeat: true });
 }
 
@@ -234,6 +282,7 @@ function buildRadialGlow(): CanvasTexture {
       img.data[i + 3] = Math.round(a * 255);
     }
   }
+
   ctx.putImageData(img, 0, 0);
   return toTexture(c, { srgb: false });
 }
@@ -244,6 +293,7 @@ export function puddleTexture(seed: number): CanvasTexture {
   const { c, ctx } = makeCanvas(S, S);
   const rng = new Rng(seed);
   ctx.fillStyle = 'rgba(255,255,255,1)';
+
   for (let i = 0; i < 9; i++) {
     const a = rng.range(0, TAU);
     const d = rng.range(0, 50);
@@ -251,11 +301,13 @@ export function puddleTexture(seed: number): CanvasTexture {
     ctx.arc(128 + Math.cos(a) * d, 128 + Math.sin(a) * d, rng.range(28, 60), 0, TAU);
     ctx.fill();
   }
+
   for (let i = 0; i < 16; i++) {
     ctx.beginPath();
     ctx.arc(rng.range(30, 226), rng.range(30, 226), rng.range(4, 12), 0, TAU);
     ctx.fill();
   }
+
   return toTexture(c, { srgb: false });
 }
 
@@ -287,6 +339,7 @@ export function ghostTexture(seed: number): CanvasTexture {
     const dip = rng.range(-6, 18);
     ctx.quadraticCurveTo(x0, bottom + dip, x1, bottom - 20 + rng.range(-4, 4));
   }
+
   ctx.closePath();
   ctx.fill();
   ctx.restore();
@@ -315,6 +368,7 @@ export function puffTexture(): CanvasTexture {
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, S, S);
   }
+
   return toTexture(c);
 }
 
@@ -325,6 +379,7 @@ export function hazardTexture(a: string, b: string): CanvasTexture {
   ctx.fillStyle = a;
   ctx.fillRect(0, 0, S, S);
   ctx.fillStyle = b;
+
   for (let i = -S; i < S * 2; i += 32) {
     ctx.beginPath();
     ctx.moveTo(i, 0);
@@ -334,5 +389,6 @@ export function hazardTexture(a: string, b: string): CanvasTexture {
     ctx.closePath();
     ctx.fill();
   }
+
   return toTexture(c, { repeat: true });
 }

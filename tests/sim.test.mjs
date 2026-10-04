@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+
 import { loadModules } from './modules.mjs';
 
 const [{ Relation }, { Claims }, action, { Space, _ }, { Mind, mind }] = await loadModules(
@@ -43,12 +44,19 @@ test('a relation refuses, evicts or merges when a key is full, and ends rows wit
   spot.insert({ spot: 13, car: 'd', owner: keeper });
   spot.insert({ spot: 14, car: 'e', owner: keeper });
   spot.end(keeper);
-  assert.deepEqual(spot.all().map(({ car }) => car), ['c'], 'the owner ended, so its rows went');
+  assert.deepEqual(
+    spot.all().map(({ car }) => car),
+    ['c'],
+    'the owner ended, so its rows went',
+  );
 });
 
 test('claims hold per target and per holder, preempt with a lost mark, and hand on to a new owner', () => {
   const lost = [];
-  const claims = new Claims({ driverSeat: { perTarget: 1, perHolder: 1 }, hunter: { perTarget: 2, perHolder: 1 } }, (c) => lost.push(c));
+  const claims = new Claims(
+    { driverSeat: { perTarget: 1, perHolder: 1 }, hunter: { perTarget: 2, perHolder: 1 } },
+    (c) => lost.push(c),
+  );
   const [car, car2, valet, cody] = [{}, {}, {}, {}];
   const [valetJob, codyJob] = [{}, {}];
   assert.equal(claims.take('driverSeat', valet, car, { owner: valetJob }), true);
@@ -92,9 +100,13 @@ class Wait extends Action {
     return this.p.resolveTo?.(w) ?? this;
   }
   perform(w) {
-    if (this.p.claim && !w.claims.take(this.p.claim.kind, this.p.claim.holder, this.p.claim.target, { owner: this.owner })) {
+    if (
+      this.p.claim &&
+      !w.claims.take(this.p.claim.kind, this.p.claim.holder, this.p.claim.target, { owner: this.owner })
+    ) {
       return this.p.otherwise ? instead(this.p.otherwise) : fail('TAKEN');
     }
+
     w.log.push(this.p.label ?? 'wait');
     return this.left-- > 0 ? running : done;
   }
@@ -133,7 +145,14 @@ test('the runner resolves, hands off, keeps running actions going, and ends thei
 
   // a taken spot hands off to another one while performing
   claims.take('spot', {}, spot12, { owner: {} });
-  doing.do(w, new Wait({ label: 'PARK 12', claim: { kind: 'spot', holder: car, target: spot12 }, otherwise: new Wait({ label: 'PARK 13', claim: { kind: 'spot', holder: car, target: spot13 } }) }));
+  doing.do(
+    w,
+    new Wait({
+      label: 'PARK 12',
+      claim: { kind: 'spot', holder: car, target: spot12 },
+      otherwise: new Wait({ label: 'PARK 13', claim: { kind: 'spot', holder: car, target: spot13 } }),
+    }),
+  );
   assert.deepEqual(outcomes.pop(), ['done', 'PARK 13']);
 });
 
@@ -151,14 +170,21 @@ test('an action that loses its claim stops before acting', () => {
   doing.update(w, 1 / 30);
   assert.equal(w.log.length, before, 'it did nothing with what it no longer holds');
   assert.equal(outcomes.pop()[2], 'lost');
-  assert.equal(doing.isRunning(() => true), false);
+  assert.equal(
+    doing.isRunning(() => true),
+    false,
+  );
 });
 
 test('a hand-off to something impossible ends the old action once, and says why the new one failed', () => {
   const { w, doing, outcomes } = world();
   let stops = 0;
   const ends = [];
-  const runner = new Doing({ lost: () => false, end: (owner) => ends.push(owner), failed: (a, reason) => outcomes.push(['fail', a.label(w), reason]) });
+  const runner = new Doing({
+    lost: () => false,
+    end: (owner) => ends.push(owner),
+    failed: (a, reason) => outcomes.push(['fail', a.label(w), reason]),
+  });
   const refused = new Wait({ label: 'GET IN', resolveTo: () => fail('SEAT TAKEN') });
   const old = new Wait({ label: 'WALK' });
   old.perform = () => instead(refused);
@@ -167,7 +193,10 @@ test('a hand-off to something impossible ends the old action once, and says why 
   assert.equal(stops, 1, 'stopped once');
   assert.deepEqual(ends, [old.owner], 'its claims ended once');
   assert.deepEqual(outcomes.pop(), ['fail', 'GET IN', 'SEAT TAKEN']);
-  assert.equal(doing.isRunning(() => true), false);
+  assert.equal(
+    doing.isRunning(() => true),
+    false,
+  );
 });
 
 test('the space finds what is near, never across levels, in all three query shapes', () => {
@@ -188,7 +217,10 @@ test('the space finds what is near, never across levels, in all three query shap
   assert.equal(pairs.length, 6, 'both orders of each close pair');
   assert.equal(space.near(_, _, 3), pairs, 'answered once per frame');
   assert.equal(space.near(_, _, 3, 1).length, 2, 'a tighter level tolerance is its own answer');
-  assert.equal(space.nearest(cody, 50, (b) => b !== randy && b !== onRamp), valet);
+  assert.equal(
+    space.nearest(cody, 50, (b) => b !== randy && b !== onRamp),
+    valet,
+  );
   space.rebuild([cody, valet]);
   assert.deepEqual(space.near(_, _, 3), [], 'the rebuild dropped the old answers');
 });
@@ -211,12 +243,20 @@ test('a mind moves on events and ticks, and holds its own state data', () => {
   const m = new Mind(VALET, valet, { at: 'atStand' });
   assert.equal(m.send({ type: 'handed', car: 'red' }), true);
   assert.equal(m.in('fetching')?.car, 'red', 'the state holds its own data');
-  assert.equal(m.send({ type: 'handed', car: 'blue' }), false, 'busy fetching: an event it does not list leaves it as it is');
+  assert.equal(
+    m.send({ type: 'handed', car: 'blue' }),
+    false,
+    'busy fetching: an event it does not list leaves it as it is',
+  );
   assert.equal(m.state.car, 'red');
   assert.equal(m.tick(0.5), false);
   assert.equal(m.tick(0.5), true, 'tick returned the next state');
   assert.equal(m.state.at, 'returning');
   assert.equal(m.send({ type: 'handed', car: 'blue' }), true, 'on the way back, a hand-over turns it round');
   assert.equal(m.in('fetching')?.car, 'blue');
-  assert.deepEqual(log, [['enter', 'red'], ['exit', 'red'], ['enter', 'blue']]);
+  assert.deepEqual(log, [
+    ['enter', 'red'],
+    ['exit', 'red'],
+    ['enter', 'blue'],
+  ]);
 });

@@ -1,7 +1,9 @@
 import { Color, type Group, Matrix4, Vector3 } from 'three';
+
 import { baked, type Instanced, instanced, type Model } from '@/actors/models/part';
 import { CollisionWorld } from '@/engine/physics/collision';
 import type { EmissiveChannel, MaterialLibrary } from '@/render/materials';
+
 import { DECOR, type DecorHit, type DecorKind, hitOf, type LocalBox, worldBox } from './decor-models';
 import type { DecorDef } from './level-data';
 import type { PropKind, PropSpec } from './props';
@@ -36,32 +38,45 @@ function placed(list: readonly LocalBox[], d: DecorDef): LocalBox[] {
 }
 
 /**
- * Level decor -> meshes and props. Every piece is baked together by material,
- * standing. Pieces vehicles break (hitOf()) are props as well: their solids
- * are made here, flagged to break, and while one is down or smashed its baked
- * copy is hidden; one that topples is drawn instanced meanwhile, and that
- * kind's instances cost nothing while all of it stands. Static pieces'
- * collision is in the level's boxes already.
+ * Level decor -> meshes and props. Every piece is baked together by material, standing. Pieces vehicles break (hitOf())
+ * are props as well: their solids are made here, flagged to break, and while one is down or smashed its baked copy is
+ * hidden; one that topples is drawn instanced meanwhile, and that kind's instances cost nothing while all of it stands.
+ * Static pieces' collision is in the level's boxes already.
  */
 export function buildDecor(defs: readonly DecorDef[], mats: MaterialLibrary, collision: CollisionWorld): BuiltDecor {
   const models = new Map<DecorKind, Model<string>>();
   const modelOf = (k: DecorKind): Model<string> => {
     let m = models.get(k);
-    if (!m) models.set(k, (m = DECOR[k].model()));
+    if (!m) {
+      models.set(k, (m = DECOR[k].model()));
+    }
+
     return m;
   };
+
   const bake = baked(defs.map((d) => ({ model: modelOf(d.kind), at: decorMatrix(d) })));
   bake.root.name = 'decor';
-  for (const { mat } of bake.materials) if (mat.emissiveIntensity > 0) mats.register(mat, GLOW);
+
+  for (const { mat } of bake.materials) {
+    if (mat.emissiveIntensity > 0) {
+      mats.register(mat, GLOW);
+    }
+  }
 
   // the pieces that break, by kind: each one's place in the bake, by its slot
   const hits = defs.map((d) => hitOf(d.kind, d.scale ?? 1));
   const copies = new Map<DecorKind, number[]>();
   defs.forEach((d, i) => {
-    if (!hits[i]) return;
+    if (!hits[i]) {
+      return;
+    }
+
     const list = copies.get(d.kind);
-    if (list) list.push(i);
-    else copies.set(d.kind, [i]);
+    if (list) {
+      list.push(i);
+    } else {
+      copies.set(d.kind, [i]);
+    }
   });
   const kinds = new Map<DecorKind, PropKind>();
   for (const [k, list] of copies) {
@@ -69,8 +84,14 @@ export function buildDecor(defs: readonly DecorDef[], mats: MaterialLibrary, col
     let draw: Instanced<string> | null = null;
     if (hit.as === 'topple') {
       draw = instanced(modelOf(k), list.length);
-      for (const m of Object.values(draw.mats)) if (m.emissiveIntensity > 0) mats.register(m, GLOW);
+
+      for (const m of Object.values(draw.mats)) {
+        if (m.emissiveIntensity > 0) {
+          mats.register(m, GLOW);
+        }
+      }
     }
+
     const fall = hit.as === 'topple' ? hit : { height: 0, wide: 0, down: 0 };
     kinds.set(k, {
       name: k,
@@ -95,13 +116,33 @@ export function buildDecor(defs: readonly DecorDef[], mats: MaterialLibrary, col
     const crowns = placed(spec.sight ?? [], d).map(([min, max]) => sight.add(min, max));
     const hit = hits[i];
     const kind = kinds.get(d.kind);
-    if (!hit || !kind) return;
+    if (!hit || !kind) {
+      return;
+    }
+
     const slot = slots.get(d.kind) ?? 0;
     slots.set(d.kind, slot + 1);
-    const [solid, ...parts] = placed(spec.solids, d).map(([min, max]) => collision.add(min, max, { knockdown: true, heavy: hit.by === 'truck' }));
-    if (!solid) throw new Error(`decor ${d.kind} breaks but has no solids`);
+    const [solid, ...parts] = placed(spec.solids, d).map(([min, max]) =>
+      collision.add(min, max, { knockdown: true, heavy: hit.by === 'truck' }),
+    );
+    if (!solid) {
+      throw new Error(`decor ${d.kind} breaks but has no solids`);
+    }
+
     const [x, y, z] = d.pos;
-    props.push({ kind, slot, x, y, z, yaw: d.yaw, stretch: d.stretch ?? 1, scale: d.scale ?? 1, solid, parts, sight: crowns });
+    props.push({
+      kind,
+      slot,
+      x,
+      y,
+      z,
+      yaw: d.yaw,
+      stretch: d.stretch ?? 1,
+      scale: d.scale ?? 1,
+      solid,
+      parts,
+      sight: crowns,
+    });
   });
   return { root: bake.root, props, sight };
 }

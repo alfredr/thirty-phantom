@@ -1,7 +1,19 @@
 import type { MatKey } from '@/render/materials';
 import type { SignStyle } from '@/render/signs';
+
 import type { DecorKind } from './decor-models';
-import { emptyLevel, type BoxDef, type BuildingDef, type DecorDef, type Facing, type LampColor, type LampKind, type LevelData, type RampDef, type V3 } from './level-data';
+import {
+  emptyLevel,
+  type BoxDef,
+  type BuildingDef,
+  type DecorDef,
+  type Facing,
+  type LampColor,
+  type LampKind,
+  type LevelData,
+  type RampDef,
+  type V3,
+} from './level-data';
 
 /** What box() takes besides the corners and material. */
 type BoxExtra = Omit<BoxDef, 'min' | 'max' | 'mat'>;
@@ -43,12 +55,31 @@ export class LevelWriter {
   }
 
   /** Box from a center-bottom point and size. */
-  block(cx: number, y: number, cz: number, sx: number, sy: number, sz: number, mat: MatKey, extra: BoxExtra = {}): BoxDef {
+  block(
+    cx: number,
+    y: number,
+    cz: number,
+    sx: number,
+    sy: number,
+    sz: number,
+    mat: MatKey,
+    extra: BoxExtra = {},
+  ): BoxDef {
     return this.box([cx - sx / 2, y, cz - sz / 2], [cx + sx / 2, y + sy, cz + sz / 2], mat, extra);
   }
 
   /** A rim `t` thick around the rectangle x0..x1, z0..z1, from y0 up to y1 (parapets, pond and fountain edges). */
-  frame(x0: number, z0: number, x1: number, z1: number, t: number, y0: number, y1: number, mat: MatKey, extra: BoxExtra = {}): void {
+  frame(
+    x0: number,
+    z0: number,
+    x1: number,
+    z1: number,
+    t: number,
+    y0: number,
+    y1: number,
+    mat: MatKey,
+    extra: BoxExtra = {},
+  ): void {
     this.box([x0, y0, z0], [x1, y1, z0 + t], mat, extra);
     this.box([x0, y0, z1 - t], [x1, y1, z1], mat, extra);
     this.box([x0, y0, z0 + t], [x0 + t, y1, z1 - t], mat, extra);
@@ -56,7 +87,15 @@ export class LevelWriter {
   }
 
   ramp(min: V3, max: V3, axis: 'x' | 'z', dir: 1 | -1, low: number, mat: MatKey, kicker = false): RampDef {
-    const r: RampDef = { min: this.p(min), max: this.p(max), axis, dir, low: low + this.oy, mat, kicker: kicker || undefined };
+    const r: RampDef = {
+      min: this.p(min),
+      max: this.p(max),
+      axis,
+      dir,
+      low: low + this.oy,
+      mat,
+      kicker: kicker || undefined,
+    };
     this.data.ramps.push(r);
     return r;
   }
@@ -69,7 +108,10 @@ export class LevelWriter {
     this.data.lamps.push({ pos: this.p(pos), color, kind });
   }
 
-  /** A piece of landscaping or street furniture at `pos`, turned `yaw`; `extra` sizes it or stretches it along its own x. */
+  /**
+   * A piece of landscaping or street furniture at `pos`, turned `yaw`; `extra` sizes it or stretches it along its own
+   * x.
+   */
   decor(kind: DecorKind, pos: V3, yaw = 0, extra: Pick<DecorDef, 'scale' | 'stretch'> = {}): DecorDef {
     const d: DecorDef = { kind, pos: this.p(pos), yaw, ...extra };
     this.data.decor.push(d);
@@ -84,7 +126,15 @@ export class LevelWriter {
       min: this.p(def.min),
       max: this.p(def.max),
       doors: def.doors.map((d) => ({ ...d, at: d.at + along(d.facing) })),
-      core: def.core && { ...def.core, rect: [def.core.rect[0] + this.ox, def.core.rect[1] + this.oz, def.core.rect[2] + this.ox, def.core.rect[3] + this.oz] },
+      core: def.core && {
+        ...def.core,
+        rect: [
+          def.core.rect[0] + this.ox,
+          def.core.rect[1] + this.oz,
+          def.core.rect[2] + this.ox,
+          def.core.rect[3] + this.oz,
+        ],
+      },
     };
     this.data.buildings.push(b);
     return b;

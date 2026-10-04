@@ -1,4 +1,5 @@
 import { Group, PointLight, type Vector3 } from 'three';
+
 import { clamp } from '@/engine/core/math';
 import type { LightEmitter } from '@/world/build-world';
 
@@ -14,10 +15,9 @@ interface Scored {
 const nearestFirst = (a: Scored, b: Scored): number => a.d - b.d;
 
 /**
- * A fixed number of real point lights reassigned every frame to the emitters
- * nearest the camera focus. Keeps shader light count constant (no recompiles)
- * while lamps near the action still light vehicles and characters.
- * Intensities fade toward the cut-off so lights never pop.
+ * A fixed number of real point lights reassigned every frame to the emitters nearest the camera focus. Keeps shader
+ * light count constant (no recompiles) while lamps near the action still light vehicles and characters. Intensities
+ * fade toward the cut-off so lights never pop.
  */
 export class LightPool {
   readonly root = new Group();
@@ -32,12 +32,16 @@ export class LightPool {
       this.lights.push(l);
       this.root.add(l);
     }
+
     this.scored = emitters.map((e) => ({ e, d: 0 }));
   }
 
   update(focus: Vector3): void {
     // dead lamps (knocked over) never take a light
-    for (const s of this.scored) s.d = s.e.strength > 0 ? s.e.pos.distanceToSquared(focus) : Infinity;
+    for (const s of this.scored) {
+      s.d = s.e.strength > 0 ? s.e.pos.distanceToSquared(focus) : Infinity;
+    }
+
     this.scored.sort(nearestFirst);
     const n = this.lights.length;
     const cutoff = Math.sqrt(Math.min(this.scored[n]?.d ?? 1e6, 1e6));
@@ -48,6 +52,7 @@ export class LightPool {
         l.intensity = 0;
         continue;
       }
+
       const d = Math.sqrt(s.d);
       const fade = clamp((cutoff - d) / Math.max(4, cutoff * 0.25), 0, 1);
       l.position.copy(s.e.pos);

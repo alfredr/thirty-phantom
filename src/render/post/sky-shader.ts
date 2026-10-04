@@ -6,16 +6,14 @@ export const MOON_X = 0.715;
 export const MOON_Y = 0.915;
 
 /**
- * Screen-space sky band: the top of the isometric view dissolves through a
- * horizon haze into a skyline silhouette, clouds, stars, the sun by day and
- * the moon from 7pm. Runs before bloom so the moon and windows glow.
+ * Screen-space sky band: the top of the isometric view dissolves through a horizon haze into a skyline silhouette,
+ * clouds, stars, the sun by day and the moon from 7pm. Runs before bloom so the moon and windows glow.
  *
- * With the chase camera (isPersp) the same sky is laid out in azimuth/elevation
- * radians around the camera instead, so it stays fixed in the world, and the
- * world fades into the haze with distance.
+ * With the chase camera (isPersp) the same sky is laid out in azimuth/elevation radians around the camera instead, so
+ * it stays fixed in the world, and the world fades into the haze with distance.
  *
- * With the iso view's world curvature on (`horizon`), there is no band: the
- * sky fills whatever the curved world leaves uncovered, rising from its horizon.
+ * With the iso view's world curvature on (`horizon`), there is no band: the sky fills whatever the curved world leaves
+ * uncovered, rising from its horizon.
  */
 export const SkyShader = {
   name: 'SkyShader',
@@ -40,11 +38,10 @@ export const SkyShader = {
     /** How much of the distant skyline silhouette shows, 0..1 (the renderer can drop it in a view). */
     skylineAmount: { value: 1 },
     /**
-     * Iso on the curved world (render/curvature.ts), else w = 0: the sky fills whatever the bent
-     * world leaves empty, rising from the planet's outline, the circle y = y0 + sqrt(r^2 - ((x - 0.5) * sx)^2)
-     * in uv, packed as (r, y0, sx, 1). `planet` is its centre and radius, `toCam` the unit vector
-     * toward the camera, and the ground hazes as it turns away from the view, from where it faces
-     * the camera `hazeFrom` (0 is edge on) to the horizon.
+     * Iso on the curved world (render/curvature.ts), else w = 0: the sky fills whatever the bent world leaves empty,
+     * rising from the planet's outline, the circle y = y0 + sqrt(r^2 - ((x - 0.5) * sx)^2) in uv, packed as (r, y0, sx,
+     * 1). `planet` is its centre and radius, `toCam` the unit vector toward the camera, and the ground hazes as it
+     * turns away from the view, from where it faces the camera `hazeFrom` (0 is edge on) to the horizon.
      */
     horizon: { value: new Vector4() },
     planet: { value: new Vector4() },
@@ -250,7 +247,10 @@ export const GradeShader = {
     resolution: { value: new Vector2(1, 1) },
     time: { value: 0 },
     exposure: { value: 1 },
-    /** Contrast about mid grey (gamma space). A night frame sits mostly below mid grey, so more than this crushes it toward black. */
+    /**
+     * Contrast about mid grey (gamma space). A night frame sits mostly below mid grey, so more than this crushes it
+     * toward black.
+     */
     contrast: { value: 1.06 },
     /** Saturation boost: enough for the neon to pop without the slime green going acid. */
     saturation: { value: 1.14 },

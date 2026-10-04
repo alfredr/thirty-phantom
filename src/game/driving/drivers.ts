@@ -1,26 +1,37 @@
 import type { Vector3 } from 'three';
+
 import type { Vehicle } from '@/actors/vehicle';
 import { Doing } from '@/engine/sim/action';
+
 import type { DriverJob, DriveWorld } from './drive-actions';
 
 /**
- * Every AI driver's job at the wheel, run on one runner: scared drivers making for the deck,
- * valets parking, visitors coming and going. Whoever starts a job keeps it to see how it went;
- * this is where the game finds the job driving a car, to tell its driver what they can see.
+ * Every AI driver's job at the wheel, run on one runner: scared drivers making for the deck, valets parking, visitors
+ * coming and going. Whoever starts a job keeps it to see how it went; this is where the game finds the job driving a
+ * car, to tell its driver what they can see.
  */
 export class Drivers {
   private readonly doing: Doing<DriveWorld, DriveWorld>;
   private jobs: DriverJob[] = [];
 
   constructor(private readonly world: DriveWorld) {
-    this.doing = new Doing({ lost: (owner) => world.claims.lostBy(owner), end: (owner) => world.claims.release(owner) });
+    this.doing = new Doing({
+      lost: (owner) => world.claims.lostBy(owner),
+      end: (owner) => world.claims.release(owner),
+    });
   }
 
   /** Starts `job`. False if it couldn't (its first step failed). */
   start(job: DriverJob): boolean {
     const result = this.doing.do(this.world, job);
-    if ('fail' in result) return false;
-    if ('running' in result) this.jobs.push(job);
+    if ('fail' in result) {
+      return false;
+    }
+
+    if ('running' in result) {
+      this.jobs.push(job);
+    }
+
     return true;
   }
 

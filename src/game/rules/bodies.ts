@@ -1,4 +1,5 @@
 import { Vector3 } from 'three';
+
 import type { Obstacle } from '@/actors/autopilot';
 import type { Vehicle } from '@/actors/vehicle';
 import { bodyOffsets } from '@/engine/physics/vehicle-params';
@@ -6,7 +7,10 @@ import { bodyOffsets } from '@/engine/physics/vehicle-params';
 /** What a body is, to whoever's steering round it. */
 export type BodyKind = 'person' | 'down' | 'still' | 'cody' | 'skeleton' | 'car';
 
-/** Something taking up room this frame. `pos` and `vel` are the thing's own vectors, so a body read later in the frame is where the thing is then. */
+/**
+ * Something taking up room this frame. `pos` and `vel` are the thing's own vectors, so a body read later in the frame
+ * is where the thing is then.
+ */
 export interface Body {
   kind: BodyKind;
   pos: Vector3;
@@ -39,11 +43,10 @@ export interface BodyOf {
 }
 
 /**
- * The world's bodies this frame: everyone and everything that takes up room,
- * filled once in the sense phase, each system adding its own (people, valets,
- * Randy and his fire, skeletons, Cody, cars). Walkers steer round them, and
- * traffic and the AI drivers brake for the ones in their way, each taking the
- * kinds it cares about. Records are reused frame to frame.
+ * The world's bodies this frame: everyone and everything that takes up room, filled once in the sense phase, each
+ * system adding its own (people, valets, Randy and his fire, skeletons, Cody, cars). Walkers steer round them, and
+ * traffic and the AI drivers brake for the ones in their way, each taking the kinds it cares about. Records are reused
+ * frame to frame.
  */
 export class Bodies {
   private readonly pool: Body[] = [];
@@ -59,9 +62,19 @@ export class Bodies {
   add(b: BodyOf): void {
     let body = this.pool[this.n];
     if (!body) {
-      body = { kind: b.kind, pos: b.pos, vel: NO_VELOCITY, r: 0, moving: false, dodges: false, owner: null, vehicle: null };
+      body = {
+        kind: b.kind,
+        pos: b.pos,
+        vel: NO_VELOCITY,
+        r: 0,
+        moving: false,
+        dodges: false,
+        owner: null,
+        vehicle: null,
+      };
       this.pool.push(body);
     }
+
     this.n++;
     body.kind = b.kind;
     body.pos = b.pos;
@@ -77,36 +90,48 @@ export class Bodies {
   each(fn: (b: Body) => void): void {
     for (let i = 0; i < this.n; i++) {
       const b = this.pool[i];
-      if (b) fn(b);
+      if (b) {
+        fn(b);
+      }
     }
   }
 
   /**
-   * The bodies that pass `test`, as drivers keep clear of them, into `out` (emptied first): a
-   * point for each, and for a car its three body circles, so its nose and tail count as much as its
-   * middle. Each says whose it is, so a car leaves out its own. Positions are as they are now.
+   * The bodies that pass `test`, as drivers keep clear of them, into `out` (emptied first): a point for each, and for a
+   * car its three body circles, so its nose and tail count as much as its middle. Each says whose it is, so a car
+   * leaves out its own. Positions are as they are now.
    */
   obstacles(test: (b: Body) => boolean, out: Obstacle[]): Obstacle[] {
     out.length = 0;
     let k = 0;
     const put = (x: number, y: number, z: number, owner: object | null): void => {
       let o = this.marks[k];
-      if (!o) this.marks.push((o = { pos: new Vector3(), owner: null }));
+      if (!o) {
+        this.marks.push((o = { pos: new Vector3(), owner: null }));
+      }
+
       k++;
       o.pos.set(x, y, z);
       o.owner = owner;
       out.push(o);
     };
+
     this.each((b) => {
-      if (!test(b)) return;
+      if (!test(b)) {
+        return;
+      }
+
       const v = b.vehicle;
       if (!v) {
         put(b.pos.x, b.pos.y, b.pos.z, b.owner);
         return;
       }
+
       const fx = Math.sin(v.yaw);
       const fz = Math.cos(v.yaw);
-      for (const off of bodyOffsets(v.params)) put(v.pos.x + fx * off, v.pos.y, v.pos.z + fz * off, v);
+      for (const off of bodyOffsets(v.params)) {
+        put(v.pos.x + fx * off, v.pos.y, v.pos.z + fz * off, v);
+      }
     });
     return out;
   }
@@ -115,7 +140,9 @@ export class Bodies {
   points(test: (b: Body) => boolean, out: Vector3[]): Vector3[] {
     out.length = 0;
     this.each((b) => {
-      if (test(b)) out.push(b.pos);
+      if (test(b)) {
+        out.push(b.pos);
+      }
     });
     return out;
   }

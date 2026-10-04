@@ -1,6 +1,7 @@
 import type { Focus } from '@/engine/input/input';
 import { el } from '@/engine/ui/dom';
 import type { Control } from '@/game/controls';
+
 import './dialogue.css';
 
 export type Side = 'left' | 'right';
@@ -17,8 +18,8 @@ export interface DialogueLine {
 const NEXT: readonly Control[] = ['interact', 'start'];
 
 /**
- * A scripted conversation over the HUD: two portraits, one each side, the speaker's lit and
- * raised, the other dimmed, and the line in a box between them. F, Space, Enter or a tap moves on.
+ * A scripted conversation over the HUD: two portraits, one each side, the speaker's lit and raised, the other dimmed,
+ * and the line in a box between them. F, Space, Enter or a tap moves on.
  */
 export class Dialogue {
   private readonly root: HTMLDivElement;
@@ -46,7 +47,9 @@ export class Dialogue {
     focus.add({
       controls: () => (this.open ? NEXT : []),
       press: (_control, { repeat }) => {
-        if (!repeat) this.next();
+        if (!repeat) {
+          this.next();
+        }
       },
     });
   }
@@ -89,7 +92,10 @@ export class Dialogue {
 
   private show(): void {
     const line = this.lines[this.i];
-    if (!line) return;
+    if (!line) {
+      return;
+    }
+
     const other: Side = line.who === 'left' ? 'right' : 'left';
     this.frames[line.who].classList.add('talking');
     this.frames[other].classList.remove('talking');
@@ -100,12 +106,17 @@ export class Dialogue {
   }
 
   private next(): void {
-    if (!this.open) return;
+    if (!this.open) {
+      return;
+    }
+
     this.i++;
+
     if (this.i < this.lines.length) {
       this.show();
       return;
     }
+
     const done = this.done;
     this.cancel();
     done?.();

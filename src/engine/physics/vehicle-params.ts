@@ -24,9 +24,8 @@ export interface VehicleParams {
 }
 
 /**
- * Where a vehicle's collision circles sit along its length (tail, middle,
- * nose), each of `params.radius`. The physics uses them, and so does anything
- * checking whether a simulated pose fits (autopilot rollouts, drive searches).
+ * Where a vehicle's collision circles sit along its length (tail, middle, nose), each of `params.radius`. The physics
+ * uses them, and so does anything checking whether a simulated pose fits (autopilot rollouts, drive searches).
  */
 export function bodyOffsets(params: VehicleParams): number[] {
   const half = bodyHalf(params);
@@ -41,7 +40,10 @@ export function bodyHalf(params: Pick<VehicleParams, 'length' | 'radius'>): numb
 /** At top speed the wheels turn this much less than at a crawl (less twitchy at speed). */
 const STEER_FADE = 0.45;
 
-/** Share of full steering lock available at `speed` (m/s). The physics uses it, and so does anything simulating a vehicle. */
+/**
+ * Share of full steering lock available at `speed` (m/s). The physics uses it, and so does anything simulating a
+ * vehicle.
+ */
 export function steerScale(params: VehicleParams, speed: number): number {
   return 1 - STEER_FADE * Math.min(1, Math.abs(speed) / params.maxSpeed);
 }

@@ -17,10 +17,9 @@ export const instead = <A>(action: A): { readonly instead: A } => ({ instead: ac
 const MAX_HOPS = 8;
 
 /**
- * A request to do something, after Bob Nystrom's command objects. The action carries its
- * participants. resolve() previews what would really happen, without side effects. perform() does
- * it, possibly over several frames, and may hand off to another action instead. `S` is the
- * read-only view of the world and `W` the view that may change it.
+ * A request to do something, after Bob Nystrom's command objects. The action carries its participants. resolve()
+ * previews what would really happen, without side effects. perform() does it, possibly over several frames, and may
+ * hand off to another action instead. `S` is the read-only view of the world and `W` the view that may change it.
  */
 export abstract class Action<S, W extends S> {
   /** The larger job this action is a step of, if any. Claims taken by a step belong to the whole job. */
@@ -49,9 +48,13 @@ export function resolveFully<S, W extends S>(w: S, action: Action<S, W>): Action
   let current = action;
   for (let hop = 0; hop < MAX_HOPS; hop++) {
     const next = current.resolve(w);
-    if ('fail' in next || next === current) return next;
+    if ('fail' in next || next === current) {
+      return next;
+    }
+
     current = next;
   }
+
   return fail('NOTHING HAPPENS');
 }
 
@@ -66,9 +69,8 @@ export interface DoingHooks<S, W extends S> {
 }
 
 /**
- * Runs actions for anyone: the player's keys and the AI hand it the same objects. Actions that
- * take time keep running until they finish, fail, or lose a claim. Whatever an action held ends
- * with it.
+ * Runs actions for anyone: the player's keys and the AI hand it the same objects. Actions that take time keep running
+ * until they finish, fail, or lose a claim. Whatever an action held ends with it.
  */
 export class Doing<S, W extends S> {
   private running: Action<S, W>[] = [];
@@ -83,8 +85,12 @@ export class Doing<S, W extends S> {
       this.hooks.failed?.(action, resolved.fail);
       return resolved;
     }
+
     const { result, current } = this.step(w, resolved, 0);
-    if ('running' in result) this.started.push(current);
+    if ('running' in result) {
+      this.started.push(current);
+    }
+
     return result;
   }
 
@@ -93,9 +99,12 @@ export class Doing<S, W extends S> {
     const carrying = [...this.running, ...this.started];
     this.started = [];
     this.running = [];
+
     for (const action of carrying) {
       const { result, current } = this.step(w, action, dt);
-      if ('running' in result) this.running.push(current);
+      if ('running' in result) {
+        this.running.push(current);
+      }
     }
   }
 
@@ -103,10 +112,14 @@ export class Doing<S, W extends S> {
   cancel(owner: Owner, reason = 'cancelled'): void {
     const keep = (a: Action<S, W>): boolean => a.owner !== owner;
     for (const action of [...this.running, ...this.started]) {
-      if (keep(action)) continue;
+      if (keep(action)) {
+        continue;
+      }
+
       this.finish(action);
       this.hooks.failed?.(action, reason);
     }
+
     this.running = this.running.filter(keep);
     this.started = this.started.filter(keep);
   }
@@ -129,14 +142,21 @@ export class Doing<S, W extends S> {
         this.hooks.failed?.(wanted, next.fail);
         return { result: next, current: wanted };
       }
+
       current = next;
       result = current.perform(w, dt);
     }
+
     if (!('running' in result)) {
       this.finish(current);
-      if ('done' in result) this.hooks.performed?.(current);
-      else if ('fail' in result) this.hooks.failed?.(current, result.fail);
+
+      if ('done' in result) {
+        this.hooks.performed?.(current);
+      } else if ('fail' in result) {
+        this.hooks.failed?.(current, result.fail);
+      }
     }
+
     return { result, current };
   }
 

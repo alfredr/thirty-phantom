@@ -1,6 +1,8 @@
 import { Color, type DirectionalLight, type HemisphereLight, type Scene, Vector3 } from 'three';
+
 import { TUNING } from '@/config';
 import { invLerp, lerp, smoothstep } from '@/engine/core/math';
+
 import type { GameRenderer } from './game-renderer';
 import type { LightPool } from './light-pool';
 import type { ChannelLevels, MaterialLibrary } from './materials';
@@ -196,7 +198,10 @@ export class DayNight {
 
   apply(hours: number, scroll: number): void {
     let i = 0;
-    while (i < KEYS.length - 2 && hours >= (KEYS[i + 1]?.[0] ?? 24)) i++;
+    while (i < KEYS.length - 2 && hours >= (KEYS[i + 1]?.[0] ?? 24)) {
+      i++;
+    }
+
     const [h0, a] = KEYS[i] as [number, Look];
     const [h1, b] = KEYS[i + 1] as [number, Look];
     const k = smoothstep(h0, h1, hours);
@@ -256,7 +261,9 @@ export class DayNight {
     su.moonAlpha.value = up ? smoothstep(0, 0.12, sinceDusk) * set : 0;
     const mp = su.moonPos.value;
     mp.set(lerp(MOON_X, 0.69, invLerp(0, nightLen, sinceDusk)), lerp(0.74, MOON_Y, rise) - (1 - set) * 0.16);
-    su.sunAlpha.value = isDay ? smoothstep(sunrise - 0.4, sunrise + 0.5, hours) * (1 - smoothstep(nightfall - 0.6, nightfall, hours)) : 0;
+    su.sunAlpha.value = isDay
+      ? smoothstep(sunrise - 0.4, sunrise + 0.5, hours) * (1 - smoothstep(nightfall - 0.6, nightfall, hours))
+      : 0;
     su.sunPos.value.set(lerp(0.08, 0.92, dayT), 0.8 + Math.sin(dayT * Math.PI) * 0.13);
     // chase sky: the sun disc sits where the light comes from; the moon rises in the moonlight's
     // direction, as high above the horizon (in radians) as the iso moon sits above the sky band

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+
 import { loadModules } from './modules.mjs';
 
 const [{ Focus }, { KEYS }] = await loadModules('/src/engine/input/input.ts', '/src/game/controls.ts');
@@ -11,7 +12,10 @@ test('the top layer that takes a key gets it, and nothing below does', () => {
   const got = [];
   let menuOpen = true;
   let talking = false;
-  focus.add({ controls: () => (menuOpen ? ['menuUp', 'interact'] : ['inventory']), press: (c) => got.push(['menu', c]) });
+  focus.add({
+    controls: () => (menuOpen ? ['menuUp', 'interact'] : ['inventory']),
+    press: (c) => got.push(['menu', c]),
+  });
   focus.add({ controls: () => (talking ? ['interact', 'start'] : []), press: (c) => got.push(['talk', c]) });
 
   assert.equal(focus.route('ArrowUp', press), true, 'the open menu takes ArrowUp, so Cody does not walk');
@@ -20,7 +24,12 @@ test('the top layer that takes a key gets it, and nothing below does', () => {
   talking = true;
   assert.equal(focus.route('KeyF', press), true);
   assert.equal(focus.route('Space', press), true, 'Space is the start control, which the conversation takes');
-  assert.deepEqual(got, [['menu', 'menuUp'], ['menu', 'interact'], ['talk', 'interact'], ['talk', 'start']]);
+  assert.deepEqual(got, [
+    ['menu', 'menuUp'],
+    ['menu', 'interact'],
+    ['talk', 'interact'],
+    ['talk', 'start'],
+  ]);
   assert.equal(focus.owns('interact'), true);
 
   talking = false;

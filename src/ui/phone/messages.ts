@@ -1,5 +1,6 @@
 import { el } from '@/engine/ui/dom';
 import { keyText } from '@/ui/hud';
+
 import { ICONS } from './icons';
 import type { PhoneApp } from './phone';
 
@@ -33,7 +34,11 @@ export class Messages implements PhoneApp {
 
   shown(on: boolean): void {
     this.showing = on;
-    if (!on) return;
+
+    if (!on) {
+      return;
+    }
+
     this.fresh = 0;
     this.toBottom();
   }
@@ -45,10 +50,17 @@ export class Messages implements PhoneApp {
   /** A text from Randy: he types, then it lands. HTML is allowed, and `{action}` becomes its key cap. */
   text(msg: string): void {
     const thread = this.thread;
-    if (!thread) return;
+    if (!thread) {
+      return;
+    }
+
     window.clearTimeout(this.pending);
+
     // a text still being typed lands at once, and this one starts typing
-    if (this.typing) this.land(this.typing.dataset.msg ?? '');
+    if (this.typing) {
+      this.land(this.typing.dataset.msg ?? '');
+    }
+
     this.typing = el('div', 'burner-msg typing', thread, '<i></i><i></i><i></i>');
     this.typing.dataset.msg = msg;
     this.toBottom();
@@ -59,17 +71,32 @@ export class Messages implements PhoneApp {
   private land(msg: string): void {
     const bubble = this.typing;
     this.typing = null;
-    if (!bubble) return;
+
+    if (!bubble) {
+      return;
+    }
+
     bubble.className = 'burner-msg';
     bubble.innerHTML = keyText(msg);
     delete bubble.dataset.msg;
-    for (const m of this.thread?.children ?? []) if (m !== bubble) m.classList.add('old');
-    if (!this.showing) this.fresh++;
+
+    for (const m of this.thread?.children ?? []) {
+      if (m !== bubble) {
+        m.classList.add('old');
+      }
+    }
+
+    if (!this.showing) {
+      this.fresh++;
+    }
+
     this.toBottom();
     this.landed();
   }
 
   private toBottom(): void {
-    if (this.body) this.body.scrollTop = this.body.scrollHeight;
+    if (this.body) {
+      this.body.scrollTop = this.body.scrollHeight;
+    }
   }
 }

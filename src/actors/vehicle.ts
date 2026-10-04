@@ -1,9 +1,11 @@
 import { Color, Vector3 } from 'three';
+
 import { TUNING } from '@/config';
 import { clamp, damp, lerp, TAU, type V3 } from '@/engine/core/math';
 import { Rng } from '@/engine/core/rng';
 import type { CircleHit, CollisionWorld, Solid } from '@/engine/physics/collision';
 import { steerScale, type VehicleParams } from '@/engine/physics/vehicle-params';
+
 import { CrashBody, vehicleMass } from './crash-body';
 import type { BikeRider, VehicleRig } from './models/rig';
 import { VALET_OUTFIT } from './models/valet';
@@ -11,13 +13,13 @@ import { type CarKind, VEHICLE_BREEDS, type VehicleBreed, type VehicleBuild } fr
 
 export type VehicleForm = 'car' | 'truck';
 /**
- * Who's at the wheel. traffic: on a lane loop. player: Cody. valet: a valet. visitor: someone from
- * town driving in to park, or back out to the traffic. parked: nobody.
+ * Who's at the wheel. traffic: on a lane loop. player: Cody. valet: a valet. visitor: someone from town driving in to
+ * park, or back out to the traffic. parked: nobody.
  */
 export type VehicleRole = 'traffic' | 'parked' | 'player' | 'valet' | 'visitor';
 /**
- * What's happening to the car itself, whoever had the wheel: changing form (transforming),
- * flattened by a truck (crushed), an escaped truck dissolving into the night (vanishing).
+ * What's happening to the car itself, whoever had the wheel: changing form (transforming), flattened by a truck
+ * (crushed), an escaped truck dissolving into the night (vanishing).
  */
 export type VehicleStatus = 'transforming' | 'crushed' | 'vanishing';
 
@@ -73,14 +75,12 @@ const _c: V3 = [0, 0, 0];
 let nextId = 1;
 
 /**
- * Arcade vehicle on the 2.5D collision world: bicycle-model steering with
- * lateral slip (drift), ledge stepping, ramps that launch you, a hop,
- * three collision circles along the body, and a sprung body for the visuals.
+ * Arcade vehicle on the 2.5D collision world: bicycle-model steering with lateral slip (drift), ledge stepping, ramps
+ * that launch you, a hop, three collision circles along the body, and a sprung body for the visuals.
  *
- * A hard hit (a wall, another car) switches it into crash mode: a CrashBody
- * takes over and it tumbles as a rigid box, ignoring the controls, until it
- * comes to rest on its wheels and drives on. Stuck on its side or roof, a hop
- * rocks it back over.
+ * A hard hit (a wall, another car) switches it into crash mode: a CrashBody takes over and it tumbles as a rigid box,
+ * ignoring the controls, until it comes to rest on its wheels and drives on. Stuck on its side or roof, a hop rocks it
+ * back over.
  */
 export class Vehicle {
   readonly id = nextId++;
@@ -190,12 +190,17 @@ export class Vehicle {
 
   /** Someone's at the wheel with the engine running: traffic, a valet, a visitor, Cody. */
   get engineOn(): boolean {
-    return !this.crashing && (this.role === 'traffic' || this.role === 'player' || this.role === 'valet' || this.role === 'visitor');
+    return (
+      !this.crashing &&
+      (this.role === 'traffic' || this.role === 'player' || this.role === 'valet' || this.role === 'visitor')
+    );
   }
 
   /** Engine off, but the body still where the last buzz left it: sit it still. Cheap enough for every car every frame. */
   settle(): void {
-    if (this.shook && !this.engineOn) this.syncRig();
+    if (this.shook && !this.engineOn) {
+      this.syncRig();
+    }
   }
 
   /** Remember where it is now as where it was left parked (the ghost image goes here). */
@@ -224,7 +229,10 @@ export class Vehicle {
   pointVelocity(px: number, py: number, pz: number, out: Vector3): Vector3 {
     out.copy(this.vel);
     const c = this.crashing ? this.crash : null;
-    if (!c) return out;
+    if (!c) {
+      return out;
+    }
+
     const rx = px - c.com.x;
     const ry = py - c.com.y;
     const rz = pz - c.com.z;
@@ -241,6 +249,7 @@ export class Vehicle {
   shift(dx: number, dz: number): void {
     this.pos.x += dx;
     this.pos.z += dz;
+
     if (this.crashing && this.crash) {
       this.crash.com.x += dx;
       this.crash.com.z += dz;
@@ -249,21 +258,27 @@ export class Vehicle {
 
   /** Centre of mass, for lever arms (the body's middle when it isn't crashing). */
   centre(out: Vector3): Vector3 {
-    if (this.crashing && this.crash) return out.copy(this.crash.com);
+    if (this.crashing && this.crash) {
+      return out.copy(this.crash.com);
+    }
+
     return out.set(this.pos.x, this.pos.y + this.params.height * 0.4, this.pos.z);
   }
 
   /**
-   * Struck by something else: impulse j (kg m/s) at world point p. With
-   * `crash` (or already crashing) it tumbles, spin and all; otherwise it's just
-   * shoved.
+   * Struck by something else: impulse j (kg m/s) at world point p. With `crash` (or already crashing) it tumbles, spin
+   * and all; otherwise it's just shoved.
    */
   hit(px: number, py: number, pz: number, jx: number, jy: number, jz: number, crash: boolean): void {
-    if (crash && !this.crashing) this.beginCrash();
+    if (crash && !this.crashing) {
+      this.beginCrash();
+    }
+
     if (this.crashing && this.crash) {
       this.crash.push(this.vel, px, py, pz, jx, jy, jz);
       return;
     }
+
     const m = this.mass;
     this.vel.x += jx / m;
     this.vel.z += jz / m;
@@ -274,7 +289,11 @@ export class Vehicle {
     const inp = input ?? NO_INPUT;
     const ev: DriveEvents = { impact: 0, landed: 0, smashed: [], hopped: false };
     this.steppedAt = frame;
-    if (this.crashing) return this.tumble(dt, inp, world, ev);
+
+    if (this.crashing) {
+      return this.tumble(dt, inp, world, ev);
+    }
+
     let fx = Math.sin(this.yaw);
     let fz = Math.cos(this.yaw);
     // right-hand side of the vehicle
@@ -291,15 +310,22 @@ export class Vehicle {
         // a boost shoves the truck on whether or not the pedal's down
         fwd += P.accel * (Math.max(t, 0) + TUNING.ghast.push * boost) * dt * (1 - clamp(fwd / top, 0, 1) * 0.6);
       } else if (t > 0) {
-        if (fwd < -0.5) fwd += P.brake * dt;
-        else fwd += P.accel * t * dt * (1 - clamp(fwd / P.maxSpeed, 0, 1) * 0.6);
+        if (fwd < -0.5) {
+          fwd += P.brake * dt;
+        } else {
+          fwd += P.accel * t * dt * (1 - clamp(fwd / P.maxSpeed, 0, 1) * 0.6);
+        }
       } else if (t < 0) {
-        if (fwd > 0.5) fwd -= P.brake * dt;
-        else fwd -= P.accel * 0.7 * dt;
+        if (fwd > 0.5) {
+          fwd -= P.brake * dt;
+        } else {
+          fwd -= P.accel * 0.7 * dt;
+        }
       } else {
         const coast = COAST * dt;
         fwd = Math.abs(fwd) < coast ? 0 : fwd - Math.sign(fwd) * coast;
       }
+
       fwd = clamp(fwd, -P.reverseSpeed, top);
       fwd -= fwd * P.drag * dt * 0.2;
       lat *= Math.exp(-(inp.drift ? P.driftGrip : P.grip) * dt);
@@ -308,6 +334,7 @@ export class Vehicle {
       const yawRate = (fwd / P.wheelBase) * Math.tan(this.steer) * (inp.drift ? DRIFT_YAW : 1);
       this.yaw -= yawRate * dt;
       this.yawRate = yawRate;
+
       if (inp.hop) {
         this.vel.y = P.hop;
         this.grounded = false;
@@ -355,6 +382,7 @@ export class Vehicle {
         dz = ddz;
       }
     }
+
     this.pos.x += dx;
     this.pos.z += dz;
     // the hardest wall hit, in case it's hard enough to crash
@@ -370,6 +398,7 @@ export class Vehicle {
         wx = h.nx;
         wz = h.nz;
       }
+
       if (vn < 0) {
         this.vel.x -= h.nx * vn * WALL_BOUNCE;
         this.vel.z -= h.nz * vn * WALL_BOUNCE;
@@ -378,6 +407,7 @@ export class Vehicle {
         ev.impact = Math.max(ev.impact, -vn);
       }
     }
+
     if (worst > this.breed.crashAt) {
       this.crashInto(vx0, vz0, wx, wz);
       this.syncRig();
@@ -397,9 +427,11 @@ export class Vehicle {
         this.vel.y = Math.max(0, this.groundVy);
       }
     }
+
     if (!this.grounded) {
       this.vel.y -= TUNING.gravity * dt;
       this.pos.y += this.vel.y * dt;
+
       if (this.vel.y > 0) {
         const ceil = world.ceilingAt(this.pos.x, this.pos.z, P.radius * 0.5, oldY + P.height - 0.2);
         if (this.pos.y + P.height > ceil) {
@@ -407,6 +439,7 @@ export class Vehicle {
           this.vel.y = 0;
         }
       }
+
       // x/z haven't moved since g was found, so it is still the ground underneath
       if (this.pos.y <= g) {
         ev.landed = -this.vel.y;
@@ -418,6 +451,7 @@ export class Vehicle {
         this.pitchV += clamp(-this.pitch * 4, -3, 3);
       }
     }
+
     this.speed = fwd;
     this.animate(dt, world, inp);
     return ev;
@@ -428,20 +462,34 @@ export class Vehicle {
     const P = this.params;
     const knocks = speed >= TUNING.knockdown.speed;
     const smashes = speed >= P.smashSpeed;
-    if (!smashes && !knocks) return;
+    if (!smashes && !knocks) {
+      return;
+    }
+
     for (const o of this.breed.body) {
       const cx = this.pos.x + fx * o;
       const cz = this.pos.z + fz * o;
       const r = P.radius + SMASH_REACH;
       for (const s of world.query(cx - r, cz - r, cx + r, cz + r)) {
-        if (!(s.knockdown ? (s.heavy ? smashes : knocks) : s.breakable && smashes)) continue;
-        if (s.min[1] >= this.pos.y + P.height || s.max[1] <= this.pos.y + P.stepUp) continue;
+        if (!(s.knockdown ? (s.heavy ? smashes : knocks) : s.breakable && smashes)) {
+          continue;
+        }
+
+        if (s.min[1] >= this.pos.y + P.height || s.max[1] <= this.pos.y + P.stepUp) {
+          continue;
+        }
+
         const qx = clamp(cx, s.min[0], s.max[0]);
         const qz = clamp(cz, s.min[2], s.max[2]);
-        if ((cx - qx) ** 2 + (cz - qz) ** 2 < r * r) ev.smashed.push(s);
+        if ((cx - qx) ** 2 + (cz - qz) ** 2 < r * r) {
+          ev.smashed.push(s);
+        }
       }
     }
-    for (const s of ev.smashed) s.enabled = false;
+
+    for (const s of ev.smashed) {
+      s.enabled = false;
+    }
   }
 
   /** Into a wall with normal (nx, nz) too hard to shrug off at velocity (vx, vz): crash, struck where the body meets it. */
@@ -455,7 +503,17 @@ export class Vehicle {
     // the circle facing the wall: the nose or tail, or the middle for a side-on hit
     const along = -(fx * nx + fz * nz);
     const o = Math.abs(along) < 0.3 ? 0 : Math.sign(along) * (this.breed.body[2] ?? 0);
-    c.contact(this.vel, this.pos.x + fx * o - nx * P.radius, this.pos.y + c.comY * 0.8, this.pos.z + fz * o - nz * P.radius, nx, 0, nz, 0.3, 0.5);
+    c.contact(
+      this.vel,
+      this.pos.x + fx * o - nx * P.radius,
+      this.pos.y + c.comY * 0.8,
+      this.pos.z + fz * o - nz * P.radius,
+      nx,
+      0,
+      nz,
+      0.3,
+      0.5,
+    );
   }
 
   /** Switch to crash mode from where it is now, carrying its speed and turn into the tumble. */
@@ -464,6 +522,7 @@ export class Vehicle {
       this.crash = new CrashBody(this.params);
       this.crashForm = this.form;
     }
+
     this.crash.begin(this.pos, this.yaw, this.pitch, this.roll, -this.yawRate);
     this.crashing = true;
     this.grounded = false;
@@ -476,23 +535,39 @@ export class Vehicle {
     if (c.settled && !c.upright && inp.hop) {
       // rock it over: spin about the axis that turns its up back toward the sky
       _f.crossVectors(c.up(_up), Y_UP);
-      if (_f.lengthSq() < 1e-4) c.forward(_f);
+
+      if (_f.lengthSq() < 1e-4) {
+        c.forward(_f);
+      }
+
       c.spin.copy(_f.normalize()).multiplyScalar(FLIP_SPIN);
       this.vel.y = FLIP_LIFT;
       c.rest = 0;
       ev.hopped = true;
     }
-    if (!c.settled) ev.impact = c.step(dt, this.vel, world);
+
+    if (!c.settled) {
+      ev.impact = c.step(dt, this.vel, world);
+    }
+
     c.feet(this.pos);
     c.forward(_f);
-    if (_f.x * _f.x + _f.z * _f.z > 0.04) this.yaw = Math.atan2(_f.x, _f.z);
+
+    if (_f.x * _f.x + _f.z * _f.z > 0.04) {
+      this.yaw = Math.atan2(_f.x, _f.z);
+    }
+
     const fx = Math.sin(this.yaw);
     const fz = Math.cos(this.yaw);
     this.speed = this.vel.x * fx + this.vel.z * fz;
     this.steer = damp(this.steer, 0, 4, dt);
     this.smash(ev, world, Math.sqrt(this.vel.x * this.vel.x + this.vel.z * this.vel.z), fx, fz);
     this.wheelSpin += (this.speed / (this.rig.wheels[0]?.radius ?? 0.5)) * dt;
-    if (c.settled && c.upright) this.endCrash(world);
+
+    if (c.settled && c.upright) {
+      this.endCrash(world);
+    }
+
     this.syncRig();
     return ev;
   }
@@ -523,8 +598,12 @@ export class Vehicle {
     this.speed = speed;
     this.vel.set(Math.sin(yaw) * speed, 0, Math.cos(yaw) * speed);
     this.grounded = true;
-    if (world) this.animate(dt, world, NO_INPUT);
-    else this.syncRig();
+
+    if (world) {
+      this.animate(dt, world, NO_INPUT);
+    } else {
+      this.syncRig();
+    }
   }
 
   private animate(dt: number, world: CollisionWorld, inp: DriveInput): void {
@@ -546,6 +625,7 @@ export class Vehicle {
     } else {
       targetPitch = clamp(this.vel.y * 0.03, -0.5, 0.35);
     }
+
     this.pitchV += ((targetPitch - this.pitch) * 60 - this.pitchV * 10) * dt;
     this.pitch += this.pitchV * dt;
     const lean = P.lean;
@@ -562,26 +642,37 @@ export class Vehicle {
 
   syncRig(): void {
     const r = this.rig;
-    if (r.rider && this.role !== this.riderRole) this.dressRider(r.rider);
+    if (r.rider && this.role !== this.riderRole) {
+      this.dressRider(r.rider);
+    }
+
     r.root.position.copy(this.pos);
+
     if (this.crashing && this.crash) {
       r.root.quaternion.copy(this.crash.q);
       r.body.position.y = 0;
       r.body.rotation.x = 0;
       r.body.rotation.z = 0;
       this.shook = false;
+
       for (const w of r.wheels) {
         w.spin.rotation.x = this.wheelSpin;
         w.pivot.rotation.y = w.front ? -this.steer : 0;
       }
+
       return;
     }
+
     r.root.rotation.set(-this.pitch, this.yaw, 0, 'YXZ');
     r.body.position.y = this.bodyY;
     r.body.rotation.x = 0;
     r.body.rotation.z = this.roll;
     this.shook = this.engineOn;
-    if (this.shook) this.buzz(r);
+
+    if (this.shook) {
+      this.buzz(r);
+    }
+
     for (const w of r.wheels) {
       w.spin.rotation.x = this.wheelSpin;
       w.pivot.rotation.y = w.front ? -this.steer : 0;
@@ -600,7 +691,10 @@ export class Vehicle {
     r.body.rotation.x = k * S.pitch * Math.sin(t * 0.83 + 2.2);
   }
 
-  /** A bike's rider is on it while someone rides it (a valet in his uniform); Cody sits on the saddle himself (Player.mount). */
+  /**
+   * A bike's rider is on it while someone rides it (a valet in his uniform); Cody sits on the saddle himself
+   * (Player.mount).
+   */
   private dressRider(rider: BikeRider): void {
     this.riderRole = this.role;
     rider.root.visible = this.role === 'traffic' || this.role === 'valet' || this.role === 'visitor';

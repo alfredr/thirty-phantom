@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+
 import { loadModules } from './modules.mjs';
 
 const [{ gameReactions, react }, { Space }, { WorldConditions }, { LEVEL }] = await loadModules(
@@ -9,7 +10,14 @@ const [{ gameReactions, react }, { Space }, { WorldConditions }, { LEVEL }] = aw
   '/src/game/rules/reach.ts',
 );
 
-const at = (x, y, z) => ({ x, y, z, clone() { return { x: this.x, y: this.y, z: this.z }; } });
+const at = (x, y, z) => ({
+  x,
+  y,
+  z,
+  clone() {
+    return { x: this.x, y: this.y, z: this.z };
+  },
+});
 
 function scene(things, sees = () => true) {
   const frightened = [];

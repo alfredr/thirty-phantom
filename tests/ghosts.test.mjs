@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+
 import { Vector3 } from 'three';
+
 import { loadModules } from './modules.mjs';
 
 const [{ Ghosts }] = await loadModules('/src/fx/ghosts.ts');
@@ -14,11 +16,15 @@ function withCanvas(make) {
     configurable: true,
     value: { createElement: () => ({ getContext: () => ctx }) },
   });
+
   try {
     return make();
   } finally {
-    if (originalDocument) Object.defineProperty(globalThis, 'document', originalDocument);
-    else delete globalThis.document;
+    if (originalDocument) {
+      Object.defineProperty(globalThis, 'document', originalDocument);
+    } else {
+      delete globalThis.document;
+    }
   }
 }
 
@@ -36,7 +42,11 @@ test('a ghost the intake lets go eases back into shape and drifts again', () => 
   assert.equal(ghosts.suck(intake, 6, 0.1), 0);
   ghosts.update(0.1, 1);
   assert.ok(stretched(sprite));
-  for (let i = 0; i < 60; i++) ghosts.update(1 / 60, 1);
+
+  for (let i = 0; i < 60; i++) {
+    ghosts.update(1 / 60, 1);
+  }
+
   assert.ok(!stretched(sprite));
   const was = sprite.position.clone();
   ghosts.update(1 / 60, 1);

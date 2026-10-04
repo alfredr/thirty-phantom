@@ -43,19 +43,22 @@ export class SunLight {
   }
 
   /**
-   * Fit the shadow box round `points` (what the view shows, IsoCamera.shadowCorners) as the sun
-   * sees them along `dir`. A caster shading anything in view lies on the sun's ray through it,
-   * so this is all the box needs; the less it spans, the fewer casters it draws and the sharper
-   * its shadows. The box turns to line up with `up` (the view's up the screen, flat), as the
-   * view's footprint does, else its corners would go to waste. Its centre snaps to its texels,
-   * its size to SHADOW_STEP, so shadows hold still.
+   * Fit the shadow box round `points` (what the view shows, IsoCamera.shadowCorners) as the sun sees them along `dir`.
+   * A caster shading anything in view lies on the sun's ray through it, so this is all the box needs; the less it
+   * spans, the fewer casters it draws and the sharper its shadows. The box turns to line up with `up` (the view's up
+   * the screen, flat), as the view's footprint does, else its corners would go to waste. Its centre snaps to its
+   * texels, its size to SHADOW_STEP, so shadows hold still.
    */
   cover(points: readonly Vector3[], dir: Vector3, up: Vector3): void {
     // the shadow camera's axes, as three's lookAt builds them from its up
     this.sun.shadow.camera.up.copy(up);
     _z.copy(dir).normalize();
     _x.copy(up).cross(_z);
-    if (_x.lengthSq() < 1e-8) _x.set(1, 0, 0);
+
+    if (_x.lengthSq() < 1e-8) {
+      _x.set(1, 0, 0);
+    }
+
     _x.normalize();
     _y.crossVectors(_z, _x);
     let x0 = Infinity;
@@ -63,8 +66,13 @@ export class SunLight {
     let y0 = Infinity;
     let y1 = -Infinity;
     _c.set(0, 0, 0);
-    for (const p of points) _c.add(p);
+
+    for (const p of points) {
+      _c.add(p);
+    }
+
     _c.divideScalar(points.length || 1);
+
     for (const p of points) {
       const u = (p.x - _c.x) * _x.x + (p.y - _c.y) * _x.y + (p.z - _c.z) * _x.z;
       const v = (p.x - _c.x) * _y.x + (p.y - _c.y) * _y.y + (p.z - _c.z) * _y.z;
@@ -73,6 +81,7 @@ export class SunLight {
       y0 = Math.min(y0, v);
       y1 = Math.max(y1, v);
     }
+
     const step = (h: number): number => Math.min(SHADOW_HALF, Math.ceil((h + SHADOW_PAD) / SHADOW_STEP) * SHADOW_STEP);
     const hx = step((x1 - x0) / 2);
     const hy = step((y1 - y0) / 2);
@@ -92,7 +101,10 @@ export class SunLight {
   /** The shadow box's half width and height across the sun's view. */
   private size(hx: number, hy: number): void {
     const sc = this.sun.shadow.camera;
-    if (sc.right === hx && sc.top === hy) return;
+    if (sc.right === hx && sc.top === hy) {
+      return;
+    }
+
     sc.left = -hx;
     sc.right = hx;
     sc.bottom = -hy;

@@ -1,7 +1,11 @@
 import type { Group, Object3D } from 'three';
+
 import { box, build, cylinder, group, model, NO_CAST, solid } from './part';
 
-/** A dented steel trash can with a fire going in it: the can's size, and the flames' sizes and spots on top (x, z, width, height). */
+/**
+ * A dented steel trash can with a fire going in it: the can's size, and the flames' sizes and spots on top (x, z,
+ * width, height).
+ */
 const CAN = { radius: 0.3, height: 0.88, segments: 12 };
 /** Height of the can's rim. */
 export const CAN_TOP = CAN.height;

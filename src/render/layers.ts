@@ -1,8 +1,8 @@
 import type { Object3D } from 'three';
 
 /**
- * Glows, sprites and debug lines: both cameras draw this layer, but the ink-outline normal
- * prepass (post/scene-outline-pass.ts) leaves it out, so effects never get outlined.
+ * Glows, sprites and debug lines: both cameras draw this layer, but the ink-outline normal prepass
+ * (post/scene-outline-pass.ts) leaves it out, so effects never get outlined.
  */
 export const FX_LAYER = 1;
 

@@ -1,8 +1,10 @@
 import { Vector3 } from 'three';
+
 import type { Vehicle } from '@/actors/vehicle';
 import { TUNING } from '@/config';
 import { damp, type V3 } from '@/engine/core/math';
 import type { CollisionWorld } from '@/engine/physics/collision';
+
 import type { ChaseKind } from './chase-camera';
 import type { IsoCamera } from './iso-camera';
 import { cutUniforms } from './materials';
@@ -28,7 +30,14 @@ export class Cutaway {
   }
 
   /** `sight` holds what hides the focus without being solid (tree crowns): it opens the window too. */
-  update(dt: number, focus: Vector3, v: Vehicle | null, iso: IsoCamera, collision: CollisionWorld, sight?: CollisionWorld): void {
+  update(
+    dt: number,
+    focus: Vector3,
+    v: Vehicle | null,
+    iso: IsoCamera,
+    collision: CollisionWorld,
+    sight?: CollisionWorld,
+  ): void {
     const center = _center.set(focus.x, focus.y + 1.2, focus.z);
     const vd = iso.viewDir;
     const kind: ChaseKind = v ? v.form : 'foot';
@@ -41,11 +50,13 @@ export class Cutaway {
       _b[0] = _a[0] + vd.x * 70;
       _b[1] = _a[1] + vd.y * 70;
       _b[2] = _a[2] + vd.z * 70;
+
       if (collision.segmentBlocked(_a, _b) || sight?.segmentBlocked(_a, _b)) {
         blocked = true;
         break;
       }
     }
+
     const want = blocked ? TUNING.cutaway[kind] : 0;
     this.radius = damp(this.radius, want, 8, dt);
     // the slab overhead goes everywhere in the window, not just in front of the focus

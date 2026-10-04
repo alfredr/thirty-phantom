@@ -1,4 +1,5 @@
 import { Euler, Matrix3, Matrix4, Quaternion, Vector3 } from 'three';
+
 import { TUNING } from '@/config';
 import type { CollisionWorld } from '@/engine/physics/collision';
 import type { VehicleParams } from '@/engine/physics/vehicle-params';
@@ -47,11 +48,10 @@ export function vehicleMass(P: Pick<VehicleParams, 'radius' | 'length' | 'height
 }
 
 /**
- * A vehicle's body while it crashes: a box with mass and full 3D spin,
- * tumbling on the collision world. Its sample points (corners, edge middles)
- * are pushed out of the ground, walls and ceilings with an impulse that has
- * bounce and friction, so it spins out, rolls and flips. Allocated once per
- * vehicle, the first time it crashes; a step allocates nothing.
+ * A vehicle's body while it crashes: a box with mass and full 3D spin, tumbling on the collision world. Its sample
+ * points (corners, edge middles) are pushed out of the ground, walls and ceilings with an impulse that has bounce and
+ * friction, so it spins out, rolls and flips. Allocated once per vehicle, the first time it crashes; a step allocates
+ * nothing.
  */
 export class CrashBody {
   /** Orientation (body: +X right, +Y up, +Z forward), centre of mass, angular velocity (world). */
@@ -81,9 +81,15 @@ export class CrashBody {
     const hi = h - this.comY;
     const pts: number[] = [];
     for (const y of [lo, hi]) {
-      for (const x of [-hx, hx]) for (const z of [-hz, hz]) pts.push(x, y, z);
+      for (const x of [-hx, hx]) {
+        for (const z of [-hz, hz]) {
+          pts.push(x, y, z);
+        }
+      }
+
       pts.push(-hx, y, 0, hx, y, 0, 0, y, -hz, 0, y, hz);
     }
+
     this.pts = new Float32Array(pts);
   }
 
@@ -115,6 +121,7 @@ export class CrashBody {
       e[c * 3 + 1] = (e[c * 3 + 1] as number) * iy;
       e[c * 3 + 2] = (e[c * 3 + 2] as number) * iz;
     }
+
     _iw.premultiply(_m);
   }
 
@@ -126,8 +133,8 @@ export class CrashBody {
   }
 
   /**
-   * Push at world point (px,py,pz) with impulse j: velocity `vel` and spin change.
-   * Uses the inertia from the last inertia() call.
+   * Push at world point (px,py,pz) with impulse j: velocity `vel` and spin change. Uses the inertia from the last
+   * inertia() call.
    */
   private applyImpulse(vel: Vector3, px: number, py: number, pz: number, jx: number, jy: number, jz: number): void {
     vel.x += jx / this.mass;
@@ -138,8 +145,8 @@ export class CrashBody {
   }
 
   /**
-   * A hit against something immovable at world point p with outward normal n
-   * (toward the body): bounce and friction. Returns the impulse magnitude.
+   * A hit against something immovable at world point p with outward normal n (toward the body): bounce and friction.
+   * Returns the impulse magnitude.
    */
   contact(
     vel: Vector3,
@@ -158,7 +165,10 @@ export class CrashBody {
     _p.crossVectors(this.spin, _r).add(vel);
     _n.set(nx, ny, nz);
     const vn = _p.dot(_n);
-    if (vn >= 0) return 0;
+    if (vn >= 0) {
+      return 0;
+    }
+
     const invM = 1 / this.mass;
     const kn = invM + _a.crossVectors(_r, _n).applyMatrix3(_iw).cross(_r).dot(_n);
     const jn = (-(1 + bounce) * vn) / kn;
@@ -166,11 +176,13 @@ export class CrashBody {
     // friction against the sliding left over (a wheel rolls, so mostly its sideways slide)
     _p.crossVectors(this.spin, _r).add(vel);
     _t.copy(_p).addScaledVector(_n, -_p.dot(_n));
+
     if (wheel) {
       this.forward(_b);
       _b.addScaledVector(_n, -_b.dot(_n)).normalize();
       _t.addScaledVector(_b, -_t.dot(_b) * (1 - ROLLING));
     }
+
     const vt = _t.length();
     if (vt > 1e-4) {
       _t.divideScalar(vt);
@@ -178,6 +190,7 @@ export class CrashBody {
       const jt = Math.min(vt / kt, grip * jn);
       this.applyImpulse(vel, px, py, pz, -_t.x * jt, -_t.y * jt, -_t.z * jt);
     }
+
     return jn;
   }
 
@@ -196,10 +209,7 @@ export class CrashBody {
     return out.copy(this.com).addScaledVector(this.up(_a), -this.comY);
   }
 
-  /**
-   * Tumble for dt. Returns the hardest impact (impulse per unit mass, m/s), for
-   * shake and damage.
-   */
+  /** Tumble for dt. Returns the hardest impact (impulse per unit mass, m/s), for shake and damage. */
   step(dt: number, vel: Vector3, world: CollisionWorld): number {
     let hardest = 0;
     const n = Math.min(8, Math.ceil(dt / SUBSTEP));
@@ -221,7 +231,10 @@ export class CrashBody {
         const px = this.com.x + _r.x;
         const py = this.com.y + _r.y;
         const pz = this.com.z + _r.z;
-        if (!penetration(world, px, py, pz)) continue;
+        if (!penetration(world, px, py, pz)) {
+          continue;
+        }
+
         // the first four points are the bottom corners, where the wheels are
         const wheel = wheelsDown && i < 12 && _hit.ny > 0.7;
         const j = this.contact(vel, px, py, pz, _hit.nx, _hit.ny, _hit.nz, BOUNCE, GRIP, wheel);
@@ -230,14 +243,24 @@ export class CrashBody {
         const dx = _hit.nx * _hit.depth;
         const dy = _hit.ny * _hit.depth;
         const dz = _hit.nz * _hit.depth;
-        if (Math.abs(dx) > Math.abs(pushX)) pushX = dx;
-        if (Math.abs(dy) > Math.abs(pushY)) pushY = dy;
-        if (Math.abs(dz) > Math.abs(pushZ)) pushZ = dz;
+        if (Math.abs(dx) > Math.abs(pushX)) {
+          pushX = dx;
+        }
+
+        if (Math.abs(dy) > Math.abs(pushY)) {
+          pushY = dy;
+        }
+
+        if (Math.abs(dz) > Math.abs(pushZ)) {
+          pushZ = dz;
+        }
       }
+
       this.com.x += pushX * PUSH_OUT;
       this.com.y += pushY * PUSH_OUT;
       this.com.z += pushZ * PUSH_OUT;
     }
+
     const still = vel.length() < REST_SPEED && this.spin.length() < REST_SPIN;
     this.rest = still ? this.rest + dt : 0;
     return hardest;
@@ -251,38 +274,56 @@ export class CrashBody {
 
 /**
  * Is (x,y,z) inside the ground (below street level, or a pit's floor) or a solid? Fills _hit with the shallowest way
- * out: over the top (a ramp's slope tilts that normal), under a slab, or out a
- * side. Allocates nothing.
+ * out: over the top (a ramp's slope tilts that normal), under a slab, or out a side. Allocates nothing.
  */
 export function penetration(world: CollisionWorld, x: number, y: number, z: number): boolean {
   _hit.depth = Infinity;
   // the ground plane: street level, or a pit's floor (the basement under the deck)
   const plane = world.groundPlane(x, z);
-  if (y < plane) take(plane - y, 0, 1, 0);
+  if (y < plane) {
+    take(plane - y, 0, 1, 0);
+  }
+
   for (const s of world.query(x, z, x, z)) {
-    if (x <= s.min[0] || x >= s.max[0] || z <= s.min[2] || z >= s.max[2]) continue;
+    if (x <= s.min[0] || x >= s.max[0] || z <= s.min[2] || z >= s.max[2]) {
+      continue;
+    }
+
     const top = world.topAt(s, x, z);
-    if (y <= s.min[1] || y >= top) continue;
+    if (y <= s.min[1] || y >= top) {
+      continue;
+    }
+
     const r = s.ramp;
     if (r) {
       const a = r.axis === 'x' ? 0 : 2;
       const k = ((s.max[1] - r.low) / (s.max[a] - s.min[a])) * r.dir;
       const l = Math.hypot(k, 1);
-      if (a === 0) take(top - y, -k / l, 1 / l, 0);
-      else take(top - y, 0, 1 / l, -k / l);
-    } else take(top - y, 0, 1, 0);
+      if (a === 0) {
+        take(top - y, -k / l, 1 / l, 0);
+      } else {
+        take(top - y, 0, 1 / l, -k / l);
+      }
+    } else {
+      take(top - y, 0, 1, 0);
+    }
+
     take(y - s.min[1], 0, -1, 0);
     take(x - s.min[0], -1, 0, 0);
     take(s.max[0] - x, 1, 0, 0);
     take(z - s.min[2], 0, 0, -1);
     take(s.max[2] - z, 0, 0, 1);
   }
+
   return _hit.depth < Infinity;
 }
 
 /** Keep the shallower of the current way out and this one. */
 function take(d: number, nx: number, ny: number, nz: number): void {
-  if (d >= _hit.depth) return;
+  if (d >= _hit.depth) {
+    return;
+  }
+
   _hit.nx = nx;
   _hit.ny = ny;
   _hit.nz = nz;

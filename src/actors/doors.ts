@@ -1,4 +1,5 @@
 import type { Vector3 } from 'three';
+
 import type { Vehicle } from './vehicle';
 
 /** Where a driver gets in or out: beside the car on its left, `gap` out from its side (at the car's height). */

@@ -1,8 +1,15 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["import"],
+  "jsPlugins": ["@stylistic/eslint-plugin"],
   "categories": { "correctness": "off" },
   "rules": {
+    "curly": ["error", "all"],
+    "@stylistic/padding-line-between-statements": ["error",
+      { "blankLine": "always", "prev": "*", "next": "multiline-block-like" },
+      { "blankLine": "any", "prev": ["const", "let"], "next": "multiline-block-like" },
+      { "blankLine": "always", "prev": "multiline-block-like", "next": "*" }
+    ],
     "import/first": ["error", "absolute-first"],
     "import/no-duplicates": "error",
     "import/extensions": ["error", "ignorePackages", {

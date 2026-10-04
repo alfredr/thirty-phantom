@@ -1,9 +1,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+
 import { Group } from 'three';
+
 import { loadModules } from './modules.mjs';
 
-const [{ Vehicle }, { CollisionWorld }] = await loadModules('/src/actors/vehicle.ts', '/src/engine/physics/collision.ts');
+const [{ Vehicle }, { CollisionWorld }] = await loadModules(
+  '/src/actors/vehicle.ts',
+  '/src/engine/physics/collision.ts',
+);
 
 function truck() {
   const rig = { root: new Group(), body: new Group(), wheels: [], lights: [], materials: [], height: 3.8, scale: 1 };

@@ -1,6 +1,8 @@
 import { OrthographicCamera, Vector3 } from 'three';
+
 import { TUNING } from '@/config';
 import { clamp, damp, dampAngle } from '@/engine/core/math';
+
 import { Shake } from './shake';
 
 /** 35.264 deg: true isometric. */
@@ -8,9 +10,9 @@ export const ISO_ELEVATION = Math.atan(1 / Math.SQRT2);
 /** Each mouse-wheel step zooms by this factor (both camera rigs). */
 export const ZOOM_STEP = 1.12;
 /**
- * The sun's shadow box covers what the view shows from the ground (or the focus, if lower) up to
- * this far above the focus. Higher roofs near the bottom of the screen go without shadows; taking
- * in the tallest towers' would stretch the box far down the screen for the few that stand there.
+ * The sun's shadow box covers what the view shows from the ground (or the focus, if lower) up to this far above the
+ * focus. Higher roofs near the bottom of the screen go without shadows; taking in the tallest towers' would stretch the
+ * box far down the screen for the few that stand there.
  */
 const SHADOW_RISE = 20;
 const _corner = new Vector3();
@@ -89,14 +91,14 @@ export class IsoCamera {
   }
 
   /**
-   * How far up the screen (world units from its centre, as the flat world would be drawn) the
-   * view reaches: its top, or more where world curvature brings farther ground into view.
+   * How far up the screen (world units from its centre, as the flat world would be drawn) the view reaches: its top, or
+   * more where world curvature brings farther ground into view.
    */
   shadowTop = 0;
 
   /**
-   * What the sun's shadow box must cover: where the view's corner rays cross the lowest and
-   * highest heights it shows shadows at (SHADOW_RISE). Into `out` (8 points).
+   * What the sun's shadow box must cover: where the view's corner rays cross the lowest and highest heights it shows
+   * shadows at (SHADOW_RISE). Into `out` (8 points).
    */
   shadowCorners(out: Vector3[]): Vector3[] {
     const cam = this.camera;
@@ -111,12 +113,14 @@ export class IsoCamera {
     for (const x of [cam.left, cam.right]) {
       for (const y of [cam.bottom, top]) {
         _corner.copy(cam.position).addScaledVector(_right, x).addScaledVector(_up, y);
+
         for (const h of [lo, hi]) {
           const p = (out[i++] ??= new Vector3());
           p.copy(_corner).addScaledVector(_fwd, (h - _corner.y) / _fwd.y);
         }
       }
     }
+
     out.length = 8;
     return out;
   }
@@ -130,7 +134,11 @@ export class IsoCamera {
     const fx = focus.x + (lead?.x ?? 0);
     const fy = focus.y + (lead?.y ?? 0);
     const fz = focus.z + (lead?.z ?? 0);
-    this.target.set(damp(this.target.x, fx, followRate, dt), damp(this.target.y, fy, followRate * 0.6, dt), damp(this.target.z, fz, followRate, dt));
+    this.target.set(
+      damp(this.target.x, fx, followRate, dt),
+      damp(this.target.y, fy, followRate * 0.6, dt),
+      damp(this.target.z, fz, followRate, dt),
+    );
     this.azimuth = dampAngle(this.azimuth, this.azimuthTarget, 9, dt);
     this.zoom = damp(this.zoom, this.zoomTarget, 7, dt);
     this.computeView();

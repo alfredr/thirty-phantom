@@ -1,11 +1,13 @@
 import { NoToneMapping, PCFShadowMap, type Scene, SRGBColorSpace, Vector2, Vector3, WebGLRenderer } from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
 import { TUNING } from '@/config';
 import { urlChoice } from '@/engine/core/url-flags';
+
 import type { ChaseCamera } from './chase-camera';
 import { CURVE_ON, curveCull, curveFrame, curvePoint, curveSweep, curveTop } from './curvature';
 import { type IsoCamera, ISO_ELEVATION } from './iso-camera';
@@ -22,10 +24,10 @@ function shaderPass<S extends { uniforms: object }>(shader: S): TypedShaderPass<
 }
 
 /**
- * Bloom shape; its strength follows the time of day (day-night.ts). `radius` weights the widest
- * blur levels: kept low, glow stays a halo round lamps and neon instead of a haze over the whole
- * frame. `threshold` is the scene luminance where glow starts and `knee` the width it fades in
- * over, so a surface just past the threshold glows a little rather than at full strength.
+ * Bloom shape; its strength follows the time of day (day-night.ts). `radius` weights the widest blur levels: kept low,
+ * glow stays a halo round lamps and neon instead of a haze over the whole frame. `threshold` is the scene luminance
+ * where glow starts and `knee` the width it fades in over, so a surface just past the threshold glows a little rather
+ * than at full strength.
  */
 const BLOOM = { radius: 0.1, threshold: 0.9, knee: 0.6 };
 
@@ -33,8 +35,8 @@ const BLOOM = { radius: 0.1, threshold: 0.9, knee: 0.6 };
 const SWEEP_EVERY = 60;
 
 /**
- * Post stack: scene + ink outlines -> sky band -> see-through ghosts -> bloom -> grade -> tone map -> SMAA.
- * With world curvature (render/curvature.ts) the scene is bent as it's drawn, and the sky fills what it leaves empty.
+ * Post stack: scene + ink outlines -> sky band -> see-through ghosts -> bloom -> grade -> tone map -> SMAA. With world
+ * curvature (render/curvature.ts) the scene is bent as it's drawn, and the sky fills what it leaves empty.
  */
 export class GameRenderer {
   readonly renderer: WebGLRenderer;
@@ -132,17 +134,23 @@ export class GameRenderer {
     su.isPersp.value = this.chaseView ? 1 : 0;
     // the distant skyline is the chase view's horizon; top-down, the band is just sky
     su.skylineAmount.value = this.chaseView ? 1 : 0;
+
     if (this.chaseView) {
       su.camPos.value.copy(cam.position);
       su.fogNear.value = TUNING.camera.chase.fogNear;
       su.fogFar.value = TUNING.camera.chase.fogFar;
-    } else this.isoSky();
+    } else {
+      this.isoSky();
+    }
+
     this.grade.uniforms.time.value = time;
     this.curve(CURVE_ON && !this.chaseView);
+
     if (!this.curved) {
       this.composer.render();
       return;
     }
+
     // the x-ray window is cut round where Cody is drawn, and culling goes by where things are drawn
     const cut = cutUniforms.uCutCenter.value;
     this.cutFlat.copy(cut);
@@ -158,13 +166,18 @@ export class GameRenderer {
     const u = curveFrame.planet;
     const su = this.sky.uniforms;
     this.curved = on;
+
     if (!on) {
       u.w = 0;
       su.horizon.value.w = 0;
       this.iso.shadowTop = 0;
       return;
     }
-    if (this.frames++ % SWEEP_EVERY === 0) curveSweep(this.scene);
+
+    if (this.frames++ % SWEEP_EVERY === 0) {
+      curveSweep(this.scene);
+    }
+
     const iso = this.iso;
     const t = iso.target;
     const h = iso.viewHeight;

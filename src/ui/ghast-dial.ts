@@ -6,9 +6,9 @@ const SWEEP = 62;
 const GULP = 0.01;
 
 /**
- * The monster truck's ghost tank, beside the speedometer: a fuel gauge from E to F labelled
- * GhASt (GAS with the ghost tucked in, its h and t small and dropped). It flares while the
- * boost burns, gulps when a ghost goes in, and glows when full.
+ * The monster truck's ghost tank, beside the speedometer: a fuel gauge from E to F labelled GhASt (GAS with the ghost
+ * tucked in, its h and t small and dropped). It flares while the boost burns, gulps when a ghost goes in, and glows
+ * when full.
  */
 export class GhastDial {
   readonly root: HTMLDivElement;
@@ -24,16 +24,22 @@ export class GhastDial {
     const arc = `M${ax} ${ay}A36 36 0 0 1 ${bx} ${by}`;
     svg('path', { d: arc, pathLength: 100, class: 'ghast-track' }, s);
     this.fill = svg('path', { d: arc, pathLength: 100, class: 'ghast-fill' }, s);
+
     for (let i = 0; i <= 4; i++) {
       const deg = -SWEEP + (i / 4) * SWEEP * 2;
       const [x1, y1] = polar(deg, i % 2 ? 26.5 : 24);
       const [x2, y2] = polar(deg, 29.5);
       svg('line', { x1, y1, x2, y2, class: i % 2 ? 'ghast-tick' : 'ghast-tick major' }, s);
     }
-    for (const [deg, mark] of [[-SWEEP, 'E'], [SWEEP, 'F']] as const) {
+
+    for (const [deg, mark] of [
+      [-SWEEP, 'E'],
+      [SWEEP, 'F'],
+    ] as const) {
       const [x, y] = polar(deg, 17);
       svg('text', { x, y, class: 'ghast-mark' }, s).textContent = mark;
     }
+
     this.needle = svg('g', { class: 'ghast-needle' }, s);
     svg('line', { x1: 0, y1: 5, x2: 0, y2: -31 }, this.needle);
     svg('circle', { r: 4.5, class: 'ghast-hub' }, s);
@@ -45,10 +51,17 @@ export class GhastDial {
   set(fill: number, burning: boolean): void {
     const f = Math.min(1, Math.max(0, fill));
     const r = this.root.classList;
-    if (this.last >= 0 && f - this.last >= GULP && !r.contains('gulp')) r.add('gulp');
+    if (this.last >= 0 && f - this.last >= GULP && !r.contains('gulp')) {
+      r.add('gulp');
+    }
+
     r.toggle('burn', burning && f > 0);
     r.toggle('full', f >= 0.999);
-    if (Math.abs(f - this.last) < 0.002) return;
+
+    if (Math.abs(f - this.last) < 0.002) {
+      return;
+    }
+
     this.last = f;
     this.fill.style.strokeDashoffset = String(100 - f * 100);
     this.needle.style.transform = `rotate(${-SWEEP + f * SWEEP * 2}deg)`;

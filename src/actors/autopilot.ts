@@ -1,9 +1,11 @@
 import { Vector3 } from 'three';
+
 import { TUNING } from '@/config';
 import { clamp, wrapAngle } from '@/engine/core/math';
 import { RouteCursor } from '@/engine/nav/polyline';
 import { bodyOffsets, steerScale, type VehicleParams } from '@/engine/physics/vehicle-params';
 import { bodyOf, type NavGrid, type NavProfile, type RouteLeg } from '@/world/nav-grid';
+
 import type { DriveInput, Vehicle } from './vehicle';
 
 export type AutopilotState = 'driving' | 'reversing' | 'arrived' | 'stuck';
@@ -108,19 +110,15 @@ const NO_CHOICE: Choice = { offset: 0, reverse: null, score: 0, bump: -1 };
 const IDLE: DriveInput = { throttle: 0, steer: 0, hop: false, drift: false };
 
 /**
- * Drives a Vehicle along a planned route through the real physics
- * (Vehicle.drive), so ramps, kerbs and collisions behave as they do for the
- * player. A route is a sequence of legs, each driven forward or in reverse
- * (the planner adds reverse legs where a corner needs a three-point turn).
+ * Drives a Vehicle along a planned route through the real physics (Vehicle.drive), so ramps, kerbs and collisions
+ * behave as they do for the player. A route is a sequence of legs, each driven forward or in reverse (the planner adds
+ * reverse legs where a corner needs a three-point turn).
  *
- * Steering is a path tracker: the route's own curvature sets the wheel angle
- * (arcs and Dubins loops are followed exactly), with corrections for heading
- * and sideways offset. Going forward it also looks ahead: every few frames it
- * simulates the car tracking the route and a few sideways shifts of it, plus a
- * few recovery back-ups, checks each against the nav grid and nearby people
- * and cars, and keeps the best. So it eases round a parked car before reaching
- * it, waits for someone in the way, and backs up only when nothing forward
- * works.
+ * Steering is a path tracker: the route's own curvature sets the wheel angle (arcs and Dubins loops are followed
+ * exactly), with corrections for heading and sideways offset. Going forward it also looks ahead: every few frames it
+ * simulates the car tracking the route and a few sideways shifts of it, plus a few recovery back-ups, checks each
+ * against the nav grid and nearby people and cars, and keeps the best. So it eases round a parked car before reaching
+ * it, waits for someone in the way, and backs up only when nothing forward works.
  */
 /** Something to keep clear of: a person, or one of a car's body circles, and whose it is (a car skips its own). */
 export interface Obstacle {
@@ -160,7 +158,10 @@ export class Autopilot {
 
   /** Input for this frame. `obstacles` are people and other cars (their body circles) to keep clear of. */
   update(dt: number, v: Vehicle, obstacles: readonly Obstacle[]): DriveInput {
-    if (this.state === 'stuck') return IDLE;
+    if (this.state === 'stuck') {
+      return IDLE;
+    }
+
     const c = this.cursor;
     c.track(v.pos, TRACK_WINDOW + Math.abs(v.speed) * TRACK_WINDOW_PER_SPEED);
 
@@ -170,6 +171,7 @@ export class Autopilot {
       this.sinceProgress = 0;
     } else if ((this.sinceProgress += dt) > A.stall) {
       this.sinceProgress = 0;
+
       if (++this.stalls >= A.stalls) {
         this.state = 'stuck';
         return IDLE;
@@ -178,7 +180,10 @@ export class Autopilot {
 
     // end of a leg: slow right down, then take the next one (a cusp: forward to reverse or back; its throttle stops what's left)
     if (!this.lastLeg && c.remaining < LEG_END) {
-      if (Math.abs(v.speed) > CUSP_SPEED) return { ...IDLE, throttle: this.brake(v.speed) };
+      if (Math.abs(v.speed) > CUSP_SPEED) {
+        return { ...IDLE, throttle: this.brake(v.speed) };
+      }
+
       this.leg++;
       this.cursor = new RouteCursor(this.current.path);
       this.best = 0;
@@ -187,17 +192,30 @@ export class Autopilot {
       this.sinceChoice = Infinity;
       return IDLE;
     }
+
     const end = c.path.end;
-    if (this.state === 'arrived' || (this.lastLeg && c.remaining < A.arrive + 1 && Math.hypot(end.x - v.pos.x, end.z - v.pos.z) < A.arrive && Math.abs(end.y - v.pos.y) < ARRIVE_LEVEL)) {
+    if (
+      this.state === 'arrived' ||
+      (this.lastLeg &&
+        c.remaining < A.arrive + 1 &&
+        Math.hypot(end.x - v.pos.x, end.z - v.pos.z) < A.arrive &&
+        Math.abs(end.y - v.pos.y) < ARRIVE_LEVEL)
+    ) {
       this.state = 'arrived';
       return { ...IDLE, throttle: Math.abs(v.speed) > STOPPED ? this.brake(v.speed) : 0 };
     }
 
-    if (this.current.reverse) return this.reverseLeg(dt, v, obstacles);
+    if (this.current.reverse) {
+      return this.reverseLeg(dt, v, obstacles);
+    }
 
     if (this.state === 'reversing') {
       this.reverseLeft -= dt;
-      if (this.reverseLeft > 0) return { ...IDLE, throttle: v.speed < -A.reverseCruise ? 0 : A.reverseThrottle, steer: this.reverseSteer };
+
+      if (this.reverseLeft > 0) {
+        return { ...IDLE, throttle: v.speed < -A.reverseCruise ? 0 : A.reverseThrottle, steer: this.reverseSteer };
+      }
+
       this.state = 'driving';
       this.sinceChoice = Infinity;
     }
@@ -206,10 +224,16 @@ export class Autopilot {
     want = Math.min(want, this.cornerSpeed(), this.stopping(c.remaining));
 
     this.sinceChoice += dt;
+
     if (this.sinceChoice > REPLAN) {
       this.sinceChoice = 0;
-      this.choice = this.choose(v, Math.max(ROLLOUT_MIN, Math.min(want, Math.abs(v.speed) + ROLLOUT_SPEEDUP)), this.near(v, obstacles));
+      this.choice = this.choose(
+        v,
+        Math.max(ROLLOUT_MIN, Math.min(want, Math.abs(v.speed) + ROLLOUT_SPEEDUP)),
+        this.near(v, obstacles),
+      );
     }
+
     const ch = this.choice;
     if (ch.reverse !== null) {
       this.state = 'reversing';
@@ -220,9 +244,16 @@ export class Autopilot {
     }
 
     const { steer, headingErr } = this.track(v.params, v.pos.x, v.pos.z, v.yaw, v.speed, c.s, ch.offset, false);
-    want = Math.min(want, Math.max(CRAWL, want * clamp(1 - Math.abs(headingErr) / HEADING_SLOWDOWN, MIN_HEADING_SPEED, 1)));
+    want = Math.min(
+      want,
+      Math.max(CRAWL, want * clamp(1 - Math.abs(headingErr) / HEADING_SLOWDOWN, MIN_HEADING_SPEED, 1)),
+    );
+
     // even the best way forward runs into someone soon: wait for them (a long wait counts as a stall)
-    if (ch.bump >= 0 && ch.bump < WAIT_STEPS) want = 0;
+    if (ch.bump >= 0 && ch.bump < WAIT_STEPS) {
+      want = 0;
+    }
+
     return { ...IDLE, throttle: this.throttle(v.speed, want), steer };
   }
 
@@ -231,24 +262,39 @@ export class Autopilot {
     const c = this.cursor;
     let want: number = Math.min(A.reverseCruise, this.stopping(c.remaining));
     this.sinceChoice += dt;
+
     if (this.sinceChoice > REPLAN) {
       this.sinceChoice = 0;
       const r = this.rollout(v, 0, null, -Math.max(ROLLOUT_MIN, want), this.near(v, obstacles), true);
       this.choice = { ...NO_CHOICE, bump: r.bump };
     }
-    if (this.choice.bump >= 0 && this.choice.bump < WAIT_STEPS) want = 0;
+
+    if (this.choice.bump >= 0 && this.choice.bump < WAIT_STEPS) {
+      want = 0;
+    }
+
     const { steer } = this.track(v.params, v.pos.x, v.pos.z, v.yaw, v.speed, c.s, 0, true);
     // going backwards, positive throttle brakes
     const sp = -v.speed;
     let throttle = 0;
-    if (sp < want - UNDER_SPEED) throttle = -clamp((want - sp) * THROTTLE_GAIN, MIN_THROTTLE, 1);
-    else if (sp > want + OVER_SPEED) throttle = 1;
+    if (sp < want - UNDER_SPEED) {
+      throttle = -clamp((want - sp) * THROTTLE_GAIN, MIN_THROTTLE, 1);
+    } else if (sp > want + OVER_SPEED) {
+      throttle = 1;
+    }
+
     return { ...IDLE, throttle, steer };
   }
 
   private throttle(speed: number, want: number): number {
-    if (speed < want - Math.min(UNDER_SPEED, want * UNDER_SHARE)) return clamp((want - speed) * THROTTLE_GAIN, MIN_THROTTLE, 1);
-    if (speed > want + OVER_SPEED) return -1;
+    if (speed < want - Math.min(UNDER_SPEED, want * UNDER_SHARE)) {
+      return clamp((want - speed) * THROTTLE_GAIN, MIN_THROTTLE, 1);
+    }
+
+    if (speed > want + OVER_SPEED) {
+      return -1;
+    }
+
     return 0;
   }
 
@@ -266,19 +312,37 @@ export class Autopilot {
   private near(v: Vehicle, obstacles: readonly Obstacle[]): Vector3[] {
     const out: Vector3[] = [];
     for (const { pos: o, owner } of obstacles) {
-      if (owner === v || o === v.pos) continue;
-      if (Math.abs(o.x - v.pos.x) < OBSTACLE_RANGE && Math.abs(o.z - v.pos.z) < OBSTACLE_RANGE && Math.abs(o.y - v.pos.y) < OBSTACLE_LEVEL) out.push(o);
+      if (owner === v || o === v.pos) {
+        continue;
+      }
+
+      if (
+        Math.abs(o.x - v.pos.x) < OBSTACLE_RANGE &&
+        Math.abs(o.z - v.pos.z) < OBSTACLE_RANGE &&
+        Math.abs(o.y - v.pos.y) < OBSTACLE_LEVEL
+      ) {
+        out.push(o);
+      }
     }
+
     return out;
   }
 
   /**
-   * Steering input to follow the current leg (shifted sideways by `offset`)
-   * from a pose: wheel angle from the route's curvature just ahead, plus
-   * heading and offset corrections. Reversing, the car's tail leads: the same
-   * law on the direction of travel, with the steering sign flipped.
+   * Steering input to follow the current leg (shifted sideways by `offset`) from a pose: wheel angle from the route's
+   * curvature just ahead, plus heading and offset corrections. Reversing, the car's tail leads: the same law on the
+   * direction of travel, with the steering sign flipped.
    */
-  private track(P: VehicleParams, x: number, z: number, yaw: number, speed: number, s: number, offset: number, reverse: boolean): { steer: number; headingErr: number } {
+  private track(
+    P: VehicleParams,
+    x: number,
+    z: number,
+    yaw: number,
+    speed: number,
+    s: number,
+    offset: number,
+    reverse: boolean,
+  ): { steer: number; headingErr: number } {
     const path = this.cursor.path;
     path.sample(s + TRACK_LEAD, _p, _a);
     const psi = Math.atan2(_a.x, _a.z);
@@ -292,7 +356,8 @@ export class Autopilot {
     const off = (x - (_p.x + nx * offset)) * nx + (z - (_p.z + nz * offset)) * nz;
     const travel = reverse ? yaw + Math.PI : yaw;
     const headingErr = wrapAngle(psi - travel);
-    const delta = Math.atan(P.wheelBase * kappa) + A.kHeading * headingErr - Math.atan((A.kOffset * off) / (Math.abs(speed) + 1));
+    const delta =
+      Math.atan(P.wheelBase * kappa) + A.kHeading * headingErr - Math.atan((A.kOffset * off) / (Math.abs(speed) + 1));
     const speedK = steerScale(P, speed);
     // Vehicle.drive turns yaw by -steer going forward and by +steer backing up
     const input = delta / (P.maxSteer * speedK);
@@ -300,14 +365,14 @@ export class Autopilot {
   }
 
   /**
-   * Fastest speed now that still makes every bend over the stretch ahead:
-   * each bend's own speed (A.cornerGrip of sideways grip on its curvature),
-   * plus what braking at A.stopDecel sheds on the way to it.
+   * Fastest speed now that still makes every bend over the stretch ahead: each bend's own speed (A.cornerGrip of
+   * sideways grip on its curvature), plus what braking at A.stopDecel sheds on the way to it.
    */
   private cornerSpeed(): number {
     const c = this.cursor;
     let v = Infinity;
     c.ahead(0, _p, _a);
+
     for (let d = BEND_STEP; d <= BEND_SPAN; d += BEND_STEP) {
       c.ahead(d, _p, _b);
       const kappa = Math.acos(clamp(_a.x * _b.x + _a.z * _b.z, -1, 1)) / BEND_STEP;
@@ -315,8 +380,10 @@ export class Autopilot {
         const bendSpeed = Math.max(CRAWL, Math.sqrt(A.cornerGrip / kappa));
         v = Math.min(v, Math.sqrt(bendSpeed * bendSpeed + 2 * A.stopDecel * (d - BEND_STEP)));
       }
+
       _a.copy(_b);
     }
+
     return v;
   }
 
@@ -327,24 +394,39 @@ export class Autopilot {
       // a preference for the route itself, so it only eases out when that helps
       const r = this.rollout(v, off, null, speed, obstacles);
       const score = r.score - Math.abs(off) * OFFSET_COST;
-      if (score > best.score) best = { offset: off, reverse: null, score, bump: r.bump };
+      if (score > best.score) {
+        best = { offset: off, reverse: null, score, bump: r.bump };
+      }
     }
+
     // backing up off the plan is a last resort: only once it's stopped getting anywhere
-    if (this.sinceProgress < RECOVER_AFTER) return best;
+    if (this.sinceProgress < RECOVER_AFTER) {
+      return best;
+    }
+
     for (const steer of REVERSE_STEERS) {
       const r = this.rollout(v, 0, steer, REVERSE_SPEED, obstacles);
-      if (r.score - REVERSE_HANDICAP > best.score) best = { offset: 0, reverse: steer, score: r.score - REVERSE_HANDICAP, bump: r.bump };
+      if (r.score - REVERSE_HANDICAP > best.score) {
+        best = { offset: 0, reverse: steer, score: r.score - REVERSE_HANDICAP, bump: r.bump };
+      }
     }
+
     return best;
   }
 
   /**
-   * Score one candidate: simulate the car (bicycle model, as in Vehicle.drive)
-   * tracking the shifted route (forward, or backward along a reverse leg), or
-   * reversing with a fixed `steer`, checking its body against the nav grid and
-   * nearby obstacles at every step.
+   * Score one candidate: simulate the car (bicycle model, as in Vehicle.drive) tracking the shifted route (forward, or
+   * backward along a reverse leg), or reversing with a fixed `steer`, checking its body against the nav grid and nearby
+   * obstacles at every step.
    */
-  private rollout(v: Vehicle, offset: number, steer: number | null, speed: number, obstacles: readonly Vector3[], reverse = false): { score: number; bump: number } {
+  private rollout(
+    v: Vehicle,
+    offset: number,
+    steer: number | null,
+    speed: number,
+    obstacles: readonly Vector3[],
+    reverse = false,
+  ): { score: number; bump: number } {
     const P = v.params;
     const { nav, profile } = this.opts;
     // the body itself: plans may pass closer than the planner's margin near their ends
@@ -356,7 +438,8 @@ export class Autopilot {
     let yaw = v.yaw;
     let s = c.s;
     // tracking looks no further than the leg goes (past a cusp there's nothing to follow)
-    const horizon = steer === null ? Math.min(HORIZON, c.remaining / Math.max(Math.abs(speed), ROLLOUT_MIN)) : A.reverseTime;
+    const horizon =
+      steer === null ? Math.min(HORIZON, c.remaining / Math.max(Math.abs(speed), ROLLOUT_MIN)) : A.reverseTime;
     const steps = Math.max(1, Math.round(horizon / SIM_DT));
     const speedK = steerScale(P, speed);
     let hit = -1;
@@ -370,19 +453,30 @@ export class Autopilot {
       } else {
         input = steer;
       }
+
       // Vehicle.drive: yaw -= (fwd / wheelBase) * tan(input * maxSteer * speedK)
       yaw -= (speed / P.wheelBase) * Math.tan(input * P.maxSteer * speedK) * SIM_DT;
       x += Math.sin(yaw) * speed * SIM_DT;
       z += Math.cos(yaw) * speed * SIM_DT;
+
       for (const o of this.body) {
         const bx = x + Math.sin(yaw) * o;
         const bz = z + Math.cos(yaw) * o;
         const g = nav.standable(bx, y, bz, body, yaw, true);
-        if (g === null) hit = k;
-        else if (o === 0) y = g;
-        for (const ob of obstacles) if (Math.hypot(bx - ob.x, bz - ob.z) < P.radius + A.keepOff) bump = k;
+        if (g === null) {
+          hit = k;
+        } else if (o === 0) {
+          y = g;
+        }
+
+        for (const ob of obstacles) {
+          if (Math.hypot(bx - ob.x, bz - ob.z) < P.radius + A.keepOff) {
+            bump = k;
+          }
+        }
       }
     }
+
     // progress along the route, distance from it, and how lined up with it the car ends
     _q.set(x, y, z);
     const sEnd = c.path.project(_q, Math.max(0, c.s - PROJECT_BACK), PROJECT_WINDOW);
@@ -390,8 +484,14 @@ export class Autopilot {
     const off = Math.hypot(x - _p.x, z - _p.z);
     const align = 1 - (Math.sin(yaw) * _b.x + Math.cos(yaw) * _b.z);
     let score = sEnd - c.s - off * W_OFFSET - align * W_ALIGN;
-    if (hit >= 0) score -= HIT_BASE + HIT_EARLY * (1 - hit / steps);
-    if (bump >= 0) score -= BUMP_BASE + BUMP_EARLY * (1 - bump / steps);
+    if (hit >= 0) {
+      score -= HIT_BASE + HIT_EARLY * (1 - hit / steps);
+    }
+
+    if (bump >= 0) {
+      score -= BUMP_BASE + BUMP_EARLY * (1 - bump / steps);
+    }
+
     return { score, bump };
   }
 }

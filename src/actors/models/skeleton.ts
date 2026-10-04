@@ -1,5 +1,6 @@
 import type { V3 } from '@/engine/core/math';
 import { PALETTE } from '@/render/palette';
+
 import { box, build, group, model, NO_CAST, pivot, SIDES, solid } from './part';
 import { BODY } from './person';
 import { type CharacterRig, characterRig, limb } from './rig';
@@ -20,9 +21,8 @@ export const SKELETON = {
 };
 
 /**
- * A risen skeleton on the shared person rig (body, head, armL/R, legL/R; feet
- * at y=0, facing +Z): bone limbs with knobbly joints, a ribcage on a spine, and
- * a skull with green-glowing eyes.
+ * A risen skeleton on the shared person rig (body, head, armL/R, legL/R; feet at y=0, facing +Z): bone limbs with
+ * knobbly joints, a ribcage on a spine, and a skull with green-glowing eyes.
  */
 export function skeleton(p = SKELETON) {
   const b = BODY;
@@ -30,11 +30,21 @@ export function skeleton(p = SKELETON) {
   const torso = box(...b.torso).on(b.hip);
   const pelvis = box(...p.pelvis).on(b.hip - p.pelvis[1] / 2);
   const spine = box(...p.spine).on(b.hip);
-  const ribs = Array.from({ length: p.ribs }, (_, i) => box(...p.rib).on(b.hip + p.ribsFrom + i * 0.1).z(0.02));
+  const ribs = Array.from({ length: p.ribs }, (_, i) =>
+    box(...p.rib)
+      .on(b.hip + p.ribsFrom + i * 0.1)
+      .z(0.02),
+  );
   const clavicle = box(...p.clavicle).under(torso.top - 0.02);
   const skull = box(...p.skull).on(torso.top + 0.06);
-  const jaw = box(...p.jaw).under(skull.bottom + 0.04).z(0.03);
-  const eyes = SIDES.map((s) => box(0.09, 0.08, 0.03).onFace(skull, '+z', 0.005).move(s * 0.08, 0.04));
+  const jaw = box(...p.jaw)
+    .under(skull.bottom + 0.04)
+    .z(0.03);
+  const eyes = SIDES.map((s) =>
+    box(0.09, 0.08, 0.03)
+      .onFace(skull, '+z', 0.005)
+      .move(s * 0.08, 0.04),
+  );
   return model(
     {
       bone: { color: PALETTE.bone, roughness: 0.75 },
@@ -44,7 +54,9 @@ export function skeleton(p = SKELETON) {
     [
       group({ name: 'body' }, [
         ...SIDES.map((s) => {
-          const leg = box(p.bone, b.leg[1], p.bone).x(s * b.stance).under(b.hip);
+          const leg = box(p.bone, b.leg[1], p.bone)
+            .x(s * b.stance)
+            .under(b.hip);
           return limb(s < 0 ? 'legL' : 'legR', leg, 'bone', [
             solid(box(p.knob, p.knob, p.knob).at(leg.center[0], leg.center[1], 0), 'bone'),
             solid(box(0.16, 0.06, 0.28).on(0).x(leg.center[0]).z(0.05), 'bone'),
@@ -55,19 +67,30 @@ export function skeleton(p = SKELETON) {
         ...ribs.map((r) => solid(r, 'bone')),
         solid(clavicle, 'bone'),
         ...SIDES.map((s) => {
-          const arm = box(p.bone, b.arm[1], p.bone).under(torso.top - 0.04).outside(torso, s < 0 ? '-x' : '+x', -0.05);
+          const arm = box(p.bone, b.arm[1], p.bone)
+            .under(torso.top - 0.04)
+            .outside(torso, s < 0 ? '-x' : '+x', -0.05);
           return limb(s < 0 ? 'armL' : 'armR', arm, 'bone', [
             solid(box(p.knob, p.knob, p.knob).at(arm.center[0], arm.center[1], 0), 'bone'),
-            solid(box(0.13, 0.16, 0.1).under(arm.bottom + 0.02).x(arm.center[0]), 'bone'),
+            solid(
+              box(0.13, 0.16, 0.1)
+                .under(arm.bottom + 0.02)
+                .x(arm.center[0]),
+              'bone',
+            ),
           ]);
         }),
-        pivot('head', [0, torso.top + 0.02, 0], [
-          solid(box(0.08, 0.1, 0.08).on(torso.top), 'bone'),
-          solid(skull, 'bone'),
-          solid(jaw, 'bone'),
-          ...eyes.map((e) => solid(e.sized(0.12, 0.11, 0.025), 'socket', NO_CAST)),
-          ...eyes.map((e) => solid(e.move(0, 0, 0.004), 'eye', NO_CAST)),
-        ]),
+        pivot(
+          'head',
+          [0, torso.top + 0.02, 0],
+          [
+            solid(box(0.08, 0.1, 0.08).on(torso.top), 'bone'),
+            solid(skull, 'bone'),
+            solid(jaw, 'bone'),
+            ...eyes.map((e) => solid(e.sized(0.12, 0.11, 0.025), 'socket', NO_CAST)),
+            ...eyes.map((e) => solid(e.move(0, 0, 0.004), 'eye', NO_CAST)),
+          ],
+        ),
       ]),
     ],
   );

@@ -1,4 +1,5 @@
 import { Vector3 } from 'three';
+
 import type { CharacterRig } from '@/actors/models/rig';
 import { Ragdoll, type RagdollPusher } from '@/actors/ragdoll';
 import type { CollisionWorld } from '@/engine/physics/collision';
@@ -53,10 +54,9 @@ export interface Casualty {
 }
 
 /**
- * People hit by vehicles: how hard sets the harm, the hit flings them as a
- * ragdoll, the hurt bleed (drops onto the ground, pooling), and the stunned
- * and injured get back up after a moment; the unconscious much later; the
- * dead stay down. Hit again while down, it gets worse.
+ * People hit by vehicles: how hard sets the harm, the hit flings them as a ragdoll, the hurt bleed (drops onto the
+ * ground, pooling), and the stunned and injured get back up after a moment; the unconscious much later; the dead stay
+ * down. Hit again while down, it gets worse.
  */
 export class Casualties {
   readonly list: Casualty[] = [];
@@ -70,7 +70,12 @@ export class Casualties {
   static harmFor(speed: number, mass: number): Harm | null {
     const k = speed * Math.cbrt(mass / REF_MASS);
     let harm: Harm | null = null;
-    for (const h of ORDER) if (k >= HARM_AT[h]) harm = h;
+    for (const h of ORDER) {
+      if (k >= HARM_AT[h]) {
+        harm = h;
+      }
+    }
+
     return harm;
   }
 
@@ -79,7 +84,16 @@ export class Casualties {
     const ragdoll = new Ragdoll(rig);
     const speed = Math.hypot(vx, vz);
     ragdoll.launch(vx * CARRY, 1.5 + speed * LIFT, vz * CARRY, TUMBLE);
-    const c: Casualty = { rig, ragdoll, harm, down: 0, bleed: 0, owed: 0, at: ragdoll.pelvis(new Vector3()), cool: REHIT };
+    const c: Casualty = {
+      rig,
+      ragdoll,
+      harm,
+      down: 0,
+      bleed: 0,
+      owed: 0,
+      at: ragdoll.pelvis(new Vector3()),
+      cool: REHIT,
+    };
     this.list.push(c);
     this.worsen(c, harm, vx, vz);
     return c;
@@ -100,17 +114,20 @@ export class Casualties {
 
   /** Up for getting up: down long enough, not dead, and lying still (or long past due, still or not). */
   ready(c: Casualty): boolean {
-    return c.harm !== 'dead' && (c.down <= 0 && c.ragdoll.asleep || c.down <= -GET_UP_ANYWAY);
+    return c.harm !== 'dead' && ((c.down <= 0 && c.ragdoll.asleep) || c.down <= -GET_UP_ANYWAY);
   }
 
   /**
-   * Stand them back up where they lie: their rig straightened out and handed
-   * back. Returns the yaw to stand facing; `out` gets the spot (pelvis, on the ground).
+   * Stand them back up where they lie: their rig straightened out and handed back. Returns the yaw to stand facing;
+   * `out` gets the spot (pelvis, on the ground).
    */
   recover(c: Casualty, out: Vector3): number {
     this.remove(c);
     const r = c.rig;
-    for (const o of [r.armL, r.armR, r.legL, r.legR, r.head]) o.rotation.set(0, 0, 0);
+    for (const o of [r.armL, r.armR, r.legL, r.legR, r.head]) {
+      o.rotation.set(0, 0, 0);
+    }
+
     const yaw = c.ragdoll.yaw;
     r.root.rotation.set(0, yaw, 0);
     c.ragdoll.pelvis(out);
@@ -121,7 +138,9 @@ export class Casualties {
   /** Forget a casualty (despawned, or back on their feet). */
   remove(c: Casualty): void {
     const i = this.list.indexOf(c);
-    if (i >= 0) this.list.splice(i, 1);
+    if (i >= 0) {
+      this.list.splice(i, 1);
+    }
   }
 
   update(dt: number, pushers: readonly RagdollPusher[]): void {
@@ -139,11 +158,14 @@ export class Casualties {
         this.worsen(c, this.next(c.harm), 0, 0);
         c.cool = REHIT;
       }
+
       c.down -= dt;
+
       if (c.harm === 'unconscious' && c.down <= 0) {
         // coming round: they'll get up hurt
         c.harm = 'injured';
       }
+
       this.bleedFrom(c, dt);
     }
   }
@@ -169,10 +191,17 @@ export class Casualties {
 
   /** Blood off the wound in drops, easing off over time. */
   private bleedFrom(c: Casualty, dt: number): void {
-    if (c.bleed <= 0) return;
+    if (c.bleed <= 0) {
+      return;
+    }
+
     c.owed += c.bleed * dt;
     c.bleed *= 1 - STAUNCH[c.harm] * dt;
-    if (c.bleed < 2e-7) c.bleed = 0;
+
+    if (c.bleed < 2e-7) {
+      c.bleed = 0;
+    }
+
     while (c.owed >= DROP) {
       c.owed -= DROP;
       c.ragdoll.chest(_c);

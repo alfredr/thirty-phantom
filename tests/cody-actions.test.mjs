@@ -1,11 +1,24 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+
 import { loadModules } from './modules.mjs';
 
-const [{ bestOffers }, actions, { resolveFully }] = await loadModules('/src/engine/sim/offers.ts', '/src/game/cody/cody-actions.ts', '/src/engine/sim/action.ts');
+const [{ bestOffers }, actions, { resolveFully }] = await loadModules(
+  '/src/engine/sim/offers.ts',
+  '/src/game/cody/cody-actions.ts',
+  '/src/engine/sim/action.ts',
+);
 const { InteractWithVehicle, GetOut, Summon, TalkToValet, RANK } = actions;
 
-function play({ phantom = false, abilities = phantom ? ['possess', 'truck', 'summon'] : ['steal'], possessable = () => false, escaping = false, parking = true, freeSpot = false, summoned = 3 } = {}) {
+function play({
+  phantom = false,
+  abilities = phantom ? ['possess', 'truck', 'summon'] : ['steal'],
+  possessable = () => false,
+  escaping = false,
+  parking = true,
+  freeSpot = false,
+  summoned = 3,
+} = {}) {
   const log = [];
   return {
     log,
@@ -20,7 +33,17 @@ function play({ phantom = false, abilities = phantom ? ['possess', 'truck', 'sum
     summon: () => summoned,
   };
 }
-const car = (name, props = {}) => ({ name, form: 'car', role: 'parked', insideDeck: false, grounded: true, crashing: false, resting: false, ...props });
+
+const car = (name, props = {}) => ({
+  name,
+  form: 'car',
+  role: 'parked',
+  insideDeck: false,
+  grounded: true,
+  crashing: false,
+  resting: false,
+  ...props,
+});
 const label = (w, action) => {
   const r = resolveFully(w, action);
   return 'fail' in r ? `fail:${r.fail}` : r.label(w);
@@ -38,10 +61,18 @@ test('getting into a vehicle becomes possessing, stealing or getting in, by the 
   assert.equal(label(day, new InteractWithVehicle({ car: truck })), 'fail:', 'day Cody has no business with the truck');
   const night = play({ phantom: true, possessable: (c) => c === deck });
   assert.equal(label(night, new InteractWithVehicle({ car: deck })), 'POSSESS &nbsp;☾');
-  assert.equal(label(night, new InteractWithVehicle({ car: lot })), 'fail:', 'phantom Cody only possesses, in the deck');
+  assert.equal(
+    label(night, new InteractWithVehicle({ car: lot })),
+    'fail:',
+    'phantom Cody only possesses, in the deck',
+  );
   assert.equal(label(night, new InteractWithVehicle({ car: truck })), 'GET IN');
   const held = play({ abilities: ['steal', 'truck', 'possess'], possessable: (c) => c === deck });
-  assert.equal(label(held, new InteractWithVehicle({ car: deck })), 'GET IN &nbsp;☾', "in the tutorial it's the deck that does it");
+  assert.equal(
+    label(held, new InteractWithVehicle({ car: deck })),
+    'GET IN &nbsp;☾',
+    "in the tutorial it's the deck that does it",
+  );
 });
 
 test('getting out waits for the ground and for an escaped truck, and says PARK HERE in a free spot by day', () => {
@@ -49,7 +80,11 @@ test('getting out waits for the ground and for an escaped truck, and says PARK H
   assert.equal(label(play({ freeSpot: true }), new GetOut({ car: inSpot })), 'PARK HERE');
   assert.equal(label(play({ freeSpot: true, parking: false }), new GetOut({ car: inSpot })), '');
   assert.equal(label(play(), new GetOut({ car: car('air', { grounded: false }) })), 'fail:');
-  assert.equal(label(play(), new GetOut({ car: car('rolled', { grounded: false, crashing: true, resting: true }) })), '', 'a car on its roof can still be left');
+  assert.equal(
+    label(play(), new GetOut({ car: car('rolled', { grounded: false, crashing: true, resting: true }) })),
+    '',
+    'a car on its roof can still be left',
+  );
   assert.equal(label(play({ escaping: true }), new GetOut({ car: inSpot })), 'fail:');
 });
 
@@ -78,7 +113,13 @@ test('performing an offer does what its label said, and a summon that raises not
   const { offers } = bestOffers(w, [{ control: 'summon', rank: 0, action: new Summon() }]);
   assert.deepEqual(offers.get('summon').action.perform(w, 0), { fail: 'THE DEAD NEED A MOMENT' });
   const d = play();
-  const steal = bestOffers(d, [{ control: 'interact', rank: RANK.vehicle, action: new InteractWithVehicle({ car: car('x', { role: 'traffic' }) }) }]).offers.get('interact');
+  const steal = bestOffers(d, [
+    {
+      control: 'interact',
+      rank: RANK.vehicle,
+      action: new InteractWithVehicle({ car: car('x', { role: 'traffic' }) }),
+    },
+  ]).offers.get('interact');
   steal.action.perform(d, 0);
   assert.deepEqual(d.log, [['enter', 'x']]);
 });

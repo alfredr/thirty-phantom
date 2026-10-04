@@ -1,8 +1,8 @@
 import type { Vector3 } from 'three';
 
 /**
- * Camera shake from trauma: hits add up to 1, it fades at a steady rate, and the
- * offset grows with trauma squared so small bumps stay subtle.
+ * Camera shake from trauma: hits add up to 1, it fades at a steady rate, and the offset grows with trauma squared so
+ * small bumps stay subtle.
  */
 export class Shake {
   private trauma = 0;

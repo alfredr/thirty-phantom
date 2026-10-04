@@ -1,4 +1,5 @@
 import Type, { type TProperties, type TSchema } from 'typebox';
+
 import { DECOR_KINDS, MAT_KEYS, SIGN_STYLES } from '../level-kinds.ts';
 
 // These schemas run in build tooling. Only their inferred types and generated validators reach the game.
@@ -28,10 +29,14 @@ export const FacadeDefSchema = object({
   bay: Type.Optional(positive),
   windows: Type.Optional(WindowStyleSchema),
   cap: Type.Optional(nonnegative),
-  street: Type.Optional(object({
-    'x+': Type.Optional(StreetFrontSchema), 'x-': Type.Optional(StreetFrontSchema),
-    'z+': Type.Optional(StreetFrontSchema), 'z-': Type.Optional(StreetFrontSchema),
-  })),
+  street: Type.Optional(
+    object({
+      'x+': Type.Optional(StreetFrontSchema),
+      'x-': Type.Optional(StreetFrontSchema),
+      'z+': Type.Optional(StreetFrontSchema),
+      'z-': Type.Optional(StreetFrontSchema),
+    }),
+  ),
 });
 
 const bounds = { min: V3Schema, max: V3Schema };
@@ -67,9 +72,13 @@ export const BuildingDefSchema = object({
   use: BuildingUseSchema,
   doors: Type.Array(DoorDefSchema),
   /** Footprint (x0, z0, x1, z1). Stair cores are closed placeholders. */
-  core: Type.Union([Type.Null(), object({
-    kind: Type.Enum(['stair', 'elevator']), rect: Type.Tuple([number, number, number, number]),
-  })]),
+  core: Type.Union([
+    Type.Null(),
+    object({
+      kind: Type.Enum(['stair', 'elevator']),
+      rect: Type.Tuple([number, number, number, number]),
+    }),
+  ]),
   paint: Type.String(),
   seed: number,
 });
@@ -85,13 +94,20 @@ export const RampDefSchema = object({
 });
 
 export const SignDefSchema = object({
-  pos: V3Schema, size: Type.Tuple([positive, positive]), facing: FacingSchema,
-  style: Type.Enum(SIGN_STYLES), lines: Type.Array(Type.String()),
+  pos: V3Schema,
+  size: Type.Tuple([positive, positive]),
+  facing: FacingSchema,
+  style: Type.Enum(SIGN_STYLES),
+  lines: Type.Array(Type.String()),
 });
 export const LampDefSchema = object({ pos: V3Schema, color: LampColorSchema, kind: LampKindSchema });
 export const SpotDefSchema = object({
   /** IDs and floor indices start at zero. IDs must match array positions. */
-  id: integer, center: V3Schema, size: Type.Tuple([positive, positive]), yaw: number, level: integer,
+  id: integer,
+  center: V3Schema,
+  size: Type.Tuple([positive, positive]),
+  yaw: number,
+  level: integer,
 });
 export const PathDefSchema = object({ points: Type.Array(V3Schema, { minItems: 2 }) });
 export const ParkedCarDefSchema = object(placed);
@@ -100,20 +116,28 @@ export const BayDefSchema = object(placed);
 export const PuddleDefSchema = object({ pos: V3Schema, r: positive });
 export const ZoneDefSchema = object(bounds);
 export const GateDefSchema = object({
-  ...bounds, kind: Type.Enum(['entry', 'exit']), hinge: V3Schema, armDir: FacingSchema, armLength: positive,
+  ...bounds,
+  kind: Type.Enum(['entry', 'exit']),
+  hinge: V3Schema,
+  armDir: FacingSchema,
+  armLength: positive,
 });
 export const ValetDefSchema = object({ ...placed, crew: Type.Optional(integer) });
 export const FenceDefSchema = object(bounds);
 export const RailDefSchema = object({
-  style: Type.Enum(['guardrail', 'railing']), a: V3Schema, b: V3Schema,
+  style: Type.Enum(['guardrail', 'railing']),
+  a: V3Schema,
+  b: V3Schema,
   /** Horizontal unit vector off the guarded side. */
   out: Type.Tuple([number, number]),
 });
 export const ClockDefSchema = object({ pos: V3Schema, facing: FacingSchema, size: positive });
 export const DecorDefSchema = object({
-  ...placed, kind: Type.Enum(DECOR_KINDS),
+  ...placed,
+  kind: Type.Enum(DECOR_KINDS),
   /** Uniform size and local X stretch; both default to 1 at runtime. */
-  scale: Type.Optional(positive), stretch: Type.Optional(positive),
+  scale: Type.Optional(positive),
+  stretch: Type.Optional(positive),
 });
 export const NpcDefSchema = object({ ...placed, id: Type.Literal('randy'), fire: Type.Optional(V3Schema) });
 export const ElevatorStopSchema = object({ y: number, facing: FacingSchema, label: Type.String() });
@@ -129,32 +153,35 @@ export const ElevatorDefSchema = object({
 export const DeckNavSchema = object({ ...bounds, floors: Type.Array(number, { minItems: 1 }) });
 
 /** Version 1 input. Collections may be omitted; geometry, spawn, and deck bounds are required. */
-export const LevelV1Schema = Type.Object({
-  version: Type.Literal(1),
-  name: Type.Optional(Type.String({ default: 'custom' })),
-  boxes: Type.Array(BoxDefSchema),
-  playerSpawn: V3Schema,
-  deck: DeckNavSchema,
-  ramps: collection(RampDefSchema),
-  signs: collection(SignDefSchema),
-  lamps: collection(LampDefSchema),
-  spots: collection(SpotDefSchema),
-  paths: collection(PathDefSchema),
-  parked: collection(ParkedCarDefSchema),
-  bays: collection(BayDefSchema),
-  puddles: collection(PuddleDefSchema),
-  ghostZones: collection(ZoneDefSchema),
-  gates: collection(GateDefSchema),
-  clocks: collection(ClockDefSchema),
-  valets: collection(ValetDefSchema),
-  fences: collection(FenceDefSchema),
-  rails: collection(RailDefSchema),
-  pits: collection(ZoneDefSchema),
-  npcs: collection(NpcDefSchema),
-  elevators: collection(ElevatorDefSchema),
-  decor: collection(DecorDefSchema),
-  buildings: collection(BuildingDefSchema),
-}, { $id: 'urn:30pc:level:v1', $schema: 'http://json-schema.org/draft-07/schema#', additionalProperties: false });
+export const LevelV1Schema = Type.Object(
+  {
+    version: Type.Literal(1),
+    name: Type.Optional(Type.String({ default: 'custom' })),
+    boxes: Type.Array(BoxDefSchema),
+    playerSpawn: V3Schema,
+    deck: DeckNavSchema,
+    ramps: collection(RampDefSchema),
+    signs: collection(SignDefSchema),
+    lamps: collection(LampDefSchema),
+    spots: collection(SpotDefSchema),
+    paths: collection(PathDefSchema),
+    parked: collection(ParkedCarDefSchema),
+    bays: collection(BayDefSchema),
+    puddles: collection(PuddleDefSchema),
+    ghostZones: collection(ZoneDefSchema),
+    gates: collection(GateDefSchema),
+    clocks: collection(ClockDefSchema),
+    valets: collection(ValetDefSchema),
+    fences: collection(FenceDefSchema),
+    rails: collection(RailDefSchema),
+    pits: collection(ZoneDefSchema),
+    npcs: collection(NpcDefSchema),
+    elevators: collection(ElevatorDefSchema),
+    decor: collection(DecorDefSchema),
+    buildings: collection(BuildingDefSchema),
+  },
+  { $id: 'urn:30pc:level:v1', $schema: 'http://json-schema.org/draft-07/schema#', additionalProperties: false },
+);
 
 export type LevelFileV1 = Type.Static<typeof LevelV1Schema>;
 /** Runtime form after the validator fills the schema's top-level defaults. */

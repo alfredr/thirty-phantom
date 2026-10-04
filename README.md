@@ -15,7 +15,8 @@ Use Node.js 24.
 npm ci
 npm run dev          # http://localhost:5173
 npm test             # game-state, camera, and level-loading checks
-npm run check        # import rules, typecheck, and all tests
+npm run fmt          # add braces and blank lines, then format (oxlint --fix, oxfmt)
+npm run check        # lint, formatting, typecheck, and all tests
 npm run build        # typecheck and build into dist/
 npm run preview      # serve dist/ at http://localhost:4173
 ```
@@ -25,9 +26,14 @@ them). In development, code changes show a reload prompt; press `R` to apply the
 CSS updates apply immediately.
 
 `npm ci` installs the Husky pre-commit hook, which runs `npm run check`. CI runs the
-same checks. Oxlint keeps imports at the top, packages before local modules, and rejects
-duplicate imports. Local game imports omit `.ts`; Node-run tools, tests, and schemas
-use explicit extensions. Package subpaths and CSS imports keep their extensions.
+same checks, so run `npm run fmt` before committing. Oxfmt formats TypeScript and
+JavaScript at 120 columns (wrapping doc comments too) and sorts imports; CSS is left as
+written. Oxlint keeps imports at the top and rejects duplicates, wants braces on every
+`if`, `else` and loop body, and wants a blank line around multi-line blocks (a
+declaration may sit right above the block that checks it). Imports across folders start
+at `@/` (the `src/` folder); `./` is for files in the same folder, and `../` is refused.
+Local game imports omit `.ts`; Node-run tools, tests, and schemas use explicit
+extensions and relative paths. Package subpaths and CSS imports keep their extensions.
 
 ## Controls
 

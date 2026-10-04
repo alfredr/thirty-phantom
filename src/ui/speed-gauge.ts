@@ -20,17 +20,20 @@ export class SpeedGauge {
     const arc = `M${ax} ${ay}A46 46 0 1 1 ${bx} ${by}`;
     svg('path', { d: arc, pathLength: 100, class: 'gauge-track' }, s);
     this.fill = svg('path', { d: arc, pathLength: 100, class: 'gauge-fill' }, s);
+
     for (let v = 0; v <= GAUGE_MAX_MPH; v += 10) {
       const deg = -GAUGE_SWEEP + (v / GAUGE_MAX_MPH) * GAUGE_SWEEP * 2;
       const major = v % 20 === 0;
       const [x1, y1] = polar(deg, major ? 35 : 37.5);
       const [x2, y2] = polar(deg, 40.5);
       svg('line', { x1, y1, x2, y2, class: major ? 'gauge-tick major' : 'gauge-tick' }, s);
+
       if (major) {
         const [tx, ty] = polar(deg, 28.5);
         svg('text', { x: tx, y: ty, class: 'gauge-num' }, s).textContent = String(v);
       }
     }
+
     const read = el('div', 'gauge-read', this.root);
     this.mph = el('div', 'gauge-mph', read, '0');
     el('div', 'gauge-unit', read, 'MPH');
@@ -39,7 +42,10 @@ export class SpeedGauge {
   }
 
   set(mph: number): void {
-    if (mph === this.lastMph) return;
+    if (mph === this.lastMph) {
+      return;
+    }
+
     this.lastMph = mph;
     this.mph.textContent = String(mph);
     this.fill.style.strokeDashoffset = String(100 - Math.min(1, mph / GAUGE_MAX_MPH) * 100);

@@ -1,8 +1,9 @@
+import { mkdirSync } from 'node:fs';
+
 // Dev helper: headless screenshots of scripted game states.
 // usage: node tools/shot.mjs <url> <outdir> [scenario...]
 // Scenarios run __game.debug helpers, advance frames, then capture.
 import { chromium } from 'playwright-core';
-import { mkdirSync } from 'node:fs';
 
 const url = process.argv[2] ?? 'http://localhost:4173/?manual=1';
 const out = process.argv[3] ?? 'shots';
@@ -22,11 +23,14 @@ page.on('pageerror', (e) => logs.push(`[pageerror] ${e.message}`));
 const step = async (n, dt = 1 / 30) => {
   await page.evaluate(
     ([n, dt]) => {
-      for (let i = 0; i < n; i++) window.__game.frame(dt);
+      for (let i = 0; i < n; i++) {
+        window.__game.frame(dt);
+      }
     },
     [n, dt],
   );
 };
+
 const snap = async (name) => {
   await page.screenshot({ path: `${out}/${name}.png`, timeout: 180000 });
   console.log('shot', name, JSON.stringify(await page.evaluate(() => window.__game.debug.state())));
@@ -56,7 +60,11 @@ const scenarios = {
     await page.evaluate(() => {
       const g = window.__game;
       g.start();
-      for (let i = 0; i < 12; i++) g.debug.parkCar(i);
+
+      for (let i = 0; i < 12; i++) {
+        g.debug.parkCar(i);
+      }
+
       g.debug.phantom(14);
       g.debug.phantom(16);
       g.debug.setHours(18.9);
@@ -69,7 +77,11 @@ const scenarios = {
     await page.evaluate(() => {
       const g = window.__game;
       g.start();
-      for (let i = 0; i < 10; i++) g.debug.parkCar(i);
+
+      for (let i = 0; i < 10; i++) {
+        g.debug.parkCar(i);
+      }
+
       g.debug.setHours(21);
       g.debug.teleport(80.4, 5, 89);
     });
@@ -84,7 +96,11 @@ const scenarios = {
     await page.evaluate(() => {
       const g = window.__game;
       g.start();
-      for (let i = 20; i < 30; i++) g.debug.parkCar(i);
+
+      for (let i = 20; i < 30; i++) {
+        g.debug.parkCar(i);
+      }
+
       g.debug.phantom(22);
       g.debug.setHours(22);
       g.debug.teleport(98, 15, 88);
@@ -126,7 +142,11 @@ const scenarios = {
     await page.evaluate(() => {
       const g = window.__game;
       g.start();
-      for (let i = 10; i < 20; i++) g.debug.parkCar(i);
+
+      for (let i = 10; i < 20; i++) {
+        g.debug.parkCar(i);
+      }
+
       g.debug.phantom(12);
       g.debug.phantom(17);
       g.debug.setHours(21);
@@ -156,10 +176,19 @@ const scenarios = {
 };
 
 for (const [name, fn] of Object.entries(scenarios)) {
-  if (only.length && !only.includes(name)) continue;
+  if (only.length && !only.includes(name)) {
+    continue;
+  }
+
   await page.goto(url, { waitUntil: 'load' });
   await page.waitForFunction(() => window.__game !== undefined, null, { timeout: 120000 });
   await fn();
 }
-console.log(logs.filter((l) => !l.includes('GPU stall')).slice(0, 40).join('\n'));
+
+console.log(
+  logs
+    .filter((l) => !l.includes('GPU stall'))
+    .slice(0, 40)
+    .join('\n'),
+);
 await browser.close();

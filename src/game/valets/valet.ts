@@ -1,20 +1,30 @@
 import { Group, Vector3 } from 'three';
-import { TUNING } from '@/config';
+
 import { type Avoidance, PERSON_RADIUS } from '@/actors/avoidance';
 import { driverDoor } from '@/actors/doors';
 import { buildValet } from '@/actors/models/valet';
 import type { Vehicle } from '@/actors/vehicle';
 import { Walker } from '@/actors/walker';
+import { TUNING } from '@/config';
 import { done, type Result, running } from '@/engine/sim/action';
 import type { Claims } from '@/engine/sim/claims';
 import { Mind } from '@/engine/sim/mind';
-import type { ValetDef, ZoneDef } from '@/world/level-data';
-import { NAV, type NavGrid, type NavJob, type NavPlanner } from '@/world/nav-grid';
 import { type Garage, type SpotRuntime, spotZone } from '@/game/deck/garage';
-import { type DriveAction, DriverJob, DriveTo, type DriveWorld, halt, Park, spotBerth } from '@/game/driving/drive-actions';
-import type { ClaimKind } from '@/game/rules/claim-kinds';
+import {
+  type DriveAction,
+  DriverJob,
+  DriveTo,
+  type DriveWorld,
+  halt,
+  Park,
+  spotBerth,
+} from '@/game/driving/drive-actions';
 import type { Drivers } from '@/game/driving/drivers';
 import type { Bodies } from '@/game/rules/bodies';
+import type { ClaimKind } from '@/game/rules/claim-kinds';
+import type { ValetDef, ZoneDef } from '@/world/level-data';
+import { NAV, type NavGrid, type NavJob, type NavPlanner } from '@/world/nav-grid';
+
 import { type Attention, type Job, VALET_ATTENTION, VALET_JOB, type ValetEvent } from './valet-mind';
 
 export type ValetState = Job['at'];
@@ -33,7 +43,10 @@ const T = TUNING.valet;
 const MOVING = 0.2;
 /** Skin tones across the crew. */
 const SKINS = ['#d9a07a', '#8a5a3c', '#f0c8a8', '#c48a64'];
-/** Idle at the podium: rocking on his heels (rate, height), and an occasional wave (how often, how much of the time, arm lift, flap rate and size). */
+/**
+ * Idle at the podium: rocking on his heels (rate, height), and an occasional wave (how often, how much of the time, arm
+ * lift, flap rate and size).
+ */
 const ROCK_RATE = 2.2;
 const ROCK_HEIGHT = 0.03;
 const WAVE_RATE = 0.7;
@@ -44,7 +57,10 @@ const WAVE_FLAP_SIZE = 0.25;
 
 const _v = new Vector3();
 
-/** One of Foxy's valets: his body, where his stand is, and his two minds (the job, and whether he's paying someone attention). See valet-mind.ts. */
+/**
+ * One of Foxy's valets: his body, where his stand is, and his two minds (the job, and whether he's paying someone
+ * attention). See valet-mind.ts.
+ */
 export class Valet {
   readonly job: Mind<Valet, Job, ValetEvent>;
   readonly attention: Mind<Valet, Attention, ValetEvent>;
@@ -92,11 +108,10 @@ export class Valet {
 }
 
 /**
- * A valet at the wheel: drives the car to its spot in the deck, in through the entry gate, and
- * eases it in. Spooked by phantom Cody, he steers clear of him like anyone. Knocked into a crash,
- * he waits it out, rights the car if it lands on its side or roof, and sets off again from
- * wherever it came to rest. No route, or wedged twice, and the car turns up in its spot in a
- * puff: he "knows a shortcut".
+ * A valet at the wheel: drives the car to its spot in the deck, in through the entry gate, and eases it in. Spooked by
+ * phantom Cody, he steers clear of him like anyone. Knocked into a crash, he waits it out, rights the car if it lands
+ * on its side or roof, and sets off again from wherever it came to rest. No route, or wedged twice, and the car turns
+ * up in its spot in a puff: he "knows a shortcut".
  */
 export class ValetDrive extends DriverJob {
   /** The car's in its spot. */
@@ -120,11 +135,21 @@ export class ValetDrive extends DriverJob {
       this.upended = 0;
       this.next(this.toSpot());
     }
-    if (seen) this.steerClear(seen);
+
+    if (seen) {
+      this.steerClear(seen);
+    }
+
     const stage = this.stage;
-    if (!stage) return done;
+    if (!stage) {
+      return done;
+    }
+
     const result = stage.perform(w, dt);
-    if (stage instanceof DriveTo && stage.badged) this.badged = true;
+    if (stage instanceof DriveTo && stage.badged) {
+      this.badged = true;
+    }
+
     if ('fail' in result) {
       // the shortcut
       w.place(car, spot.center, spot.def.yaw, 0);
@@ -132,11 +157,16 @@ export class ValetDrive extends DriverJob {
       this.parked = true;
       return done;
     }
-    if (!('done' in result)) return running;
+
+    if (!('done' in result)) {
+      return running;
+    }
+
     if (stage instanceof DriveTo) {
       this.next(new Park({ car, berth: spotBerth(spot) }));
       return running;
     }
+
     this.parked = true;
     return done;
   }
@@ -146,28 +176,39 @@ export class ValetDrive extends DriverJob {
     const { car } = this.p;
     this.wreck += dt;
     this.upended = car.resting ? this.upended + dt : 0;
+
     if (this.upended > T.rightAfter) {
       // ends the crash: back on its wheels where it lies
-      w.place(car, _v.set(car.pos.x, w.nav.heightAt(car.pos.x, car.pos.y, car.pos.z, NAV.car) ?? car.pos.y, car.pos.z), car.yaw, 0);
+      w.place(
+        car,
+        _v.set(car.pos.x, w.nav.heightAt(car.pos.x, car.pos.y, car.pos.z, NAV.car) ?? car.pos.y, car.pos.z),
+        car.yaw,
+        0,
+      );
     }
+
     return running;
   }
 
   private toSpot(): DriveTo {
     const { car, spot } = this.p;
-    return new DriveTo({ car, to: spot.center, yaw: spot.def.yaw, eitherWay: true, allow: spotZone(spot, 0), badgeIn: true });
+    return new DriveTo({
+      car,
+      to: spot.center,
+      yaw: spot.def.yaw,
+      eitherWay: true,
+      allow: spotZone(spot, 0),
+      badgeIn: true,
+    });
   }
 }
 
 /**
- * Foxy's valet crew. Hand one your keys and he walks to the car, drives it
- * over to the deck along a planned route (badging in at the entry gate, up the
- * ramps), eases it into the highest free spot, then walks back down the
- * stairwell to the podium. What each valet does is his minds' (valet-mind.ts);
- * this is the crew's stand and what their minds call on. Everything moves
- * through the shared planner, the real vehicle physics and the same route
- * followers as everyone else; at the wheel he's one of the game's drivers
- * (ValetDrive).
+ * Foxy's valet crew. Hand one your keys and he walks to the car, drives it over to the deck along a planned route
+ * (badging in at the entry gate, up the ramps), eases it into the highest free spot, then walks back down the stairwell
+ * to the podium. What each valet does is his minds' (valet-mind.ts); this is the crew's stand and what their minds call
+ * on. Everything moves through the shared planner, the real vehicle physics and the same route followers as everyone
+ * else; at the wheel he's one of the game's drivers (ValetDrive).
  */
 export class ValetService {
   readonly root = new Group();
@@ -213,13 +254,17 @@ export class ValetService {
     let bd = reach;
     for (const v of this.crew) {
       // waiting at the stand, or on his way back to it (a bribe turns him round)
-      if (!day || (!v.job.in('idle') && !v.job.in('returning'))) continue;
+      if (!day || (!v.job.in('idle') && !v.job.in('returning'))) {
+        continue;
+      }
+
       const d = Math.hypot(v.walker.pos.x - p.x, v.walker.pos.z - p.z);
       if (d < bd && Math.abs(v.walker.pos.y - p.y) < 2.5) {
         bd = d;
         best = v;
       }
     }
+
     return best;
   }
 
@@ -227,7 +272,17 @@ export class ValetService {
   addBodies(bodies: Bodies): void {
     for (const v of this.crew) {
       const w = v.walker;
-      if (w.rig.root.visible) bodies.add({ kind: 'person', pos: w.pos, vel: w.vel, r: PERSON_RADIUS, moving: w.speed > MOVING, dodges: w.walking, owner: w });
+      if (w.rig.root.visible) {
+        bodies.add({
+          kind: 'person',
+          pos: w.pos,
+          vel: w.vel,
+          r: PERSON_RADIUS,
+          moving: w.speed > MOVING,
+          dodges: w.walking,
+          owner: w,
+        });
+      }
     }
   }
 
@@ -236,9 +291,15 @@ export class ValetService {
     return this.crew.find((v) => v.car === car) ?? null;
   }
 
-  /** Hand `car` to `valet` to park in `spot`: booked for the car till he's done. False if he's busy with another, or the spot isn't free. */
+  /**
+   * Hand `car` to `valet` to park in `spot`: booked for the car till he's done. False if he's busy with another, or the
+   * spot isn't free.
+   */
   take(valet: Valet, car: Vehicle, spot: SpotRuntime): boolean {
-    if (!this.garage.isFree(spot, car) || !valet.send({ type: 'handedCar', car, spot })) return false;
+    if (!this.garage.isFree(spot, car) || !valet.send({ type: 'handedCar', car, spot })) {
+      return false;
+    }
+
     this.claims.take('spot', car, spot, { owner: valet });
     car.role = 'valet';
     car.vel.set(0, 0, 0);
@@ -250,7 +311,10 @@ export class ValetService {
   /** Cody stole the car out from under him: the job is off (its booking with it) and he walks back. */
   carjacked(car: Vehicle): Valet | null {
     const v = this.driverOf(car);
-    if (!v) return null;
+    if (!v) {
+      return null;
+    }
+
     v.send({ type: 'carjacked' });
     return v;
   }
@@ -262,6 +326,7 @@ export class ValetService {
 
   update(dt: number, f: ValetFrame): void {
     this.frame = f;
+
     for (const v of this.crew) {
       v.t += dt;
       v.job.tick(dt);
@@ -303,6 +368,8 @@ export class ValetService {
 
   /** The job's off and the car never got to its spot: if nobody else has it, it's left parked where it is. */
   drop(car: Vehicle): void {
-    if (car.role === 'valet') car.role = 'parked';
+    if (car.role === 'valet') {
+      car.role = 'parked';
+    }
   }
 }

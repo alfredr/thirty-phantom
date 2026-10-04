@@ -1,19 +1,28 @@
-import { BoxGeometry, Color, DynamicDrawUsage, Group, InstancedMesh, MeshBasicMaterial, MeshStandardMaterial } from 'three';
+import {
+  BoxGeometry,
+  Color,
+  DynamicDrawUsage,
+  Group,
+  InstancedMesh,
+  MeshBasicMaterial,
+  MeshStandardMaterial,
+} from 'three';
+
 import { TUNING } from '@/config';
 import type { CollisionWorld, GroundHit, Solid } from '@/engine/physics/collision';
 import { GeometryBatch } from '@/render/geometry';
 import { FX_LAYER, fxDecal } from '@/render/layers';
 import { withCutaway } from '@/render/materials';
 import { puddleTexture } from '@/render/textures';
+
 import { PUDDLE } from './slime';
 
 /** Most drops and pools alive at once; the oldest pool goes to make room. */
 const DROPS = 256;
 const POOLS = 96;
 /**
- * Pools spread as a film about 1 mm thick: radius = sqrt(volume / (pi * 1 mm)), so half a
- * litre spreads out past a body (about 0.4 m). No smaller than a visible speck, no bigger
- * than POOL_MAX (m).
+ * Pools spread as a film about 1 mm thick: radius = sqrt(volume / (pi * 1 mm)), so half a litre spreads out past a body
+ * (about 0.4 m). No smaller than a visible speck, no bigger than POOL_MAX (m).
  */
 const POOL_K = 1 / Math.sqrt(Math.PI * 0.001);
 const POOL_MIN = 0.08;
@@ -32,10 +41,9 @@ const _gh: GroundHit = { solid: null };
 const _c = new Color();
 
 /**
- * Blood, on the drip system's rules made simpler: drops fall and splat onto
- * whatever's below, joining or starting a pool there; pools spread with the
- * blood in them and dry out slowly, darkening as they go. Fixed-size typed
- * arrays and instanced meshes, so a frame allocates nothing.
+ * Blood, on the drip system's rules made simpler: drops fall and splat onto whatever's below, joining or starting a
+ * pool there; pools spread with the blood in them and dry out slowly, darkening as they go. Fixed-size typed arrays and
+ * instanced meshes, so a frame allocates nothing.
  */
 export class BloodSim {
   readonly root = new Group();
@@ -92,7 +100,11 @@ export class BloodSim {
     this.pools.name = 'blood-pools';
     this.pm = this.pools.instanceMatrix.array as Float32Array;
     this.pm.fill(0);
-    for (let i = 0; i < POOLS; i++) this.pools.setColorAt(i, FRESH);
+
+    for (let i = 0; i < POOLS; i++) {
+      this.pools.setColorAt(i, FRESH);
+    }
+
     this.root.add(this.drops, this.pools);
   }
 
@@ -129,7 +141,10 @@ export class BloodSim {
     const m = this.dm;
     for (let i = 0; i < DROPS; i++) {
       const vol = this.dvol[i] as number;
-      if (vol === 0) continue;
+      if (vol === 0) {
+        continue;
+      }
+
       const vy = (this.dvy[i] as number) - g * dt;
       const x = (this.dx[i] as number) + (this.dvx[i] as number) * dt;
       const y = (this.dy[i] as number) + vy * dt;
@@ -140,13 +155,17 @@ export class BloodSim {
       if (y <= floor) {
         // splat: into a pool, unless it's a ramp (a flat puddle can't lie on one)
         // (groundAt filled _gh in; TS can't see that through the call)
-        if (!(_gh.solid as Solid | null)?.ramp) this.pool(x, floor, z, vol);
+        if (!(_gh.solid as Solid | null)?.ramp) {
+          this.pool(x, floor, z, vol);
+        }
+
         this.dvol[i] = 0;
         m[o] = 0;
         m[o + 5] = 0;
         m[o + 10] = 0;
         continue;
       }
+
       this.dx[i] = x;
       this.dy[i] = y;
       this.dz[i] = z;
@@ -160,6 +179,7 @@ export class BloodSim {
       m[o + 14] = z;
       m[o + 15] = 1;
     }
+
     this.drops.instanceMatrix.needsUpdate = true;
     this.dryPools(dt);
   }
@@ -170,9 +190,13 @@ export class BloodSim {
     let oldest = 0;
     for (let i = 0; i < POOLS; i++) {
       if ((this.pv[i] as number) <= 0) {
-        if (best < 0) best = i;
+        if (best < 0) {
+          best = i;
+        }
+
         continue;
       }
+
       if (Math.abs((this.py[i] as number) - y) < 0.1) {
         const r = (this.pr[i] as number) + MERGE;
         const dx = (this.px[i] as number) - x;
@@ -183,8 +207,12 @@ export class BloodSim {
           return;
         }
       }
-      if ((this.page[i] as number) > (this.page[oldest] as number)) oldest = i;
+
+      if ((this.page[i] as number) > (this.page[oldest] as number)) {
+        oldest = i;
+      }
     }
+
     const i = best >= 0 ? best : oldest;
     this.px[i] = x;
     this.py[i] = y + PUDDLE.lift;
@@ -210,9 +238,11 @@ export class BloodSim {
         if (m[o] !== 0) {
           m[o] = m[o + 2] = m[o + 8] = m[o + 10] = 0;
         }
+
         this.pv[i] = 0;
         continue;
       }
+
       this.pv[i] = vol;
       const age = (this.page[i] as number) + dt;
       this.page[i] = age;
@@ -233,13 +263,18 @@ export class BloodSim {
       m[o + 13] = this.py[i] as number;
       m[o + 14] = this.pz[i] as number;
       m[o + 15] = 1;
+
       // darkens as it dries (only re-tinted every so often, it's slow)
       if ((i + Math.floor(age * 4)) % 8 === 0) {
         this.pools.setColorAt(i, _c.copy(FRESH).lerp(DRIED, Math.min(1, age / DARKEN)));
         colors = true;
       }
     }
+
     this.pools.instanceMatrix.needsUpdate = true;
-    if (colors && this.pools.instanceColor) this.pools.instanceColor.needsUpdate = true;
+
+    if (colors && this.pools.instanceColor) {
+      this.pools.instanceColor.needsUpdate = true;
+    }
   }
 }

@@ -11,5 +11,7 @@ export const SOUND_LOG: boolean = SOUND_ON && flag !== null;
 
 /** A `[sound]` line in the console, with ?sound only. */
 export function soundLog(line: string, level: 'info' | 'debug' = 'info'): void {
-  if (SOUND_LOG) console[level](`[sound] ${line}`);
+  if (SOUND_LOG) {
+    console[level](`[sound] ${line}`);
+  }
 }

@@ -1,4 +1,5 @@
 import type { Group } from 'three';
+
 import { box, build, cylinder, group, model, NO_CAST, solid, torus } from './part';
 
 /** Bits that come off cars in a smash, for Cody to pick up. */
@@ -29,24 +30,42 @@ function part(kind: PartKind) {
         cylinder<Mat>(TIRE.rim, TIRE.tube * 1.6, 12, 'steel', { at: [0, TIRE.tube, 0] }),
       ];
     case 'hubcap':
-      return [cylinder<Mat>(0.2, 0.03, 14, 'chrome', { at: [0, 0.015, 0] }), cylinder<Mat>(0.06, 0.03, 8, 'steel', { at: [0, 0.04, 0], cast: false })];
+      return [
+        cylinder<Mat>(0.2, 0.03, 14, 'chrome', { at: [0, 0.015, 0] }),
+        cylinder<Mat>(0.06, 0.03, 8, 'steel', { at: [0, 0.04, 0], cast: false }),
+      ];
+
     case 'mirror': {
       const housing = box(0.22, 0.14, 0.1).on(0);
-      return [solid<Mat>(housing, 'plastic'), solid<Mat>(housing.sized(0.18, 0.1, 0.01).onFace(housing, '+z', 0.004), 'glass', NO_CAST), solid<Mat>(box(0.04, 0.04, 0.12).on(0).move(0.1, 0, -0.08), 'plastic')];
+      return [
+        solid<Mat>(housing, 'plastic'),
+        solid<Mat>(housing.sized(0.18, 0.1, 0.01).onFace(housing, '+z', 0.004), 'glass', NO_CAST),
+        solid<Mat>(box(0.04, 0.04, 0.12).on(0).move(0.1, 0, -0.08), 'plastic'),
+      ];
     }
+
     case 'bumper': {
       const bar = box(1.1, 0.16, 0.18).on(0);
-      return [solid<Mat>(bar, 'plastic'), solid<Mat>(bar.sized(1.06, 0.04, 0.02).onFace(bar, '+z', 0.004), 'chrome', NO_CAST)];
+      return [
+        solid<Mat>(bar, 'plastic'),
+        solid<Mat>(bar.sized(1.06, 0.04, 0.02).onFace(bar, '+z', 0.004), 'chrome', NO_CAST),
+      ];
     }
+
     case 'headlight': {
       const shell = box(0.3, 0.16, 0.12).on(0);
-      return [solid<Mat>(shell, 'plastic'), solid<Mat>(shell.sized(0.26, 0.12, 0.02).onFace(shell, '+z', 0.004), 'glass', NO_CAST)];
+      return [
+        solid<Mat>(shell, 'plastic'),
+        solid<Mat>(shell.sized(0.26, 0.12, 0.02).onFace(shell, '+z', 0.004), 'glass', NO_CAST),
+      ];
     }
+
     case 'muffler':
       return [
         cylinder<Mat>(0.12, 0.55, 10, 'rust', { at: [0, 0.12, 0], rot: [0, 0, Math.PI / 2] }),
         cylinder<Mat>(0.035, 0.4, 6, 'steel', { at: [0.45, 0.06, 0], rot: [0, 0, Math.PI / 2] }),
       ];
+
     case 'plate': {
       const plate = box(0.32, 0.012, 0.16).on(0);
       return [solid<Mat>(plate, 'plate'), solid<Mat>(plate.sized(0.22, 0.004, 0.05).on(plate.top), 'ink', NO_CAST)];

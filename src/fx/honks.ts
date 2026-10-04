@@ -1,4 +1,5 @@
 import { type CanvasTexture, Group, Sprite, SpriteMaterial, Vector3 } from 'three';
+
 import { easeOutBack, lerp } from '@/engine/core/math';
 import { withCurve } from '@/render/curvature';
 import { FX_LAYER } from '@/render/layers';
@@ -23,7 +24,10 @@ const TEX_H = 128;
 const FILL = '#fff3c4';
 const INK = '#1a0830';
 const TILT = -0.12;
-/** The word fills at most this share of the canvas's width (room for the outline and the tilt), and this share of its height. */
+/**
+ * The word fills at most this share of the canvas's width (room for the outline and the tilt), and this share of its
+ * height.
+ */
 const FIT_W = 0.8;
 const FIT_H = 0.62;
 
@@ -42,7 +46,10 @@ let tex: CanvasTexture | null = null;
 
 /** "HONK!" lettered once, on first use (the comic font has loaded by then). */
 function honkTexture(): CanvasTexture {
-  if (tex) return tex;
+  if (tex) {
+    return tex;
+  }
+
   const { c, ctx } = makeCanvas(TEX_W, TEX_H);
   ctx.translate(TEX_W / 2, TEX_H / 2);
   ctx.rotate(TILT);
@@ -67,7 +74,9 @@ export class Honks {
   /** Pop one up with its foot at `at` (over a roof); `anger` (0..1) makes it bigger and longer. */
   pop(at: Vector3, anger = 0): void {
     if (this.pops.length < POOL) {
-      const m = withCurve(new SpriteMaterial({ map: honkTexture(), transparent: true, depthWrite: false, toneMapped: false }));
+      const m = withCurve(
+        new SpriteMaterial({ map: honkTexture(), transparent: true, depthWrite: false, toneMapped: false }),
+      );
       const s = new Sprite(m);
       s.center.set(0.5, 0);
       s.layers.set(FX_LAYER);
@@ -75,6 +84,7 @@ export class Honks {
       this.root.add(s);
       this.pops.push({ s, m, t: -1, at: new Vector3(), width: WIDTH, life: LIFE });
     }
+
     const p = this.pops[this.next % this.pops.length] as Pop;
     this.next++;
     p.t = 0;
@@ -87,13 +97,18 @@ export class Honks {
 
   update(dt: number): void {
     for (const p of this.pops) {
-      if (p.t < 0) continue;
+      if (p.t < 0) {
+        continue;
+      }
+
       p.t += dt;
+
       if (p.t >= p.life) {
         p.t = -1;
         p.s.visible = false;
         continue;
       }
+
       this.place(p);
     }
   }

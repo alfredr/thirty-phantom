@@ -1,15 +1,35 @@
-import { AdditiveBlending, Color, Group, Mesh, MeshBasicMaterial, PlaneGeometry, RingGeometry, Sprite, SpriteMaterial, type Vector3 } from 'three';
+import {
+  AdditiveBlending,
+  Color,
+  Group,
+  Mesh,
+  MeshBasicMaterial,
+  PlaneGeometry,
+  RingGeometry,
+  Sprite,
+  SpriteMaterial,
+  type Vector3,
+} from 'three';
+
 import { fxDecal, FX_LAYER } from '@/render/layers';
 import { withCutaway } from '@/render/materials';
 import { radialGlowTexture } from '@/render/textures';
 
 /**
- * Something that matters, marked so the eye catches it: a pulsing ring with
- * a soft glow on the ground under it, and a halo round the thing itself (in
- * the air too, following it while it's thrown). Colour, sizes (m), how far
- * the ring breathes and how fast (rad/s), the halo's height over the item.
+ * Something that matters, marked so the eye catches it: a pulsing ring with a soft glow on the ground under it, and a
+ * halo round the thing itself (in the air too, following it while it's thrown). Colour, sizes (m), how far the ring
+ * breathes and how fast (rad/s), the halo's height over the item.
  */
-const LOOK = { color: '#ffe27a', ring: [0.42, 0.52] as [number, number], glow: 1.6, halo: 0.9, breathe: 0.18, rate: 4.5, lift: 0.04, alpha: 0.85 };
+const LOOK = {
+  color: '#ffe27a',
+  ring: [0.42, 0.52] as [number, number],
+  glow: 1.6,
+  halo: 0.9,
+  breathe: 0.18,
+  rate: 4.5,
+  lift: 0.04,
+  alpha: 0.85,
+};
 
 export class Highlight {
   readonly root = new Group();
@@ -21,7 +41,13 @@ export class Highlight {
 
   constructor(color = LOOK.color) {
     const c = new Color(color);
-    const add = { color: c, transparent: true, blending: AdditiveBlending, depthWrite: false, toneMapped: false } as const;
+    const add = {
+      color: c,
+      transparent: true,
+      blending: AdditiveBlending,
+      depthWrite: false,
+      toneMapped: false,
+    } as const;
     const ringMat = withCutaway(new MeshBasicMaterial({ ...add, opacity: LOOK.alpha }));
     const glowMat = withCutaway(new MeshBasicMaterial({ ...add, map: radialGlowTexture(), opacity: LOOK.alpha * 0.6 }));
     const haloMat = new SpriteMaterial({ ...add, map: radialGlowTexture(), opacity: LOOK.alpha * 0.7 });
@@ -32,6 +58,7 @@ export class Highlight {
       m.position.y = LOOK.lift;
       this.ground.add(m);
     }
+
     this.halo = new Sprite(haloMat);
     this.halo.layers.set(FX_LAYER);
     this.halo.scale.setScalar(LOOK.halo);
@@ -41,9 +68,8 @@ export class Highlight {
   }
 
   /**
-   * The halo round the item at `item`, the ring on the ground at `ground`:
-   * under it where it lies, or where it'll land while it's in the air. Call
-   * it every frame either moves.
+   * The halo round the item at `item`, the ring on the ground at `ground`: under it where it lies, or where it'll land
+   * while it's in the air. Call it every frame either moves.
    */
   place(item: Vector3, ground: Vector3): void {
     this.ground.position.copy(ground);
@@ -59,7 +85,13 @@ export class Highlight {
 
   dispose(): void {
     this.root.removeFromParent();
-    for (const m of this.mats) m.dispose();
-    for (const g of this.geos) g.dispose();
+
+    for (const m of this.mats) {
+      m.dispose();
+    }
+
+    for (const g of this.geos) {
+      g.dispose();
+    }
   }
 }

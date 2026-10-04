@@ -1,11 +1,17 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+
 import { loadModules } from './modules.mjs';
 
-const [{ Triggers }, { SaveGame }, { Emitter }, { Haunting, Quests, tireMarks }, { Objectives }, { Inventory }] = await loadModules(
-  '/src/game/story/triggers.ts', '/src/game/save.ts', '/src/engine/core/events.ts', '/src/game/story/quests.ts',
-  '/src/game/story/objectives.ts', '/src/game/items/inventory.ts',
-);
+const [{ Triggers }, { SaveGame }, { Emitter }, { Haunting, Quests, tireMarks }, { Objectives }, { Inventory }] =
+  await loadModules(
+    '/src/game/story/triggers.ts',
+    '/src/game/save.ts',
+    '/src/engine/core/events.ts',
+    '/src/game/story/quests.ts',
+    '/src/game/story/objectives.ts',
+    '/src/game/items/inventory.ts',
+  );
 
 /** What a save reads and writes, standing in for the game. */
 function stand(over = {}) {
@@ -24,6 +30,7 @@ function stand(over = {}) {
     ...over,
   };
 }
+
 stand.victories = 0;
 stand.laidOut = null;
 
@@ -33,8 +40,11 @@ function browser(t, storage) {
   const originals = globals.map((key) => Object.getOwnPropertyDescriptor(globalThis, key));
   t.after(() => {
     globals.forEach((key, i) => {
-      if (originals[i]) Object.defineProperty(globalThis, key, originals[i]);
-      else delete globalThis[key];
+      if (originals[i]) {
+        Object.defineProperty(globalThis, key, originals[i]);
+      } else {
+        delete globalThis[key];
+      }
     });
   });
   const values = [new EventTarget(), new EventTarget(), storage];
@@ -75,8 +85,11 @@ test('saves retry failed writes and skip unchanged data after a successful write
   const originals = globals.map((key) => Object.getOwnPropertyDescriptor(globalThis, key));
   t.after(() => {
     globals.forEach((key, i) => {
-      if (originals[i]) Object.defineProperty(globalThis, key, originals[i]);
-      else delete globalThis[key];
+      if (originals[i]) {
+        Object.defineProperty(globalThis, key, originals[i]);
+      } else {
+        delete globalThis[key];
+      }
     });
   });
 
@@ -86,7 +99,11 @@ test('saves retry failed writes and skip unchanged data after a successful write
     getItem: () => null,
     setItem(key, json) {
       assert.equal(key, '30pc.save');
-      if (++attempts === 1) throw new Error('storage temporarily unavailable');
+
+      if (++attempts === 1) {
+        throw new Error('storage temporarily unavailable');
+      }
+
       stored = JSON.parse(json);
     },
   };
@@ -126,12 +143,21 @@ test('a save with unreadable cash still brings back the day, the items and the p
   const originals = globals.map((key) => Object.getOwnPropertyDescriptor(globalThis, key));
   t.after(() => {
     globals.forEach((key, i) => {
-      if (originals[i]) Object.defineProperty(globalThis, key, originals[i]);
-      else delete globalThis[key];
+      if (originals[i]) {
+        Object.defineProperty(globalThis, key, originals[i]);
+      } else {
+        delete globalThis[key];
+      }
     });
   });
   // JSON stores a NaN cash value as null.
-  const saved = { v: 1, day: 3, cash: null, items: [['tire', 2]], phantoms: [{ spot: 4, at: [1, 0, 2], yaw: 0, n: 1, hours: 21, day: 2 }] };
+  const saved = {
+    v: 1,
+    day: 3,
+    cash: null,
+    items: [['tire', 2]],
+    phantoms: [{ spot: 4, at: [1, 0, 2], yaw: 0, n: 1, hours: 21, day: 2 }],
+  };
   const storage = { getItem: () => JSON.stringify(saved), setItem() {} };
   const values = [new EventTarget(), new EventTarget(), storage];
   globals.forEach((key, i) => Object.defineProperty(globalThis, key, { configurable: true, value: values[i] }));
@@ -167,8 +193,17 @@ test('a run through the tutorial writes no save over the game it set aside', (t)
   assert.equal(writes, 1, 'once it is over, the game it led into saves');
 });
 
-test('a won game comes back won without the victory again, with the same cash about town and Randy\'s stock', (t) => {
-  const saved = { v: 2, day: 4, cash: 5, items: [], phantoms: [], quests: { haunting: 'won' }, stock: [0, 90], found: [[3, 0, 4, 20]] };
+test("a won game comes back won without the victory again, with the same cash about town and Randy's stock", (t) => {
+  const saved = {
+    v: 2,
+    day: 4,
+    cash: 5,
+    items: [],
+    phantoms: [],
+    quests: { haunting: 'won' },
+    stock: [0, 90],
+    found: [[3, 0, 4, 20]],
+  };
   browser(t, { getItem: () => JSON.stringify(saved), setItem() {} });
   stand.victories = 0;
   const game = stand();
@@ -178,7 +213,10 @@ test('a won game comes back won without the victory again, with the same cash ab
   assert.equal(stand.victories, 0, 'no victory screen on load');
   game.haunting.mind.send({ type: 'phantom', n: 31 });
   assert.equal(stand.victories, 0);
-  assert.deepEqual(game.wares.slots.map((s) => s.count), [0, 90]);
+  assert.deepEqual(
+    game.wares.slots.map((s) => s.count),
+    [0, 90],
+  );
   assert.deepEqual(stand.laidOut, [[3, 0, 4, 20]]);
 });
 
@@ -203,7 +241,6 @@ test('the haunting is won on the phantom that makes enough, once', () => {
   assert.equal(haunting.step, 'won');
   assert.equal(stand.victories, 1);
 });
-
 
 test('restored inventory determines the tire marker, ignoring obsolete quest steps', (t) => {
   const saved = { v: 2, day: 2, cash: 0, items: [['tire', 2]], phantoms: [], quests: { tires: 'waiting' } };

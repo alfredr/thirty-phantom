@@ -1,4 +1,5 @@
 import { type Scene, Vector3 } from 'three';
+
 import type { Player } from '@/actors/player';
 import type { Vehicle } from '@/actors/vehicle';
 import { TUNING } from '@/config';
@@ -12,6 +13,7 @@ import type { TransformSequence } from '@/game/deck/transform-sequence';
 import type { Money } from '@/game/items/money';
 import type { ClaimKind } from '@/game/rules/claim-kinds';
 import type { WorldConditions } from '@/game/rules/world-conditions';
+
 import type { CodyState } from './cody-state';
 
 /** Cody steps out this far past the side of the car (m). */
@@ -73,10 +75,15 @@ export class CodyRide {
     driving: {
       tick: (r, s, dt) => {
         r.world.drive(s.v, dt);
+
         if (r.driving === s.v && s.escape !== null) {
           s.escape -= dt;
-          if (s.escape < 0 && s.v.grounded) r.vanish(s.v);
+
+          if (s.escape < 0 && s.v.grounded) {
+            r.vanish(s.v);
+          }
         }
+
         return null;
       },
     },
@@ -85,10 +92,18 @@ export class CodyRide {
 
   constructor(private readonly world: RideWorld) {}
 
-  get driving(): Vehicle | null { return this.mind.in('driving')?.v ?? null; }
-  get transform(): TransformSequence | null { return this.mind.in('changing')?.seq ?? null; }
-  get vehicle(): Vehicle | null { return this.driving ?? this.transform?.vehicle ?? null; }
-  get onFoot(): boolean { return !!this.mind.in('onFoot'); }
+  get driving(): Vehicle | null {
+    return this.mind.in('driving')?.v ?? null;
+  }
+  get transform(): TransformSequence | null {
+    return this.mind.in('changing')?.seq ?? null;
+  }
+  get vehicle(): Vehicle | null {
+    return this.driving ?? this.transform?.vehicle ?? null;
+  }
+  get onFoot(): boolean {
+    return !!this.mind.in('onFoot');
+  }
   get escaping(): boolean {
     const drive = this.mind.in('driving');
     return !!drive && drive.escape !== null;
@@ -105,9 +120,18 @@ export class CodyRide {
 
   /** Scripted boarding is quiet; an owned car has no glovebox cash to find. */
   board(car: Vehicle, own = false): void {
-    if (this.driving === car) return;
-    if (this.driving) this.exit(true);
-    if (own) this.world.money.empty(car);
+    if (this.driving === car) {
+      return;
+    }
+
+    if (this.driving) {
+      this.exit(true);
+    }
+
+    if (own) {
+      this.world.money.empty(car);
+    }
+
     this.enter(car, true);
   }
 
@@ -116,26 +140,47 @@ export class CodyRide {
     const from = car.role;
     claims.take('driverSeat', cody, car, { owner: this.seat, preempt: true });
     player.visible = false;
-    if (from === 'valet') this.world.carjacked(car);
-    if (from === 'parked' || from === 'traffic' || from === 'valet' || from === 'visitor') car.markRest();
-    if (from === 'traffic' || from === 'visitor') this.world.bail(car);
+
+    if (from === 'valet') {
+      this.world.carjacked(car);
+    }
+
+    if (from === 'parked' || from === 'traffic' || from === 'valet' || from === 'visitor') {
+      car.markRest();
+    }
+
+    if (from === 'traffic' || from === 'visitor') {
+      this.world.bail(car);
+    }
+
     // Taking the seat stops AI driving immediately, including while the car transforms.
     car.role = 'player';
     const possessed = this.possessable(car);
     let found = 0;
-    if (possessed) this.change(car);
-    else {
+    if (possessed) {
+      this.change(car);
+    } else {
       found = money.glovebox(car);
       this.mind.go({ at: 'driving', v: car, escape: null });
-      if (car.rig.rider) player.mount(car.rig.rider.saddle);
+
+      if (car.rig.rider) {
+        player.mount(car.rig.rider.saddle);
+      }
     }
+
     events.emit('entered', { v: car, possessed, from, quiet });
-    if (found) events.emit('money', { kind: 'glovebox', amount: found });
+
+    if (found) {
+      events.emit('money', { kind: 'glovebox', amount: found });
+    }
   }
 
   exit(quiet = false): void {
     const car = this.driving;
-    if (!car) return;
+    if (!car) {
+      return;
+    }
+
     const { player, claims, garage, collision, scene, events } = this.world;
     this.mind.go({ at: 'onFoot' });
     claims.release(this.seat);
@@ -150,8 +195,11 @@ export class CodyRide {
         car.place(spot.center.x, spot.center.y, spot.center.z, spot.def.yaw + (flip ? Math.PI : 0), 0, 0, null);
         garage.occupy(spot, car);
         parkedIn = spot;
-      } else garage.release(car);
+      } else {
+        garage.release(car);
+      }
     }
+
     car.markRest();
     this.lastCar = car;
     const side = car.params.radius + DOOR_GAP;
@@ -167,31 +215,48 @@ export class CodyRide {
   /** Moonrise also transforms cars outside the deck when Cody is already driving them. */
   moonrise(): void {
     const car = this.driving;
-    if (!car || car.form !== 'car') return;
+    if (!car || car.form !== 'car') {
+      return;
+    }
+
     if (car.rig.rider) {
       this.world.player.dismount(this.world.scene);
       this.world.player.visible = false;
     }
+
     this.change(car);
     this.world.events.emit('entered', { v: car, possessed: true, from: null, quiet: true });
   }
 
   escaped(): void {
     const drive = this.mind.in('driving');
-    if (drive) drive.escape = ESCAPE_ROLL;
+    if (drive) {
+      drive.escape = ESCAPE_ROLL;
+    }
   }
 
   /** The civilian car Cody is driving, or the nearby car he just left outside the deck. */
   carForValet(): Vehicle | null {
-    if (this.driving) return this.driving.form === 'car' ? this.driving : null;
+    if (this.driving) {
+      return this.driving.form === 'car' ? this.driving : null;
+    }
+
     const car = this.lastCar;
-    if (!car || car.role !== 'parked' || car.status || car.insideDeck || !this.world.vehicles.includes(car)) return null;
+    if (!car || car.role !== 'parked' || car.status || car.insideDeck || !this.world.vehicles.includes(car)) {
+      return null;
+    }
+
     return car.pos.distanceTo(this.world.player.pos) < TUNING.valet.carReach ? car : null;
   }
 
   handOff(car: Vehicle): void {
-    if (this.driving === car) this.exit();
-    if (this.lastCar === car) this.lastCar = null;
+    if (this.driving === car) {
+      this.exit();
+    }
+
+    if (this.lastCar === car) {
+      this.lastCar = null;
+    }
   }
 
   private change(car: Vehicle): void {

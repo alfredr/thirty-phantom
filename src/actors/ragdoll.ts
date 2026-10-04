@@ -1,6 +1,8 @@
 import { Matrix4, type Object3D, Quaternion, Vector3 } from 'three';
+
 import { TUNING } from '@/config';
 import type { CollisionWorld } from '@/engine/physics/collision';
+
 import { exitHit, penetration } from './crash-body';
 import type { CharacterRig } from './models/rig';
 
@@ -32,13 +34,32 @@ const COUNT = 12;
 /** Sticks between particles: the torso braced rigid, limbs and head on single bones. */
 const STICK_LIST = [
   // torso
-  [PELVIS, NECK], [SHOULDER_L, SHOULDER_R], [HIP_L, HIP_R], [SHOULDER_L, HIP_L], [SHOULDER_R, HIP_R],
-  [SHOULDER_L, HIP_R], [SHOULDER_R, HIP_L], [NECK, SHOULDER_L], [NECK, SHOULDER_R], [PELVIS, HIP_L], [PELVIS, HIP_R],
-  [CHEST, SHOULDER_L], [CHEST, SHOULDER_R], [CHEST, HIP_L], [CHEST, HIP_R], [CHEST, NECK], [CHEST, PELVIS],
+  [PELVIS, NECK],
+  [SHOULDER_L, SHOULDER_R],
+  [HIP_L, HIP_R],
+  [SHOULDER_L, HIP_L],
+  [SHOULDER_R, HIP_R],
+  [SHOULDER_L, HIP_R],
+  [SHOULDER_R, HIP_L],
+  [NECK, SHOULDER_L],
+  [NECK, SHOULDER_R],
+  [PELVIS, HIP_L],
+  [PELVIS, HIP_R],
+  [CHEST, SHOULDER_L],
+  [CHEST, SHOULDER_R],
+  [CHEST, HIP_L],
+  [CHEST, HIP_R],
+  [CHEST, NECK],
+  [CHEST, PELVIS],
   // head, held loosely by the shoulders too
-  [NECK, HEAD], [HEAD, SHOULDER_L], [HEAD, SHOULDER_R],
+  [NECK, HEAD],
+  [HEAD, SHOULDER_L],
+  [HEAD, SHOULDER_R],
   // limbs
-  [SHOULDER_L, HAND_L], [SHOULDER_R, HAND_R], [HIP_L, FOOT_L], [HIP_R, FOOT_R],
+  [SHOULDER_L, HAND_L],
+  [SHOULDER_R, HAND_R],
+  [HIP_L, FOOT_L],
+  [HIP_R, FOOT_R],
 ] as const;
 /** The same, flat (a, b per stick), for the solver's inner loop. */
 const STICKS = Uint8Array.from(STICK_LIST.flat());
@@ -68,12 +89,10 @@ const DOWN = new Vector3(0, -1, 0);
 const UP = new Vector3(0, 1, 0);
 
 /**
- * A limp person: twelve Verlet particles (pelvis, neck, head, shoulders,
- * hands, hips, feet, and one in front of the chest to brace the torso) on
- * sticks, laid over a CharacterRig's pose when it goes down. Gravity, the
- * ground and walls act on it, vehicles shove it, and every frame the rig is
- * posed from it: the root from the torso, each limb pivot along its bone.
- * Allocated once per fall; a step allocates nothing.
+ * A limp person: twelve Verlet particles (pelvis, neck, head, shoulders, hands, hips, feet, and one in front of the
+ * chest to brace the torso) on sticks, laid over a CharacterRig's pose when it goes down. Gravity, the ground and walls
+ * act on it, vehicles shove it, and every frame the rig is posed from it: the root from the torso, each limb pivot
+ * along its bone. Allocated once per fall; a step allocates nothing.
  */
 export class Ragdoll {
   /** Positions, and where they were a substep ago (Verlet), x y z per particle. */
@@ -93,12 +112,14 @@ export class Ragdoll {
     const root = rig.root;
     root.updateMatrixWorld(true);
     this.scale = root.scale.x;
+
     const set = (i: number, o: Object3D, x: number, y: number, z: number): void => {
       o.localToWorld(_a.set(x, y, z));
       this.p[i * 3] = _a.x;
       this.p[i * 3 + 1] = _a.y;
       this.p[i * 3 + 2] = _a.z;
     };
+
     set(SHOULDER_L, rig.armL, 0, 0, 0);
     set(SHOULDER_R, rig.armR, 0, 0, 0);
     set(HAND_L, rig.armL, 0, -0.8, 0);
@@ -130,11 +151,13 @@ export class Ragdoll {
   launch(vx: number, vy: number, vz: number, tumble: number): void {
     const dt = 1 / 60 / SUBSTEPS;
     for (let i = 0; i < COUNT; i++) {
-      const low = i === FOOT_L || i === FOOT_R ? 1 + tumble : i === HIP_L || i === HIP_R || i === PELVIS ? 1 + tumble * 0.5 : 1;
+      const low =
+        i === FOOT_L || i === FOOT_R ? 1 + tumble : i === HIP_L || i === HIP_R || i === PELVIS ? 1 + tumble * 0.5 : 1;
       this.o[i * 3] = (this.p[i * 3] as number) - vx * low * dt;
       this.o[i * 3 + 1] = (this.p[i * 3 + 1] as number) - vy * dt;
       this.o[i * 3 + 2] = (this.p[i * 3 + 2] as number) - vz * low * dt;
     }
+
     this.still = 0;
   }
 
@@ -161,7 +184,11 @@ export class Ragdoll {
 
   step(dt: number, world: CollisionWorld, pushers: readonly RagdollPusher[]): void {
     this.shove(pushers, dt);
-    if (this.asleep) return;
+
+    if (this.asleep) {
+      return;
+    }
+
     this.dirty = true;
     const h = dt / SUBSTEPS;
     const g = TUNING.gravity * h * h;
@@ -181,22 +208,36 @@ export class Ragdoll {
         this.p[i + 1] = y + vy - g;
         this.p[i + 2] = z + vz;
       }
+
       for (let it = 0; it < ITERATIONS; it++) {
-        for (let k = 0; k < STICK_COUNT; k++) this.satisfy(STICKS[k * 2] as number, STICKS[k * 2 + 1] as number, this.rest[k] as number);
+        for (let k = 0; k < STICK_COUNT; k++) {
+          this.satisfy(STICKS[k * 2] as number, STICKS[k * 2 + 1] as number, this.rest[k] as number);
+        }
+
         this.collide(world);
       }
     }
+
     // how far it really moved in the last substep, after the ground held it up
     for (let i = 0; i < COUNT * 3; i += 3) {
-      const m = Math.abs((this.p[i] as number) - (this.o[i] as number)) + Math.abs((this.p[i + 1] as number) - (this.o[i + 1] as number)) + Math.abs((this.p[i + 2] as number) - (this.o[i + 2] as number));
-      if (m > moved) moved = m;
+      const m =
+        Math.abs((this.p[i] as number) - (this.o[i] as number)) +
+        Math.abs((this.p[i + 1] as number) - (this.o[i + 1] as number)) +
+        Math.abs((this.p[i + 2] as number) - (this.o[i + 2] as number));
+      if (m > moved) {
+        moved = m;
+      }
     }
+
     this.still = moved * SUBSTEPS < STILL ? this.still + dt : 0;
   }
 
   /** Pose the rig from the particles (a no-op while it lies still). */
   pose(): void {
-    if (!this.dirty) return;
+    if (!this.dirty) {
+      return;
+    }
+
     this.dirty = false;
     const r = this.rig;
     // torso frame: x across the shoulders, y up the spine, z out of the chest
@@ -229,31 +270,46 @@ export class Ragdoll {
     const pz = this.p[2] as number;
     for (let k = 0; k < pushers.length; k++) {
       const v = pushers[k] as RagdollPusher;
-      if (v.gone) continue;
+      if (v.gone) {
+        continue;
+      }
+
       const P = v.params;
       const half = P.length / 2 - P.radius;
       const reach = half + P.radius + 1.5;
       const cx = v.pos.x - px;
       const cz = v.pos.z - pz;
-      if (cx * cx + cz * cz > reach * reach) continue;
+      if (cx * cx + cz * cz > reach * reach) {
+        continue;
+      }
+
       const fx = Math.sin(v.yaw);
       const fz = Math.cos(v.yaw);
       for (let i = 0; i < COUNT * 3; i += 3) {
         const y = this.p[i + 1] as number;
-        if (y < v.pos.y - 0.2 || y > v.pos.y + P.height) continue;
+        if (y < v.pos.y - 0.2 || y > v.pos.y + P.height) {
+          continue;
+        }
+
         for (let c = -1; c <= 1; c++) {
           const dx = (this.p[i] as number) - (v.pos.x + fx * half * c);
           const dz = (this.p[i + 2] as number) - (v.pos.z + fz * half * c);
           const d = Math.sqrt(dx * dx + dz * dz);
           const r = P.radius + RADIUS;
-          if (d >= r || d < 1e-5) continue;
+          if (d >= r || d < 1e-5) {
+            continue;
+          }
+
           // out to the body's edge, moving with it
           const pvx = ((this.p[i] as number) - (this.o[i] as number)) / (dt / SUBSTEPS);
           const pvz = ((this.p[i + 2] as number) - (this.o[i + 2] as number)) / (dt / SUBSTEPS);
           const rvx = v.vel.x - pvx;
           const rvz = v.vel.z - pvz;
           const rv = Math.sqrt(rvx * rvx + rvz * rvz);
-          if (rv > this.hardest) this.hardest = rv;
+          if (rv > this.hardest) {
+            this.hardest = rv;
+          }
+
           this.p[i] = (this.p[i] as number) + (dx / d) * (r - d);
           this.p[i + 2] = (this.p[i + 2] as number) + (dz / d) * (r - d);
           this.o[i] = (this.p[i] as number) - v.vel.x * (dt / SUBSTEPS);
@@ -270,15 +326,20 @@ export class Ragdoll {
       const x = this.p[i] as number;
       const y = (this.p[i + 1] as number) - RADIUS;
       const z = this.p[i + 2] as number;
-      if (!penetration(world, x, y, z)) continue;
+      if (!penetration(world, x, y, z)) {
+        continue;
+      }
+
       const d = exitHit.depth;
       this.p[i] = x + exitHit.nx * d;
       this.p[i + 1] = (this.p[i + 1] as number) + exitHit.ny * d;
       this.p[i + 2] = z + exitHit.nz * d;
+
       if (exitHit.ny > 0.5) {
         // on the ground: friction drags the slide out of it
         this.o[i] = (this.p[i] as number) - ((this.p[i] as number) - (this.o[i] as number)) * GROUND_KEEP;
-        this.o[i + 2] = (this.p[i + 2] as number) - ((this.p[i + 2] as number) - (this.o[i + 2] as number)) * GROUND_KEEP;
+        this.o[i + 2] =
+          (this.p[i + 2] as number) - ((this.p[i + 2] as number) - (this.o[i + 2] as number)) * GROUND_KEEP;
       }
     }
   }
@@ -291,7 +352,10 @@ export class Ragdoll {
     const dy = (this.p[b * 3 + 1] as number) - ay;
     const dz = (this.p[b * 3 + 2] as number) - az;
     const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
-    if (d < 1e-6) return;
+    if (d < 1e-6) {
+      return;
+    }
+
     const k = ((d - rest) / d) * 0.5;
     this.p[a * 3] = ax + dx * k;
     this.p[a * 3 + 1] = ay + dy * k;
@@ -306,7 +370,9 @@ export class Ragdoll {
   }
 
   private mid(i: number, a: number, b: number): void {
-    for (let c = 0; c < 3; c++) this.p[i * 3 + c] = ((this.p[a * 3 + c] as number) + (this.p[b * 3 + c] as number)) / 2;
+    for (let c = 0; c < 3; c++) {
+      this.p[i * 3 + c] = ((this.p[a * 3 + c] as number) + (this.p[b * 3 + c] as number)) / 2;
+    }
   }
 
   private dist(a: number, b: number): number {

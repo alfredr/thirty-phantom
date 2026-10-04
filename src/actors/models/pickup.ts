@@ -1,10 +1,11 @@
 import type { V3 } from '@/engine/core/math';
+
 import { box, build, group, model, NO_CAST, SIDES, solid } from './part';
 import { vehicleRig, wheels, type VehicleRig, type WheelSpec } from './rig';
 
 /**
- * A compact pickup, modelled at full size. It stays within the sedan's footprint and turning
- * circle (TUNING.pickup), so valet routes planned for a sedan work for it too.
+ * A compact pickup, modelled at full size. It stays within the sedan's footprint and turning circle (TUNING.pickup), so
+ * valet routes planned for a sedan work for it too.
  */
 export const PICKUP = {
   color: '#6a6478',
@@ -27,7 +28,9 @@ export type PickupParams = typeof PICKUP;
 export function pickup(params: Partial<PickupParams> = {}) {
   const p = { ...PICKUP, ...params };
   const lower = box(...p.body).on(p.clearance);
-  const cab = box(...p.cab).on(lower).z(p.cabForward);
+  const cab = box(...p.cab)
+    .on(lower)
+    .z(p.cabForward);
   const [wall, wallH] = p.bedWall;
   const bedFront = cab.min[2];
   const bedBack = lower.min[2];
@@ -51,15 +54,48 @@ export function pickup(params: Partial<PickupParams> = {}) {
         solid(cab.sized(1.56, 0.4, 0.08).onFace(cab, '+z'), 'glass'),
         solid(cab.sized(1.4, 0.3, 0.08).onFace(cab, '-z').move(0, 0.06), 'glass'),
         // open bed: sides and tailgate on the body, a dark liner between them
-        ...SIDES.map((s) => solid(box(wall, wallH, bedLen).on(lower).x(s * (p.body[0] - wall) / 2).z(bedMid), 'paint')),
+        ...SIDES.map((s) =>
+          solid(
+            box(wall, wallH, bedLen)
+              .on(lower)
+              .x((s * (p.body[0] - wall)) / 2)
+              .z(bedMid),
+            'paint',
+          ),
+        ),
         solid(box(p.body[0], wallH, wall).on(lower).inside(lower, '-z'), 'paint'),
-        solid(box(p.body[0] - wall * 2, 0.02, bedLen - wall).on(lower).z(bedMid + wall / 2), 'dark', NO_CAST),
+        solid(
+          box(p.body[0] - wall * 2, 0.02, bedLen - wall)
+            .on(lower)
+            .z(bedMid + wall / 2),
+          'dark',
+          NO_CAST,
+        ),
         solid(box(p.body[0] + 0.02, 0.12, p.body[2] - 0.3).onFace(lower, '-y'), 'dark'),
-        ...(['+z', '-z'] as const).map((f) => solid(box(p.body[0] + 0.06, 0.22, 0.28).inside(lower, '-y').onFace(lower, f, -0.05), 'dark')),
+        ...(['+z', '-z'] as const).map((f) =>
+          solid(
+            box(p.body[0] + 0.06, 0.22, 0.28)
+              .inside(lower, '-y')
+              .onFace(lower, f, -0.05),
+            'dark',
+          ),
+        ),
         solid(box(0.86, 0.22, 0.05).at(0, 0.84, 0).onFace(lower, '+z', 0.02), 'dark', NO_CAST),
         ...SIDES.flatMap((s) => [
-          solid(box(0.36, 0.16, 0.06).at(s * 0.66, 0.88, 0).onFace(lower, '+z', 0.02), 'head', NO_CAST),
-          solid(box(0.18, 0.3, 0.06).at(s * 0.8, 0.84, 0).onFace(lower, '-z', 0.02), 'tail', NO_CAST),
+          solid(
+            box(0.36, 0.16, 0.06)
+              .at(s * 0.66, 0.88, 0)
+              .onFace(lower, '+z', 0.02),
+            'head',
+            NO_CAST,
+          ),
+          solid(
+            box(0.18, 0.3, 0.06)
+              .at(s * 0.8, 0.84, 0)
+              .onFace(lower, '-z', 0.02),
+            'tail',
+            NO_CAST,
+          ),
         ]),
       ]),
       ...wheels(p.wheels, 'tire', 'hub'),

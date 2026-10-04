@@ -8,6 +8,7 @@ import {
   PlaneGeometry,
   Vector3,
 } from 'three';
+
 import type { VehicleRig } from '@/actors/models/rig';
 import { buildTruckRig } from '@/actors/models/truck';
 import type { Vehicle } from '@/actors/vehicle';
@@ -49,7 +50,10 @@ const SPOT_ABOVE = 2;
 export function spotZone(s: SpotRuntime, pad: number): ZoneDef {
   const [w, d] = s.def.size;
   const c = s.center;
-  return { min: [c.x - w / 2 - pad, c.y - SPOT_BELOW, c.z - d / 2 - pad], max: [c.x + w / 2 + pad, c.y + SPOT_ABOVE, c.z + d / 2 + pad] };
+  return {
+    min: [c.x - w / 2 - pad, c.y - SPOT_BELOW, c.z - d / 2 - pad],
+    max: [c.x + w / 2 + pad, c.y + SPOT_ABOVE, c.z + d / 2 + pad],
+  };
 }
 
 export type CrossingKind = 'logged-in' | 'logged-out' | 'escaped' | 'snuck-in';
@@ -60,9 +64,8 @@ export interface Crossing {
 }
 
 /**
- * The garage's view of the world: a badge log (entries minus logged exits),
- * the cars physically inside, and the phantom trucks left in spots by every
- * escape that never scanned out. Score = phantom occupancy = log - actual.
+ * The garage's view of the world: a badge log (entries minus logged exits), the cars physically inside, and the phantom
+ * trucks left in spots by every escape that never scanned out. Score = phantom occupancy = log - actual.
  */
 export class Garage {
   readonly root = new Group();
@@ -82,7 +85,15 @@ export class Garage {
     const tex = radialGlowTexture();
     this.spots = defs.map((def) => {
       const glowMat = withCutaway(
-        new MeshBasicMaterial({ map: tex, color: SPOT_GLOW, transparent: true, blending: AdditiveBlending, depthWrite: false, opacity: 0, toneMapped: false }),
+        new MeshBasicMaterial({
+          map: tex,
+          color: SPOT_GLOW,
+          transparent: true,
+          blending: AdditiveBlending,
+          depthWrite: false,
+          opacity: 0,
+          toneMapped: false,
+        }),
       );
       const glow = new Mesh(new PlaneGeometry(def.size[0] * 1.3, def.size[1] * 1.2), glowMat);
       glow.rotation.x = -Math.PI / 2;
@@ -113,7 +124,12 @@ export class Garage {
   /** Vehicles physically in the deck right now. */
   actual(vehicles: Vehicle[]): number {
     let n = 0;
-    for (const v of vehicles) if (v.insideDeck && !v.gone) n++;
+    for (const v of vehicles) {
+      if (v.insideDeck && !v.gone) {
+        n++;
+      }
+    }
+
     return n;
   }
 
@@ -127,14 +143,25 @@ export class Garage {
 
   /** Who has booked spot `s` on their way to it, if anyone. The game wires this to its claims. */
   bookedBy: (s: SpotRuntime) => object | null = () => null;
-  /** A car standing in spot `s` right now, if any (Cody's, say, sitting there without getting out). The game wires this to its vehicles. */
+  /**
+   * A car standing in spot `s` right now, if any (Cody's, say, sitting there without getting out). The game wires this
+   * to its vehicles.
+   */
   standingIn: (s: SpotRuntime) => Vehicle | null = () => null;
 
-  /** No phantom in it, nobody parked in it or on their way to it, and no car standing in it; `except` may be any of them. */
+  /**
+   * No phantom in it, nobody parked in it or on their way to it, and no car standing in it; `except` may be any of
+   * them.
+   */
   isFree(s: SpotRuntime, except?: Vehicle): boolean {
     const booked = this.bookedBy(s);
     const there = this.standingIn(s);
-    return !s.phantom && (!s.occupant || s.occupant === except) && (!booked || booked === except) && (!there || there === except);
+    return (
+      !s.phantom &&
+      (!s.occupant || s.occupant === except) &&
+      (!booked || booked === except) &&
+      (!there || there === except)
+    );
   }
 
   /** Nearest free spot, only on `floor` if one is given. */
@@ -142,14 +169,21 @@ export class Garage {
     let best: SpotRuntime | null = null;
     let bd = Infinity;
     for (const s of this.spots) {
-      if (!this.isFree(s)) continue;
-      if (floor !== null && s.def.level !== floor) continue;
+      if (!this.isFree(s)) {
+        continue;
+      }
+
+      if (floor !== null && s.def.level !== floor) {
+        continue;
+      }
+
       const d = s.center.distanceToSquared(p);
       if (d < bd) {
         bd = d;
         best = s;
       }
     }
+
     return best;
   }
 
@@ -162,33 +196,50 @@ export class Garage {
   topFree(): SpotRuntime | null {
     let best: SpotRuntime | null = null;
     for (const s of this.spots) {
-      if (!this.isFree(s)) continue;
-      if (!best || s.def.level > best.def.level || (s.def.level === best.def.level && s.def.id < best.def.id)) best = s;
+      if (!this.isFree(s)) {
+        continue;
+      }
+
+      if (!best || s.def.level > best.def.level || (s.def.level === best.def.level && s.def.id < best.def.id)) {
+        best = s;
+      }
     }
+
     return best;
   }
 
   floorOf(y: number): number {
     let best = 0;
-    for (let i = 0; i < this.nav.floors.length; i++) if (y >= (this.nav.floors[i] as number) - 1.5) best = i;
+    for (let i = 0; i < this.nav.floors.length; i++) {
+      if (y >= (this.nav.floors[i] as number) - 1.5) {
+        best = i;
+      }
+    }
+
     return best;
   }
 
   /** Detect footprint crossings and classify them against the badge gates. */
   track(v: Vehicle, prev: Vector3): Crossing | null {
     const inside = this.inFootprint(v.pos);
-    if (inside === v.insideDeck) return null;
+    if (inside === v.insideDeck) {
+      return null;
+    }
+
     v.insideDeck = inside;
     const gate = this.gates.inZone(v.pos) ?? this.gates.inZone(prev);
     if (gate) {
       gate.flash = 1.2;
+
       if (inside) {
         this.logged++;
         return { vehicle: v, kind: 'logged-in' };
       }
+
       this.logged--;
       return { vehicle: v, kind: 'logged-out' };
     }
+
     return { vehicle: v, kind: inside ? 'snuck-in' : 'escaped' };
   }
 
@@ -205,7 +256,11 @@ export class Garage {
   }
 
   release(v: Vehicle): void {
-    for (const o of this.spots) if (o.occupant === v) o.occupant = null;
+    for (const o of this.spots) {
+      if (o.occupant === v) {
+        o.occupant = null;
+      }
+    }
   }
 
   /** Leave the ghost image of a monster truck where the car was parked. */
@@ -221,28 +276,43 @@ export class Garage {
       }
     });
     rig.root.position.copy(spot ? spot.center : at);
-    rig.root.rotation.y = spot ? (Math.abs(Math.cos(yaw - spot.def.yaw)) > 0.5 ? (Math.cos(yaw - spot.def.yaw) > 0 ? spot.def.yaw : spot.def.yaw + Math.PI) : spot.def.yaw) : yaw;
+    rig.root.rotation.y = spot
+      ? Math.abs(Math.cos(yaw - spot.def.yaw)) > 0.5
+        ? Math.cos(yaw - spot.def.yaw) > 0
+          ? spot.def.yaw
+          : spot.def.yaw + Math.PI
+        : spot.def.yaw
+      : yaw;
     this.root.add(rig.root);
     this.phantomRigs.push({ g: rig.root, base: rig.root.position.y, phase: Math.random() * 6 });
-    if (spot) spot.phantom = rig.root;
+
+    if (spot) {
+      spot.phantom = rig.root;
+    }
+
     this.phantoms++;
     return rig.root;
   }
 
-  /**
-   * @param beacon highlight free spots (Cody is driving a car by day)
-   */
+  /** @param beacon highlight free spots (Cody is driving a car by day) */
   update(dt: number, beacon: boolean, nightness: number): void {
     this.t += dt;
+
     for (const s of this.spots) {
       const free = this.isFree(s);
-      const target = s.phantom ? 0.5 : beacon && free ? 0.55 + Math.sin(this.t * 4 + s.def.id) * 0.25 : 0.12 + nightness * 0.1;
+      const target = s.phantom
+        ? 0.5
+        : beacon && free
+          ? 0.55 + Math.sin(this.t * 4 + s.def.id) * 0.25
+          : 0.12 + nightness * 0.1;
       s.glowMat.opacity += (target - s.glowMat.opacity) * Math.min(1, dt * 5);
       s.glowMat.color.copy(s.phantom ? PHANTOM_GLOW : SPOT_GLOW);
     }
+
     for (const p of this.phantomRigs) {
       p.g.position.y = p.base + 0.25 + Math.sin(this.t * 1.6 + p.phase) * 0.18;
     }
+
     this.ghostMat.emissiveIntensity = 0.55 + Math.sin(this.t * 5) * 0.08 + Math.random() * 0.06;
   }
 }

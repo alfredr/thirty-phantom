@@ -13,9 +13,8 @@ export interface Objective {
 }
 
 /**
- * The objectives the markers and the minimap point at right now: at most one
- * primary, any number of optional ones. Each source replaces its own markers; the HUD
- * reads the list (and re-projects each `at`) every frame.
+ * The objectives the markers and the minimap point at right now: at most one primary, any number of optional ones. Each
+ * source replaces its own markers; the HUD reads the list (and re-projects each `at`) every frame.
  */
 export class Objectives {
   /** The current task, shared by the HUD and the phone's task list. */
@@ -29,12 +28,22 @@ export class Objectives {
 
   /** Replace this source's markers. An empty list clears only that source. The first primary wins. */
   replace(source: object, list: readonly Objective[]): void {
-    if (list.length) this.sources.set(source, list);
-    else this.sources.delete(source);
+    if (list.length) {
+      this.sources.set(source, list);
+    } else {
+      this.sources.delete(source);
+    }
+
     let primary = false;
     this.items = [...this.sources.values()].flat().filter((o) => {
-      if (o.kind !== 'primary') return true;
-      if (primary) return false;
+      if (o.kind !== 'primary') {
+        return true;
+      }
+
+      if (primary) {
+        return false;
+      }
+
       primary = true;
       return true;
     });

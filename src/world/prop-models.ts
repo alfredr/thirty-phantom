@@ -1,6 +1,7 @@
 import { box, type Model, model, NO_CAST, solid } from '@/actors/models/part';
 import type { V3 } from '@/engine/core/math';
 import { GLASS, LAMP_GLASS, METAL } from '@/render/materials';
+
 import type { LampColor } from './level-data';
 
 export const LAMP = {
@@ -10,9 +11,8 @@ export const LAMP = {
 };
 
 /**
- * Street lamp, base at the origin: a pole with the head on top under a wider
- * cap. The head comes twice, 'lit' and 'dead' (knocked over, it goes dark), and
- * only one is shown.
+ * Street lamp, base at the origin: a pole with the head on top under a wider cap. The head comes twice, 'lit' and
+ * 'dead' (knocked over, it goes dark), and only one is shown.
  */
 export function streetLamp(color: LampColor, p = LAMP): Model<'iron' | 'lit' | 'dead'> {
   const pole = box(...p.pole).on(0);
@@ -24,7 +24,12 @@ export function streetLamp(color: LampColor, p = LAMP): Model<'iron' | 'lit' | '
       lit: { ...LAMP_GLASS[color], roughness: 0.5 },
       dead: GLASS,
     },
-    [solid(pole, 'iron'), solid(cap, 'iron'), solid(head, 'lit', { name: 'lit', ...NO_CAST }), solid(head, 'dead', { name: 'dead', ...NO_CAST })],
+    [
+      solid(pole, 'iron'),
+      solid(cap, 'iron'),
+      solid(head, 'lit', { name: 'lit', ...NO_CAST }),
+      solid(head, 'dead', { name: 'dead', ...NO_CAST }),
+    ],
   );
 }
 
@@ -42,9 +47,8 @@ export const FENCE = {
 };
 
 /**
- * One panel of iron fence, centered on the origin along +X: a post with a
- * finial at its start, two rails across. The last panel of a run also closes
- * it with a post at its far end.
+ * One panel of iron fence, centered on the origin along +X: a post with a finial at its start, two rails across. The
+ * last panel of a run also closes it with a post at its far end.
  */
 export function fencePanel(end: boolean, p = FENCE): Model<'iron'> {
   const post = box(...p.post).on(0);
@@ -70,10 +74,9 @@ export const GUARDRAIL = {
 };
 
 /**
- * One panel of ramp guardrail, centered on the origin along +X: a post at its
- * start and a steel beam across on the side facing -Z, the lane. Standing on a
- * ramp, its copy is sheared to the slope so the posts stay upright. The last
- * panel of a run closes it with a second post.
+ * One panel of ramp guardrail, centered on the origin along +X: a post at its start and a steel beam across on the side
+ * facing -Z, the lane. Standing on a ramp, its copy is sheared to the slope so the posts stay upright. The last panel
+ * of a run closes it with a second post.
  */
 export function guardrailPanel(end: boolean, p = GUARDRAIL): Model<'iron' | 'steel'> {
   const post = box(...p.post).on(0);
@@ -94,8 +97,8 @@ export const RAILING = {
 };
 
 /**
- * One panel of the railing along a wall top, centered on the origin along +X:
- * a post at its start and two rails across, the top one capping the posts.
+ * One panel of the railing along a wall top, centered on the origin along +X: a post at its start and two rails across,
+ * the top one capping the posts.
  */
 export function railingPanel(end: boolean, p = RAILING): Model<'iron'> {
   const post = box(...p.post).on(0);
@@ -117,14 +120,17 @@ export const GATE_ARM = {
 };
 
 /**
- * A badge gate's barrier arm as a prop: a striped bar standing up from its
- * hinge at the origin (the gate tips it down to horizontal), `length` long.
+ * A badge gate's barrier arm as a prop: a striped bar standing up from its hinge at the origin (the gate tips it down
+ * to horizontal), `length` long.
  */
 export function gateArm(length: number, p = GATE_ARM): Model<'a' | 'b'> {
   const n = Math.max(1, Math.round(length / p.stripe));
   const seg = length / n;
   return model(
-    { a: { color: p.colors[0], roughness: 0.6, emissive: p.colors[0], emissiveIntensity: 0.25 }, b: { color: p.colors[1], roughness: 0.7 } },
+    {
+      a: { color: p.colors[0], roughness: 0.6, emissive: p.colors[0], emissiveIntensity: 0.25 },
+      b: { color: p.colors[1], roughness: 0.7 },
+    },
     Array.from({ length: n }, (_, i) => solid(box(p.bar, seg, p.bar).on(i * seg), i % 2 ? 'b' : 'a')),
   );
 }

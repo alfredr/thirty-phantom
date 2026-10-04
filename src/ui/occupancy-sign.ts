@@ -27,26 +27,33 @@ export class OccupancySign {
 
   set(logged: number, actual: number, phantom: number, max: number): void {
     const last = this.last;
-    if (logged === last.logged && actual === last.actual && phantom === last.phantom && max === last.max) return;
+    if (logged === last.logged && actual === last.actual && phantom === last.phantom && max === last.max) {
+      return;
+    }
+
     this.logged.textContent = String(logged);
     this.actual.textContent = String(actual);
     this.score.textContent = String(phantom);
     this.of.textContent = `/${max}`;
+
     if (max !== last.max) {
       this.stalls.replaceChildren(...Array.from({ length: max }, () => el('i')));
       this.stalls.style.gridTemplateColumns = `repeat(${Math.ceil(max / 2)}, 1fr)`;
     }
+
     // phantoms fill from the left, real cars after them, so an escape visibly turns a car into a ghost
     const ghosts = clamp(phantom, 0, max);
     const cars = clamp(actual, 0, max - ghosts);
     const cells = [...this.stalls.children];
     cells.forEach((c, i) => (c.className = i < ghosts ? 'ghost' : i < ghosts + cars ? 'car' : ''));
+
     if (last.phantom >= 0 && phantom > last.phantom) {
       cells[ghosts - 1]?.classList.add('new');
       this.window.classList.remove('bump');
       void this.window.offsetWidth;
       this.window.classList.add('bump');
     }
+
     this.last = { logged, actual, phantom, max };
   }
 }

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+
 import { loadModules } from './modules.mjs';
 
 const [{ Bindings }] = await loadModules('/src/engine/ui/binding.ts');

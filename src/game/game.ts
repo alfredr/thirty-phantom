@@ -1,24 +1,22 @@
-import {
-  Color,
-  MeshBasicMaterial,
-  MeshStandardMaterial,
-  Scene,
-  Vector3,
-} from 'three';
-import type { AssetRegistry } from '@/assets/asset-registry';
+import { Color, MeshBasicMaterial, MeshStandardMaterial, Scene, Vector3 } from 'three';
+
 import type { Obstacle } from '@/actors/autopilot';
 import { Avoidance, parkedBlocks, PERSON_RADIUS } from '@/actors/avoidance';
 import { Player } from '@/actors/player';
 import { Traffic } from '@/actors/traffic';
 import { type DriveEvents, type DriveInput, Vehicle } from '@/actors/vehicle';
 import { type CarKind, VEHICLE_BREEDS } from '@/actors/vehicle-breeds';
+import type { AssetRegistry } from '@/assets/asset-registry';
 import { TUNING } from '@/config';
-import { Input } from '@/engine/input/input';
+import { reloadIfPending } from '@/dev/reload-prompt';
 import { Emitter } from '@/engine/core/events';
 import { clamp, smoothstep, type V3 } from '@/engine/core/math';
 import { Rng } from '@/engine/core/rng';
 import { urlChoice, urlFlag, urlParam } from '@/engine/core/url-flags';
-import { reloadIfPending } from '@/dev/reload-prompt';
+import { Input } from '@/engine/input/input';
+import type { Solid } from '@/engine/physics/collision';
+import { Claims } from '@/engine/sim/claims';
+import { Space } from '@/engine/sim/space';
 import { Bats } from '@/fx/bats';
 import { PURPLE, SLIME, WHITE } from '@/fx/colors';
 import { CubeParticles } from '@/fx/cube-particles';
@@ -28,10 +26,10 @@ import { Honks } from '@/fx/honks';
 import { NavArrow } from '@/fx/nav-arrow';
 import { NavDebug } from '@/fx/nav-debug';
 import { SpriteFx } from '@/fx/sprite-fx';
-import { DayNight } from '@/render/day-night';
-import { GameRenderer } from '@/render/game-renderer';
 import { ChaseCamera, type ChaseKind } from '@/render/chase-camera';
 import { Cutaway } from '@/render/cutaway';
+import { DayNight } from '@/render/day-night';
+import { GameRenderer } from '@/render/game-renderer';
 import { IsoCamera } from '@/render/iso-camera';
 import { FX_LAYER } from '@/render/layers';
 import { LightPool } from '@/render/light-pool';
@@ -43,57 +41,55 @@ import { Help, MapApp, type PhantomReport, Phantoms, Photos, Tasks } from '@/ui/
 import { Messages } from '@/ui/phone/messages';
 import { Phone } from '@/ui/phone/phone';
 import { wantsTouch } from '@/ui/touch-controls';
-import { type BreakablePiece, buildWorld, type BuiltWorld } from '@/world/build-world';
-import type { Solid } from '@/engine/physics/collision';
-import type { PropKind } from '@/world/props';
-import type { LevelData, ZoneDef } from '@/world/level-data';
-import { Elevators } from '@/world/elevators';
-import { NAV, NavGrid, NavPlanner, type NavProfile, type NavQuery } from '@/world/nav-grid';
 import { BloodSim } from '@/world/blood';
-import { Claims } from '@/engine/sim/claims';
-import { Space } from '@/engine/sim/space';
-import { Casualties } from './town/casualties';
+import { type BreakablePiece, buildWorld, type BuiltWorld } from '@/world/build-world';
+import { Elevators } from '@/world/elevators';
+import type { LevelData, ZoneDef } from '@/world/level-data';
+import { NAV, NavGrid, NavPlanner, type NavProfile, type NavQuery } from '@/world/nav-grid';
+import type { PropKind } from '@/world/props';
+
 import { CameraController, type CamMode } from './camera-controller';
 import type { CodyAction, Play } from './cody/cody-actions';
-import { Interactions } from './cody/interactions';
-import { CodyState, FRIGHTENING } from './cody/cody-state';
 import { CodyRide, type RideEvents } from './cody/cody-ride';
-import { CLAIMS, type ClaimKind } from './rules/claim-kinds';
-import { EYE_HEIGHT, gameReactions, type Perception, react, type Reaction, type Thing } from './rules/reactions';
-import { LEVEL } from './rules/reach';
-import { WorldConditions } from './rules/world-conditions';
+import { CodyState, FRIGHTENING } from './cody/cody-state';
+import { Interactions } from './cody/interactions';
+import { KEYS, STICK } from './controls';
 import { createGameDebug } from './debug';
-import { playEffects } from './effects';
-import { Skeletons } from './town/skeletons';
-import { carContacts } from './driving/collisions';
-import { Crowd } from './town/crowd';
-import { Detours } from './driving/detours';
-import { GameClock, type Phase } from './game-clock';
-import { Fleet } from './driving/fleet';
 import { type Crossing, Garage, inSpot, spotLabel, type SpotRuntime } from './deck/garage';
+import { TransformSequence, type FxKit } from './deck/transform-sequence';
+import { carContacts } from './driving/collisions';
+import { Detours } from './driving/detours';
+import type { DriveWorld } from './driving/drive-actions';
+import { Drivers } from './driving/drivers';
+import { Fleet } from './driving/fleet';
+import { Refuge } from './driving/refuge';
+import { Visitors } from './driving/visitors';
+import { playEffects } from './effects';
+import { GameClock, type Phase } from './game-clock';
 import { Inventory } from './items/inventory';
 import { ITEM_BREEDS, type ItemKind } from './items/item-breeds';
 import { Junk } from './items/junk';
 import { Money } from './items/money';
 import { Npcs } from './randy/npcs';
-import { makePortraits, type Portraits } from './story/portraits';
-import { RouteGuide } from './route-guide';
 import { Shop } from './randy/shop';
 import { RandyTalk } from './randy/talk';
 import { TireTrade } from './randy/tire-trade';
 import { Wares } from './randy/wares';
+import { RouteGuide } from './route-guide';
+import { Bodies } from './rules/bodies';
+import { CLAIMS, type ClaimKind } from './rules/claim-kinds';
+import { LEVEL } from './rules/reach';
+import { EYE_HEIGHT, gameReactions, type Perception, react, type Reaction, type Thing } from './rules/reactions';
+import { WorldConditions } from './rules/world-conditions';
 import { Objectives } from './story/objectives';
+import { makePortraits, type Portraits } from './story/portraits';
 import { Haunting, Quests, tireMarks } from './story/quests';
 import { type ItemDeed, Triggers } from './story/triggers';
-import { TransformSequence, type FxKit } from './deck/transform-sequence';
+import { Casualties } from './town/casualties';
+import { Crowd } from './town/crowd';
+import { Skeletons } from './town/skeletons';
 import { ValetTalk } from './valets/talk';
-import type { DriveWorld } from './driving/drive-actions';
-import { Drivers } from './driving/drivers';
-import { Refuge } from './driving/refuge';
-import { Bodies } from './rules/bodies';
 import { type ValetFrame, ValetService } from './valets/valet';
-import { Visitors } from './driving/visitors';
-import { KEYS, STICK } from './controls';
 
 export type { CamMode, CamView } from './camera-controller';
 
@@ -129,15 +125,17 @@ const NONE: readonly Vector3[] = [];
 
 /** A truck flattens a car outside the deck above this speed (m/s); the hit jolts the truck's body. */
 const CRUSH_SPEED = 4;
-/** A driver pulling round only knocks another driven car loose (its driver out) with a bump this hard (m/s); softer is a shove. */
+/**
+ * A driver pulling round only knocks another driven car loose (its driver out) with a bump this hard (m/s); softer is a
+ * shove.
+ */
 const NUDGE_LOOSEN = 2.5;
 /** A car slower than this (m/s) in a deck spot is standing in it: the spot isn't free. */
 const STANDING = 0.5;
 const CRUSH_KICK = 2.5;
 /**
- * Dozing off after a big meal: the picture dims to DOZE.dim of itself over
- * `down` seconds, the clock jumps to the next nightfall or sunrise while it's
- * dark, and it comes back up over `up`. The toast stays `toast` seconds.
+ * Dozing off after a big meal: the picture dims to DOZE.dim of itself over `down` seconds, the clock jumps to the next
+ * nightfall or sunrise while it's dark, and it comes back up over `up`. The toast stays `toast` seconds.
  */
 const DOZE = { down: 1.4, hold: 0.6, up: 1.6, dim: 0.04, toast: 3 };
 /** Seconds a picked-up money (or car part) toast stays, and a longer one (Randy's brisket, a find with a note to read). */
@@ -155,7 +153,10 @@ export type GameEvents = RideEvents & {
   start: null;
   /** A play frame finished; the payload is dt. */
   frame: number;
-  /** A driver took fright at phantom Cody (or the monster truck), once each time a fright starts; near the deck they may run for it. */
+  /**
+   * A driver took fright at phantom Cody (or the monster truck), once each time a fright starts; near the deck they may
+   * run for it.
+   */
   spooked: { car: Vehicle };
   /** Cody got, used or gave away an item (game.triggers is the easier way to wait on one). */
   item: ItemDeed;
@@ -167,26 +168,27 @@ export type GameEvents = RideEvents & {
   boosted: null;
   /** Emitted after a successful summon, with the number of skeletons raised. */
   summoned: { n: number };
-  /** A truck got out unseen and left its phantom imprint: where it hangs and which way it faces (its spot, if it went back to one), which number it is, and when. */
+  /**
+   * A truck got out unseen and left its phantom imprint: where it hangs and which way it faces (its spot, if it went
+   * back to one), which number it is, and when.
+   */
   phantom: { at: Vector3; yaw: number; spot: SpotRuntime | null; n: number; hours: number; day: number };
   /**
-   * A driver held up behind something leaned on the horn (for the horn sound): the car, where
-   * it was (a copy, at road level), and how angry they are (0 calm to 1 fuming: angrier honks
-   * can sound longer or harsher). Once a honk; they honk again after TUNING.traffic.impatience
-   * `again` seconds, sooner the angrier.
+   * A driver held up behind something leaned on the horn (for the horn sound): the car, where it was (a copy, at road
+   * level), and how angry they are (0 calm to 1 fuming: angrier honks can sound longer or harsher). Once a honk; they
+   * honk again after TUNING.traffic.impatience `again` seconds, sooner the angrier.
    */
   honk: { car: Vehicle; at: Vector3; anger: number };
   /**
-   * A vehicle hit something (for the crash sounds): another car, a wall (anything solid, the
-   * ground too while it tumbles), or the ground coming down from the air. `dv` is how hard (m/s:
-   * the speed it changed by, or fell at; against another car, the harder of what it took and
-   * what it dealt). `took` is how hard `v` itself was hit. Contact that grinds on comes every frame.
+   * A vehicle hit something (for the crash sounds): another car, a wall (anything solid, the ground too while it
+   * tumbles), or the ground coming down from the air. `dv` is how hard (m/s: the speed it changed by, or fell at;
+   * against another car, the harder of what it took and what it dealt). `took` is how hard `v` itself was hit. Contact
+   * that grinds on comes every frame.
    */
   impact: { v: Vehicle; at: Vector3; dv: number; took: number; against: 'car' | 'wall' | 'ground' };
   /**
-   * Street furniture went: knocked over (by a vehicle, `by`, when one did it), smashed to bits (a
-   * hedge, a bus shelter: the box it filled, `min` to `max`), or a falling lamp hitting the ground
-   * (`light`: the colour its lamp was).
+   * Street furniture went: knocked over (by a vehicle, `by`, when one did it), smashed to bits (a hedge, a bus shelter:
+   * the box it filled, `min` to `max`), or a falling lamp hitting the ground (`light`: the colour its lamp was).
    */
   prop:
     | { how: 'knocked'; kind: PropKind; at: Vector3; by: Vehicle | null }
@@ -285,7 +287,10 @@ export class Game {
   readonly objectives = new Objectives();
   /** Car parts knocked off in smashes, lying about. */
   private readonly junk: Junk;
-  /** Eating brisket makes Cody doze off till the next nightfall or sunrise. The tutorial switches it off for its own brisket. */
+  /**
+   * Eating brisket makes Cody doze off till the next nightfall or sunrise. The tutorial switches it off for its own
+   * brisket.
+   */
   sleepAfterEating = true;
   /** Seconds into a doze, or -1. */
   private doze = -1;
@@ -349,13 +354,16 @@ export class Game {
   private readonly deckCenter: Vector3;
 
   private mode: Mode = 'title';
-  private readonly cameras = new CameraController({
-    snapBehind: (yaw) => this.chase.snapBehind(yaw),
-    releasePointer: () => this.input.releasePointer(),
-    setView: (view) => this.hud.setCamera(view),
-    showMode: (mode, hint) => this.hud.showCamera(mode, hint),
-    changed: (mode) => this.events.emit('camera', mode),
-  }, wantsTouch());
+  private readonly cameras = new CameraController(
+    {
+      snapBehind: (yaw) => this.chase.snapBehind(yaw),
+      releasePointer: () => this.input.releasePointer(),
+      setView: (view) => this.hud.setCamera(view),
+      showMode: (mode, hint) => this.hud.showCamera(mode, hint),
+      changed: (mode) => this.events.emit('camera', mode),
+    },
+    wantsTouch(),
+  );
   readonly debug: ReturnType<typeof createGameDebug>;
   private readonly codyRide: CodyRide;
   private time = 0;
@@ -375,7 +383,10 @@ export class Game {
   private readonly exitBlocks: ZoneDef[];
   private readonly entryQuery: NavQuery;
   // per-frame lists, refilled in place rather than reallocated
-  /** Everyone and everything taking up room this frame (filled in sense()), and where those in traffic's way and in the AI drivers' way are. */
+  /**
+   * Everyone and everything taking up room this frame (filled in sense()), and where those in traffic's way and in the
+   * AI drivers' way are.
+   */
   private readonly bodies = new Bodies();
   private readonly trafficObstacles: Vector3[] = [];
   private readonly valetObstacles: Obstacle[] = [];
@@ -413,7 +424,11 @@ export class Game {
     this.planner = urlFlag('manual') ? new NavPlanner(this.nav, Infinity) : new NavPlanner(this.nav);
     this.guide = new RouteGuide(this.planner);
     console.info(`[nav] ${this.nav.nx}x${this.nav.nz} cells in ${this.nav.buildMs.toFixed(0)} ms`);
-    if (this.navDebug) this.scene.add(this.navDebug.root);
+
+    if (this.navDebug) {
+      this.scene.add(this.navDebug.root);
+    }
+
     this.pool = new LightPool(this.world.emitters, 6);
     this.scene.add(this.pool.root);
 
@@ -492,7 +507,8 @@ export class Game {
         this.events.emit('stoked', { at: at.clone() });
       },
       // the brisket was his the moment he handed the tires over; the toast waits for the show
-      fed: (n) => this.hud.toast(`+${n} BRISKET`, n > 1 ? 'NOW THAT IS A FIRE' : 'NOW WE ARE COOKING', 'purple', TRADE_TOAST),
+      fed: (n) =>
+        this.hud.toast(`+${n} BRISKET`, n > 1 ? 'NOW THAT IS A FIRE' : 'NOW WE ARE COOKING', 'purple', TRADE_TOAST),
     });
     this.shop = new Shop(this.npcs, this.wares, this.inventory, this.money, (deed) => this.deed(deed));
     this.tires = new TireTrade(this.npcs, this.inventory, {
@@ -503,37 +519,79 @@ export class Game {
     this.blood = new BloodSim(this.world.collision);
     this.scene.add(this.blood.root);
     this.casualties = new Casualties(this.world.collision, this.blood);
-    this.crowd = new Crowd(this.scene, this.planner, this.nav, this.rng, (at, kind, from) => this.money.drop(at, kind, from), this.casualties);
-    this.reactions = gameReactions({ crowd: this.crowd, drivers: { frighten: (v, from) => this.frightenDriver(v, from) } });
+    this.crowd = new Crowd(
+      this.scene,
+      this.planner,
+      this.nav,
+      this.rng,
+      (at, kind, from) => this.money.drop(at, kind, from),
+      this.casualties,
+    );
+    this.reactions = gameReactions({
+      crowd: this.crowd,
+      drivers: { frighten: (v, from) => this.frightenDriver(v, from) },
+    });
     this.crowd.onFright = (at) => this.events.emit('fright', { at: at.clone() });
     // skeletons: dirt as they climb out, bones as they fall apart, a ghost from everyone they kill
     this.skeletons = new Skeletons(this.world.collision, this.nav, this.planner, this.crowd, this.claims);
     this.scene.add(this.skeletons.root);
+
     this.skeletons.onRise = (at) => {
       this.debris.burst(_at.copy(at).setY(at.y + 0.2), 14, 5, [0.1, 0.25], [0.8, 1.5], DIRT, 0.9, at.y);
       this.slime.burst(at, 8, 3, [0.08, 0.16], [0.5, 0.9], SLIME, 0.6, at.y);
     };
+
     this.skeletons.onCrumble = (at) => {
       this.debris.burst(_at.copy(at).setY(at.y + 0.9), 18, 4, [0.08, 0.22], [1.5, 2.5], BONE, 0.5, at.y);
     };
+
     this.skeletons.onKill = (at) => {
       this.sprites.spray(_at.copy(at).setY(at.y + 0.6), 3, 2, [1.6, 2.6], WHITE, 1.2, 2.4, 1.4, 'ghost', 0.8);
       this.ghosts.rise(at);
     };
+
     // they park in the lots, never in the deck
     const keepOut = [{ min: level.deck.min, max: level.deck.max }];
-    this.visitors = new Visitors(level.bays, this.planner, this.fleet, this.traffic, this.drivers, this.rng, keepOut, (car) => this.crowd.arrive(car));
+    this.visitors = new Visitors(
+      level.bays,
+      this.planner,
+      this.fleet,
+      this.traffic,
+      this.drivers,
+      this.rng,
+      keepOut,
+      (car) => this.crowd.arrive(car),
+    );
     // frightened drivers run for the deck through its entry gate (or, in a level without one, its middle)
     const gate = level.gates.find((g) => g.kind === 'entry');
-    const entry = gate ? new Vector3((gate.min[0] + gate.max[0]) / 2, gate.min[1], (gate.min[2] + gate.max[2]) / 2) : this.deckCenter.clone();
+    const entry = gate
+      ? new Vector3((gate.min[0] + gate.max[0]) / 2, gate.min[1], (gate.min[2] + gate.max[2]) / 2)
+      : this.deckCenter.clone();
     this.garage.bookedBy = (s) => this.claims.holder('spot', s);
     // a car standing still in a spot holds it too, parked or not (Cody sitting in it at the wheel)
-    this.garage.standingIn = (spot) => this.vehicles.find((v) => !v.gone && Math.abs(v.speed) < STANDING && inSpot(spot, v.pos)) ?? null;
+    this.garage.standingIn = (spot) =>
+      this.vehicles.find((v) => !v.gone && Math.abs(v.speed) < STANDING && inSpot(spot, v.pos)) ?? null;
     this.refuge = new Refuge(this.drivers, this.driveWorld, entry);
-    this.detours = new Detours(this.planner, this.nav, this.world.collision, this.fleet, this.traffic, (car, ev) => this.drove(car, ev, NUDGE_LOOSEN), this.claims);
+    this.detours = new Detours(
+      this.planner,
+      this.nav,
+      this.world.collision,
+      this.fleet,
+      this.traffic,
+      (car, ev) => this.drove(car, ev, NUDGE_LOOSEN),
+      this.claims,
+    );
     this.ghosts = new Ghosts(level.ghostZones, 28);
     this.bats = new Bats(new Vector3(this.deckCenter.x, 0, this.deckCenter.z), 16);
-    this.scene.add(this.slime.mesh, this.debris.mesh, this.sprites.root, this.ghosts.root, this.bats.root, this.arrow.root, this.honks.root);
+    this.scene.add(
+      this.slime.mesh,
+      this.debris.mesh,
+      this.sprites.root,
+      this.ghosts.root,
+      this.bats.root,
+      this.arrow.root,
+      this.honks.root,
+    );
     this.fx = {
       scene: this.scene,
       slime: this.slime,
@@ -554,7 +612,8 @@ export class Game {
       events: this.events,
       carjacked: (car) => this.valet.carjacked(car),
       bail: (car) => this.crowd.bail(car, this.player.pos),
-      transform: (car) => new TransformSequence(car, 'truck', () => VEHICLE_BREEDS.truck.model(this.assets, car.color), this.fx),
+      transform: (car) =>
+        new TransformSequence(car, 'truck', () => VEHICLE_BREEDS.truck.model(this.assets, car.color), this.fx),
       onFoot: (dt) => this.updateOnFoot(dt),
       drive: (car, dt) => this.updateDriving(car, dt),
     });
@@ -562,19 +621,47 @@ export class Game {
     drips.onSplat = () => {
       _splatSize[0] = drips.splatSize * 0.25;
       _splatSize[1] = drips.splatSize * 0.5;
-      this.slime.burst(_splat.copy(drips.splat).setY(drips.splat.y + 0.05), 4, 1.6, _splatSize, SPLAT_LIFE, SLIME, 0.5, drips.splat.y);
+      this.slime.burst(
+        _splat.copy(drips.splat).setY(drips.splat.y + 0.05),
+        4,
+        1.6,
+        _splatSize,
+        SPLAT_LIFE,
+        SLIME,
+        0.5,
+        drips.splat.y,
+      );
     };
-    this.world.gates.onSnapped = (g, kind) => this.events.emit('prop', { kind, at: g.center.clone(), how: 'knocked', by: null });
+
+    this.world.gates.onSnapped = (g, kind) =>
+      this.events.emit('prop', { kind, at: g.center.clone(), how: 'knocked', by: null });
     const props = this.world.props;
     props.onLanded = () => {
-      if (props.landedKind) this.events.emit('prop', { kind: props.landedKind, at: props.landed.clone(), how: 'landed', light: props.landedColor.clone() });
+      if (props.landedKind) {
+        this.events.emit('prop', {
+          kind: props.landedKind,
+          at: props.landed.clone(),
+          how: 'landed',
+          light: props.landedColor.clone(),
+        });
+      }
     };
+
     // whoever smashed it, it flies apart from all through the room it filled
     props.onBroken = () => {
       const lo = props.brokenMin;
       const hi = props.brokenMax;
       const by = this.vehicles.find((v) => v === props.brokenBy) ?? null;
-      if (props.brokenKind) this.events.emit('prop', { kind: props.brokenKind, at: new Vector3().lerpVectors(lo, hi, 0.5), how: 'shattered', by, min: lo.clone(), max: hi.clone() });
+      if (props.brokenKind) {
+        this.events.emit('prop', {
+          kind: props.brokenKind,
+          at: new Vector3().lerpVectors(lo, hi, 0.5),
+          how: 'shattered',
+          by,
+          min: lo.clone(),
+          max: hi.clone(),
+        });
+      }
     };
 
     playEffects(this.events, {
@@ -591,11 +678,17 @@ export class Game {
       // one already sitting in a deck spot was badged in like any other
       const v = this.fleet.spawnCar('parked', new Vector3(...p.pos), p.yaw);
       const s = this.garage.spotAt(v.pos);
-      if (s && this.garage.isFree(s)) this.garage.checkIn(s, v);
+      if (s && this.garage.isFree(s)) {
+        this.garage.checkIn(s, v);
+      }
     }
+
     // the cars in the lots belong to people in town, who come back for them
     this.visitors.adopt();
-    for (let i = 0; i < TUNING.traffic.dayCars; i++) this.fleet.spawnTraffic(this.view.target, 0);
+
+    for (let i = 0; i < TUNING.traffic.dayCars; i++) {
+      this.fleet.spawnTraffic(this.view.target, 0);
+    }
 
     this.hud = new Hud(container, this.input.focus);
     // what the status displays show, read each frame
@@ -608,38 +701,79 @@ export class Game {
       cash: () => this.money.cash,
       inventory: () => this.interactions.inventoryView(this.inventory),
       wares: () => this.shop.view(this.waresShown),
-      ledger: () => ({ logged: this.garage.logged, actual: this.garage.actual(this.vehicles), phantom: this.garage.phantomOccupancy(this.vehicles), max: TUNING.garage.spots }),
+      ledger: () => ({
+        logged: this.garage.logged,
+        actual: this.garage.actual(this.vehicles),
+        phantom: this.garage.phantomOccupancy(this.vehicles),
+        max: TUNING.garage.spots,
+      }),
       // tumbling in a crash isn't flying: no AIRBORNE badge for it
       dash: () => {
         const v = this.driving;
-        if (v) return { speed: v.speed, form: v.form, label: v.breed.label, airborne: !v.grounded && !v.crashing };
+        if (v) {
+          return { speed: v.speed, form: v.form, label: v.breed.label, airborne: !v.grounded && !v.crashing };
+        }
+
         return this.transform ? { speed: 0, form: 'truck', label: VEHICLE_BREEDS.truck.label, airborne: false } : null;
       },
       // the GhASt dial (and the touch BOOST button) while he's driving the monster truck
       ghast: () => (this.driving?.form === 'truck' ? { fill: this.ghast, burning: this.boosting } : null),
     });
     // Cody's phone, Randy's burner, and its apps; it rings, hangs up and buzzes as the game's 'phone' event
-    this.phone = new Phone(this.hud.root, this.input.focus, { time: () => GameClock.format(this.clock.hours), goal: () => this.objectives.goal }, new Messages(), [
-      new Tasks({ goal: () => this.objectives.goal, aim: () => `FILL ALL ${TUNING.garage.spots} SPOTS WITH PHANTOMS.`, marks: () => this.objectives.list }),
-      new Phantoms(() => this.phantomReport()),
-      new MapApp(),
-      new Photos(),
-      new Help(helpRows),
-    ]);
+    this.phone = new Phone(
+      this.hud.root,
+      this.input.focus,
+      { time: () => GameClock.format(this.clock.hours), goal: () => this.objectives.goal },
+      new Messages(),
+      [
+        new Tasks({
+          goal: () => this.objectives.goal,
+          aim: () => `FILL ALL ${TUNING.garage.spots} SPOTS WITH PHANTOMS.`,
+          marks: () => this.objectives.list,
+        }),
+        new Phantoms(() => this.phantomReport()),
+        new MapApp(),
+        new Photos(),
+        new Help(helpRows),
+      ],
+    );
     this.events.on('entered', ({ possessed, from, quiet }) => {
-      if (from === null) return; // already at the wheel when moonrise transformed the car
+      if (from === null) {
+        return;
+      } // already at the wheel when moonrise transformed the car
+
       this.iso.zoomTarget = Math.max(this.iso.zoomTarget, TUNING.camera.driveZoom);
       this.hud.setPrompt(null);
-      if (quiet) return;
-      if (from === 'valet') this.hud.toast('HEY!', "THAT'S A GUEST'S CAR", 'warn', 1.8);
-      if ((from === 'traffic' || from === 'visitor') && this.conditions.parking()) this.hud.toast('STOLEN!', 'GET IT TO THE HAUNTED DECK');
-      if (possessed) this.hud.toast(this.cody.phantom ? 'PHANTOM CODY!' : 'POSSESSED!', 'GET IT OUT. NOT THROUGH THE GATE.', '', 2.6);
+
+      if (quiet) {
+        return;
+      }
+
+      if (from === 'valet') {
+        this.hud.toast('HEY!', "THAT'S A GUEST'S CAR", 'warn', 1.8);
+      }
+
+      if ((from === 'traffic' || from === 'visitor') && this.conditions.parking()) {
+        this.hud.toast('STOLEN!', 'GET IT TO THE HAUNTED DECK');
+      }
+
+      if (possessed) {
+        this.hud.toast(
+          this.cody.phantom ? 'PHANTOM CODY!' : 'POSSESSED!',
+          'GET IT OUT. NOT THROUGH THE GATE.',
+          '',
+          2.6,
+        );
+      }
     });
     this.events.on('exited', ({ spot, quiet }) => {
       this.boosting = false;
       this.iso.zoomTarget = Math.min(this.iso.zoomTarget, TUNING.camera.zoom);
       this.hud.setPrompt(null);
-      if (spot && !quiet) this.hud.toast('PARKED', spotLabel(spot), 'purple', 1.6);
+
+      if (spot && !quiet) {
+        this.hud.toast('PARKED', spotLabel(spot), 'purple', 1.6);
+      }
     });
     this.phone.onBuzz = (what) => this.events.emit('phone', what);
     this.hud.initMap(level);
@@ -659,20 +793,26 @@ export class Game {
       tires: () => this.inventory.count('tire'),
       give: (to) => this.interactions.giveTires(to),
     });
-    this.interactions = new Interactions(this.makePlay(), {
-      player: this.player,
-      vehicles: this.vehicles,
-      valet: this.valet,
-      randyTalk: this.randyTalk,
-      elevators: this.elevators,
-      playing: () => this.mode === 'play',
-      blocked: () => this.mode !== 'play' || this.talk.active || this.randyTalk.active || !!this.cutscene || !!this.transform,
-    }, this.input, {
-      prompt: (text, control) => this.hud.setPrompt(text, control),
-      refused: (reason) => this.hud.toast(reason, '', 'warn', FAIL_TOAST),
-      performed: (action) => this.events.emit('performed', { action }),
-      failed: (action, reason) => this.events.emit('failed', { action, reason }),
-    });
+    this.interactions = new Interactions(
+      this.makePlay(),
+      {
+        player: this.player,
+        vehicles: this.vehicles,
+        valet: this.valet,
+        randyTalk: this.randyTalk,
+        elevators: this.elevators,
+        playing: () => this.mode === 'play',
+        blocked: () =>
+          this.mode !== 'play' || this.talk.active || this.randyTalk.active || !!this.cutscene || !!this.transform,
+      },
+      this.input,
+      {
+        prompt: (text, control) => this.hud.setPrompt(text, control),
+        refused: (reason) => this.hud.toast(reason, '', 'warn', FAIL_TOAST),
+        performed: (action) => this.events.emit('performed', { action }),
+        failed: (action, reason) => this.events.emit('failed', { action, reason }),
+      },
+    );
     this.valetFrame = {
       day: true,
       avoid: this.avoid,
@@ -695,7 +835,9 @@ export class Game {
     this.debug = createGameDebug(this, {
       driving: () => this.driving,
       mode: () => this.mode,
-      render: (on) => { this.rendering = on; },
+      render: (on) => {
+        this.rendering = on;
+      },
       navDebug: this.navDebug,
       refuge: this.refuge,
       roadAt: (car, meters) => this.traffic.roadAt(car, meters),
@@ -711,6 +853,7 @@ export class Game {
       this.frame(dt);
       requestAnimationFrame(loop);
     };
+
     requestAnimationFrame(loop);
   }
 
@@ -764,8 +907,8 @@ export class Game {
   }
 
   /**
-   * Cody gets in `v` as if he'd walked up to it and pressed F (scripted scenes), out of whatever
-   * he was driving first. `own`: it's his own car, with nothing in the glovebox for him to find.
+   * Cody gets in `v` as if he'd walked up to it and pressed F (scripted scenes), out of whatever he was driving first.
+   * `own`: it's his own car, with nothing in the glovebox for him to find.
    */
   board(v: Vehicle, own = false): void {
     this.codyRide.board(v, own);
@@ -778,7 +921,9 @@ export class Game {
 
   /** Cody gets out of whatever he's driving, if anything (scripted: quietly, no PARKED toast). */
   alight(): void {
-    if (this.driving) this.codyRide.exit(true);
+    if (this.driving) {
+      this.codyRide.exit(true);
+    }
   }
 
   /** Cody's outfit change, now, to suit the time of day. */
@@ -789,8 +934,12 @@ export class Game {
   /** Ghosts and slime: cleared out (the tutorial's first evening), or oozing back in over `seconds`. */
   haunt(on: boolean, seconds = 0): void {
     this.ghosts.fade(on, seconds);
-    if (on && seconds > 0) this.world.slime.emerge(seconds);
-    else this.world.slime.setPresence(on ? 1 : 0);
+
+    if (on && seconds > 0) {
+      this.world.slime.emerge(seconds);
+    } else {
+      this.world.slime.setPresence(on ? 1 : 0);
+    }
   }
 
   private shake(t: number): void {
@@ -802,18 +951,31 @@ export class Game {
     this.time += dt;
     Vehicle.advance(dt);
     this.syncView();
-    if (this.mode === 'title') this.updateTitle(dt);
-    else this.updatePlay(dt);
+
+    if (this.mode === 'title') {
+      this.updateTitle(dt);
+    } else {
+      this.updatePlay(dt);
+    }
+
     this.updateShared(dt);
     this.hud.update();
     this.phone.update();
     this.gfx.chaseView = this.chaseActive;
-    if (this.rendering) this.gfx.render(this.time);
+
+    if (this.rendering) {
+      this.gfx.render(this.time);
+    }
+
     this.input.endFrame();
     this.fpsAcc.t += dt;
     this.fpsAcc.n++;
+
     if (this.fpsAcc.t > 0.5) {
-      this.hud.setFps(this.fpsAcc.n / this.fpsAcc.t, `${this.world.stats.meshes} meshes ${Math.round(this.world.stats.triangles / 1000)}k tris`);
+      this.hud.setFps(
+        this.fpsAcc.n / this.fpsAcc.t,
+        `${this.world.stats.meshes} meshes ${Math.round(this.world.stats.triangles / 1000)}k tris`,
+      );
       this.fpsAcc.t = 0;
       this.fpsAcc.n = 0;
     }
@@ -821,7 +983,11 @@ export class Game {
 
   start(): void {
     this.phone.setAvatar(this.portraits.randy);
-    if (this.mode === 'play') return;
+
+    if (this.mode === 'play') {
+      return;
+    }
+
     this.mode = 'play';
     this.clock.paused = false;
     this.clock.hours = TUNING.clock.startHour;
@@ -839,16 +1005,20 @@ export class Game {
   }
 
   /**
-   * Put back a phantom from a save (game/save.ts). A car parked in its spot again gives way, and
-   * that car's badge-in stays on the log as the phantom's; any other phantom is one more entry
-   * nobody scanned out. Either way the phantom occupancy goes up by one, as it did in play.
+   * Put back a phantom from a save (game/save.ts). A car parked in its spot again gives way, and that car's badge-in
+   * stays on the log as the phantom's; any other phantom is one more entry nobody scanned out. Either way the phantom
+   * occupancy goes up by one, as it did in play.
    */
   restorePhantom(spotId: number | null, at: Vector3, yaw: number): void {
     const spot = spotId !== null ? (this.garage.spots[spotId] ?? null) : null;
     const home = spot && !spot.phantom ? spot : null;
     const car = home?.occupant ?? null;
-    if (car) this.fleet.remove(car);
-    else this.garage.logged++;
+    if (car) {
+      this.fleet.remove(car);
+    } else {
+      this.garage.logged++;
+    }
+
     this.garage.addPhantom(at, yaw, home);
   }
 
@@ -862,8 +1032,11 @@ export class Game {
     this.traffic.honks.length = 0;
     this.traffic.fedUp.length = 0;
     this.cutaway.off();
+
     // after the orbit nudge, so it can't undo start()'s camera snap
-    if (this.input.wasPressed('start')) this.start();
+    if (this.input.wasPressed('start')) {
+      this.start();
+    }
   }
 
   // ---------------------------------------------------------------- play
@@ -878,14 +1051,27 @@ export class Game {
     const things = this.things;
     things.length = 0;
     const seen = this.cody.presence(this.driving, !!this.transform);
-    if (seen?.kind === 'phantom') things.push({ kind: 'phantom', pos: seen.at });
-    else if (seen?.kind === 'phantomTruck' && this.driving) things.push({ kind: 'phantomTruck', pos: seen.at, vehicle: this.driving });
-    for (const pos of this.skeletons.threats) things.push({ kind: 'skeleton', pos });
-    for (const person of this.crowd.living()) things.push({ kind: 'townsperson', pos: person.walker.pos, person });
+    if (seen?.kind === 'phantom') {
+      things.push({ kind: 'phantom', pos: seen.at });
+    } else if (seen?.kind === 'phantomTruck' && this.driving) {
+      things.push({ kind: 'phantomTruck', pos: seen.at, vehicle: this.driving });
+    }
+
+    for (const pos of this.skeletons.threats) {
+      things.push({ kind: 'skeleton', pos });
+    }
+
+    for (const person of this.crowd.living()) {
+      things.push({ kind: 'townsperson', pos: person.walker.pos, person });
+    }
+
     for (const vehicle of this.vehicles) {
       const driven = vehicle.role === 'traffic' || !!this.drivers.of(vehicle) || this.detours.has(vehicle);
-      if (driven && !vehicle.crashing) things.push({ kind: 'driver', pos: vehicle.pos, vehicle });
+      if (driven && !vehicle.crashing) {
+        things.push({ kind: 'driver', pos: vehicle.pos, vehicle });
+      }
     }
+
     this.space.rebuild(things);
     this.senseBodies();
   }
@@ -896,41 +1082,96 @@ export class Game {
     b.clear();
     this.crowd.addBodies(b);
     this.valet.addBodies(b);
+
     for (const n of this.npcs.list) {
       b.add({ kind: 'still', pos: n.pos, r: NPC_ROOM });
-      if (n.fire) b.add({ kind: 'still', pos: n.fire.root.position, r: FIRE_ROOM });
+
+      if (n.fire) {
+        b.add({ kind: 'still', pos: n.fire.root.position, r: FIRE_ROOM });
+      }
     }
+
     // walkers steer round skeletons (cars don't brake for them: knocking them flying is the point)
-    for (const pos of this.skeletons.threats) b.add({ kind: 'skeleton', pos, r: PERSON_RADIUS });
-    if (this.onFoot && this.player.visible) b.add({ kind: 'cody', pos: this.player.pos, vel: this.player.vel, r: TUNING.player.radius });
-    for (const v of this.vehicles) if (!v.gone) b.add({ kind: 'car', pos: v.pos, vel: v.vel, r: v.params.radius, vehicle: v });
+    for (const pos of this.skeletons.threats) {
+      b.add({ kind: 'skeleton', pos, r: PERSON_RADIUS });
+    }
+
+    if (this.onFoot && this.player.visible) {
+      b.add({ kind: 'cody', pos: this.player.pos, vel: this.player.vel, r: TUNING.player.radius });
+    }
+
+    for (const v of this.vehicles) {
+      if (!v.gone) {
+        b.add({ kind: 'car', pos: v.pos, vel: v.vel, r: v.params.radius, vehicle: v });
+      }
+    }
   }
 
-  /** A driver sees phantom Cody or the phantom truck at `from` this frame: one doing a job at the wheel, one pulling round, or one in traffic. */
+  /**
+   * A driver sees phantom Cody or the phantom truck at `from` this frame: one doing a job at the wheel, one pulling
+   * round, or one in traffic.
+   */
   private frightenDriver(v: Vehicle, from: Vector3): void {
-    if (this.drivers.sees(v, from)) return;
-    if (this.detours.has(v)) this.detours.frighten(v, from);
-    else this.traffic.frighten(v, from);
+    if (this.drivers.sees(v, from)) {
+      return;
+    }
+
+    if (this.detours.has(v)) {
+      this.detours.frighten(v, from);
+    } else {
+      this.traffic.frighten(v, from);
+    }
   }
 
   private updatePlay(dt: number): void {
     const inp = this.input;
     inp.muted = !!this.cutscene;
     this.clock.rate = inp.isDown('fastForward') ? TUNING.clock.fastForward : 1;
-    if (inp.wasPressed('nextPhase')) this.clock.skipToNextPhase();
-    const ev = this.clock.update(dt);
-    if (ev.nightfall) this.onNightfall();
-    if (ev.sunrise) this.onSunrise();
-    if (inp.wasPressed('camera')) this.cycleCamera();
-    if (!this.chaseActive) {
-      if (inp.wasPressed('rotateLeft')) this.iso.rotate(-1);
-      if (inp.wasPressed('rotateRight')) this.iso.rotate(1);
+
+    if (inp.wasPressed('nextPhase')) {
+      this.clock.skipToNextPhase();
     }
-    if (inp.wasPressed('phone')) this.phone.toggle();
-    if (inp.wasPressed('help')) this.phone.toggle('help');
-    if (inp.wasPressed('reload')) reloadIfPending();
+
+    const ev = this.clock.update(dt);
+    if (ev.nightfall) {
+      this.onNightfall();
+    }
+
+    if (ev.sunrise) {
+      this.onSunrise();
+    }
+
+    if (inp.wasPressed('camera')) {
+      this.cycleCamera();
+    }
+
+    if (!this.chaseActive) {
+      if (inp.wasPressed('rotateLeft')) {
+        this.iso.rotate(-1);
+      }
+
+      if (inp.wasPressed('rotateRight')) {
+        this.iso.rotate(1);
+      }
+    }
+
+    if (inp.wasPressed('phone')) {
+      this.phone.toggle();
+    }
+
+    if (inp.wasPressed('help')) {
+      this.phone.toggle('help');
+    }
+
+    if (inp.wasPressed('reload')) {
+      reloadIfPending();
+    }
+
     const wheel = inp.consumeWheel();
-    if (wheel) this.view.zoomBy(wheel);
+    if (wheel) {
+      this.view.zoomBy(wheel);
+    }
+
     // read every frame so movement made in the iso view can't jump the chase camera later
     const [mx, my] = inp.consumeMouse();
 
@@ -950,18 +1191,35 @@ export class Game {
     const ghost = seen && FRIGHTENING.has(seen.kind) ? seen.at : null;
     react(this.perception, this.reactions);
     // traffic brakes for Cody and for people under way or down in the road
-    const obstacles = this.bodies.points((b) => b.kind === 'cody' || b.kind === 'down' || (b.kind === 'person' && b.moving), this.trafficObstacles);
+    const obstacles = this.bodies.points(
+      (b) => b.kind === 'cody' || b.kind === 'down' || (b.kind === 'person' && b.moving),
+      this.trafficObstacles,
+    );
     this.traffic.update(dt, this.vehicles, obstacles);
+
     for (const v of this.traffic.abandoned.splice(0)) {
       this.crowd.bail(v, ghost ?? v.pos);
       this.fleet.abandon(v);
     }
+
     // A frightened driver whose road leads toward the fright may turn off for the deck, if it's just ahead.
-    for (const { car } of this.traffic.scared.splice(0)) this.events.emit('spooked', { car });
-    for (const { car, from } of this.traffic.cornered.splice(0)) this.refuge.take(car, from);
+    for (const { car } of this.traffic.scared.splice(0)) {
+      this.events.emit('spooked', { car });
+    }
+
+    for (const { car, from } of this.traffic.cornered.splice(0)) {
+      this.refuge.take(car, from);
+    }
+
     // held up behind something going nowhere: they honk, then pull round it
-    for (const v of this.traffic.honks.splice(0)) this.honk(v);
-    for (const j of this.traffic.fedUp.splice(0)) this.detours.take(j);
+    for (const v of this.traffic.honks.splice(0)) {
+      this.honk(v);
+    }
+
+    for (const j of this.traffic.fedUp.splice(0)) {
+      this.detours.take(j);
+    }
+
     this.fillAvoidance();
     this.crowd.update(dt, {
       near: this.view.target,
@@ -971,8 +1229,12 @@ export class Game {
       avoid: this.avoid,
       visitors: this.visitors,
     });
+
     // skeletons keep near Cody (on foot, or in whatever he's driving); daylight finishes them
-    if (this.conditions.daylight() && this.skeletons.count) this.skeletons.crumbleAll();
+    if (this.conditions.daylight() && this.skeletons.count) {
+      this.skeletons.crumbleAll();
+    }
+
     this.skeletons.update(dt, this.driving ? this.driving.pos : this.player.pos, this.vehicles);
     this.collectMoney(dt);
     this.shop.update(this.onFoot && this.mode === 'play' && !this.cutscene ? this.player.pos : null);
@@ -989,21 +1251,32 @@ export class Game {
     const cut = this.cutscene;
     const focus = cut ? cut.focus : focusV ? focusV.pos : this.player.pos;
     // the iso rig keeps tracking under the chase camera, so switching back with C doesn't swoop
-    const lead = focusV && !cut ? _w.set(clamp(focusV.vel.x * 0.35, -7, 7), 0, clamp(focusV.vel.z * 0.35, -7, 7)) : null;
-    if (cut) this.iso.zoomTarget = cut.zoom;
+    const lead =
+      focusV && !cut ? _w.set(clamp(focusV.vel.x * 0.35, -7, 7), 0, clamp(focusV.vel.z * 0.35, -7, 7)) : null;
+    if (cut) {
+      this.iso.zoomTarget = cut.zoom;
+    }
+
     this.iso.update(dt, focus, lead, cut ? 2.5 : focusV ? 5 : 6);
+
     if (this.chaseActive) {
       const kind: ChaseKind = focusV ? focusV.form : 'foot';
       const subject = { kind, pos: focus, vel: focusV ? focusV.vel : this.player.vel, yaw: focusV ? focusV.yaw : null };
       this.chase.look(mx, my);
       this.chase.update(dt, subject, inp.axis('rotateLeft', 'rotateRight'), this.world.collision);
     }
+
     // a chase camera pulled in close goes through Cody rather than staring at his back
     this.player.seenFrom(this.chaseActive && !focusV ? this.chase.camera.position : null, dt);
     // the ghost pass draws a faded Cody and the phantom trucks over the sky band
     this.gfx.ghost.enabled = this.player.faded || this.garage.phantoms > 0;
-    if (this.chaseActive) this.cutaway.off();
-    else this.cutaway.update(dt, focus, focusV, this.iso, this.world.collision, this.world.sight);
+
+    if (this.chaseActive) {
+      this.cutaway.off();
+    } else {
+      this.cutaway.update(dt, focus, focusV, this.iso, this.world.collision, this.world.sight);
+    }
+
     this.updateNav(dt);
     const randy = this.randyTalk.enabled ? (this.npcs.find('randy')?.pos ?? null) : null;
     this.objectives.replace(this.tires, tireMarks(this.inventory.count('tire'), randy));
@@ -1016,10 +1289,15 @@ export class Game {
     const a = this.avoid;
     a.clear();
     this.bodies.each((b) => {
-      if (b.kind === 'person') a.person(b.pos, b.vel, b.dodges, b.owner);
-      else if (b.kind === 'cody') a.mover(b.pos, b.vel, b.r);
-      else if (b.kind === 'car' && b.vehicle) a.vehicle(b.vehicle);
-      else a.still(b.pos, b.r);
+      if (b.kind === 'person') {
+        a.person(b.pos, b.vel, b.dodges, b.owner);
+      } else if (b.kind === 'cody') {
+        a.mover(b.pos, b.vel, b.r);
+      } else if (b.kind === 'car' && b.vehicle) {
+        a.vehicle(b.vehicle);
+      } else {
+        a.still(b.pos, b.r);
+      }
     });
   }
 
@@ -1027,7 +1305,10 @@ export class Game {
   private collectMoney(dt: number): void {
     const M = TUNING.money;
     const me = this.driving ? this.driving.pos : this.transform ? null : this.player.pos;
-    for (const got of this.money.update(dt, me, this.driving ? M.reachCar : M.reachFoot)) this.events.emit('money', { kind: got.kind, amount: got.amount });
+    for (const got of this.money.update(dt, me, this.driving ? M.reachCar : M.reachFoot)) {
+      this.events.emit('money', { kind: got.kind, amount: got.amount });
+    }
+
     const onFoot = this.driving || this.transform ? null : this.player.pos;
     for (const kind of this.junk.update(dt, onFoot)) {
       this.gain(kind, 1);
@@ -1035,9 +1316,15 @@ export class Game {
     }
   }
 
-  /** Randy hands Cody one `kind` out of his coat for nothing (the burner, in the tutorial): out of his wares, into the inventory. False if he has none. */
+  /**
+   * Randy hands Cody one `kind` out of his coat for nothing (the burner, in the tutorial): out of his wares, into the
+   * inventory. False if he has none.
+   */
   handOver(kind: ItemKind): boolean {
-    if (!this.shop.gift(kind)) return false;
+    if (!this.shop.gift(kind)) {
+      return false;
+    }
+
     this.gotToast(kind);
     return true;
   }
@@ -1051,7 +1338,10 @@ export class Game {
   /** Cody buys `n` from a slot of Randy's wares: as many as there are, and as he can pay for. */
   private buy(slot: string, n: number): void {
     const got = this.shop.buy(slot, n);
-    if (!got) return;
+    if (!got) {
+      return;
+    }
+
     this.hud.toast(`+${got.n} ${ITEM_BREEDS[got.kind].name}`, `-$${got.cost}`, '', MONEY_TOAST);
   }
 
@@ -1071,21 +1361,30 @@ export class Game {
     const blockers = this.blockers;
     let n = 0;
     for (const v of this.vehicles) {
-      if (v.gone) continue;
+      if (v.gone) {
+        continue;
+      }
+
       const b = (blockers[n++] ??= { pos: v.pos, r: 0 });
       b.pos = v.pos;
       b.r = v.params.length * 0.42;
     }
+
     // Randy and his trash can fire stand in Cody's way wherever the tutorial puts them
     for (const npc of this.npcs.list) {
       const b = (blockers[n++] ??= { pos: npc.pos, r: 0 });
       b.pos = npc.pos;
       b.r = NPC_ROOM;
-      if (!npc.fire) continue;
+
+      if (!npc.fire) {
+        continue;
+      }
+
       const f = (blockers[n++] ??= { pos: npc.fire.root.position, r: 0 });
       f.pos = npc.fire.root.position;
       f.r = FIRE_ROOM;
     }
+
     blockers.length = n;
     this.player.update(dt, this.input, this.view, this.world.collision, blockers);
     this.interactions.update();
@@ -1122,18 +1421,25 @@ export class Game {
 
   /** Summon skeletons at Cody's position and return the number raised. */
   summon(): number {
-    if (!this.cody.can('summon') || this.driving || this.transform) return 0;
+    if (!this.cody.can('summon') || this.driving || this.transform) {
+      return 0;
+    }
+
     const n = this.skeletons.summon(this.player.pos, this.player.yaw);
     if (n > 0) {
       this.shake(0.15);
       this.events.emit('summoned', { n });
     }
+
     return n;
   }
 
   /** Movement, contacts, and effects for Cody's current vehicle. */
   private updateDriving(v: Vehicle, dt: number): void {
-    if (v.rig.rider) this.player.ride(dt);
+    if (v.rig.rider) {
+      this.player.ride(dt);
+    }
+
     const inp = this.input;
     const di: DriveInput = {
       throttle: inp.axis('back', 'forward'),
@@ -1141,25 +1447,57 @@ export class Game {
       hop: inp.wasPressed('hop'),
       drift: inp.isDown('drift'),
     };
-    if (this.escaping) di.throttle = Math.max(di.throttle, 0);
+    if (this.escaping) {
+      di.throttle = Math.max(di.throttle, 0);
+    }
+
     this.ghastIntake(v, di, dt);
     const prev = _prev.copy(v.pos);
     const ev = v.drive(dt, di, this.world.collision);
-    if (ev.hopped) this.slime.burst(v.pos, 10, 4, [0.12, 0.25], [0.6, 1], SLIME, 0.6, v.pos.y);
+    if (ev.hopped) {
+      this.slime.burst(v.pos, 10, 4, [0.12, 0.25], [0.6, 1], SLIME, 0.6, v.pos.y);
+    }
+
     this.drove(v, ev);
 
     const c = this.garage.track(v, prev);
-    if (c) this.onCrossing(c);
+    if (c) {
+      this.onCrossing(c);
+    }
 
     // spectral exhaust: twice as thick, and roaring, while it burns GhASt
     if (v.form === 'truck') {
       this.exhaustTimer -= dt;
+
       if (this.exhaustTimer <= 0 && (di.throttle !== 0 || this.boosting)) {
         this.exhaustTimer = this.boosting ? 0.025 : 0.05;
+
         for (const s of [-1, 1]) {
           v.rig.body.localToWorld(_v.set(s * 1.0, 4.3, -0.95));
-          if (this.boosting) this.sprites.emit(_v, _w.set((Math.random() - 0.5) * 0.8, 5, (Math.random() - 0.5) * 0.8), BOOST_FLAME, 0.9, 3.4, 0.7, 'puff', 0.8);
-          else this.sprites.emit(_v, _w.set((Math.random() - 0.5) * 0.6, 2.5, (Math.random() - 0.5) * 0.6), EXHAUST, 0.6, 2.4, 0.9, 'puff', 0.6);
+
+          if (this.boosting) {
+            this.sprites.emit(
+              _v,
+              _w.set((Math.random() - 0.5) * 0.8, 5, (Math.random() - 0.5) * 0.8),
+              BOOST_FLAME,
+              0.9,
+              3.4,
+              0.7,
+              'puff',
+              0.8,
+            );
+          } else {
+            this.sprites.emit(
+              _v,
+              _w.set((Math.random() - 0.5) * 0.6, 2.5, (Math.random() - 0.5) * 0.6),
+              EXHAUST,
+              0.6,
+              2.4,
+              0.9,
+              'puff',
+              0.6,
+            );
+          }
         }
       }
     }
@@ -1171,15 +1509,18 @@ export class Game {
   toScreen(p: Vector3): { x: number; y: number } | null {
     // where the curved iso view draws it (render/curvature.ts)
     this.gfx.bend(_v.copy(p)).project(this.view.camera);
-    if (_v.z >= 1) return null;
+
+    if (_v.z >= 1) {
+      return null;
+    }
+
     const r = this.gfx.renderer.domElement.getBoundingClientRect();
     return { x: r.left + ((_v.x + 1) / 2) * r.width, y: r.top + ((1 - _v.y) / 2) * r.height };
   }
 
   /**
-   * `v` against every other car: impulses with spin, crashes when hard enough (see collisions.ts).
-   * A visitor's car it moves is knocked loose (its driver gets out) only by a hit that changes
-   * its speed by `loosen` (m/s) or more.
+   * `v` against every other car: impulses with spin, crashes when hard enough (see collisions.ts). A visitor's car it
+   * moves is knocked loose (its driver gets out) only by a hit that changes its speed by `loosen` (m/s) or more.
    */
   private vehicleContacts(v: Vehicle, loosen = 0): void {
     let dealt = 0;
@@ -1189,11 +1530,15 @@ export class Game {
       (o) => this.crushes(v, o),
       (o, odv) => {
         // a traffic car moved at all is loose (it's tumbling), whatever the threshold
-        if (o.role === 'traffic' || odv >= loosen) this.knocked(o, v);
+        if (o.role === 'traffic' || odv >= loosen) {
+          this.knocked(o, v);
+        }
+
         // a hard hit knocks bits off both of them, out from where they met
         _at.lerpVectors(v.pos, o.pos, 0.5);
         this.junk.hit(o, _at, odv);
         this.junk.hit(v, _at, odv);
+
         if (odv > dealt) {
           dealt = odv;
           _met.copy(_at);
@@ -1201,19 +1546,33 @@ export class Game {
       },
     );
     // one bang for the sound: the harder of what it took and what it dealt
-    if (dv > 0 || dealt > 0) this.events.emit('impact', { v, at: dealt > 0 ? _met.clone() : v.pos.clone(), dv: Math.max(dv, dealt), took: dv, against: 'car' });
+    if (dv > 0 || dealt > 0) {
+      this.events.emit('impact', {
+        v,
+        at: dealt > 0 ? _met.clone() : v.pos.clone(),
+        dv: Math.max(dv, dealt),
+        took: dv,
+        against: 'car',
+      });
+    }
   }
 
   /** A monster truck at speed flattens a car outside the deck instead of bumping it. */
   private crushes(v: Vehicle, o: Vehicle): boolean {
-    if (v.form !== 'truck' || o.form !== 'car' || o.insideDeck || Math.abs(v.speed) <= CRUSH_SPEED) return false;
+    if (v.form !== 'truck' || o.form !== 'car' || o.insideDeck || Math.abs(v.speed) <= CRUSH_SPEED) {
+      return false;
+    }
+
     this.crush(o, v);
     return true;
   }
 
   /** A traffic car knocked off its lane: left where it ends up, and its driver gets out and runs once it stops. */
   private knocked(o: Vehicle, by: Vehicle): void {
-    if (o.role !== 'traffic' && o.role !== 'visitor') return;
+    if (o.role !== 'traffic' && o.role !== 'visitor') {
+      return;
+    }
+
     o.role = 'parked';
     this.fleet.abandon(o);
     this.shaken.set(o, by.pos.clone());
@@ -1222,31 +1581,53 @@ export class Game {
   /** Crashing cars nobody stepped this frame tumble on their own (valets' too), and knock into others. */
   private updateWrecks(dt: number): void {
     for (const v of this.vehicles) {
-      if (!v.crashing || v.role === 'player' || v.gone || v.steppedThisFrame) continue;
+      if (!v.crashing || v.role === 'player' || v.gone || v.steppedThisFrame) {
+        continue;
+      }
+
       this.drove(v, v.drive(dt, null, this.world.collision));
       // tumbled into or out of the deck: it's there now, though nobody drove it through a gate
       v.insideDeck = this.garage.inFootprint(v.pos);
     }
+
     for (const [o, from] of this.shaken) {
-      if (!o.resting) continue;
+      if (!o.resting) {
+        continue;
+      }
+
       this.shaken.delete(o);
-      if (this.mode === 'play' && this.fleet.vehicles.includes(o)) this.crowd.bail(o, from);
+
+      if (this.mode === 'play' && this.fleet.vehicles.includes(o)) {
+        this.crowd.bail(o, from);
+      }
     }
   }
 
   /**
-   * What one step of a vehicle did, whoever is driving (Cody, an AI driver, or nobody: a wreck):
-   * the props it knocked over and the parapets it broke, its bangs, and its contacts with other
-   * cars (a car it nudges is knocked loose only past `loosen`; a wreck at rest pushes nothing).
+   * What one step of a vehicle did, whoever is driving (Cody, an AI driver, or nobody: a wreck): the props it knocked
+   * over and the parapets it broke, its bangs, and its contacts with other cars (a car it nudges is knocked loose only
+   * past `loosen`; a wreck at rest pushes nothing).
    */
   private drove(v: Vehicle, ev: DriveEvents, loosen = 0): void {
     for (const s of ev.smashed) {
-      if (s.knockdown) this.knockProp(s, v);
-      else this.smash(s.id, v);
+      if (s.knockdown) {
+        this.knockProp(s, v);
+      } else {
+        this.smash(s.id, v);
+      }
     }
-    if (ev.impact > 0) this.events.emit('impact', { v, at: v.pos.clone(), dv: ev.impact, took: ev.impact, against: 'wall' });
-    if (ev.landed > 0) this.events.emit('impact', { v, at: v.pos.clone(), dv: ev.landed, took: ev.landed, against: 'ground' });
-    if (!(v.crashing && v.resting)) this.vehicleContacts(v, loosen);
+
+    if (ev.impact > 0) {
+      this.events.emit('impact', { v, at: v.pos.clone(), dv: ev.impact, took: ev.impact, against: 'wall' });
+    }
+
+    if (ev.landed > 0) {
+      this.events.emit('impact', { v, at: v.pos.clone(), dv: ev.landed, took: ev.landed, against: 'ground' });
+    }
+
+    if (!(v.crashing && v.resting)) {
+      this.vehicleContacts(v, loosen);
+    }
   }
 
   private onCrossing(c: Crossing): void {
@@ -1257,27 +1638,46 @@ export class Game {
         this.hud.toast('BEEP', 'BADGE SCANNED. ENTRY LOGGED.', 'purple', 1.4);
         break;
       case 'logged-out':
-        if (v.form === 'truck') this.hud.toast('BADGE SCANNED', 'EXIT LOGGED. THE GARAGE SAW YOU. NO PHANTOM.', 'warn', 2.6);
-        else this.hud.toast('BEEP', 'BADGE SCANNED. EXIT LOGGED.', 'purple', 1.4);
+        if (v.form === 'truck') {
+          this.hud.toast('BADGE SCANNED', 'EXIT LOGGED. THE GARAGE SAW YOU. NO PHANTOM.', 'warn', 2.6);
+        } else {
+          this.hud.toast('BEEP', 'BADGE SCANNED. EXIT LOGGED.', 'purple', 1.4);
+        }
+
         this.garage.release(v);
         v.homeSpot = null;
         break;
       case 'snuck-in':
         this.hud.toast('SNUCK IN', 'NO BADGE, NO RECORD', 'warn', 1.8);
         break;
+
       case 'escaped': {
-        if (this.counted.has(v)) break;
+        if (this.counted.has(v)) {
+          break;
+        }
+
         this.counted.add(v);
         const spot = v.homeSpot !== null ? (this.garage.spots[v.homeSpot] ?? null) : null;
         this.garage.release(v);
         const home = spot && this.garage.isFree(spot) ? spot : null;
         const imprint = this.garage.addPhantom(v.restPos, v.restYaw, home);
-        this.events.emit('phantom', { at: imprint.position.clone(), yaw: imprint.rotation.y, spot: home, n: this.garage.phantoms, hours: this.clock.hours, day: this.clock.day });
+        this.events.emit('phantom', {
+          at: imprint.position.clone(),
+          yaw: imprint.rotation.y,
+          spot: home,
+          n: this.garage.phantoms,
+          hours: this.clock.hours,
+          day: this.clock.day,
+        });
         v.homeSpot = null;
         this.hud.toast(`PHANTOM CODY #${this.garage.phantoms}`, 'OOPS! YOU FORGOT TO BADGE OUT!', '', 2.8);
         this.doFlash(0.35, '#9dff3a');
         this.shake(0.3);
-        if (!this.keepEscaped) this.codyRide.escaped();
+
+        if (!this.keepEscaped) {
+          this.codyRide.escaped();
+        }
+
         break;
       }
     }
@@ -1285,17 +1685,19 @@ export class Game {
 
   private smash(solidId: number, v: Vehicle): void {
     const piece = this.world.breakables.find((b) => b.solid.id === solidId);
-    if (!piece || piece.broken) return;
+    if (!piece || piece.broken) {
+      return;
+    }
+
     piece.broken = true;
     piece.group.visible = false;
     this.events.emit('smashed', { at: piece.center.clone(), by: v });
   }
 
   /**
-   * Ran into a lamp, a fence panel, a bench or (in the truck) a street tree: it goes over the way
-   * the car was heading, kicked off toward the side it was struck on (so a lamp doesn't come down
-   * on the car), and the car loses some speed. A hedge or a bus shelter the truck hits flies apart
-   * instead (props.onBroken).
+   * Ran into a lamp, a fence panel, a bench or (in the truck) a street tree: it goes over the way the car was heading,
+   * kicked off toward the side it was struck on (so a lamp doesn't come down on the car), and the car loses some speed.
+   * A hedge or a bus shelter the truck hits flies apart instead (props.onBroken).
    */
   private knockProp(s: Solid, v: Vehicle): void {
     const fx = Math.sin(v.yaw);
@@ -1303,13 +1705,25 @@ export class Game {
     const side = ((s.min[0] + s.max[0]) / 2 - v.pos.x) * -fz + ((s.min[2] + s.max[2]) / 2 - v.pos.z) * fx;
     const kick = (side === 0 ? (Math.random() < 0.5 ? -1 : 1) : Math.sign(side)) * Math.hypot(v.vel.x, v.vel.z) * 0.8;
     const kind = this.world.props.knock(s.id, v.vel.x - fz * kick, v.vel.z + fx * kick, v);
-    if (!kind) return;
+    if (!kind) {
+      return;
+    }
+
     const k = kind.keep ?? v.breed.knockKeep;
     v.vel.x *= k;
     v.vel.z *= k;
+
     // one that shatters has gone to bits already (props.onBroken)
-    if (kind.shatter) return;
-    this.events.emit('prop', { kind, at: new Vector3((s.min[0] + s.max[0]) / 2, v.pos.y + 1, (s.min[2] + s.max[2]) / 2), how: 'knocked', by: v });
+    if (kind.shatter) {
+      return;
+    }
+
+    this.events.emit('prop', {
+      kind,
+      at: new Vector3((s.min[0] + s.max[0]) / 2, v.pos.y + 1, (s.min[2] + s.max[2]) / 2),
+      how: 'knocked',
+      by: v,
+    });
   }
 
   private crush(o: Vehicle, by: Vehicle): void {
@@ -1327,7 +1741,11 @@ export class Game {
     this.hud.toast('THE MOON IS UP', this.cody.holdForm ? 'THE DECK WAKES UP' : 'PHANTOM CODY RISES', '', 3.2);
     this.doFlash(0.6, '#b46bff');
     this.shake(0.3);
-    if (!this.cody.holdForm) this.codyFx = 0;
+
+    if (!this.cody.holdForm) {
+      this.codyFx = 0;
+    }
+
     this.codyRide.moonrise();
     this.events.emit('nightfall', null);
   }
@@ -1337,20 +1755,35 @@ export class Game {
     // the souls slip away at dawn
     this.ghast = 0;
     this.money.scatter();
-    if (!this.cody.holdForm) this.codyFx = 0;
+
+    if (!this.cody.holdForm) {
+      this.codyFx = 0;
+    }
+
     for (const b of this.world.breakables) {
       b.broken = false;
       b.solid.enabled = true;
       b.group.visible = true;
     }
+
     this.world.props.repair();
     this.skeletons.crumbleAll();
+
     // monster trucks fall back asleep as cars
     for (const v of this.vehicles) {
-      if (v.form !== 'truck' || v.status) continue;
-      if (v === this.driving) this.codyRide.exit();
-      this.morphs.push(new TransformSequence(v, 'car', () => VEHICLE_BREEDS[v.kind].model(this.assets, v.color), this.fx));
+      if (v.form !== 'truck' || v.status) {
+        continue;
+      }
+
+      if (v === this.driving) {
+        this.codyRide.exit();
+      }
+
+      this.morphs.push(
+        new TransformSequence(v, 'car', () => VEHICLE_BREEDS[v.kind].model(this.assets, v.color), this.fx),
+      );
     }
+
     // last, so listeners see the repaired deck (and can switch off what isn't built yet)
     this.events.emit('sunrise', null);
   }
@@ -1360,23 +1793,35 @@ export class Game {
     let n = 0;
     for (const m of this.morphs) {
       m.update(dt);
-      if (!m.done) this.morphs[n++] = m;
+
+      if (!m.done) {
+        this.morphs[n++] = m;
+      }
     }
+
     this.morphs.length = n;
   }
 
   /** Cody's outfit swap at moonrise / sunrise. */
   private updateCodyFx(dt: number): void {
-    if (this.codyFx < 0) return;
+    if (this.codyFx < 0) {
+      return;
+    }
+
     const before = this.codyFx;
     // where Cody is: on foot, or inside whatever he's in
     const p = (this.ride ?? this.player).pos;
-    if (before === 0) this.events.emit('outfit', { form: this.clock.phase, at: p.clone() });
+    if (before === 0) {
+      this.events.emit('outfit', { form: this.clock.phase, at: p.clone() });
+    }
+
     this.codyFx += dt;
+
     if (before < 0.6) {
       _v.set(p.x + (Math.random() - 0.5) * 1.5, p.y + Math.random() * 2, p.z + (Math.random() - 0.5) * 1.5);
       this.sprites.emit(_v, _w.set(0, 2, 0), OUTFIT_PUFF, 0.4, 1.6, 0.8, 'puff', 0.8);
     }
+
     if (before < 0.6 && this.codyFx >= 0.6) {
       this.player.setForm(this.clock.phase);
       const at = _at.copy(p).setY(p.y + 1);
@@ -1384,7 +1829,10 @@ export class Game {
       this.sprites.spray(at, 5, 3, [2, 4], WHITE, 1, 2.2, 1.4, 'ghost', 0.9);
       this.shake(0.25);
     }
-    if (this.codyFx > 1) this.codyFx = -1;
+
+    if (this.codyFx > 1) {
+      this.codyFx = -1;
+    }
   }
 
   // ---------------------------------------------------------------- shared
@@ -1392,20 +1840,34 @@ export class Game {
   private updateShared(dt: number): void {
     const nightness = this.dayNight.nightness;
     this.planner.update();
+
     if (this.mode === 'play') {
       // the AI drivers keep clear of the cars as well
-      const obstacles = this.bodies.obstacles((b) => b.kind === 'car' || b.kind === 'cody' || b.kind === 'down' || (b.kind === 'person' && b.moving), this.valetObstacles);
+      const obstacles = this.bodies.obstacles(
+        (b) => b.kind === 'car' || b.kind === 'cody' || b.kind === 'down' || (b.kind === 'person' && b.moving),
+        this.valetObstacles,
+      );
       this.valetFrame.day = this.conditions.valetsOnShift();
       this.valet.update(dt, this.valetFrame);
       this.visitors.update(dt, this.view.target);
       this.drivers.update(dt);
       this.detours.update(dt, obstacles);
+
       // a car crashed pulling round: its driver gets out and runs once it stops
-      for (const v of this.detours.stranded.splice(0)) this.shaken.set(v, v.pos.clone());
+      for (const v of this.detours.stranded.splice(0)) {
+        this.shaken.set(v, v.pos.clone());
+      }
     }
+
     const movers = this.movers;
     movers.length = 0;
-    for (const v of this.vehicles) if (v.role !== 'parked') movers.push(v.pos);
+
+    for (const v of this.vehicles) {
+      if (v.role !== 'parked') {
+        movers.push(v.pos);
+      }
+    }
+
     this.world.gates.update(dt, movers, this.vehicles);
     this.world.clocks.update(this.clock.hours);
     this.garage.update(dt, !!this.driving && this.driving.form === 'car' && this.conditions.parking(), nightness);
@@ -1428,8 +1890,11 @@ export class Game {
     this.pool.update(focus);
 
     // top-down, the shadow box fits what the view shows; the chase view sees too far for that
-    if (this.chaseActive) this.lights.follow(this.chase.shadowFocus(_s), this.dayNight.sunDir);
-    else this.lights.cover(this.iso.shadowCorners(_shadowPts), this.dayNight.sunDir, this.iso.screenUp(_s));
+    if (this.chaseActive) {
+      this.lights.follow(this.chase.shadowFocus(_s), this.dayNight.sunDir);
+    } else {
+      this.lights.cover(this.iso.shadowCorners(_shadowPts), this.dayNight.sunDir, this.iso.screenUp(_s));
+    }
 
     this.dozing(dt);
     this.flash = Math.max(0, this.flash - dt * 1.8);
@@ -1450,21 +1915,27 @@ export class Game {
     };
   }
 
-  /** Objective markers over their targets (none under a cutscene), and the minimap around Cody, in the dash or the phone. */
+  /**
+   * Objective markers over their targets (none under a cutscene), and the minimap around Cody, in the dash or the
+   * phone.
+   */
   private updateObjectives(): void {
     const me = this.ride ?? this.player;
     const list = this.objectives.list;
     this.hud.setObjectives(this.cutscene ? [] : list, this.view.camera, (p) => this.toScreen(p), me.pos);
     const up = this.view.screenUp(_up);
-    this.hud.setMap({
-      x: me.pos.x,
-      z: me.pos.z,
-      yaw: me.yaw,
-      upX: up.x,
-      upZ: up.z,
-      driving: this.ride !== null,
-      marks: list.map((o) => ({ x: o.at.x, z: o.at.z, kind: o.kind })),
-    }, this.phone.showing('map') ? this.phone.body('map') : null);
+    this.hud.setMap(
+      {
+        x: me.pos.x,
+        z: me.pos.z,
+        yaw: me.yaw,
+        upX: up.x,
+        upZ: up.z,
+        driving: this.ride !== null,
+        marks: list.map((o) => ({ x: o.at.x, z: o.at.z, kind: o.kind })),
+      },
+      this.phone.showing('map') ? this.phone.body('map') : null,
+    );
   }
 
   /** The arrow over Cody's ride points along a planned route to the current objective. */
@@ -1480,8 +1951,12 @@ export class Game {
       if (s) {
         goal = s.center;
         key = `spot${s.def.id}`;
-        if (!v.insideDeck) query = this.entryQuery;
+
+        if (!v.insideDeck) {
+          query = this.entryQuery;
+        }
       }
+
       this.arrow.setColor(PALETTE.slime);
     } else if (v && v.form === 'truck' && v.insideDeck && !this.escaping) {
       // at night: the nearest unbroken parapet, preferring this floor
@@ -1489,23 +1964,33 @@ export class Game {
       let best: BreakablePiece | null = null;
       let bd = Infinity;
       for (const b of this.world.breakables) {
-        if (b.broken) continue;
+        if (b.broken) {
+          continue;
+        }
+
         const d = b.center.distanceToSquared(v.pos) + (this.garage.floorOf(b.center.y) === floor ? 0 : 1e6);
         if (d < bd) {
           bd = d;
           best = b;
         }
       }
+
       if (best) {
         goal = this.insideOf(best, _s);
         key = `brk${best.solid.id}`;
         profile = NAV.truck;
       }
+
       this.arrow.setColor(PALETTE.purpleHot);
     }
+
     let target: Vector3 | null = null;
-    if (v && goal) target = this.guide.update(dt, v.pos, goal, key, profile, query);
-    else this.guide.reset();
+    if (v && goal) {
+      target = this.guide.update(dt, v.pos, goal, key, profile, query);
+    } else {
+      this.guide.reset();
+    }
+
     this.arrow.update(dt, v ? v.pos : null, v?.rig.height ?? 2, target);
   }
 
@@ -1514,14 +1999,19 @@ export class Game {
     const { min, max } = b.solid;
     const alongX = max[0] - min[0] > max[2] - min[2];
     out.set(b.center.x, min[1], b.center.z);
-    if (alongX) out.z += Math.sign(this.deckCenter.z - out.z) * 3;
-    else out.x += Math.sign(this.deckCenter.x - out.x) * 3;
+
+    if (alongX) {
+      out.z += Math.sign(this.deckCenter.z - out.z) * 3;
+    } else {
+      out.x += Math.sign(this.deckCenter.x - out.x) * 3;
+    }
+
     return out;
   }
 
   /**
-   * The monster truck at night: ghosts near its intake get sucked in and fill
-   * the GhASt tank; holding boost burns it (into `di`).
+   * The monster truck at night: ghosts near its intake get sucked in and fill the GhASt tank; holding boost burns it
+   * (into `di`).
    */
   private ghastIntake(v: Vehicle, di: DriveInput, dt: number): void {
     const G = TUNING.ghast;
@@ -1529,16 +2019,25 @@ export class Game {
       this.boosting = false;
       return;
     }
+
     v.rig.body.localToWorld(_at.set(...INTAKE));
     const n = this.ghosts.suck(_at, G.reach, dt);
     if (n > 0) {
       this.ghast = Math.min(1, this.ghast + n * G.perGhost);
       this.events.emit('swallowed', { n, tank: this.ghast, at: _at.clone() });
     }
+
     const was = this.boosting;
     this.boosting = this.input.isDown('boost') && this.ghast > 0 && !v.crashing;
-    if (!this.boosting) return;
-    if (!was) this.events.emit('boosted', null);
+
+    if (!this.boosting) {
+      return;
+    }
+
+    if (!was) {
+      this.events.emit('boosted', null);
+    }
+
     di.boost = 1;
     this.ghast = Math.max(0, this.ghast - G.burn * dt);
   }
@@ -1563,26 +2062,40 @@ export class Game {
 
   /** Cody eats a brisket from his items. True if he did. */
   private eat(): boolean {
-    if (!this.canEat || !this.inventory.take('brisket', 1)) return false;
+    if (!this.canEat || !this.inventory.take('brisket', 1)) {
+      return false;
+    }
+
     this.deed({ how: 'used', kind: 'brisket', action: 'eat' });
+
     if (this.sleepAfterEating && this.doze < 0) {
       this.hud.toast('BRISKET', 'YOU ATE SO MUCH YOU FELT SLEEPY...', 'purple', DOZE.toast);
       this.doze = 0;
     }
+
     return true;
   }
 
   /** A doze under way: dim the picture after the day-night grade, skip the clock at the darkest, brighten again. */
   private dozing(dt: number): void {
-    if (this.doze < 0) return;
+    if (this.doze < 0) {
+      return;
+    }
+
     const was = this.doze;
     this.doze += dt;
     const { down, hold, up, dim } = DOZE;
-    if (was < down + hold && this.doze >= down + hold) this.clock.skipToNextPhase();
+    if (was < down + hold && this.doze >= down + hold) {
+      this.clock.skipToNextPhase();
+    }
+
     const k = this.doze < down ? this.doze / down : this.doze < down + hold ? 1 : 1 - (this.doze - down - hold) / up;
     const exposure = this.gfx.grade.uniforms.exposure as { value: number };
     exposure.value *= 1 - (1 - dim) * smoothstep(0, 1, Math.max(0, k));
-    if (this.doze >= down + hold + up) this.doze = -1;
+
+    if (this.doze >= down + hold + up) {
+      this.doze = -1;
+    }
   }
 
   private doFlash(a: number, color = '#9dff3a'): void {

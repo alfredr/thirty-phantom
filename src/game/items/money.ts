@@ -1,4 +1,5 @@
 import { type Group, type Scene, Vector3 } from 'three';
+
 import { buildLoot, type LootKind } from '@/actors/models/loot';
 import { TUNING } from '@/config';
 import type { Rng } from '@/engine/core/rng';
@@ -63,9 +64,16 @@ export class Money {
 
   /** Cody gets into `car`: the first time, there may be cash in the glovebox. Returns how much he found (0: none). */
   glovebox(car: object): number {
-    if (this.searched.has(car)) return 0;
+    if (this.searched.has(car)) {
+      return 0;
+    }
+
     this.searched.add(car);
-    if (!this.rng.chance(M.glovebox.chance)) return 0;
+
+    if (!this.rng.chance(M.glovebox.chance)) {
+      return 0;
+    }
+
     const found = Math.round(this.rng.range(...M.glovebox.amount));
     this.cash += found;
     return found;
@@ -77,8 +85,11 @@ export class Money {
     const fresh: FoundCash[] = [];
     for (let k = 0; k < F.count; k++) {
       const at = this.nav.anywhere(this.rng, NAV.person, F.upTo, true);
-      if (at) fresh.push([at.x, at.y, at.z, Math.round(this.rng.range(...F.amount))]);
+      if (at) {
+        fresh.push([at.x, at.y, at.z, Math.round(this.rng.range(...F.amount))]);
+      }
     }
+
     this.layOut(fresh);
   }
 
@@ -89,18 +100,37 @@ export class Money {
 
   /** Lays out today's cash about town as `list` has it, in place of what was there. */
   layOut(list: readonly FoundCash[]): void {
-    for (let i = this.loot.length - 1; i >= 0; i--) if (this.loot[i]?.found) this.remove(i);
+    for (let i = this.loot.length - 1; i >= 0; i--) {
+      if (this.loot[i]?.found) {
+        this.remove(i);
+      }
+    }
+
     for (const [x, y, z, amount] of list) {
       const root = buildLoot('cash');
       const pos = new Vector3(x, y + HOVER, z);
       root.position.copy(pos);
       this.scene.add(root);
-      this.loot.push({ kind: 'cash', amount, pos, vel: new Vector3(), floor: y, landed: true, age: 0, life: Infinity, found: true, root });
+      this.loot.push({
+        kind: 'cash',
+        amount,
+        pos,
+        vel: new Vector3(),
+        floor: y,
+        landed: true,
+        age: 0,
+        life: Infinity,
+        found: true,
+        root,
+      });
     }
   }
 
   spend(amount: number): boolean {
-    if (this.cash < amount) return false;
+    if (this.cash < amount) {
+      return false;
+    }
+
     this.cash -= amount;
     return true;
   }
@@ -110,7 +140,10 @@ export class Money {
     const [lo, hi] = kind === 'cash' ? M.cash : M.wallet;
     const root = buildLoot(kind);
     const away = new Vector3(at.x - toward.x, 0, at.z - toward.z);
-    if (away.lengthSq() < 1e-6) away.set(this.rng.range(-1, 1), 0, this.rng.range(-1, 1));
+    if (away.lengthSq() < 1e-6) {
+      away.set(this.rng.range(-1, 1), 0, this.rng.range(-1, 1));
+    }
+
     away.normalize().multiplyScalar(-TOSS_OUT);
     const pos = at.clone().setY(at.y + HAND);
     this.loot.push({
@@ -134,31 +167,53 @@ export class Money {
     const got: Pickup[] = [];
     for (let i = this.loot.length - 1; i >= 0; i--) {
       const l = this.loot[i];
-      if (!l) continue;
+      if (!l) {
+        continue;
+      }
+
       l.age += dt;
+
       if (!l.landed) {
         l.vel.y -= GRAVITY * dt;
         l.pos.addScaledVector(l.vel, dt);
+
         if (l.vel.y < 0 && l.pos.y <= l.floor + HOVER) {
           l.pos.y = l.floor + HOVER;
           l.landed = true;
         }
       }
+
       const r = l.root;
       r.position.set(l.pos.x, l.pos.y + (l.landed ? Math.sin(l.age * BOB_RATE) * BOB : 0), l.pos.z);
       r.rotation.y += SPIN * dt;
       r.scale.setScalar(Math.min(1, (l.life - l.age) / FADE));
-      const taken = l.landed && pos !== null && Math.hypot(pos.x - l.pos.x, pos.z - l.pos.z) < reach && Math.abs(pos.y - l.floor) < reach;
-      if (taken) got.push({ kind: l.kind, amount: l.amount });
-      if (taken || l.age >= l.life) this.remove(i);
+      const taken =
+        l.landed &&
+        pos !== null &&
+        Math.hypot(pos.x - l.pos.x, pos.z - l.pos.z) < reach &&
+        Math.abs(pos.y - l.floor) < reach;
+      if (taken) {
+        got.push({ kind: l.kind, amount: l.amount });
+      }
+
+      if (taken || l.age >= l.life) {
+        this.remove(i);
+      }
     }
-    for (const g of got) this.cash += g.amount;
+
+    for (const g of got) {
+      this.cash += g.amount;
+    }
+
     return got;
   }
 
   private remove(i: number): void {
     const l = this.loot[i];
-    if (!l) return;
+    if (!l) {
+      return;
+    }
+
     this.scene.remove(l.root);
     this.loot.splice(i, 1);
   }

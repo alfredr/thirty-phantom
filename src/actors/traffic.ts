@@ -1,17 +1,19 @@
 import { Vector3 } from 'three';
+
 import { TUNING } from '@/config';
 import { damp, invLerp, lerp } from '@/engine/core/math';
 import type { Rng } from '@/engine/core/rng';
 import { Polyline } from '@/engine/nav/polyline';
 import type { PathDef } from '@/world/level-data';
+
 import type { Vehicle } from './vehicle';
 
 /** Spawning gives up after this many random tries; a new car needs this much room from others (m). */
 const SPAWN_TRIES = 30;
 const SPAWN_GAP = 9;
 /**
- * A car eases off over this stretch (m) before where it has to stop: TUNING.traffic.impatience
- * `gap` short of traffic in its lane, `room` short of anything else.
+ * A car eases off over this stretch (m) before where it has to stop: TUNING.traffic.impatience `gap` short of traffic
+ * in its lane, `room` short of anything else.
  */
 const EASE = 5;
 /** Only things within this of the lane line, and this height of the car, are in the way (m). */
@@ -24,7 +26,10 @@ const BRAKE_RATE = 6;
 const ACCEL_RATE = 1.5;
 /** Cars face the lane this far ahead of where they are (m). */
 const STEER_AHEAD = 2.5;
-/** A car joining a lane off its line eases onto it at this rate (1/s), sideways no faster than MERGE_MAX (m/s); within MERGED (m) it's on it. */
+/**
+ * A car joining a lane off its line eases onto it at this rate (1/s), sideways no faster than MERGE_MAX (m/s); within
+ * MERGED (m) it's on it.
+ */
 const MERGE_RATE = 2.5;
 const MERGE_MAX = 1.5;
 const MERGED = 0.01;
@@ -33,25 +38,49 @@ const _p = new Vector3();
 const _d = new Vector3();
 
 /**
- * How far ahead in `v`'s lane (heading fx, fz) `o` is, out to `reach` (m), or Infinity when it
- * isn't in the way. With `sameLaneOnly`, something heading (ofx, ofz) the other way doesn't count.
+ * How far ahead in `v`'s lane (heading fx, fz) `o` is, out to `reach` (m), or Infinity when it isn't in the way. With
+ * `sameLaneOnly`, something heading (ofx, ofz) the other way doesn't count.
  */
-function ahead(v: Vehicle, fx: number, fz: number, o: Vector3, reach: number, sameLaneOnly: boolean, ofx: number, ofz: number): number {
+function ahead(
+  v: Vehicle,
+  fx: number,
+  fz: number,
+  o: Vector3,
+  reach: number,
+  sameLaneOnly: boolean,
+  ofx: number,
+  ofz: number,
+): number {
   const dx = o.x - v.pos.x;
   const dz = o.z - v.pos.z;
   const along = dx * fx + dz * fz;
-  if (along <= 0 || along > reach || Math.abs(o.y - v.pos.y) > SAME_LEVEL) return Infinity;
-  if (Math.abs(dx * fz - dz * fx) > LANE_HALF) return Infinity;
-  if (sameLaneOnly && ofx * fx + ofz * fz < SAME_HEADING) return Infinity;
+  if (along <= 0 || along > reach || Math.abs(o.y - v.pos.y) > SAME_LEVEL) {
+    return Infinity;
+  }
+
+  if (Math.abs(dx * fz - dz * fx) > LANE_HALF) {
+    return Infinity;
+  }
+
+  if (sameLaneOnly && ofx * fx + ofz * fz < SAME_HEADING) {
+    return Infinity;
+  }
+
   return along;
 }
 
-/** Someone at the wheel going about their business (traffic, a visitor, a valet): a car behind it queues, it isn't stuck. */
+/**
+ * Someone at the wheel going about their business (traffic, a visitor, a valet): a car behind it queues, it isn't
+ * stuck.
+ */
 function underway(o: Vehicle): boolean {
   return !o.crashing && (o.role === 'traffic' || o.role === 'visitor' || o.role === 'valet');
 }
 
-/** A traffic car fed up with waiting behind something in its lane: a car (`by`), or someone on foot (null), at `at`; and how angry its driver is (0..1). */
+/**
+ * A traffic car fed up with waiting behind something in its lane: a car (`by`), or someone on foot (null), at `at`; and
+ * how angry its driver is (0..1).
+ */
 export interface Jam {
   car: Vehicle;
   by: Vehicle | null;
@@ -79,8 +108,8 @@ interface Fright {
 }
 
 /**
- * Whether staying on the road would carry a driver toward what frightened them: somewhere along
- * `ahead` comes closer to `from` than the driver is now, and within `within` of it.
+ * Whether staying on the road would carry a driver toward what frightened them: somewhere along `ahead` comes closer to
+ * `from` than the driver is now, and within `within` of it.
  */
 export function roadLeadsToward(at: Vector3, ahead: readonly Vector3[], from: Vector3, within: number): boolean {
   const now = Math.hypot(at.x - from.x, at.z - from.z);
@@ -91,24 +120,23 @@ export function roadLeadsToward(at: Vector3, ahead: readonly Vector3[], from: Ve
 }
 
 /**
- * Lane-following AI: cruise along loops, brake for whatever is ahead. A driver
- * who sees ghost Cody up close floors it, unless their road would carry them
- * toward him: then they brake, for as long as it does. Held up while
- * panicking, they leave the car where it stands and run. New frights are
- * reported (`scared`), and every frame, drivers whose road leads toward the
- * fright (`cornered`), so the game can offer them another way out (the deck,
- * when its turn-in is just ahead). Drivers get angry
- * held up, and calm down on the move: an angry one creeps up closer on what's
- * in front, honks (`honks`), sooner and more often the angrier, and asks to
- * pull round (`fedUp`) what's in the way: something that isn't traffic (a
- * parked car, a wreck, Cody) soon after honking, a queue only once fuming.
+ * Lane-following AI: cruise along loops, brake for whatever is ahead. A driver who sees ghost Cody up close floors it,
+ * unless their road would carry them toward him: then they brake, for as long as it does. Held up while panicking, they
+ * leave the car where it stands and run. New frights are reported (`scared`), and every frame, drivers whose road leads
+ * toward the fright (`cornered`), so the game can offer them another way out (the deck, when its turn-in is just
+ * ahead). Drivers get angry held up, and calm down on the move: an angry one creeps up closer on what's in front, honks
+ * (`honks`), sooner and more often the angrier, and asks to pull round (`fedUp`) what's in the way: something that
+ * isn't traffic (a parked car, a wreck, Cody) soon after honking, a queue only once fuming.
  */
 export class Traffic {
   /** Lane loops: closed polylines, the same type planned routes use. */
   readonly paths: Polyline[];
   /** Cars whose drivers gave up and ran, since the caller last emptied this. */
   readonly abandoned: Vehicle[] = [];
-  /** Drivers who just took fright (a new scare, not one still going), and where it came from, since the caller last emptied this. */
+  /**
+   * Drivers who just took fright (a new scare, not one still going), and where it came from, since the caller last
+   * emptied this.
+   */
   readonly scared: { car: Vehicle; from: Vector3 }[] = [];
   /** Frightened drivers whose road leads toward the fright this frame, since the caller last emptied this. */
   readonly cornered: { car: Vehicle; from: Vector3 }[] = [];
@@ -130,29 +158,48 @@ export class Traffic {
     for (let tries = 0; tries < SPAWN_TRIES; tries++) {
       const path = rng.int(0, this.paths.length - 1);
       const p = this.paths[path];
-      if (!p) continue;
+      if (!p) {
+        continue;
+      }
+
       const s = rng.range(0, p.total);
       p.sample(s, _p, _d);
-      if (_p.distanceTo(avoid) < minDist) continue;
-      if (others.some((v) => !v.gone && v.pos.distanceTo(_p) < SPAWN_GAP)) continue;
+
+      if (_p.distanceTo(avoid) < minDist) {
+        continue;
+      }
+
+      if (others.some((v) => !v.gone && v.pos.distanceTo(_p) < SPAWN_GAP)) {
+        continue;
+      }
+
       return { path, s };
     }
+
     return null;
   }
 
   /**
-   * A driver sees something frightening at `from` this frame (the reactions table decides who and
-   * when). A new fright is reported through `scared`, and a road that leads toward it through `cornered`.
+   * A driver sees something frightening at `from` this frame (the reactions table decides who and when). A new fright
+   * is reported through `scared`, and a road that leads toward it through `cornered`.
    */
   frighten(v: Vehicle, from: Vector3): void {
-    if (v.role !== 'traffic' || v.crashing) return;
+    if (v.role !== 'traffic' || v.crashing) {
+      return;
+    }
+
     let fright = this.fright.get(v);
     if (!fright) {
       this.fright.set(v, (fright = { left: 0, held: 0, cornered: false }));
       this.scared.push({ car: v, from: from.clone() });
     }
+
     fright.left = TUNING.traffic.panicTime;
-    if (fright.cornered || !this.leadsToward(v, from)) return;
+
+    if (fright.cornered || !this.leadsToward(v, from)) {
+      return;
+    }
+
     fright.cornered = true;
     this.cornered.push({ car: v, from: from.clone() });
   }
@@ -173,17 +220,26 @@ export class Traffic {
   /** Points along `v`'s lane ahead of it, `step` meters apart, up to `meters` on. Empty if it isn't on a lane. */
   roadAhead(v: Vehicle, meters: number, step = 2): Vector3[] {
     const path = this.paths[v.pathIndex];
-    if (!path) return [];
+    if (!path) {
+      return [];
+    }
+
     const s = this.laneS(v, path);
     const out: Vector3[] = [];
-    for (let d = step; d <= meters; d += step) out.push(path.sample(s + d, new Vector3()));
+    for (let d = step; d <= meters; d += step) {
+      out.push(path.sample(s + d, new Vector3()));
+    }
+
     return out;
   }
 
   /** Whether `v` is out on its lane: outside the deck and on the lane's line, give or take a lane's width. */
   onRoad(v: Vehicle): boolean {
     const path = this.paths[v.pathIndex];
-    if (!path || v.insideDeck) return false;
+    if (!path || v.insideDeck) {
+      return false;
+    }
+
     path.sample(this.laneS(v, path), _p);
     return Math.hypot(v.pos.x - _p.x, v.pos.z - _p.z) < LANE_HALF;
   }
@@ -191,12 +247,18 @@ export class Traffic {
   /** A car driving itself near its lane goes back to being traffic on it, frightened by `from`. */
   rejoin(v: Vehicle, from: Vector3): void {
     const path = this.paths[v.pathIndex];
-    if (!path) return;
+    if (!path) {
+      return;
+    }
+
     this.join(v, v.pathIndex, path.project(v.pos));
     this.frighten(v, from);
   }
 
-  /** How far along its lane `v` is: where traffic has it, or the nearest point to where it stands for a car driving itself. */
+  /**
+   * How far along its lane `v` is: where traffic has it, or the nearest point to where it stands for a car driving
+   * itself.
+   */
   private laneS(v: Vehicle, path: Polyline): number {
     return v.role === 'traffic' ? v.pathS : path.project(v.pos);
   }
@@ -209,12 +271,19 @@ export class Traffic {
         this.merging.delete(v);
         continue;
       }
+
       const path = this.paths[v.pathIndex];
-      if (!path) continue;
+      if (!path) {
+        continue;
+      }
+
       const fright = this.fright.get(v);
       // Frightened, they floor it, or stop while the road leads toward the fright.
       const cruise = !fright ? v.cruise : fright.cornered ? 0 : v.cruise * T.panicBoost;
-      if (fright) fright.cornered = false;
+      if (fright) {
+        fright.cornered = false;
+      }
+
       const fx = Math.sin(v.yaw);
       const fz = Math.cos(v.yaw);
       // the nearest thing ahead in the lane, as room left before having to stop for it (an angry driver stops shorter);
@@ -228,28 +297,41 @@ export class Traffic {
       let at: Vector3 | null = null;
       let stuck = false;
       for (const o of vehicles) {
-        if (o === v || o.gone) continue;
+        if (o === v || o.gone) {
+          continue;
+        }
+
         const queue = underway(o);
         const stop = queue ? gap : room;
         const d = ahead(v, fx, fz, o.pos, stop + EASE, o.role === 'traffic', Math.sin(o.yaw), Math.cos(o.yaw)) - stop;
-        if (d >= left) continue;
+        if (d >= left) {
+          continue;
+        }
+
         left = d;
         front = o;
         at = o.pos;
         stuck = !queue;
       }
+
       for (const o of obstacles) {
         const d = ahead(v, fx, fz, o, room + EASE, false, 0, 0) - room;
-        if (d >= left) continue;
+        if (d >= left) {
+          continue;
+        }
+
         left = d;
         front = null;
         at = o;
         stuck = true;
       }
+
       const target = cruise * invLerp(0, EASE, left);
       v.speed = damp(v.speed, target, target < v.speed ? BRAKE_RATE : ACCEL_RATE, dt);
+
       if (fright) {
         fright.held = v.speed < T.stuckSpeed ? fright.held + dt : 0;
+
         if (fright.held > T.stuckTime) {
           // boxed in with a ghost outside: abandon ship
           this.fright.delete(v);
@@ -259,10 +341,14 @@ export class Traffic {
           this.abandoned.push(v);
           continue;
         }
-        if ((fright.left -= dt) <= 0) this.fright.delete(v);
+
+        if ((fright.left -= dt) <= 0) {
+          this.fright.delete(v);
+        }
       } else {
         this.fume(v, at, front, stuck, dt);
       }
+
       v.pathS += v.speed * dt;
       path.sample(v.pathS + STEER_AHEAD, _p, _d);
       const lookYaw = Math.atan2(_p.x - v.pos.x, _p.z - v.pos.z);
@@ -271,9 +357,13 @@ export class Traffic {
       if (off) {
         const len = off.length();
         const next = Math.max(len * Math.exp(-MERGE_RATE * dt), len - MERGE_MAX * dt);
-        if (next < MERGED) this.merging.delete(v);
-        else _p.add(off.multiplyScalar(next / len));
+        if (next < MERGED) {
+          this.merging.delete(v);
+        } else {
+          _p.add(off.multiplyScalar(next / len));
+        }
       }
+
       v.place(_p.x, _p.y, _p.z, lookYaw, v.speed, dt, null);
     }
   }
@@ -285,11 +375,17 @@ export class Traffic {
     v.pathS = s;
     v.speed = Math.max(0, v.forwardSpeed);
     const line = this.paths[path];
-    if (!line) return;
+    if (!line) {
+      return;
+    }
+
     line.sample(s, _p);
     const off = new Vector3(v.pos.x - _p.x, 0, v.pos.z - _p.z);
-    if (off.lengthSq() < MERGED * MERGED) this.merging.delete(v);
-    else this.merging.set(v, off);
+    if (off.lengthSq() < MERGED * MERGED) {
+      this.merging.delete(v);
+    } else {
+      this.merging.set(v, off);
+    }
   }
 
   /** How angry `v`'s driver is: 0 calm, 1 fuming. */
@@ -305,35 +401,51 @@ export class Traffic {
 
   private mood(v: Vehicle): Mood {
     let m = this.moods.get(v);
-    if (!m) this.moods.set(v, (m = { anger: 0, sinceHonk: Infinity, asked: true }));
+    if (!m) {
+      this.moods.set(v, (m = { anger: 0, sinceHonk: Infinity, asked: true }));
+    }
+
     return m;
   }
 
   /**
-   * Anger rises while stopped behind `at` (`front`, a car, or someone on foot), faster when it's
-   * `stuck` (not traffic going about its business), and fades on the move. Angry enough, the
-   * driver honks (the driver in front hears it), again and again, and asks to pull round: behind
-   * something stuck, a moment after honking; in a queue, only once past `queueJump`.
+   * Anger rises while stopped behind `at` (`front`, a car, or someone on foot), faster when it's `stuck` (not traffic
+   * going about its business), and fades on the move. Angry enough, the driver honks (the driver in front hears it),
+   * again and again, and asks to pull round: behind something stuck, a moment after honking; in a queue, only once past
+   * `queueJump`.
    */
   private fume(v: Vehicle, at: Vector3 | null, front: Vehicle | null, stuck: boolean, dt: number): void {
     const I = TUNING.traffic.impatience;
     if (!at || v.speed >= I.speed) {
       const m = this.moods.get(v);
-      if (!m) return;
+      if (!m) {
+        return;
+      }
+
       m.anger -= I.calm * dt;
       m.sinceHonk += dt;
-      if (m.anger <= 0) this.moods.delete(v);
+
+      if (m.anger <= 0) {
+        this.moods.delete(v);
+      }
+
       return;
     }
+
     const m = this.mood(v);
     m.anger = Math.min(1, m.anger + (stuck ? I.rise.blocked : I.rise.queued) * dt);
     m.sinceHonk += dt;
+
     if (m.anger >= I.honkAt && m.sinceHonk >= lerp(I.again[0], I.again[1], m.anger)) {
       m.sinceHonk = 0;
       m.asked = false;
       this.honks.push(v);
-      if (front?.role === 'traffic') this.provoke(front, I.rise.honkedAt);
+
+      if (front?.role === 'traffic') {
+        this.provoke(front, I.rise.honkedAt);
+      }
     }
+
     if (!m.asked && (stuck || m.anger >= I.queueJump) && m.sinceHonk >= lerp(I.pullAfter[0], I.pullAfter[1], m.anger)) {
       m.asked = true;
       this.fedUp.push({ car: v, by: front, at: at.clone(), anger: m.anger });

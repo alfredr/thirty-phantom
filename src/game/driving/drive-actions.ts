@@ -1,4 +1,5 @@
 import { Vector3 } from 'three';
+
 import { Autopilot, type Obstacle } from '@/actors/autopilot';
 import { footprint } from '@/actors/avoidance';
 import { roadLeadsToward } from '@/actors/traffic';
@@ -8,13 +9,17 @@ import { smoothstep, wrapAngle } from '@/engine/core/math';
 import { Polyline, type RouteCursor } from '@/engine/nav/polyline';
 import { Action, done, type Fail, fail, type Result, running } from '@/engine/sim/action';
 import type { Claims } from '@/engine/sim/claims';
+import { type Garage, type SpotRuntime, spotZone } from '@/game/deck/garage';
+import type { ClaimKind } from '@/game/rules/claim-kinds';
 import type { ZoneDef } from '@/world/level-data';
 import type { NavGrid, NavJob, NavPlanner, RouteLeg } from '@/world/nav-grid';
-import type { ClaimKind } from '@/game/rules/claim-kinds';
-import { type Garage, type SpotRuntime, spotZone } from '@/game/deck/garage';
+
 import type { Fleet } from './fleet';
 
-/** A frightened driver looks this far ahead (m): they see phantom Cody within panicReach, so anywhere within a berth of him is within this of them. */
+/**
+ * A frightened driver looks this far ahead (m): they see phantom Cody within panicReach, so anywhere within a berth of
+ * him is within this of them.
+ */
 export const LOOK = TUNING.traffic.panicReach + TUNING.traffic.berth;
 /** A route round phantom Cody keeps this much further off him than a frightened driver's berth (m). */
 const AVOID_MARGIN = 1;
@@ -42,7 +47,10 @@ export interface DriveWorld {
   onRoad(car: Vehicle): boolean;
   /** `car` goes back to being traffic on its lane, frightened by `from`. */
   rejoin(car: Vehicle, from: Vector3): void;
-  /** Drives `car` one step with `input`, bumping whatever cars it meets and logging any gate it crosses. True if it badged in. */
+  /**
+   * Drives `car` one step with `input`, bumping whatever cars it meets and logging any gate it crosses. True if it
+   * badged in.
+   */
   steer(car: Vehicle, input: DriveInput, dt: number): boolean;
   /** Puts `car` exactly here, for easing into a spot. */
   place(car: Vehicle, at: Vector3, yaw: number, dt: number): void;
@@ -94,10 +102,9 @@ export interface DriveToParams {
 }
 
 /**
- * Drives a car somewhere on the shared planner and autopilot. Given `via`, the road on to where it
- * turns off, it drives that while the rest is planned from its end; otherwise it brakes while the
- * route is planned. It plans once more if it wedges, and fails if there's no route in time or it
- * wedges twice.
+ * Drives a car somewhere on the shared planner and autopilot. Given `via`, the road on to where it turns off, it drives
+ * that while the rest is planned from its end; otherwise it brakes while the route is planned. It plans once more if it
+ * wedges, and fails if there's no route in time or it wedges twice.
  */
 export class DriveTo extends Action<DriveWorld, DriveWorld> {
   private job: NavJob | null = null;
@@ -115,45 +122,81 @@ export class DriveTo extends Action<DriveWorld, DriveWorld> {
 
   perform(w: DriveWorld, dt: number): Result<DriveAction> {
     const { car } = this.p;
-    if (!this.job && !this.pilot) this.start(w);
+    if (!this.job && !this.pilot) {
+      this.start(w);
+    }
+
     const { job } = this;
     if (job) {
       this.t += dt;
+
       if (!job.settled) {
-        if (this.t >= (this.p.wait ?? Infinity)) return fail('NO ROUTE');
+        if (this.t >= (this.p.wait ?? Infinity)) {
+          return fail('NO ROUTE');
+        }
+
         // Planning: drive on along the road to the turn-off, or brake where it stands.
         this.steer(w, this.pilot ? this.pilot.update(dt, car, w.obstacles()) : brakes(car), dt);
         return running;
       }
+
       this.job = null;
       const [first, ...more] = job.legs ?? [];
-      if (!first) return fail('NO ROUTE');
+      if (!first) {
+        return fail('NO ROUTE');
+      }
+
       if (this.pilot) {
         const { legs, turnOff } = this.joined(this.pilot, first, more);
         this.pilot = this.drive(w, legs);
         this.turnOff = { cursor: this.pilot.cursor, s: turnOff };
-      } else this.pilot = this.drive(w, [first, ...more]);
+      } else {
+        this.pilot = this.drive(w, [first, ...more]);
+      }
     }
+
     const { pilot } = this;
-    if (!pilot) return fail('NO ROUTE');
+    if (!pilot) {
+      return fail('NO ROUTE');
+    }
+
     this.steer(w, pilot.update(dt, car, w.obstacles()), dt);
-    if (pilot.state === 'arrived') return done;
-    if (pilot.state !== 'stuck') return running;
-    if (this.replanned) return fail('WEDGED');
+
+    if (pilot.state === 'arrived') {
+      return done;
+    }
+
+    if (pilot.state !== 'stuck') {
+      return running;
+    }
+
+    if (this.replanned) {
+      return fail('WEDGED');
+    }
+
     // One fresh route from wherever it wedged itself.
     this.replanned = true;
     this.pilot = null;
     return running;
   }
 
-  /** Points along the way on ahead of the car, from the turn-off on if it hasn't got there, `step` apart, up to `meters` on. None while it's planned. */
+  /**
+   * Points along the way on ahead of the car, from the turn-off on if it hasn't got there, `step` apart, up to `meters`
+   * on. None while it's planned.
+   */
   ahead(meters: number, step = 2): Vector3[] {
     const { pilot, turnOff } = this;
-    if (!pilot || this.job) return [];
+    if (!pilot || this.job) {
+      return [];
+    }
+
     const c = pilot.cursor;
     const s = turnOff?.cursor === c ? Math.max(c.s, turnOff.s) : c.s;
     const out: Vector3[] = [];
-    for (let d = step; d <= meters; d += step) out.push(c.path.sample(s + d, new Vector3()));
+    for (let d = step; d <= meters; d += step) {
+      out.push(c.path.sample(s + d, new Vector3()));
+    }
+
     return out;
   }
 
@@ -175,7 +218,9 @@ export class DriveTo extends Action<DriveWorld, DriveWorld> {
   }
 
   private steer(w: DriveWorld, input: DriveInput, dt: number): void {
-    if (w.steer(this.p.car, input, dt)) this.badged = true;
+    if (w.steer(this.p.car, input, dt)) {
+      this.badged = true;
+    }
   }
 
   /** Sets off on the route it was given, or asks for one and, with a road to drive on first, sets off along that. */
@@ -187,17 +232,29 @@ export class DriveTo extends Action<DriveWorld, DriveWorld> {
       this.pilot = this.drive(w, legs);
       return;
     }
+
     const lead = this.replanned ? undefined : via;
     this.job = this.plan(w, lead);
     this.pilot = lead ? this.drive(w, [{ path: lead, reverse: false }]) : null;
   }
 
   private drive(w: DriveWorld, legs: readonly [RouteLeg, ...RouteLeg[]]): Autopilot {
-    return new Autopilot(legs, { inDeck: (p) => w.garage.inFootprint(p), nav: w.nav, profile: this.p.car.breed.nav }, this.p.car.params);
+    return new Autopilot(
+      legs,
+      { inDeck: (p) => w.garage.inFootprint(p), nav: w.nav, profile: this.p.car.breed.nav },
+      this.p.car.params,
+    );
   }
 
-  /** The rest of the road to the turn-off, run on into the planned way on, and how far along the first leg the turn-off is. */
-  private joined(pilot: Autopilot, first: RouteLeg, more: RouteLeg[]): { legs: [RouteLeg, ...RouteLeg[]]; turnOff: number } {
+  /**
+   * The rest of the road to the turn-off, run on into the planned way on, and how far along the first leg the turn-off
+   * is.
+   */
+  private joined(
+    pilot: Autopilot,
+    first: RouteLeg,
+    more: RouteLeg[],
+  ): { legs: [RouteLeg, ...RouteLeg[]]; turnOff: number } {
     const rest = pilot.cursor.path.from(pilot.cursor.s);
     const legs: [RouteLeg, ...RouteLeg[]] = first.reverse
       ? [{ path: rest, reverse: false }, first, ...more]
@@ -205,24 +262,51 @@ export class DriveTo extends Action<DriveWorld, DriveWorld> {
     return { legs, turnOff: rest.total };
   }
 
-  /** Asks for a route from where the car is (or from the end of `lead`), round cars in spots, cars left standing outside them, and whatever it's to keep out of or avoid. */
+  /**
+   * Asks for a route from where the car is (or from the end of `lead`), round cars in spots, cars left standing outside
+   * them, and whatever it's to keep out of or avoid.
+   */
   private plan(w: DriveWorld, lead: Polyline | undefined): NavJob {
-    const { car, to, yaw: endYaw, eitherWay = false, allow, badgeIn = false, keepOut = [], pad = CAR_PAD, avoid } = this.p;
+    const {
+      car,
+      to,
+      yaw: endYaw,
+      eitherWay = false,
+      allow,
+      badgeIn = false,
+      keepOut = [],
+      pad = CAR_PAD,
+      avoid,
+    } = this.p;
     const blocks: ZoneDef[] = [...keepOut];
-    if (badgeIn && !car.insideDeck) blocks.push(...w.entryOnly);
+    if (badgeIn && !car.insideDeck) {
+      blocks.push(...w.entryOnly);
+    }
+
     const inSpots = new Set<Vehicle>();
     for (const s of w.garage.spots) {
-      if (!s.occupant) continue;
+      if (!s.occupant) {
+        continue;
+      }
+
       inSpots.add(s.occupant);
-      if (s.occupant !== car) blocks.push(spotZone(s, -SPOT_INSET));
+
+      if (s.occupant !== car) {
+        blocks.push(spotZone(s, -SPOT_INSET));
+      }
     }
+
     for (const o of w.fleet.vehicles) {
-      if (o !== car && o.role === 'parked' && !o.gone && !inSpots.has(o)) blocks.push(footprint(o, pad));
+      if (o !== car && o.role === 'parked' && !o.gone && !inSpots.has(o)) {
+        blocks.push(footprint(o, pad));
+      }
     }
+
     if (avoid) {
       const r = TUNING.traffic.berth + AVOID_MARGIN;
       blocks.push({ min: [avoid.x - r, avoid.y - 1, avoid.z - r], max: [avoid.x + r, avoid.y + 2.5, avoid.z + r] });
     }
+
     const from = car.pos.clone();
     let yaw = car.yaw;
     if (lead) {
@@ -230,11 +314,15 @@ export class DriveTo extends Action<DriveWorld, DriveWorld> {
       lead.sample(lead.total, from, dir);
       yaw = Math.atan2(dir.x, dir.z);
     }
+
     return w.planner.request(from, to, car.breed.nav, { blocks, allow, drive: { yaw, endYaw, eitherWay } });
   }
 }
 
-/** Eases a car into a berth, facing whichever way it points that's nearer the car's heading, and brings it to rest there. Its driver's still in it. */
+/**
+ * Eases a car into a berth, facing whichever way it points that's nearer the car's heading, and brings it to rest
+ * there. Its driver's still in it.
+ */
 export class Park extends Action<DriveWorld, DriveWorld> {
   private from: { pos: Vector3; yaw: number; toYaw: number } | null = null;
   private t = 0;
@@ -249,12 +337,17 @@ export class Park extends Action<DriveWorld, DriveWorld> {
       const flip = Math.cos(car.yaw - berth.yaw) < 0;
       this.from = { pos: car.pos.clone(), yaw: car.yaw, toYaw: berth.yaw + (flip ? Math.PI : 0) };
     }
+
     this.t += dt;
     const k = Math.min(1, this.t / TUNING.valet.settleTime);
     const e = smoothstep(0, 1, k);
     const { pos, yaw, toYaw } = this.from;
     w.place(car, pos.clone().lerp(berth.center, e), yaw + wrapAngle(toYaw - yaw) * e, dt);
-    if (k < 1) return running;
+
+    if (k < 1) {
+      return running;
+    }
+
     halt(car);
     return done;
   }
@@ -300,11 +393,10 @@ export class Rejoin extends Action<DriveWorld, DriveWorld> {
 }
 
 /**
- * A job an AI driver does at the wheel of one car: drive somewhere, park, sit a while. It holds the
- * driver's seat while it runs, so whoever takes the car (Cody, say) ends it, and the car carries
- * `role` meanwhile: anything else changing that (a knock) ends it too. Each frame the driver sees
- * phantom Cody, sees() says where, and drive() gets it. A crash ends it by default, the driver
- * getting out once the car comes to rest.
+ * A job an AI driver does at the wheel of one car: drive somewhere, park, sit a while. It holds the driver's seat while
+ * it runs, so whoever takes the car (Cody, say) ends it, and the car carries `role` meanwhile: anything else changing
+ * that (a knock) ends it too. Each frame the driver sees phantom Cody, sees() says where, and drive() gets it. A crash
+ * ends it by default, the driver getting out once the car comes to rest.
  */
 export abstract class DriverJob extends Action<DriveWorld, DriveWorld> {
   private readonly driver = { name: 'driver' };
@@ -332,14 +424,27 @@ export abstract class DriverJob extends Action<DriveWorld, DriveWorld> {
     const { car } = this;
     if (!this.seated) {
       const refused = this.book(w);
-      if (refused) return refused;
-      if (!w.claims.take('driverSeat', this.driver, car, { owner: this.owner })) return fail('SEAT TAKEN');
+      if (refused) {
+        return refused;
+      }
+
+      if (!w.claims.take('driverSeat', this.driver, car, { owner: this.owner })) {
+        return fail('SEAT TAKEN');
+      }
+
       this.seated = true;
       car.role = this.role;
     }
+
     // Someone else has the car now (Cody took it, a hit knocked it loose, it was towed): the game sees to the driver.
-    if (!w.alive(car) || car.role !== this.role) return fail('lost');
-    if (car.crashing) return this.crashed(w, dt);
+    if (!w.alive(car) || car.role !== this.role) {
+      return fail('lost');
+    }
+
+    if (car.crashing) {
+      return this.crashed(w, dt);
+    }
+
     const seen = this.sighting;
     this.sighting = null;
     return this.drive(w, dt, seen);
@@ -361,7 +466,11 @@ export abstract class DriverJob extends Action<DriveWorld, DriveWorld> {
   protected crashed(w: DriveWorld, _dt: number): Result<DriveAction> {
     const { car } = this;
     car.role = 'parked';
-    if (!car.insideDeck) w.fleet.abandon(car);
+
+    if (!car.insideDeck) {
+      w.fleet.abandon(car);
+    }
+
     w.wrecked(car, this.scare ?? car.pos);
     return fail('wrecked');
   }
@@ -375,12 +484,15 @@ export abstract class DriverJob extends Action<DriveWorld, DriveWorld> {
   }
 
   /**
-   * The ordinary spook rule for a driver on their way somewhere: if the way on passes closer to
-   * phantom Cody at `at` than a berth, they find a way round him. True if they turned.
+   * The ordinary spook rule for a driver on their way somewhere: if the way on passes closer to phantom Cody at `at`
+   * than a berth, they find a way round him. True if they turned.
    */
   protected steerClear(at: Vector3): boolean {
     const { stage } = this;
-    if (!(stage instanceof DriveTo) || !stage.inTheWay(at)) return false;
+    if (!(stage instanceof DriveTo) || !stage.inTheWay(at)) {
+      return false;
+    }
+
     this.next(stage.around(at));
     return true;
   }
@@ -388,7 +500,12 @@ export abstract class DriverJob extends Action<DriveWorld, DriveWorld> {
 
 /** Brakes to a stop. */
 export function brakes(car: Vehicle): DriveInput {
-  return { throttle: -Math.sign(car.speed) * Math.min(1, Math.abs(car.speed) * BRAKE_GAIN), steer: 0, hop: false, drift: false };
+  return {
+    throttle: -Math.sign(car.speed) * Math.min(1, Math.abs(car.speed) * BRAKE_GAIN),
+    steer: 0,
+    hop: false,
+    drift: false,
+  };
 }
 
 /** Stopped dead and at rest where it is. */

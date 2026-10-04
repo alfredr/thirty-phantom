@@ -19,8 +19,10 @@ import {
   WebGLRenderTarget,
 } from 'three';
 import { FullScreenQuad, Pass } from 'three/addons/postprocessing/Pass.js';
+
 import { FX_LAYER } from '@/render/layers';
 import { MaterialLibrary } from '@/render/materials';
+
 import { FULLSCREEN_VERT } from './fullscreen';
 
 const frag = /* glsl */ `
@@ -103,10 +105,9 @@ void main() {
 `;
 
 /**
- * Renders the scene (with a float depth texture), then a view-normal pass,
- * and composites thick ink lines on silhouettes and creases: the comic
- * linework of the poster. Materials tagged with softInk() get no creases and
- * a thin, light silhouette.
+ * Renders the scene (with a float depth texture), then a view-normal pass, and composites thick ink lines on
+ * silhouettes and creases: the comic linework of the poster. Materials tagged with softInk() get no creases and a thin,
+ * light silhouette.
  */
 export class SceneOutlinePass extends Pass {
   private readonly sceneRT: WebGLRenderTarget;
@@ -153,7 +154,10 @@ export class SceneOutlinePass extends Pass {
         tanHalf: { value: new Vector2(1, 1) },
         /** World units per pixel: constant in the iso view, per unit of view depth in the chase view. */
         pixelWorld: { value: 0.04 },
-        /** Pixel sizes (world units) over which fine ink fades out: none at play zoom, most of it zoomed all the way out. */
+        /**
+         * Pixel sizes (world units) over which fine ink fades out: none at play zoom, most of it zoomed all the way
+         * out.
+         */
         inkFade: { value: new Vector2(0.06, 0.16) },
       },
       vertexShader: FULLSCREEN_VERT,
@@ -183,7 +187,10 @@ export class SceneOutlinePass extends Pass {
   /** Per-mesh swap rather than scene.overrideMaterial, so each material can pick its ink class. */
   private readonly swapIn = (o: Object3D): void => {
     const m = o as Mesh;
-    if (!m.isMesh) return;
+    if (!m.isMesh) {
+      return;
+    }
+
     this.swapMeshes.push(m);
     this.swapMats.push(m.material);
     m.material = Array.isArray(m.material) ? m.material.map(this.pickNormal) : this.pickNormal(m.material);
@@ -215,7 +222,11 @@ export class SceneOutlinePass extends Pass {
     renderer.setRenderTarget(this.normalRT);
     renderer.clear();
     renderer.render(this.scene, this.camera);
-    for (let i = 0; i < this.swapMeshes.length; i++) (this.swapMeshes[i] as Mesh).material = this.swapMats[i] as Material | Material[];
+
+    for (let i = 0; i < this.swapMeshes.length; i++) {
+      (this.swapMeshes[i] as Mesh).material = this.swapMats[i] as Material | Material[];
+    }
+
     this.swapMeshes.length = 0;
     this.swapMats.length = 0;
     this.scene.background = bg;
@@ -243,6 +254,7 @@ export class SceneOutlinePass extends Pass {
       u.pixelWorld!.value = this.worldPerPixel;
       u.depthThreshold!.value = Math.max(0.12, this.worldPerPixel * 5 * thick);
     }
+
     renderer.setRenderTarget(this.renderToScreen ? null : writeBuffer);
     this.quad.render(renderer);
   }

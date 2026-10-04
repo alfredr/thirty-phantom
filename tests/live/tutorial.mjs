@@ -9,19 +9,30 @@ export const tutorial = true;
 const goal = () => document.querySelector('.burner-goal.on')?.textContent?.trim() ?? '';
 
 /** The objective markers up, by label, sorted. */
-const marks = () => window.__game.objectives.list.map((o) => o.label).sort().join(',');
+const marks = () =>
+  window.__game.objectives.list
+    .map((o) => o.label)
+    .sort()
+    .join(',');
 
 /**
- * Frames on, talking through any dialogue or sign that comes up (F), until `done()` or `seconds`
- * pass. Returns whether it got there.
+ * Frames on, talking through any dialogue or sign that comes up (F), until `done()` or `seconds` pass. Returns whether
+ * it got there.
  */
 const playUntil = (done, seconds) => {
   const g = window.__game;
   for (let i = 0; i < seconds * 30; i++) {
-    if (done()) return true;
-    if (i % 6 === 0 && (document.body.classList.contains('dialogue-open') || document.querySelector('.signpost.on'))) g.input.press('KeyF');
+    if (done()) {
+      return true;
+    }
+
+    if (i % 6 === 0 && (document.body.classList.contains('dialogue-open') || document.querySelector('.signpost.on'))) {
+      g.input.press('KeyF');
+    }
+
     g.frame(1 / 30);
   }
+
   return done();
 };
 
@@ -34,43 +45,87 @@ export function playsThrough() {
     reached.push({ step, ok, goal: sim.goal(), marks: sim.marks(), ...extra });
     return ok;
   };
+
   const result = () => ({ ok: reached.every((r) => r.ok) && reached.at(-1)?.step === 'done', reached });
 
   // the roof: Randy at the window, the clock waiting at half past five, then out to find the badge
   g.start();
   const truck = g.vehicles.find((v) => v.role === 'player');
   const randy = g.npcs.find('randy');
-  if (!truck || !randy) return { ok: false, why: 'no pickup or no Randy', reached };
+  if (!truck || !randy) {
+    return { ok: false, why: 'no pickup or no Randy', reached };
+  }
+
   const opened = sim.playUntil(() => document.body.classList.contains('dialogue-open'), 5);
   const heldAtWindow = randy.held && Math.abs(g.clock.hours - 17.5) < 0.01 && !!g.cutscene;
-  if (!at('roof', opened && heldAtWindow && sim.playUntil(() => /FIND YOUR BADGE/.test(sim.goal()), 60) && g.inventory.count('burner') === 1 && sim.marks() === 'YOUR BADGE')) return result();
+  if (
+    !at(
+      'roof',
+      opened &&
+        heldAtWindow &&
+        sim.playUntil(() => /FIND YOUR BADGE/.test(sim.goal()), 60) &&
+        g.inventory.count('burner') === 1 &&
+        sim.marks() === 'YOUR BADGE',
+    )
+  ) {
+    return result();
+  }
 
   // seven o'clock: Randy's gone in a puff, rings to say sorry, then texts him back to the pickup
   g.clock.hours = 18.99;
-  if (!at('back', sim.playUntil(() => /GET BACK IN THE PICKUP/.test(sim.goal()), 40) && sim.marks() === 'YOUR BADGE,YOUR PICKUP')) return result();
+
+  if (
+    !at(
+      'back',
+      sim.playUntil(() => /GET BACK IN THE PICKUP/.test(sim.goal()), 40) && sim.marks() === 'YOUR BADGE,YOUR PICKUP',
+    )
+  ) {
+    return result();
+  }
 
   // back in: the jump
   g.board(truck);
-  if (!at('jump', sim.playUntil(() => /OFF THE ROOF/.test(sim.goal()), 5) && sim.marks() === '')) return result();
+
+  if (!at('jump', sim.playUntil(() => /OFF THE ROOF/.test(sim.goal()), 5) && sim.marks() === '')) {
+    return result();
+  }
 
   // off a kicker: the first phantom; it idles, Randy rings, the camera shows the imprint, then the joyride
   g.onCrossing({ vehicle: truck, kind: 'escaped' });
-  if (!at('cruise', sim.playUntil(() => /SPIN|CAMERAS/.test(sim.goal()), 60), { phantoms: g.garage.phantoms })) return result();
+
+  if (
+    !at(
+      'cruise',
+      sim.playUntil(() => /SPIN|CAMERAS/.test(sim.goal()), 60),
+      { phantoms: g.garage.phantoms },
+    )
+  ) {
+    return result();
+  }
 
   // ten o'clock: the call, and down to the basement with wheels
   g.clock.hours = 21.99;
-  if (!at('basement', sim.playUntil(() => /FIND TIRES/.test(sim.goal()), 40) && sim.marks() === 'RANDY')) return result();
+
+  if (!at('basement', sim.playUntil(() => /FIND TIRES/.test(sim.goal()), 40) && sim.marks() === 'RANDY')) {
+    return result();
+  }
 
   // no tires: sent back out for some
   g.alight();
   sim.run(10);
   const P = g.player.pos.constructor;
-  g.player.place(new P(randy.pos.x + Math.sin(randy.homeYaw) * 1.6, randy.pos.y, randy.pos.z + Math.cos(randy.homeYaw) * 1.6), randy.homeYaw + Math.PI);
+  g.player.place(
+    new P(randy.pos.x + Math.sin(randy.homeYaw) * 1.6, randy.pos.y, randy.pos.z + Math.cos(randy.homeYaw) * 1.6),
+    randy.homeYaw + Math.PI,
+  );
   sim.run(5);
   g.input.press('KeyF');
   sim.run(3);
-  const turnedAway = sim.playUntil(() => !document.body.classList.contains('dialogue-open'), 20) && /FIND TIRES/.test(sim.goal());
-  if (!at('noWheels', turnedAway)) return result();
+  const turnedAway =
+    sim.playUntil(() => !document.body.classList.contains('dialogue-open'), 20) && /FIND TIRES/.test(sim.goal());
+  if (!at('noWheels', turnedAway)) {
+    return result();
+  }
 
   // with tires: the brisket, paid for the tires as they go in
   g.inventory.add('tire', 1);
@@ -79,25 +134,39 @@ export function playsThrough() {
   g.input.press('KeyF');
   sim.run(3);
   const ate = sim.playUntil(() => /GO BACK OUT/.test(sim.goal()), 40);
-  if (!at('outside', ate && g.inventory.count('tire') === 0 && g.inventory.count('brisket') > brisketBefore)) return result();
+  if (!at('outside', ate && g.inventory.count('tire') === 0 && g.inventory.count('brisket') > brisketBefore)) {
+    return result();
+  }
 
   // out under the moon: phantom Cody, and the first lessons
   const road = g.traffic.paths[0].sample(0, g.player.pos.clone());
   g.player.place(road, 0);
-  if (!at('spook', sim.playUntil(() => /SPOOK SOMEBODY/.test(sim.goal()), 20) && g.player.form === 'night')) return result();
+
+  if (!at('spook', sim.playUntil(() => /SPOOK SOMEBODY/.test(sim.goal()), 20) && g.player.form === 'night')) {
+    return result();
+  }
 
   // a real scare, then raise the dead
   sim.playUntil(() => g.debug.scare(6) >= 0 && /RAISE THE DEAD/.test(sim.goal()), 60);
-  if (!at('raise', /RAISE THE DEAD/.test(sim.goal()))) return result();
+
+  if (!at('raise', /RAISE THE DEAD/.test(sim.goal()))) {
+    return result();
+  }
+
   const raised = sim.playUntil(() => {
     g.input.press('KeyX');
     return /POSSESS A CAR/.test(sim.goal());
   }, 30);
-  if (!at('possess', raised)) return result();
+  if (!at('possess', raised)) {
+    return result();
+  }
 
   // possess one in the deck and get it out
   const inDeck = g.vehicles.find((v) => v.role === 'parked' && v.insideDeck && v.form === 'car');
-  if (!inDeck) return { ok: false, why: 'no car in the deck', reached };
+  if (!inDeck) {
+    return { ok: false, why: 'no car in the deck', reached };
+  }
+
   g.board(inDeck);
   sim.run(3);
   g.onCrossing({ vehicle: inDeck, kind: 'escaped' });
@@ -106,33 +175,83 @@ export function playsThrough() {
   // morning: the day job. Steal one, badge it in, park it upstairs and get out
   // (sunrise is at half past seven)
   g.clock.hours = 7.49;
-  if (!at('steal', sim.playUntil(() => /STEAL A CAR/.test(sim.goal()), 20))) return result();
+
+  if (
+    !at(
+      'steal',
+      sim.playUntil(() => /STEAL A CAR/.test(sim.goal()), 20),
+    )
+  ) {
+    return result();
+  }
+
   g.alight();
   sim.run(10);
   const street = g.vehicles.find((v) => v.role === 'parked' && !v.insideDeck && v.form === 'car');
-  if (!street) return { ok: false, why: 'no car to steal', reached };
+  if (!street) {
+    return { ok: false, why: 'no car to steal', reached };
+  }
+
   g.board(street);
-  if (!at('badge', sim.playUntil(() => /EAST GATE/.test(sim.goal()), 5))) return result();
+
+  if (
+    !at(
+      'badge',
+      sim.playUntil(() => /EAST GATE/.test(sim.goal()), 5),
+    )
+  ) {
+    return result();
+  }
+
   g.onCrossing({ vehicle: street, kind: 'logged-in' });
-  if (!at('park', sim.playUntil(() => /PARK IN A FREE SPOT/.test(sim.goal()), 5))) return result();
+
+  if (
+    !at(
+      'park',
+      sim.playUntil(() => /PARK IN A FREE SPOT/.test(sim.goal()), 5),
+    )
+  ) {
+    return result();
+  }
+
   const spot = g.garage.freeSpots()[0];
   street.place(spot.center.x, spot.center.y, spot.center.z, spot.def.yaw, 0, 0, null);
   street.insideDeck = true;
   sim.run(3);
   g.alight();
-  if (!at('tonight', sim.playUntil(() => /WAIT FOR NIGHT/.test(sim.goal()), 5))) return result();
+
+  if (
+    !at(
+      'tonight',
+      sim.playUntil(() => /WAIT FOR NIGHT/.test(sim.goal()), 5),
+    )
+  ) {
+    return result();
+  }
 
   // night again: possess, out, and that's the whole racket
   g.clock.hours = 18.99;
   // (and phantom Cody again once his outfit's changed: only he possesses)
   sim.playUntil(() => /POSSESS A CAR/.test(sim.goal()) && g.player.form === 'night' && !g.transform, 30);
   const second = g.vehicles.find((v) => v.role === 'parked' && v.insideDeck && v.form === 'car');
-  if (!second) return { ok: false, why: 'no car in the deck the second night', reached };
+  if (!second) {
+    return { ok: false, why: 'no car in the deck the second night', reached };
+  }
+
   g.board(second);
   sim.run(3);
   g.onCrossing({ vehicle: second, kind: 'escaped' });
   const finished = sim.playUntil(() => g.randyTalk.enabled, 30);
-  at('done', finished && sim.goal() === '' && !g.cody.holdForm && !g.keepEscaped && g.sleepAfterEating && g.tires.enabled && sim.marks() === '');
+  at(
+    'done',
+    finished &&
+      sim.goal() === '' &&
+      !g.cody.holdForm &&
+      !g.keepEscaped &&
+      g.sleepAfterEating &&
+      g.tires.enabled &&
+      sim.marks() === '',
+  );
   return result();
 }
 
@@ -141,46 +260,84 @@ const reachScene = (target) => {
   const g = window.__game;
   const sim = window.__sim;
   let step;
-  g.events.on('step', (e) => { if (e.quest === 'tutorial') step = e.step; });
+  g.events.on('step', (e) => {
+    if (e.quest === 'tutorial') {
+      step = e.step;
+    }
+  });
   g.start();
   const truck = g.vehicles.find((v) => v.role === 'player');
   const randy = g.npcs.find('randy');
-  if (!truck || !randy) throw new Error('missing tutorial actors');
+  if (!truck || !randy) {
+    throw new Error('missing tutorial actors');
+  }
+
   const result = () => ({ step: () => step, randy, truck });
   if (target === 'scene') {
     sim.until(() => document.body.classList.contains('dialogue-open'), 5, []);
     return result();
   }
-  if (!sim.playUntil(() => step === 'out', 30)) throw new Error('roof did not finish');
+
+  if (!sim.playUntil(() => step === 'out', 30)) {
+    throw new Error('roof did not finish');
+  }
+
   g.clock.hours = 18.99;
+
   if (target === 'sorry') {
     sim.until(() => step === 'sorry' && document.body.classList.contains('dialogue-open'), 15, []);
     return result();
   }
-  if (!sim.playUntil(() => step === 'back', 30)) throw new Error('Randy did not call back');
+
+  if (!sim.playUntil(() => step === 'back', 30)) {
+    throw new Error('Randy did not call back');
+  }
+
   g.board(truck);
-  if (!sim.playUntil(() => step === 'jump', 5)) throw new Error('pickup did not transform');
+
+  if (!sim.playUntil(() => step === 'jump', 5)) {
+    throw new Error('pickup did not transform');
+  }
+
   g.onCrossing({ vehicle: truck, kind: 'escaped' });
+
   if (target === 'tell') {
     sim.until(() => step === 'tell' && document.body.classList.contains('dialogue-open'), 20, []);
     return result();
   }
+
   if (target === 'imprint') {
     sim.playUntil(() => !!document.querySelector('.signpost.on'), 30);
     return result();
   }
-  if (!sim.playUntil(() => step === 'cruise', 40)) throw new Error('imprint did not finish');
+
+  if (!sim.playUntil(() => step === 'cruise', 40)) {
+    throw new Error('imprint did not finish');
+  }
+
   g.clock.hours = 21.99;
+
   if (target === 'call') {
     sim.until(() => step === 'call' && document.body.classList.contains('dialogue-open'), 15, []);
     return result();
   }
-  if (!sim.playUntil(() => step === 'basement', 30)) throw new Error('no basement invitation');
+
+  if (!sim.playUntil(() => step === 'basement', 30)) {
+    throw new Error('no basement invitation');
+  }
+
   g.alight();
   sim.run(10);
   const P = g.player.pos.constructor;
-  g.player.place(new P(randy.pos.x + Math.sin(randy.homeYaw) * 1.6, randy.pos.y, randy.pos.z + Math.cos(randy.homeYaw) * 1.6), randy.homeYaw + Math.PI);
-  if (target === 'brisket') g.inventory.add('tire');
+  g.player.place(
+    new P(randy.pos.x + Math.sin(randy.homeYaw) * 1.6, randy.pos.y, randy.pos.z + Math.cos(randy.homeYaw) * 1.6),
+    randy.homeYaw + Math.PI,
+  );
+
+  if (target === 'brisket') {
+    g.inventory.add('tire');
+  }
+
   sim.run(5);
   g.input.press('KeyF');
   sim.run(3);
@@ -204,7 +361,15 @@ const interruptScene = (target) => {
   document.querySelector('.dialogue')?.click();
   sim.run(60);
   const stayed = scene.step() === 'steal' && /STEAL A CAR/.test(sim.goal());
-  return { ok: reached && wasOpen && woke && released && closed && stayed && g.sleepAfterEating && g.tires.enabled, reached, wasOpen, woke, released, closed, stayed };
+  return {
+    ok: reached && wasOpen && woke && released && closed && stayed && g.sleepAfterEating && g.tires.enabled,
+    reached,
+    wasOpen,
+    woke,
+    released,
+    closed,
+    stayed,
+  };
 };
 
 export const cases = {

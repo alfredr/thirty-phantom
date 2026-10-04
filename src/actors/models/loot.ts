@@ -1,4 +1,5 @@
 import type { Group } from 'three';
+
 import { box, build, model, NO_CAST, solid } from './part';
 
 /** Money people drop: a banded stack of bills, or a wallet with bills peeking out. */
@@ -30,7 +31,17 @@ export function wallet() {
       leather: { color: LEATHER, roughness: 0.65 },
       bill: { color: BILL, emissive: BILL, emissiveIntensity: BILL_GLOW, roughness: 0.85 },
     },
-    [solid(body, 'leather'), solid(body.sized(0.17, 0.02, 0.1).on(body.top - 0.01).move(0, 0, 0.03), 'bill', NO_CAST)],
+    [
+      solid(body, 'leather'),
+      solid(
+        body
+          .sized(0.17, 0.02, 0.1)
+          .on(body.top - 0.01)
+          .move(0, 0, 0.03),
+        'bill',
+        NO_CAST,
+      ),
+    ],
   );
 }
 

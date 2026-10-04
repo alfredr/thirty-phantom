@@ -1,8 +1,10 @@
 import { Vector3 } from 'three';
+
 import type { Vehicle } from '@/actors/vehicle';
 import { TUNING } from '@/config';
 import { mind, type MindEvent, type State, type StateOf } from '@/engine/sim/mind';
 import type { SpotRuntime } from '@/game/deck/garage';
+
 import type { Valet, ValetDrive } from './valet';
 
 const T = TUNING.valet;
@@ -32,7 +34,10 @@ export type Attention =
   /** Turned to someone talking to him: he stands where he is and faces them. */
   | State<'facing', { who: () => Vector3 }>;
 
-/** What can happen to a valet. Either of his minds can be sent any of these; each moves only on the ones its state lists. */
+/**
+ * What can happen to a valet. Either of his minds can be sent any of these; each moves only on the ones its state
+ * lists.
+ */
 export type ValetEvent =
   /** Someone's handed him keys to park `car` in `spot`. */
   | MindEvent<'handedCar', { car: Vehicle; spot: SpotRuntime }>
@@ -61,9 +66,16 @@ export const VALET_JOB = mind<Valet, Job, ValetEvent>({
     tick: (v, _s, dt) => {
       const talking = !!v.attention.in('facing');
       // closing time: the crew goes inside, once he's done talking
-      if (!v.crew.day && !talking) return { at: 'off' };
+      if (!v.crew.day && !talking) {
+        return { at: 'off' };
+      }
+
       v.walker.update(dt, v.crew.nav);
-      if (!talking) v.idleAnim();
+
+      if (!talking) {
+        v.idleAnim();
+      }
+
       return null;
     },
     on: { handedCar: (_v, _s, { car, spot }) => ({ at: 'toCar', car, spot }) },
@@ -75,8 +87,14 @@ export const VALET_JOB = mind<Valet, Job, ValetEvent>({
     exit: (v) => v.walker.cancelPlan(),
     tick: (v, s, dt) => {
       const w = v.walker;
-      if (w.followPlanned() === 'failed') w.place(v.crew.doorOf(s.car), s.car.yaw);
-      if (!w.update(dt, v.crew.nav, v.crew.avoid) && (w.planning || w.walking)) return null;
+      if (w.followPlanned() === 'failed') {
+        w.place(v.crew.doorOf(s.car), s.car.yaw);
+      }
+
+      if (!w.update(dt, v.crew.nav, v.crew.avoid) && (w.planning || w.walking)) {
+        return null;
+      }
+
       w.face(s.car.pos);
       return { at: 'boarding', car: s.car, spot: s.spot, t: 0 };
     },
@@ -85,9 +103,16 @@ export const VALET_JOB = mind<Valet, Job, ValetEvent>({
   boarding: {
     tick: (v, s, dt) => {
       v.walker.update(dt, v.crew.nav);
-      if ((s.t += dt) <= T.boardTime) return null;
+
+      if ((s.t += dt) <= T.boardTime) {
+        return null;
+      }
+
       const drive = v.crew.startDrive(s.car, s.spot);
-      if (drive) return { at: 'driving', car: s.car, spot: s.spot, drive };
+      if (drive) {
+        return { at: 'driving', car: s.car, spot: s.spot, drive };
+      }
+
       v.crew.drop(s.car);
       return returning();
     },
@@ -103,10 +128,18 @@ export const VALET_JOB = mind<Valet, Job, ValetEvent>({
       v.walker.rig.root.visible = true;
     },
     tick: (v, s) => {
-      if (v.crew.driving(s.drive)) return null;
+      if (v.crew.driving(s.drive)) {
+        return null;
+      }
+
       v.badged = s.drive.badged;
-      if (s.drive.parked) v.crew.parked(v, s.car, s.spot);
-      else v.crew.drop(s.car);
+
+      if (s.drive.parked) {
+        v.crew.parked(v, s.car, s.spot);
+      } else {
+        v.crew.drop(s.car);
+      }
+
       return returning();
     },
     on: { carjacked: returning },
@@ -119,18 +152,29 @@ export const VALET_JOB = mind<Valet, Job, ValetEvent>({
     exit: (v) => v.walker.cancelPlan(),
     tick: (v, _s, dt) => {
       const w = v.walker;
-      if (w.followPlanned() === 'failed') w.place(v.home, v.homeYaw);
+      if (w.followPlanned() === 'failed') {
+        w.place(v.home, v.homeYaw);
+      }
+
       if (v.attention.in('facing')) {
         w.stop();
         w.update(dt, v.crew.nav);
         return null;
       }
-      if (w.update(dt, v.crew.nav, v.crew.avoid) || (!w.planning && !w.walking && w.pos.distanceTo(v.home) < HOME_EPS)) {
+
+      if (
+        w.update(dt, v.crew.nav, v.crew.avoid) ||
+        (!w.planning && !w.walking && w.pos.distanceTo(v.home) < HOME_EPS)
+      ) {
         w.face(_ahead.set(v.home.x + Math.sin(v.homeYaw), v.home.y, v.home.z + Math.cos(v.homeYaw)));
         return { at: 'idle' };
       }
+
       // stopped short (a conversation, a replan): head home again
-      if (!w.planning && !w.walking) w.plan(v.crew.walkTo(v, v.home), T.jogPace);
+      if (!w.planning && !w.walking) {
+        w.plan(v.crew.walkTo(v, v.home), T.jogPace);
+      }
+
       return null;
     },
     // a bribe turns him round

@@ -1,4 +1,5 @@
 import { Rng } from '@/engine/core/rng';
+
 import { LIFT, writeElevator } from './elevator-shaft';
 import type { ElevatorStop, Facing, RailDef, V3 } from './level-data';
 import type { LevelWriter } from './level-writer';
@@ -18,17 +19,19 @@ export const DECK = {
 };
 
 /**
- * Ground floor parking: a row along the north wall, one spot in each bay
- * between its columns (x centers), west of the stair and elevator doors, so
- * the lanes from the gates to the ramp stay clear. Spots start this far in
- * from the wall's face (clear of the columns), this wide and deep.
+ * Ground floor parking: a row along the north wall, one spot in each bay between its columns (x centers), west of the
+ * stair and elevator doors, so the lanes from the gates to the ramp stay clear. Spots start this far in from the wall's
+ * face (clear of the columns), this wide and deep.
  */
 const GROUND_SPOTS = { xs: [4.3, 12, 20, 28], z: 1.3, width: 4.8, depth: 6.6 };
 
 /** How many cars are already parked in the deck when the game starts (a range). */
 const START_CARS: [number, number] = [5, 9];
 
-/** Roof furniture stands this far above the roof: the corner banner towers' tops, and the clock tower's shaft (its head sits on that). */
+/**
+ * Roof furniture stands this far above the roof: the corner banner towers' tops, and the clock tower's shaft (its head
+ * sits on that).
+ */
 const ROOF = { banner: 6, clock: 9 };
 
 const BANNERS = [
@@ -40,11 +43,9 @@ const BANNERS = [
 ];
 
 /**
- * Pedestrian stair tower against the north face, between the columns at x 32
- * and 40: switchback flights in two lanes split by a wall, a floor landing at
- * the east end of every level with a door through the parapet (too narrow for
- * a car), and doors at the bottom into the ground floor and out to the
- * sidewalk. Valets come down this way; so can Cody.
+ * Pedestrian stair tower against the north face, between the columns at x 32 and 40: switchback flights in two lanes
+ * split by a wall, a floor landing at the east end of every level with a door through the parapet (too narrow for a
+ * car), and doors at the bottom into the ground floor and out to the sidewalk. Valets come down this way; so can Cody.
  */
 const STAIR = {
   x0: 32.6,
@@ -59,15 +60,17 @@ const STAIR = {
   steps: 9,
   /** Divider between the north (up-going) and south lanes. */
   divider: [-1.8, -1.7] as [number, number],
-  /** Its walls rise this far above each floor (to the roof slab's top when that floor is the top), the roof slab this thick. */
+  /**
+   * Its walls rise this far above each floor (to the roof slab's top when that floor is the top), the roof slab this
+   * thick.
+   */
   above: 2.5,
   roof: 0.3,
 };
 
 /**
- * The basement under the deck's north side: a concrete store room the
- * stairwell's last flight comes down to, through a door in its north wall
- * that lines up with the stair door. Randy Rolsen hangs about in here.
+ * The basement under the deck's north side: a concrete store room the stairwell's last flight comes down to, through a
+ * door in its north wall that lines up with the stair door. Randy Rolsen hangs about in here.
  */
 const BASEMENT = {
   /** Top of its floor slab (a storey below the ground floor). */
@@ -83,32 +86,45 @@ const BASEMENT = {
   randy: [36.6, 2.0] as [number, number],
   randyYaw: 2.6,
   /**
-   * His burning trash can, in his own frame (x to his left, z ahead): an arm
-   * and a roasting stick's length out in front, under the stick's end.
+   * His burning trash can, in his own frame (x to his left, z ahead): an arm and a roasting stick's length out in
+   * front, under the stick's end.
    */
   fire: [0.36, 1.42] as [number, number],
   /** Its lamp hangs this far over the floor. */
   fireLight: 1.5,
 };
 
-/** The stair tower's inside, world x0, z0, x1, z1, for a deck at `origin`: the city leaves its sidewalk out here (the shaft goes down). */
+/**
+ * The stair tower's inside, world x0, z0, x1, z1, for a deck at `origin`: the city leaves its sidewalk out here (the
+ * shaft goes down).
+ */
 export function stairShaft(origin: V3): [number, number, number, number] {
-  return [origin[0] + STAIR.x0 + STAIR.wall, origin[2] + STAIR.z0 + STAIR.wall, origin[0] + STAIR.x1 - STAIR.wall, origin[2]];
+  return [
+    origin[0] + STAIR.x0 + STAIR.wall,
+    origin[2] + STAIR.z0 + STAIR.wall,
+    origin[0] + STAIR.x1 - STAIR.wall,
+    origin[2],
+  ];
 }
 
 /**
- * The elevator, east of the stair tower on the north face (past the ramp
- * lanes, so every level has floor in front of its door): a shaft just outside
- * the deck from a pit under the basement to above the top level, with a door
- * into the basement, the ground floor and each upper level.
+ * The elevator, east of the stair tower on the north face (past the ramp lanes, so every level has floor in front of
+ * its door): a shaft just outside the deck from a pit under the basement to above the top level, with a door into the
+ * basement, the ground floor and each upper level.
  */
 const ELEV = {
-  /** The shaft's inside (the cab's footprint): x0, z0, x1, z1. Its wall on the deck side stands just outside the deck (z -0.3..0). */
+  /**
+   * The shaft's inside (the cab's footprint): x0, z0, x1, z1. Its wall on the deck side stands just outside the deck (z
+   * -0.3..0).
+   */
   shaft: [41.7, -2.6, 44.1, -0.3] as [number, number, number, number],
   door: 1.4,
 };
 
-/** Where the deck's walls stop either side of the elevator: the shaft's width, walls and all (its face is the wall there). */
+/**
+ * Where the deck's walls stop either side of the elevator: the shaft's width, walls and all (its face is the wall
+ * there).
+ */
 const ELEV_GAP: [number, number] = [ELEV.shaft[0] - LIFT.wall, ELEV.shaft[2] + LIFT.wall];
 
 /** The elevator shaft's inside, world x0, z0, x1, z1, for a deck at `origin`: no sidewalk here either. */
@@ -145,6 +161,7 @@ function stairwell(w: LevelWriter, F: readonly number[]): void {
   const shell = (y0: number, y1: number, street: boolean): void => {
     w.box([S.x0, y0, S.z0], [ix0, y1, 0], 'concreteDark');
     w.box([ix1, y0, S.z0], [S.x1, y1, 0], 'concreteDark');
+
     if (street) {
       w.box([S.x0, y0, S.z0], [S.door[0] + 0.1, y1, iz0], 'concreteDark');
       w.box([S.door[1] - 0.1, y0, S.z0], [S.x1, y1, iz0], 'concreteDark');
@@ -153,8 +170,10 @@ function stairwell(w: LevelWriter, F: readonly number[]): void {
     } else {
       w.box([S.x0, y0, S.z0], [S.x1, y1, iz0], 'concreteDark');
     }
+
     w.box([runStart, Math.max(y0, B.floor), S.divider[0]], [runEnd, y1, S.divider[1]], 'concreteDark');
   };
+
   /** Up from floor `lo` to floor `hi`: two switchback flights, a half landing, and this floor's landing and light. */
   const flights = (lo: number, hi: number): void => {
     const rise = (hi - lo) / (2 * (S.steps + 1));
@@ -165,17 +184,21 @@ function stairwell(w: LevelWriter, F: readonly number[]): void {
       const y = lo + rise * i;
       w.box([x1 - S.tread, y - 0.3, iz0], [x1, y, S.divider[0]], 'concrete');
     }
+
     // half landing at the west end
     w.box([ix0, mid - 0.3, iz0], [runStart, mid, 0], 'concrete');
+
     // up the south lane, heading east, to this floor's landing (at street level, the tower's own: the sidewalk stops at its walls)
     for (let i = 1; i <= S.steps; i++) {
       const x0 = runStart + S.tread * (i - 1);
       const y = mid + rise * i;
       w.box([x0, y - 0.3, S.divider[1]], [x0 + S.tread, y, 0], 'concrete');
     }
+
     w.box([runEnd, hi - 0.3, iz0], [ix1, hi, 0], 'concrete');
     w.lamp([(runEnd + ix1) / 2, hi + 2.4, iz0 / 2], 'green', 'ceiling');
   };
+
   // basement to street
   shell(base, (F[0] as number) + S.above, true);
   w.sign([S.x1 + 0.03, 2.6, S.z0 / 2], [2.6, 0.8], 'x+', 'neonPurple', ['STAIRS']);
@@ -184,6 +207,7 @@ function stairwell(w: LevelWriter, F: readonly number[]): void {
   w.lamp([(runEnd + ix1) / 2, B.floor + 2.4, iz0 / 2], 'green', 'ceiling');
   // below street level there's no ground plane in here
   w.data.pits.push({ min: w.p([ix0, base, iz0]), max: w.p([ix1, 0, 0]) });
+
   // each upper level's flights and walls
   for (let k = 1; k < F.length; k++) {
     const lo = F[k - 1] as number;
@@ -191,6 +215,7 @@ function stairwell(w: LevelWriter, F: readonly number[]): void {
     shell(lo + S.above, hi + S.above, false);
     flights(lo, hi);
   }
+
   // the roof over the tower
   const roof = (F[F.length - 1] as number) + S.above;
   w.box([S.x0, roof - S.roof, S.z0], [S.x1, roof, 0], 'roof');
@@ -214,6 +239,7 @@ function basement(w: LevelWriter): void {
   w.box([d1, B.floor, z0], [Math.min(x1, ELEV_GAP[0]), B.ceiling, z0 + t], 'concrete');
   w.box([d0, B.floor + B.doorTop, z0], [d1, B.ceiling, z0 + t], 'concrete');
   w.sign([(d0 + d1) / 2, B.floor + B.doorTop + 0.45, z0 + t + 0.03], [1.9, 0.55], 'z+', 'neonPurple', ['BASEMENT']);
+
   // columns under the ground floor
   for (const [cx, cz] of [
     [30, 6],
@@ -221,6 +247,7 @@ function basement(w: LevelWriter): void {
   ] as const) {
     w.box([cx - 0.4, B.floor, cz - 0.4], [cx + 0.4, B.ceiling, cz + 0.4], 'concreteLight');
   }
+
   // stock: crates along the west wall, a pallet stack in the corner
   w.box([x0 + 0.3, B.floor, 8.6], [x0 + 1.7, B.floor + 1.2, 10], 'wood');
   w.box([x0 + 0.3, B.floor + 1.2, 8.8], [x0 + 1.5, B.floor + 2.2, 9.8], 'wood');
@@ -233,9 +260,12 @@ function basement(w: LevelWriter): void {
     [36, 9, 'green'],
     [41, 3, 'warm'],
   ] as const) {
-    w.box([lx - 0.6, lightY, lz - 0.2], [lx + 0.6, B.ceiling, lz + 0.2], color === 'green' ? 'lampGreen' : 'lampWarm', { solid: false });
+    w.box([lx - 0.6, lightY, lz - 0.2], [lx + 0.6, B.ceiling, lz + 0.2], color === 'green' ? 'lampGreen' : 'lampWarm', {
+      solid: false,
+    });
     w.lamp([lx, lightY, lz], color, 'ceiling');
   }
+
   // no ground plane under the room (its floor slab is the ground)
   w.data.pits.push({
     min: w.p([x0 - t, base, z0]),
@@ -258,10 +288,9 @@ function basement(w: LevelWriter): void {
 }
 
 /**
- * The haunted parking deck: a ground floor fenced in with badge gates on the
- * east side, and upper levels with breakable parapets reached by ramps in
- * alternating lanes, roof furniture (kickers, billboard, banner towers, the
- * clock tower) on top, and a basement under it all.
+ * The haunted parking deck: a ground floor fenced in with badge gates on the east side, and upper levels with breakable
+ * parapets reached by ramps in alternating lanes, roof furniture (kickers, billboard, banner towers, the clock tower)
+ * on top, and a basement under it all.
  */
 export function generateDeck(w: LevelWriter, origin: V3, seed: number): void {
   const rng = new Rng(seed);
@@ -272,6 +301,7 @@ export function generateDeck(w: LevelWriter, origin: V3, seed: number): void {
   const rail = (style: RailDef['style'], a: V3, b: V3, out: [number, number]): void => {
     w.data.rails.push({ style, a: w.p(a), b: w.p(b), out });
   };
+
   /** Top of upper level k's columns (0: the ground). */
   const colTop = (k: number): number => (k === 0 ? 0 : (F[k] as number) + DECK.parapet + 0.2);
 
@@ -292,11 +322,13 @@ export function generateDeck(w: LevelWriter, origin: V3, seed: number): void {
         const pz = along ? (z0 + z1) / 2 : z0 + (z1 - z0) * t;
         w.block(px, 1.6, pz, 0.12, 2.1, 0.12, 'metal', { solid: false });
       }
+
       const mx = (x0 + x1) / 2;
       const mz = (z0 + z1) / 2;
       w.block(mx, 3.55, mz, along ? len : 0.1, 0.1, along ? 0.1 : len, 'metal', { solid: false });
       w.block(mx, 2.6, mz, along ? len : 0.06, 0.06, along ? 0.06 : len, 'metal', { solid: false });
     };
+
     // north wall, with the stairwell's door into the ground floor
     wall(1.6, 0, STAIR.door[0], 0.5);
     wall(STAIR.door[1], 0, ELEV_GAP[0], 0.5);
@@ -319,8 +351,14 @@ export function generateDeck(w: LevelWriter, origin: V3, seed: number): void {
         yaw: 0,
         level: 0,
       });
-      for (const x of [xc - G.width / 2, xc + G.width / 2]) w.box([x - 0.08, F[0], G.z], [x + 0.08, F[0] + 0.03, gz1], 'linePurple', { solid: false });
-      w.box([xc - G.width / 2 + 0.08, F[0], gz1 - 0.16], [xc + G.width / 2 - 0.08, F[0] + 0.03, gz1], 'lineGreen', { solid: false });
+
+      for (const x of [xc - G.width / 2, xc + G.width / 2]) {
+        w.box([x - 0.08, F[0], G.z], [x + 0.08, F[0] + 0.03, gz1], 'linePurple', { solid: false });
+      }
+
+      w.box([xc - G.width / 2 + 0.08, F[0], gz1 - 0.16], [xc + G.width / 2 - 0.08, F[0] + 0.03, gz1], 'lineGreen', {
+        solid: false,
+      });
     }
 
     // the upper levels
@@ -340,7 +378,10 @@ export function generateDeck(w: LevelWriter, origin: V3, seed: number): void {
             [0, 0, ax0, DECK.laneB[1]],
             [ax1, 0, W, DECK.laneB[1]],
           ];
-      for (const [x0, z0, x1, z1] of rects) w.box([x0, fy - T, z0], [x1, fy, z1], 'concrete', { drip: 'bottom' });
+      for (const [x0, z0, x1, z1] of rects) {
+        w.box([x0, fy - T, z0], [x1, fy, z1], 'concrete', { drip: 'bottom' });
+      }
+
       const ry1 = fy + DECK.parapet;
       if (holeA) {
         w.box([ax0, fy, DECK.laneA[0] - 0.4], [ax1, ry1, DECK.laneA[0]], 'concrete', { drip: 'top' });
@@ -370,6 +411,7 @@ export function generateDeck(w: LevelWriter, origin: V3, seed: number): void {
         w.box([x - 0.6, colTop(k - 1), 0], [x + 0.6, colTop(k), 1.2], 'concreteLight');
         w.box([x - 0.6, colTop(k - 1), D - 1.2], [x + 0.6, colTop(k), D], 'concreteLight');
       }
+
       for (const z of [9, 18, 27]) {
         w.box([0, colTop(k - 1), z - 0.6], [1.2, colTop(k), z + 0.6], 'concreteLight');
         w.box([W - 1.2, colTop(k - 1), z - 0.6], [W, colTop(k), z + 0.6], 'concreteLight');
@@ -408,12 +450,14 @@ export function generateDeck(w: LevelWriter, origin: V3, seed: number): void {
           w.box([x0, fy, 0], [x1 + (x1 === 46.2 ? 0.2 : 0), ry1, 0.4], 'concrete', { drip: 'top', breakable: true });
           rail('railing', [x0, ry1, 0.2], [x1, ry1, 0.2], [0, -1]);
         }
+
         w.box([x0, fy, D - 0.4], [x1, ry1, D], 'concrete', {
           drip: 'top',
           breakable: true,
         });
         rail('railing', [x0, ry1, D - 0.2], [x1, ry1, D - 0.2], [0, 1]);
       }
+
       const zs: [number, number][] = [
         [1.6, 8.4],
         [9.6, 17.4],
@@ -436,9 +480,14 @@ export function generateDeck(w: LevelWriter, origin: V3, seed: number): void {
       for (const x of [5, 13, 21, 29, 37, 43]) {
         for (const z of [4, 12, 24, 32]) {
           const inHole = x > ax0 && x < ax1 && (holeA ? z > DECK.laneA[0] : z < DECK.laneB[1]);
-          if (inHole) continue;
+          if (inHole) {
+            continue;
+          }
+
           const green = n++ % 2 === 0;
-          w.box([x - 0.9, ceil, z - 0.25], [x + 0.9, ceil + 0.14, z + 0.25], green ? 'lampGreen' : 'lampPurple', { solid: false });
+          w.box([x - 0.9, ceil, z - 0.25], [x + 0.9, ceil + 0.14, z + 0.25], green ? 'lampGreen' : 'lampPurple', {
+            solid: false,
+          });
           w.lamp([x, ceil, z], green ? 'green' : 'purple', 'ceiling');
         }
       }
@@ -456,18 +505,23 @@ export function generateDeck(w: LevelWriter, origin: V3, seed: number): void {
             level: k,
           });
         }
+
         for (let i = 0; i <= 5; i++) {
           const x = 12 + i * 4.8;
           w.box([x - 0.08, fy, zc - 3.3], [x + 0.08, fy + 0.03, zc + 3.3], 'linePurple', { solid: false });
         }
       }
+
       w.box([12, fy, 16.52], [36, fy + 0.03, 16.68], 'lineGreen', {
         solid: false,
       });
       w.box([12, fy, 19.32], [36, fy + 0.03, 19.48], 'lineGreen', {
         solid: false,
       });
-      for (let p = 0; p < 3; p++) w.puddle([rng.range(4, 44), fy + 0.02, rng.range(9, 27)], rng.range(1.2, 2.6));
+
+      for (let p = 0; p < 3; p++) {
+        w.puddle([rng.range(4, 44), fy + 0.02, rng.range(9, 27)], rng.range(1.2, 2.6));
+      }
 
       // its level sign on the east and south faces
       const label = ['LEVEL', String(k + 1)];
@@ -500,8 +554,11 @@ export function generateDeck(w: LevelWriter, origin: V3, seed: number): void {
           ['z+', tx, tz + 1.62],
           ['z-', tx, tz - 1.62],
         ];
-        for (const [f, fx, fz] of faces) w.sign([fx, tall / 2, fz], [2.5, 7.2], f, 'banner', BANNERS[b++ % BANNERS.length] ?? []);
+        for (const [f, fx, fz] of faces) {
+          w.sign([fx, tall / 2, fz], [2.5, 7.2], f, 'banner', BANNERS[b++ % BANNERS.length] ?? []);
+        }
       }
+
       // clock tower (front corner)
       const cx = W;
       const cz = D;
@@ -521,12 +578,14 @@ export function generateDeck(w: LevelWriter, origin: V3, seed: number): void {
         ['z+', cx, cz + off],
         ['z-', cx, cz - off],
       ];
-      for (const [f, fx, fz] of clocks)
+      for (const [f, fx, fz] of clocks) {
         w.data.clocks.push({
           pos: w.p([fx, c0 + 2.5, fz]),
           facing: f,
           size: 4.2,
         });
+      }
+
       // billboard
       w.box([17.6, R, 1.6], [18.4, R + 3.4, 2.1], 'metal');
       w.box([29.6, R, 1.6], [30.4, R + 3.4, 2.1], 'metal');
@@ -534,7 +593,11 @@ export function generateDeck(w: LevelWriter, origin: V3, seed: number): void {
         solid: false,
         drip: 'top',
       });
-      w.sign([24, R + 6.7, 2.05], [16.4, 6.4], 'z+', 'billboard', ['30', 'PHANTOM CODYS', 'SAME TRUCKS. DIFFERENT DIMENSION.']);
+      w.sign([24, R + 6.7, 2.05], [16.4, 6.4], 'z+', 'billboard', [
+        '30',
+        'PHANTOM CODYS',
+        'SAME TRUCKS. DIFFERENT DIMENSION.',
+      ]);
       // kickers
       w.ramp([38, R, 14], [44.5, R + 1.8, 20], 'x', 1, R, 'concrete', true);
       w.ramp([3.5, R, 15], [10, R + 1.8, 21], 'x', -1, R, 'concrete', true);
@@ -585,7 +648,9 @@ export function generateDeck(w: LevelWriter, origin: V3, seed: number): void {
     const spots = w.data.spots.slice(firstSpot);
     for (let i = rng.int(...START_CARS); i > 0 && spots.length; i--) {
       const [s] = spots.splice(rng.int(0, spots.length - 1), 1);
-      if (s) w.data.parked.push({ pos: s.center, yaw: s.yaw });
+      if (s) {
+        w.data.parked.push({ pos: s.center, yaw: s.yaw });
+      }
     }
 
     const roofMax = (F[top] as number) + ROOF.clock;

@@ -1,27 +1,47 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+
 import { Vector3 } from 'three';
+
 import { loadModules } from './modules.mjs';
 
-const [{ Shop }, { Wares }, { Inventory }] = await loadModules('/src/game/randy/shop.ts', '/src/game/randy/wares.ts', '/src/game/items/inventory.ts');
+const [{ Shop }, { Wares }, { Inventory }] = await loadModules(
+  '/src/game/randy/shop.ts',
+  '/src/game/randy/wares.ts',
+  '/src/game/items/inventory.ts',
+);
 
 function setup() {
   let pitch = 'pitching';
   const randy = {
-    pos: new Vector3(), fire: {},
+    pos: new Vector3(),
+    fire: {},
     pitch: { in: (state) => pitch === state },
-    send: ({ type }) => { pitch = type === 'browse' ? 'browsing' : 'resting'; },
+    send: ({ type }) => {
+      pitch = type === 'browse' ? 'browsing' : 'resting';
+    },
   };
   const wares = new Wares();
   const inventory = new Inventory();
-  const money = { cash: 100, spend: (cost) => {
-    if (money.cash < cost) return false;
-    money.cash -= cost;
-    return true;
-  } };
+  const money = {
+    cash: 100,
+    spend: (cost) => {
+      if (money.cash < cost) {
+        return false;
+      }
+
+      money.cash -= cost;
+      return true;
+    },
+  };
   const deeds = [];
   const shop = new Shop({ list: [randy] }, wares, inventory, money, (deed) => {
-    deeds.push({ deed, cash: money.cash, inventory: inventory.count(deed.kind), stock: wares.slotOf(deed.kind)?.count ?? 0 });
+    deeds.push({
+      deed,
+      cash: money.cash,
+      inventory: inventory.count(deed.kind),
+      stock: wares.slotOf(deed.kind)?.count ?? 0,
+    });
   });
   return { shop, wares, inventory, money, deeds, randy };
 }
@@ -88,7 +108,11 @@ test('invalid purchase requests and a scene taking Randy cannot move stock', () 
   const { shop, wares, inventory, randy, deeds } = setup();
   const slot = wares.slotOf('brisket');
   shop.update(new Vector3(1, 0, 0));
-  for (const n of [0, -1, 0.5, NaN, Infinity]) assert.equal(shop.buy(slot.id, n), null);
+
+  for (const n of [0, -1, 0.5, NaN, Infinity]) {
+    assert.equal(shop.buy(slot.id, n), null);
+  }
+
   assert.equal(shop.buy('missing', 1), null);
   randy.send({ type: 'held' });
   assert.equal(shop.buy(slot.id, 1), null, 'the old browsing state must not authorize a purchase');

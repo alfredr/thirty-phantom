@@ -1,33 +1,41 @@
 import { type Mesh, type Object3D, Raycaster, Vector3 } from 'three';
-import { TUNING } from '@/config';
+
 import type { Vehicle } from '@/actors/vehicle';
+import { TUNING } from '@/config';
 import { type EventOf, Mind, mind, type MindEvent, type State, type StateOf } from '@/engine/sim/mind';
 import { el } from '@/engine/ui/dom';
+import { type CodyAction, ScriptedOffer } from '@/game/cody/cody-actions';
+import { type Crossing, type Garage, spotLabel, type SpotRuntime } from '@/game/deck/garage';
+import type { CamMode, Cutscene, Game } from '@/game/game';
+import { GameClock } from '@/game/game-clock';
+import type { Npc } from '@/game/randy/npcs';
 import { ISO_ELEVATION } from '@/render/iso-camera';
 import { Dialogue, type DialogueLine } from '@/ui/dialogue';
 import type { Phone } from '@/ui/phone/phone';
 import { Signpost } from '@/ui/signpost';
 import { wantsTouch } from '@/ui/touch-controls';
 import type { LevelData, RampDef } from '@/world/level-data';
-import { type CodyAction, ScriptedOffer } from '@/game/cody/cody-actions';
-import type { CamMode, Cutscene, Game } from '@/game/game';
-import { type Crossing, type Garage, spotLabel, type SpotRuntime } from '@/game/deck/garage';
-import { GameClock } from '@/game/game-clock';
-import type { Npc } from '@/game/randy/npcs';
+
 import type { Objective } from './objectives';
 
 /** Remembered once the tutorial's been through its jump, or skipped. */
 const DONE_KEY = '30pc.tutorial';
-/** The roof chat starts at half past five (game hours), leaving an hour and a half of daylight after it to look for the badge (the clock waits through the chat). */
+/**
+ * The roof chat starts at half past five (game hours), leaving an hour and a half of daylight after it to look for the
+ * badge (the clock waits through the chat).
+ */
 const START_HOUR = 17.5;
-/** At moonrise Randy's gone in a puff of smoke: this long after (s) he rings to say sorry, and this long after the call his text sends Cody back to the pickup. */
+/**
+ * At moonrise Randy's gone in a puff of smoke: this long after (s) he rings to say sorry, and this long after the call
+ * his text sends Cody back to the pickup.
+ */
 const SORRY_AFTER = 3;
 const TEXT_AFTER = 3;
 /**
- * The pickup's roof spot: pulled out of it, at least MIN_RUN (m) to the roof kicker, ideally
- * RUN_UP. Randy stands in the aisle off its nose, this far ahead (m past the spot's front) and
- * to the driver's side; the badge lands this far past the deck's edge (out in the street: from
- * well in on the roof, a landing much closer in takes a sky-high lob to clear the parapet).
+ * The pickup's roof spot: pulled out of it, at least MIN_RUN (m) to the roof kicker, ideally RUN_UP. Randy stands in
+ * the aisle off its nose, this far ahead (m past the spot's front) and to the driver's side; the badge lands this far
+ * past the deck's edge (out in the street: from well in on the roof, a landing much closer in takes a sky-high lob to
+ * clear the parapet).
  */
 const MIN_RUN = 9;
 const RUN_UP = 14;
@@ -38,16 +46,25 @@ const TOSS_PAST = 12;
 const TALK_HEIGHT = 1.2;
 const TALK_ZOOM = 12;
 const TALK_DELAY = 1;
-/** Randy's throw: the camera follows the badge out this far (iso zoom), then holds on where it lands this long (s) before going back to the pair. */
+/**
+ * Randy's throw: the camera follows the badge out this far (iso zoom), then holds on where it lands this long (s)
+ * before going back to the pair.
+ */
 const THROW_ZOOM = 24;
 const THROW_HOLD = 1.5;
 /** Seconds the slime and ghosts take to ooze in at the first moonrise. */
 const EMERGE = 3;
-/** After the jump: the truck's idling once it's on its wheels and slower than IDLE_SPEED (m/s) for IDLE_FOR (s), and then Randy rings; if it never settles, he rings anyway LANDING_MAX (s) after it went over. */
+/**
+ * After the jump: the truck's idling once it's on its wheels and slower than IDLE_SPEED (m/s) for IDLE_FOR (s), and
+ * then Randy rings; if it never settles, he rings anyway LANDING_MAX (s) after it went over.
+ */
 const IDLE_SPEED = 0.5;
 const IDLE_FOR = 2;
 const LANDING_MAX = 12;
-/** After the jump, the camera on the first phantom's imprint: once the truck's down (or this long, s), this close (iso zoom), the sign this high over it (m), and up this long at most (s). */
+/**
+ * After the jump, the camera on the first phantom's imprint: once the truck's down (or this long, s), this close (iso
+ * zoom), the sign this high over it (m), and up this long at most (s).
+ */
 const IMPRINT_LAND = 3;
 const IMPRINT_ZOOM = 16;
 const IMPRINT_SIGN = 2.4;
@@ -60,7 +77,10 @@ const RING = 1.6;
 /** Cody talks to Randy this close (m), the basement chat's camera this close (iso zoom). */
 const TALK_REACH = 3.6;
 const BASEMENT_ZOOM = 10;
-/** Into the joyride, seconds before Randy points out the camera keys (keyboards only), and the ghosts (if the truck hasn't swallowed one yet). */
+/**
+ * Into the joyride, seconds before Randy points out the camera keys (keyboards only), and the ghosts (if the truck
+ * hasn't swallowed one yet).
+ */
 const CAMERA_HINT = 5;
 const GHOST_HINT = 14;
 /** Randy, when Cody turns up in the basement without tires (the goal stays till he brings some). */
@@ -83,7 +103,10 @@ const LESSON = 9;
 const SPOOK_WAIT = 45;
 /** Seconds after the last text before the phone goes away. */
 const DONE_WAIT = 9;
-/** The opening's objective markers: back in the pickup when the moon's up (primary), and the badge Randy threw (optional, from when Cody's out till he's back in). */
+/**
+ * The opening's objective markers: back in the pickup when the moon's up (primary), and the badge Randy threw
+ * (optional, from when Cody's out till he's back in).
+ */
 const TRUCK_MARK = 'tutorial-truck';
 const BADGE_MARK = 'tutorial-badge';
 /** After his 10pm call: Randy himself, down in the basement (the tires go to him). */
@@ -95,8 +118,8 @@ const _toCamera = new Vector3();
 const _sign = new Vector3();
 
 /**
- * The tutorial's steps, in story order (roof conversation, first escape, basement visit, then lessons
- * on phantom powers and the daily parking loop), and what each holds while it lasts.
+ * The tutorial's steps, in story order (roof conversation, first escape, basement visit, then lessons on phantom powers
+ * and the daily parking loop), and what each holds while it lasts.
  */
 type TutorialState =
   /** Not running: before it starts, or skipped. */
@@ -120,7 +143,10 @@ type TutorialState =
   /** The camera on the imprint, and its sign. */
   | State<'imprint', { t: number; shown: boolean; imprint: Imprint; release?: () => void }>
   /** The joyride, with its lessons as he gets to them. */
-  | State<'cruise', { t: number; cameras: Set<CamMode> | null; ghast: { hinted: boolean; fed: boolean; burned: boolean } }>
+  | State<
+      'cruise',
+      { t: number; cameras: Set<CamMode> | null; ghast: { hinted: boolean; fed: boolean; burned: boolean } }
+    >
   /** Ten o'clock: Randy calls. */
   | State<'call', { t: number; talking: boolean }>
   | State<'basement', { quiet?: boolean }>
@@ -186,34 +212,108 @@ type TutorialEvent =
   /** The imprint's sign was dismissed. */
   | MindEvent<'signed'>;
 
-/** The story, roof to Randy's lessons: eating brisket doesn't send Cody to sleep till it's over (it does outside the tutorial). */
-const STORY: ReadonlySet<Step> = new Set<Step>(['scene', 'out', 'gone', 'sorry', 'hangup', 'back', 'jump', 'landing', 'tell', 'imprint', 'cruise', 'call', 'basement', 'noWheels', 'brisket', 'outside', 'rules', 'spook', 'raise']);
+/**
+ * The story, roof to Randy's lessons: eating brisket doesn't send Cody to sleep till it's over (it does outside the
+ * tutorial).
+ */
+const STORY: ReadonlySet<Step> = new Set<Step>([
+  'scene',
+  'out',
+  'gone',
+  'sorry',
+  'hangup',
+  'back',
+  'jump',
+  'landing',
+  'tell',
+  'imprint',
+  'cruise',
+  'call',
+  'basement',
+  'noWheels',
+  'brisket',
+  'outside',
+  'rules',
+  'spook',
+  'raise',
+]);
 
 /** The steps that start with a text or a goal (the rest are scenes, calls and waits). */
-type Texted = Exclude<Step, 'off' | 'scene' | 'out' | 'gone' | 'sorry' | 'hangup' | 'landing' | 'tell' | 'imprint' | 'call' | 'noWheels' | 'brisket' | 'over'>;
+type Texted = Exclude<
+  Step,
+  | 'off'
+  | 'scene'
+  | 'out'
+  | 'gone'
+  | 'sorry'
+  | 'hangup'
+  | 'landing'
+  | 'tell'
+  | 'imprint'
+  | 'call'
+  | 'noWheels'
+  | 'brisket'
+  | 'over'
+>;
 
 /** Sunrise advances the opening story and phantom lessons to the day job. */
 const FIRST_NIGHT: ReadonlySet<Step> = new Set<Step>([...STORY, 'possess', 'escape', 'rest']);
 
-/** Each texted step: the task under the clock (`{action}` becomes that action's key cap), and Randy's text as it starts (null when he's just said it in person). */
+/**
+ * Each texted step: the task under the clock (`{action}` becomes that action's key cap), and Randy's text as it starts
+ * (null when he's just said it in person).
+ */
 const STEPS: Readonly<Record<Texted, { goal: string | null; text: string | null }>> = {
-  back: { goal: '{interact} GET BACK IN THE PICKUP', text: "SEVEN O'CLOCK, KID. NO BADGE? NO PROBLEM. GET BACK IN THE TRUCK." },
-  jump: { goal: '{forward} UP THE RAMP. OFF THE ROOF.', text: 'NO BADGE, NO GATE. PULL OUT, HANG A {turn}, FLOOR IT UP THAT RAMP.' },
+  back: {
+    goal: '{interact} GET BACK IN THE PICKUP',
+    text: "SEVEN O'CLOCK, KID. NO BADGE? NO PROBLEM. GET BACK IN THE TRUCK.",
+  },
+  jump: {
+    goal: '{forward} UP THE RAMP. OFF THE ROOF.',
+    text: 'NO BADGE, NO GATE. PULL OUT, HANG A {turn}, FLOOR IT UP THAT RAMP.',
+  },
   cruise: {
     goal: 'TAKE IT FOR A SPIN',
     text: "HEH. NO SWIPE OUT, NO EXIT ON THE LOG. TRUCK'S YOURS TONIGHT, KID. ENJOY.",
   },
-  basement: { goal: 'FIND TIRES. GIVE THEM TO RANDY.', text: 'BASEMENT. UNDER THE DECK, BY THE STAIRS. AND BRING WHEELS.' },
+  basement: {
+    goal: 'FIND TIRES. GIVE THEM TO RANDY.',
+    text: 'BASEMENT. UNDER THE DECK, BY THE STAIRS. AND BRING WHEELS.',
+  },
   outside: { goal: 'GO BACK OUT INTO THE MOONLIGHT', text: null },
-  rules: { goal: null, text: "BAM. PHANTOM CODY. AT NIGHT YOU CAN'T STEAL CARS. YOU POSSESS 'EM, AND ONLY INSIDE THE HAUNTED DECK." },
-  spook: { goal: 'SPOOK SOMEBODY', text: "PEOPLE SPOOK EASY NOW. SCARE A DRIVER AND THEY'LL BOLT RIGHT INTO THE DECK." },
-  raise: { goal: '{summon} RAISE THE DEAD (TILL SUNRISE)', text: "LONG AS IT'S DARK, YOU CAN RAISE THE DEAD. GO ON. THEY OWE YOU. SUN COMES UP, THEY'RE DUST." },
-  steal: { goal: '{interact} STEAL A CAR', text: "MORNING. DAY JOB NOW: THE DECK NEEDS CARS TO PHANTOM. STREET'S FULL OF 'EM. TAKE ONE." },
-  badge: { goal: 'DRIVE IN THROUGH THE EAST GATE', text: 'BRING IT IN THE EAST GATE. GATE LOGS IT IN. NO BADGE NEEDED FOR THAT PART, HA.' },
-  park: { goal: 'PARK IN A FREE SPOT, {interact} GET OUT', text: 'PARK IT UPSTAIRS AND GET OUT. WHAT YOU LOG IN BY DAY, YOU PHANTOM OUT BY NIGHT.' },
+  rules: {
+    goal: null,
+    text: "BAM. PHANTOM CODY. AT NIGHT YOU CAN'T STEAL CARS. YOU POSSESS 'EM, AND ONLY INSIDE THE HAUNTED DECK.",
+  },
+  spook: {
+    goal: 'SPOOK SOMEBODY',
+    text: "PEOPLE SPOOK EASY NOW. SCARE A DRIVER AND THEY'LL BOLT RIGHT INTO THE DECK.",
+  },
+  raise: {
+    goal: '{summon} RAISE THE DEAD (TILL SUNRISE)',
+    text: "LONG AS IT'S DARK, YOU CAN RAISE THE DEAD. GO ON. THEY OWE YOU. SUN COMES UP, THEY'RE DUST.",
+  },
+  steal: {
+    goal: '{interact} STEAL A CAR',
+    text: "MORNING. DAY JOB NOW: THE DECK NEEDS CARS TO PHANTOM. STREET'S FULL OF 'EM. TAKE ONE.",
+  },
+  badge: {
+    goal: 'DRIVE IN THROUGH THE EAST GATE',
+    text: 'BRING IT IN THE EAST GATE. GATE LOGS IT IN. NO BADGE NEEDED FOR THAT PART, HA.',
+  },
+  park: {
+    goal: 'PARK IN A FREE SPOT, {interact} GET OUT',
+    text: 'PARK IT UPSTAIRS AND GET OUT. WHAT YOU LOG IN BY DAY, YOU PHANTOM OUT BY NIGHT.',
+  },
   tonight: { goal: 'WAIT FOR NIGHT', text: 'GOOD. COME 7, PHANTOM IT OUT.' },
-  possess: { goal: '{interact} POSSESS A CAR IN THE DECK', text: 'ANY CAR PARKED IN THE DECK. POSSESS IT, THEN GET IT OUT. NOT THROUGH THE GATE.' },
-  escape: { goal: 'GET IT OUT. NOT THROUGH THE GATE', text: 'NOW GET IT OUT. NOT THE GATE. WALLS BREAK. KICKERS JUMP.' },
+  possess: {
+    goal: '{interact} POSSESS A CAR IN THE DECK',
+    text: 'ANY CAR PARKED IN THE DECK. POSSESS IT, THEN GET IT OUT. NOT THROUGH THE GATE.',
+  },
+  escape: {
+    goal: 'GET IT OUT. NOT THROUGH THE GATE',
+    text: 'NOW GET IT OUT. NOT THE GATE. WALLS BREAK. KICKERS JUMP.',
+  },
   rest: { goal: null, text: "THAT'S ANOTHER ONE. KEEP 'EM COMING TILL SUNRISE." },
   done: {
     goal: null,
@@ -241,14 +341,11 @@ interface Stage {
 const nightJob = (): StateOf<TutorialState, 'possess'> => ({ at: 'possess', quiet: false });
 
 /**
- * Runs the first-game tutorial through dialogue, cutscenes, objectives, and
- * phone messages. Starts on the roof at 5:30 PM. Completing the first jump
- * or skipping the tutorial is remembered; the title screen offers a replay.
- * Its steps are a mind (`steps`): each lists the events it waits on and
- * returns the step that follows, says what it does each frame and as it
- * starts, and holds what it needs while it lasts. The goal under the clock and
- * the markers come from whichever step it's in (goalOf, marksOf), and each
- * move is announced as a `step` game event.
+ * Runs the first-game tutorial through dialogue, cutscenes, objectives, and phone messages. Starts on the roof at 5:30
+ * PM. Completing the first jump or skipping the tutorial is remembered; the title screen offers a replay. Its steps are
+ * a mind (`steps`): each lists the events it waits on and returns the step that follows, says what it does each frame
+ * and as it starts, and holds what it needs while it lasts. The goal under the clock and the markers come from
+ * whichever step it's in (goalOf, marksOf), and each move is announced as a `step` game event.
  */
 export class Tutorial {
   /** Run it on the next start. */
@@ -288,11 +385,16 @@ export class Tutorial {
       },
       tick: (t, s, dt) => {
         s.t += dt;
-        if (t.throwCam !== null) t.followThrow(s, dt);
+
+        if (t.throwCam !== null) {
+          t.followThrow(s, dt);
+        }
+
         if (s.t > TALK_DELAY && !s.talking && !t.dialogue.open) {
           s.talking = true;
           t.play('script', t.script());
         }
+
         return null;
       },
       on: {
@@ -319,6 +421,7 @@ export class Tutorial {
           s.talking = true;
           t.play('sorry', t.sorry());
         }
+
         return null;
       },
       on: {
@@ -339,14 +442,21 @@ export class Tutorial {
       tick: (t) => {
         // off the kicker: the board drops in, in time to count him
         const v = t.truck;
-        if (v && t.stage && !v.grounded && v.pos.y > t.stage.truck.y + 0.5) t.game.hud.showLedger(true);
+        if (v && t.stage && !v.grounded && v.pos.y > t.stage.truck.y + 0.5) {
+          t.game.hud.showLedger(true);
+        }
+
         return null;
       },
       on: {
         crossing: (t, _s, { crossing }) => {
           // off the roof and out: the board drops in and counts him (Cody's still Cody till the brisket)
-          if (crossing.kind === 'escaped') t.game.hud.showLedger(true);
-          else if (crossing.kind === 'logged-out') t.text('NOT THE GATE, KID. THE GATE SAW THAT. SNEAK IT BACK IN AND GO OFF A KICKER.');
+          if (crossing.kind === 'escaped') {
+            t.game.hud.showLedger(true);
+          } else if (crossing.kind === 'logged-out') {
+            t.text('NOT THE GATE, KID. THE GATE SAW THAT. SNEAK IT BACK IN AND GO OFF A KICKER.');
+          }
+
           return null;
         },
         // let it come down and idle; then Randy rings about it, and only then the camera goes back up
@@ -370,9 +480,13 @@ export class Tutorial {
           s.talking = true;
           t.play('tell', TELL);
         }
+
         return null;
       },
-      on: { talked: (_t, s, { which }) => (which === 'tell' ? { at: 'imprint', t: 0, shown: false, imprint: s.imprint } : null) },
+      on: {
+        talked: (_t, s, { which }) =>
+          which === 'tell' ? { at: 'imprint', t: 0, shown: false, imprint: s.imprint } : null,
+      },
     },
     imprint: {
       exit: (_t, s) => s.release?.(),
@@ -381,7 +495,9 @@ export class Tutorial {
         t.showImprint(s);
         return null;
       },
-      on: { signed: () => ({ at: 'cruise', t: 0, cameras: null, ghast: { hinted: false, fed: false, burned: false } }) },
+      on: {
+        signed: () => ({ at: 'cruise', t: 0, cameras: null, ghast: { hinted: false, fed: false, burned: false } }),
+      },
     },
     cruise: {
       enter: (t) => t.arrive('cruise'),
@@ -397,26 +513,40 @@ export class Tutorial {
         } else if (!g.clock.isDay && g.clock.hours >= CALL_HOUR) {
           return { at: 'call', t: 0, talking: false };
         }
+
         return null;
       },
       on: {
         // the joyride: ghosts in the tank, then burn it
         swallowed: (t, s) => {
-          if (s.ghast.fed) return null;
+          if (s.ghast.fed) {
+            return null;
+          }
+
           s.ghast.fed = true;
           t.text(`FEEL THAT? GHOSTS IN THE TANK. THAT'S ${GHAST}. HOLD {boost} TO BURN IT.`);
           return null;
         },
         boosted: (t, s) => {
-          if (!s.ghast.fed || s.ghast.burned) return null;
+          if (!s.ghast.fed || s.ghast.burned) {
+            return null;
+          }
+
           s.ghast.burned = true;
           t.text('HA! SOUL POWER.');
           return null;
         },
         camera: (t, s, { mode }) => {
-          if (!s.cameras || s.cameras.size >= CAMERA_MODES) return null;
+          if (!s.cameras || s.cameras.size >= CAMERA_MODES) {
+            return null;
+          }
+
           s.cameras.add(mode);
-          if (s.cameras.size >= CAMERA_MODES) t.text('THERE YOU GO. PICK ONE YOU LIKE.');
+
+          if (s.cameras.size >= CAMERA_MODES) {
+            t.text('THERE YOU GO. PICK ONE YOU LIKE.');
+          }
+
           return null;
         },
       },
@@ -429,6 +559,7 @@ export class Tutorial {
           s.talking = true;
           t.play('call', t.call());
         }
+
         return null;
       },
       on: { talked: (_t, _s, { which }) => (which === 'call' ? { at: 'basement' } : null) },
@@ -453,7 +584,10 @@ export class Tutorial {
       enter: (t) => t.arrive('outside'),
       tick: (t) => {
         const g = t.game;
-        if (!g.player.visible || g.garage.inFootprint(g.player.pos) || g.player.pos.y <= -1) return null;
+        if (!g.player.visible || g.garage.inFootprint(g.player.pos) || g.player.pos.y <= -1) {
+          return null;
+        }
+
         // out under the moon: bam
         t.releaseCody();
         g.hud.toast('BAM.', 'PHANTOM CODY', '', 2.6);
@@ -484,8 +618,14 @@ export class Tutorial {
       enter: (t) => t.arrive('escape'),
       on: {
         crossing: (t, _s, { crossing }) => {
-          if (crossing.kind === 'escaped') return t.game.clock.day === 1 ? { at: 'rest' } : { at: 'done', t: 0 };
-          if (crossing.kind !== 'logged-out' || crossing.vehicle.form !== 'truck') return null;
+          if (crossing.kind === 'escaped') {
+            return t.game.clock.day === 1 ? { at: 'rest' } : { at: 'done', t: 0 };
+          }
+
+          if (crossing.kind !== 'logged-out' || crossing.vehicle.form !== 'truck') {
+            return null;
+          }
+
           t.text('NOT THE GATE, KID. THE GATE SEES EVERYTHING. GRAB ANOTHER ONE.');
           return { at: 'possess', quiet: true };
         },
@@ -505,8 +645,14 @@ export class Tutorial {
       enter: (t) => t.arrive('badge'),
       on: {
         crossing: (t, _s, { crossing }) => {
-          if (crossing.kind === 'logged-in') return { at: 'park' };
-          if (crossing.kind === 'snuck-in') t.text('NO GATE? CUTE. THE GATE IS HOW IT COUNTS. BACK OUT, COME IN THE EAST GATE.');
+          if (crossing.kind === 'logged-in') {
+            return { at: 'park' };
+          }
+
+          if (crossing.kind === 'snuck-in') {
+            t.text('NO GATE? CUTE. THE GATE IS HOW IT COUNTS. BACK OUT, COME IN THE EAST GATE.');
+          }
+
           return null;
         },
         nightfall: nightJob,
@@ -523,7 +669,10 @@ export class Tutorial {
     done: {
       enter: (t) => t.arrive('done'),
       tick: (_t, s, dt) => {
-        if ((s.t += dt) <= DONE_WAIT) return null;
+        if ((s.t += dt) <= DONE_WAIT) {
+          return null;
+        }
+
         return { at: 'over' };
       },
     },
@@ -543,23 +692,31 @@ export class Tutorial {
   ) {
     this.dialogue = new Dialogue({ left: 'RANDY ROLSEN', right: 'CODY' }, game.input.focus);
     this.sign = new Signpost(game.hud.root, game.input.focus);
-    this.quest = new Mind<Tutorial, TutorialState, TutorialEvent>(this.steps, this, { at: 'off' }, {
-      on: {
-        // morning, however far the night got: back to the game's own rules, and the day job
-        sunrise: (_t, s) => (FIRST_NIGHT.has(s.at) ? { at: 'steal' } : null),
+    this.quest = new Mind<Tutorial, TutorialState, TutorialEvent>(
+      this.steps,
+      this,
+      { at: 'off' },
+      {
+        on: {
+          // morning, however far the night got: back to the game's own rules, and the day job
+          sunrise: (_t, s) => (FIRST_NIGHT.has(s.at) ? { at: 'steal' } : null),
+        },
+        moved: (t, _from, to) => {
+          t.applyRules(to.at);
+          t.show();
+          t.game.events.emit('step', { quest: 'tutorial', step: to.at });
+        },
       },
-      moved: (t, _from, to) => {
-        t.applyRules(to.at);
-        t.show();
-        t.game.events.emit('step', { quest: 'tutorial', step: to.at });
-      },
-    });
+    );
     this.titleLink();
     game.addOffer(() => this.randyOffer());
     const ev = game.events;
     const send = (event: TutorialEvent): void => {
-      if (this.active) this.quest.send(event);
+      if (this.active) {
+        this.quest.send(event);
+      }
     };
+
     ev.on('start', () => this.begin());
     ev.on('frame', (dt) => this.frame(dt));
     ev.on('entered', ({ v, possessed }) => send({ type: 'entered', v, possessed }));
@@ -590,11 +747,17 @@ export class Tutorial {
   /** On the title: skip it the first time, replay it after. Clicking also starts the game. */
   private titleLink(): void {
     const title = document.querySelector<HTMLElement>('.hud-title');
-    if (!title) return;
+    if (!title) {
+      return;
+    }
+
     const link = el('div', 'title-tut', title, this.wanted ? 'SKIP TUTORIAL' : 'REPLAY TUTORIAL');
     link.addEventListener('click', () => {
       this.wanted = !this.wanted;
-      if (!this.wanted) remember(DONE_KEY);
+
+      if (!this.wanted) {
+        remember(DONE_KEY);
+      }
     });
   }
 
@@ -603,9 +766,18 @@ export class Tutorial {
     const g = this.game;
     this.randy = g.npcs.find('randy');
     this.stage = stageOn(this.level, g.garage, (x, z) => g.world.collision.groundAt(x, z, 2, 0));
-    if (!this.wanted || !this.randy || !this.stage) return;
+
+    if (!this.wanted || !this.randy || !this.stage) {
+      return;
+    }
+
     this.active = true;
-    this.settings = { randyTalk: g.randyTalk.enabled, tires: g.tires.enabled, sleepAfterEating: g.sleepAfterEating, keepEscaped: g.keepEscaped };
+    this.settings = {
+      randyTalk: g.randyTalk.enabled,
+      tires: g.tires.enabled,
+      sleepAfterEating: g.sleepAfterEating,
+      keepEscaped: g.keepEscaped,
+    };
     // its own scenes with Randy, till it's done
     g.randyTalk.enabled = false;
     const r = this.randy;
@@ -629,16 +801,28 @@ export class Tutorial {
     this.truck = truck;
     g.npcs.place(r, st.randy, st.randyYaw);
     r.rig.phone.visible = false;
-    this.talkFocus.addVectors(st.window, st.randy).multiplyScalar(0.5).setY(st.randy.y + TALK_HEIGHT);
+    this.talkFocus
+      .addVectors(st.window, st.randy)
+      .multiplyScalar(0.5)
+      .setY(st.randy.y + TALK_HEIGHT);
     // a view of the pair and the pickup's nose that none of the roof's towers stands in front of
     _fwd.set(Math.sin(st.yaw), 0, Math.cos(st.yaw));
     _side.set(_fwd.z, 0, -_fwd.x);
     const sights: Vector3[] = [];
     for (const along of [-2.2, 0, 2.2]) {
       for (const across of [-1, 0, 1]) {
-        for (const up of [0.6, 1.4]) sights.push(st.truck.clone().addScaledVector(_fwd, along).addScaledVector(_side, across).setY(st.truck.y + up));
+        for (const up of [0.6, 1.4]) {
+          sights.push(
+            st.truck
+              .clone()
+              .addScaledVector(_fwd, along)
+              .addScaledVector(_side, across)
+              .setY(st.truck.y + up),
+          );
+        }
       }
     }
+
     sights.push(st.randy.clone().setY(st.randy.y + 1.4), this.talkFocus);
     g.iso.azimuth = g.iso.azimuthTarget = clearView(g.world.root, sights, g.iso.azimuth);
     g.iso.snapTo(this.talkFocus);
@@ -654,7 +838,10 @@ export class Tutorial {
   }
 
   private frame(dt: number): void {
-    if (!this.active) return;
+    if (!this.active) {
+      return;
+    }
+
     this.quest.tick(dt);
     this.show();
   }
@@ -662,7 +849,10 @@ export class Tutorial {
   /** Send the step's text, unless it is a repeat visit. */
   private arrive(step: Texted, say = true): void {
     const s = STEPS[step];
-    if (say && s.text) this.text(s.text);
+    if (say && s.text) {
+      this.text(s.text);
+    }
+
     if (step === 'rules') {
       this.wanted = false;
       remember(DONE_KEY);
@@ -696,14 +886,26 @@ export class Tutorial {
     }
   }
 
-  /** The markers up in step `s`: the badge Randy threw (optional) till Cody's back in the pickup or has it, the pickup itself once the moon's up (primary), and Randy in the basement after his call (primary). */
+  /**
+   * The markers up in step `s`: the badge Randy threw (optional) till Cody's back in the pickup or has it, the pickup
+   * itself once the moon's up (primary), and Randy in the basement after his call (primary).
+   */
   private marksOf(s: TutorialState): Objective[] {
     const marks: Objective[] = [];
     const looking = s.at === 'out' || s.at === 'gone' || s.at === 'sorry' || s.at === 'hangup' || s.at === 'back';
     // (the badge on the ground is a copy, lying right where Randy aimed)
-    if (looking && !this.badgeFound && this.stage) marks.push({ id: BADGE_MARK, label: 'YOUR BADGE', kind: 'optional', at: this.stage.toss });
-    if (s.at === 'back' && this.truck) marks.push({ id: TRUCK_MARK, label: 'YOUR PICKUP', kind: 'primary', at: this.truck.pos });
-    if ((s.at === 'basement' || s.at === 'noWheels') && this.randy) marks.push({ id: RANDY_MARK, label: 'RANDY', kind: 'primary', at: this.randy.pos });
+    if (looking && !this.badgeFound && this.stage) {
+      marks.push({ id: BADGE_MARK, label: 'YOUR BADGE', kind: 'optional', at: this.stage.toss });
+    }
+
+    if (s.at === 'back' && this.truck) {
+      marks.push({ id: TRUCK_MARK, label: 'YOUR PICKUP', kind: 'primary', at: this.truck.pos });
+    }
+
+    if ((s.at === 'basement' || s.at === 'noWheels') && this.randy) {
+      marks.push({ id: RANDY_MARK, label: 'RANDY', kind: 'primary', at: this.randy.pos });
+    }
+
     return marks;
   }
 
@@ -725,14 +927,27 @@ export class Tutorial {
     });
   }
 
-  /** Back in the pickup before the jump (possessed: at night it turns round him): straight into the chase cam, lined up on the kicker. */
-  private boardedBeforeJump(from: 'out' | 'gone' | 'sorry' | 'hangup' | 'back', e: EventOf<TutorialEvent, 'entered'>): StateOf<TutorialState, 'jump'> | null {
-    if (!e.possessed) return null;
+  /**
+   * Back in the pickup before the jump (possessed: at night it turns round him): straight into the chase cam, lined up
+   * on the kicker.
+   */
+  private boardedBeforeJump(
+    from: 'out' | 'gone' | 'sorry' | 'hangup' | 'back',
+    e: EventOf<TutorialEvent, 'entered'>,
+  ): StateOf<TutorialState, 'jump'> | null {
+    if (!e.possessed) {
+      return null;
+    }
+
     const g = this.game;
     // the truck he jumps is whichever car he got into, his pickup or another in the deck
     this.truck = e.v;
+
     // (sat in the pickup through 7: it turned round him before the moonrise news, same as getting back in)
-    if (from === 'out') this.moonrise();
+    if (from === 'out') {
+      this.moonrise();
+    }
+
     this.cam = g.cameraMode;
     g.setCamera('chase');
     g.chase.snapBehind(e.v.yaw);
@@ -746,10 +961,13 @@ export class Tutorial {
     const r = this.randy as Npc;
     const npcs = g.npcs;
     const toss = (this.stage as Stage).toss;
-    const coat = (open: boolean, phone = false) => (): void => {
-      r.send({ type: 'flash', open });
-      r.rig.phone.visible = phone;
-    };
+    const coat =
+      (open: boolean, phone = false) =>
+      (): void => {
+        r.send({ type: 'flash', open });
+        r.rig.phone.visible = phone;
+      };
+
     return [
       { who: 'right', say: "COME ON... BADGE WON'T SCAN ME OUT AFTER SEVEN." },
       { who: 'right', say: "I'M GONNA BE STUCK UP HERE ALL NIGHT." },
@@ -795,14 +1013,25 @@ export class Tutorial {
   private followThrow(s: StateOf<TutorialState, 'scene'>, dt: number): void {
     const r = this.randy;
     const st = this.stage;
-    if (this.throwCam === null || !r || !st || !s.camera) return;
+    if (this.throwCam === null || !r || !st || !s.camera) {
+      return;
+    }
+
     this.throwCam -= dt;
+
     // in his hand or in the air; once down, the one on the ground is a copy lying where he aimed
-    if (r.toss) r.rig.badge.getWorldPosition(this.throwFocus);
-    else this.throwFocus.copy(st.toss);
+    if (r.toss) {
+      r.rig.badge.getWorldPosition(this.throwFocus);
+    } else {
+      this.throwFocus.copy(st.toss);
+    }
+
     s.camera.focus = this.throwCam > 0 ? this.throwFocus : this.talkFocus;
     s.camera.zoom = this.throwCam > 0 ? THROW_ZOOM : TALK_ZOOM;
-    if (this.throwCam <= 0) this.throwCam = null;
+
+    if (this.throwCam <= 0) {
+      this.throwCam = null;
+    }
   }
 
   /** 7 o'clock: the slime and ghosts ooze in, and Randy's gone in a puff of smoke, back to his basement. */
@@ -816,20 +1045,32 @@ export class Tutorial {
   }
 
   /**
-   * The first phantom: once the truck's down, the camera goes back up to the roof where the
-   * pickup stood, and a signpost on its imprint says what it is and what it's for.
+   * The first phantom: once the truck's down, the camera goes back up to the roof where the pickup stood, and a
+   * signpost on its imprint says what it is and what it's for.
    */
   private showImprint(s: StateOf<TutorialState, 'imprint'>): void {
     const g = this.game;
     const im = s.imprint;
     _sign.copy(im.at).setY(im.at.y + IMPRINT_SIGN);
+
     if (s.shown) {
-      if (!this.sign.open) return;
+      if (!this.sign.open) {
+        return;
+      }
+
       this.sign.place(g.toScreen(_sign));
-      if (s.t > IMPRINT_HOLD) this.sign.dismiss();
+
+      if (s.t > IMPRINT_HOLD) {
+        this.sign.dismiss();
+      }
+
       return;
     }
-    if (this.truck && !this.truck.grounded && s.t < IMPRINT_LAND) return;
+
+    if (this.truck && !this.truck.grounded && s.t < IMPRINT_LAND) {
+      return;
+    }
+
     this.talkFocus.copy(im.at).setY(im.at.y + IMPRINT_ABOVE);
     const sights = [-2, 0, 2].map((d) => im.at.clone().add(_side.set(d, 1, d * 0.3)));
     g.iso.azimuth = g.iso.azimuthTarget = clearView(g.world.root, sights, g.iso.azimuth);
@@ -848,16 +1089,34 @@ export class Tutorial {
   private randyOffer(): CodyAction | null {
     const g = this.game;
     const r = this.randy;
-    if (!this.quest.in('basement') || !r || this.dialogue.open || !g.player.visible || g.npcs.talkable(g.player.pos, TALK_REACH) !== r) return null;
-    return new ScriptedOffer({ label: 'TALK TO RANDY', start: () => this.quest.go({ at: g.inventory.count('tire') ? 'brisket' : 'noWheels' }) });
+    if (
+      !this.quest.in('basement') ||
+      !r ||
+      this.dialogue.open ||
+      !g.player.visible ||
+      g.npcs.talkable(g.player.pos, TALK_REACH) !== r
+    ) {
+      return null;
+    }
+
+    return new ScriptedOffer({
+      label: 'TALK TO RANDY',
+      start: () => this.quest.go({ at: g.inventory.count('tire') ? 'brisket' : 'noWheels' }),
+    });
   }
 
   /** The basement chat starts: Randy turns to Cody, and the camera closes in on the pair. */
   private sitDown(s: StateOf<TutorialState, 'brisket'>): void {
     const g = this.game;
     const r = this.randy;
-    if (!r) return;
-    this.talkFocus.addVectors(r.pos, g.player.pos).multiplyScalar(0.5).setY(r.pos.y + TALK_HEIGHT);
+    if (!r) {
+      return;
+    }
+
+    this.talkFocus
+      .addVectors(r.pos, g.player.pos)
+      .multiplyScalar(0.5)
+      .setY(r.pos.y + TALK_HEIGHT);
     s.release = this.takeScene({ camera: { focus: this.talkFocus, zoom: BASEMENT_ZOOM }, randyFace: null });
     this.play('brisket', this.brisket(r));
   }
@@ -868,8 +1127,12 @@ export class Tutorial {
     const coat = (open: boolean) => (): void => {
       r.send({ type: 'flash', open });
     };
+
     const lines: DialogueLine[] = [];
-    if (g.inventory.count('tire') > 0) lines.push({ who: 'left', say: 'OHHH. NICE WHEELS.', cue: () => void g.tires.give(r, g.player.pos) });
+    if (g.inventory.count('tire') > 0) {
+      lines.push({ who: 'left', say: 'OHHH. NICE WHEELS.', cue: () => void g.tires.give(r, g.player.pos) });
+    }
+
     lines.push(
       { who: 'left', say: 'SIT. WARM UP. BRISKET?', cue: coat(true) },
       { who: 'right', say: '...FINE. ONE BITE.', cue: coat(false) },
@@ -897,15 +1160,32 @@ export class Tutorial {
     const wares = g.waresShown;
     const r = randyFace !== undefined ? this.randy : null;
     const phone = r?.rig.phone.visible ?? false;
-    if (camera) g.cutscene = camera;
-    if (pauseClock) g.clock.paused = true;
-    if (r) r.send({ type: 'held', face: randyFace ?? null });
+    if (camera) {
+      g.cutscene = camera;
+    }
+
+    if (pauseClock) {
+      g.clock.paused = true;
+    }
+
+    if (r) {
+      r.send({ type: 'held', face: randyFace ?? null });
+    }
+
     return () => {
       this.dialogue.cancel();
       this.sign.cancel();
-      if (camera && g.cutscene === camera) g.cutscene = previousCamera;
-      if (pauseClock) g.clock.paused = paused;
+
+      if (camera && g.cutscene === camera) {
+        g.cutscene = previousCamera;
+      }
+
+      if (pauseClock) {
+        g.clock.paused = paused;
+      }
+
       g.waresShown = wares;
+
       if (r) {
         r.send({ type: 'released' });
         r.rig.phone.visible = phone;
@@ -919,7 +1199,10 @@ export class Tutorial {
   }
 
   private releaseCody(): void {
-    if (!this.holdingCody) return;
+    if (!this.holdingCody) {
+      return;
+    }
+
     this.holdingCody = false;
     this.game.cody.release();
     this.game.transformCody();
@@ -927,7 +1210,10 @@ export class Tutorial {
 
   /** These overrides follow the state, including steps that have no opening text. */
   private applyRules(step: Step): void {
-    if (!this.settings) return;
+    if (!this.settings) {
+      return;
+    }
+
     this.game.tires.enabled = this.settings.tires && step !== 'basement' && step !== 'noWheels' && step !== 'brisket';
     this.game.sleepAfterEating = this.settings.sleepAfterEating && !STORY.has(step);
   }
@@ -937,25 +1223,36 @@ export class Tutorial {
     this.phone.close();
     this.badgeGot?.();
     this.badgeGot = null;
+
     if (this.settings) {
       this.game.randyTalk.enabled = this.settings.randyTalk;
       this.game.tires.enabled = this.settings.tires;
       this.game.sleepAfterEating = this.settings.sleepAfterEating;
       this.settings = null;
     }
+
     this.active = false;
   }
 
   /** The joyride's task right now: burning the GhASt he's got, trying the cameras, or just driving. */
   private cruiseGoal(s: StateOf<TutorialState, 'cruise'>): string | null {
-    if (s.ghast.fed && !s.ghast.burned) return `{boost} BURN THE ${GHAST}`;
-    if (s.cameras && s.cameras.size < CAMERA_MODES) return `{camera} TRY THE CAMERAS (${s.cameras.size}/${CAMERA_MODES})`;
+    if (s.ghast.fed && !s.ghast.burned) {
+      return `{boost} BURN THE ${GHAST}`;
+    }
+
+    if (s.cameras && s.cameras.size < CAMERA_MODES) {
+      return `{camera} TRY THE CAMERAS (${s.cameras.size}/${CAMERA_MODES})`;
+    }
+
     return STEPS.cruise.goal;
   }
 
   /** The camera Cody had before the jump, back to him (unless he's picked one since). */
   private giveCamera(): void {
-    if (this.cam === null) return;
+    if (this.cam === null) {
+      return;
+    }
+
     this.game.setCamera(this.cam);
     this.cam = null;
   }
@@ -980,11 +1277,10 @@ export class Tutorial {
 }
 
 /**
- * The opening's places: the roof kicker nearest the exit gate (over it, not through it), and the
- * free roof spot that pulls out onto its run-up, a turn and RUN_UP (m) or so from it. Randy stands
- * in the aisle off the pickup's nose on the driver's side (the side Cody gets out on), turned so
- * his fire's clear of the car and the window's in sight; the badge lands on the street past the
- * deck edge nearest him. `ground` is the street's height.
+ * The opening's places: the roof kicker nearest the exit gate (over it, not through it), and the free roof spot that
+ * pulls out onto its run-up, a turn and RUN_UP (m) or so from it. Randy stands in the aisle off the pickup's nose on
+ * the driver's side (the side Cody gets out on), turned so his fire's clear of the car and the window's in sight; the
+ * badge lands on the street past the deck edge nearest him. `ground` is the street's height.
  */
 export function stageOn(level: LevelData, garage: Garage, ground: (x: number, z: number) => number): Stage | null {
   const exit = level.gates.find((g) => g.kind === 'exit');
@@ -997,14 +1293,21 @@ export function stageOn(level: LevelData, garage: Garage, ground: (x: number, z:
   let kicker: RampDef | null = null;
   let best = Infinity;
   for (const r of kickers) {
-    if (r.low < roof - 0.5) continue;
+    if (r.low < roof - 0.5) {
+      continue;
+    }
+
     const d = Math.hypot((r.min[0] + r.max[0]) / 2 - ex, (r.min[2] + r.max[2]) / 2 - ez);
     if (d < best) {
       best = d;
       kicker = r;
     }
   }
-  if (!kicker) return null;
+
+  if (!kicker) {
+    return null;
+  }
+
   const k = kicker;
   // it launches along its axis from the low edge; the run-up lies across its width
   const ax = k.axis === 'x' ? 0 : 2;
@@ -1012,17 +1315,31 @@ export function stageOn(level: LevelData, garage: Garage, ground: (x: number, z:
   const low = k.dir > 0 ? k.min[ax] : k.max[ax];
   let spot: SpotRuntime | null = null;
   best = Infinity;
+
   for (const s of garage.spots) {
-    if (Math.abs(s.center.y - k.low) > 0.6 || !garage.isFree(s)) continue;
+    if (Math.abs(s.center.y - k.low) > 0.6 || !garage.isFree(s)) {
+      continue;
+    }
+
     // pulled out: just past the spot's front, and that has to be in the kicker's lane
     const reach = Math.max(...s.def.size) / 2 + 1.5;
     const out = [s.center.x + Math.sin(s.def.yaw) * reach, s.center.z + Math.cos(s.def.yaw) * reach];
     const side = out[across === 0 ? 0 : 1] as number;
-    if (side < k.min[across] - 1 || side > k.max[across] + 1) continue;
+    if (side < k.min[across] - 1 || side > k.max[across] + 1) {
+      continue;
+    }
+
     const run = (low - (out[ax === 0 ? 0 : 1] as number)) * k.dir;
-    if (run < MIN_RUN) continue;
+    if (run < MIN_RUN) {
+      continue;
+    }
+
     // Cody gets out on the driver's side: a car parked there would be the nearer one to get back into
-    const door = new Vector3(s.center.x - Math.cos(s.def.yaw) * 2.6, s.center.y, s.center.z + Math.sin(s.def.yaw) * 2.6);
+    const door = new Vector3(
+      s.center.x - Math.cos(s.def.yaw) * 2.6,
+      s.center.y,
+      s.center.z + Math.sin(s.def.yaw) * 2.6,
+    );
     const crowded = garage.spots.some((o) => o !== s && o.occupant && o.center.distanceTo(door) < 1.5);
     const score = Math.abs(run - RUN_UP) + (crowded ? 100 : 0);
     if (score < best) {
@@ -1030,7 +1347,11 @@ export function stageOn(level: LevelData, garage: Garage, ground: (x: number, z:
       spot = s;
     }
   }
-  if (!spot) return null;
+
+  if (!spot) {
+    return null;
+  }
+
   const yaw = spot.def.yaw;
   const truck = spot.center.clone();
   const fx = Math.sin(yaw);
@@ -1061,14 +1382,16 @@ export function stageOn(level: LevelData, garage: Garage, ground: (x: number, z:
 }
 
 /**
- * Of the four iso views from `azimuth` round, the first that sees all of `sights` (the roof's
- * towers, clocks and lamps stand in front of some), else the one that sees most. Rays go against
- * what's drawn, so lamps and other things with no collision count too.
+ * Of the four iso views from `azimuth` round, the first that sees all of `sights` (the roof's towers, clocks and lamps
+ * stand in front of some), else the one that sees most. Rays go against what's drawn, so lamps and other things with no
+ * collision count too.
  */
 function clearView(root: Object3D, sights: readonly Vector3[], azimuth: number): number {
   const meshes: Object3D[] = [];
   root.traverseVisible((o) => {
-    if ((o as Mesh).isMesh && o.layers.isEnabled(0)) meshes.push(o);
+    if ((o as Mesh).isMesh && o.layers.isEnabled(0)) {
+      meshes.push(o);
+    }
   });
   const ray = new Raycaster();
   ray.far = 80;
@@ -1081,13 +1404,18 @@ function clearView(root: Object3D, sights: readonly Vector3[], azimuth: number):
     let hidden = 0;
     for (const p of sights) {
       ray.set(p, _toCamera);
-      if (ray.intersectObjects(meshes, false).length) hidden++;
+
+      if (ray.intersectObjects(meshes, false).length) {
+        hidden++;
+      }
     }
+
     if (hidden < fewest) {
       fewest = hidden;
       best = a;
     }
   }
+
   return best;
 }
 

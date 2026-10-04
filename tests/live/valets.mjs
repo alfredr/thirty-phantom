@@ -7,28 +7,50 @@ export function parksAndComesBack() {
   g.start();
   sim.run(120);
   const valet = g.valet.crew.find((v) => v.state === 'idle');
-  if (!valet) return { ok: false, why: 'no idle valet' };
+  if (!valet) {
+    return { ok: false, why: 'no idle valet' };
+  }
+
   const car = g.vehicles
     .filter((v) => v.role === 'parked' && !v.insideDeck)
     .sort((a, b) => a.pos.distanceTo(valet.walker.pos) - b.pos.distanceTo(valet.walker.pos))[0];
   const spot = g.garage.topFree();
-  if (!car || !spot) return { ok: false, why: 'no car or no free spot' };
+  if (!car || !spot) {
+    return { ok: false, why: 'no car or no free spot' };
+  }
+
   g.valet.take(valet, car, spot);
   const parked = sim.until(() => car.role === 'parked' && spot.occupant === car, 150, [car]);
   const back = sim.until(() => valet.state === 'idle', 150, []);
-  return { ok: parked.ok && back.ok && car.insideDeck, parkSeconds: parked.seconds, backSeconds: back.seconds, maxJump: Math.max(parked.maxJump, back.maxJump) };
+  return {
+    ok: parked.ok && back.ok && car.insideDeck,
+    parkSeconds: parked.seconds,
+    backSeconds: back.seconds,
+    maxJump: Math.max(parked.maxJump, back.maxJump),
+  };
 }
 
-/** Cody pulls up by an idle valet and presses F: the talk opens and he stays in his car; F again (PARK IT) hands the car over and the valet goes for it. */
+/**
+ * Cody pulls up by an idle valet and presses F: the talk opens and he stays in his car; F again (PARK IT) hands the car
+ * over and the valet goes for it.
+ */
 export function talkHandsOverTheCar() {
   const g = window.__game;
   const sim = window.__sim;
   g.start();
   sim.run(120);
   const valet = g.valet.crew.find((v) => v.state === 'idle');
-  if (!valet) return { ok: false, why: 'no idle valet' };
-  const car = g.vehicles.filter((v) => v.role === 'parked' && !v.insideDeck && v.form === 'car').sort((a, b) => a.pos.distanceTo(valet.walker.pos) - b.pos.distanceTo(valet.walker.pos))[0];
-  if (!car) return { ok: false, why: 'no car' };
+  if (!valet) {
+    return { ok: false, why: 'no idle valet' };
+  }
+
+  const car = g.vehicles
+    .filter((v) => v.role === 'parked' && !v.insideDeck && v.form === 'car')
+    .sort((a, b) => a.pos.distanceTo(valet.walker.pos) - b.pos.distanceTo(valet.walker.pos))[0];
+  if (!car) {
+    return { ok: false, why: 'no car' };
+  }
+
   g.board(car);
   const w = valet.walker.pos;
   car.place(w.x + 3, w.y, w.z, valet.homeYaw, 0, 0, null);
@@ -60,15 +82,24 @@ export function carjackedMidDrive() {
   g.start();
   sim.run(120);
   const valet = g.valet.crew.find((v) => v.state === 'idle');
-  if (!valet) return { ok: false, why: 'no idle valet' };
+  if (!valet) {
+    return { ok: false, why: 'no idle valet' };
+  }
+
   const car = g.vehicles
     .filter((v) => v.role === 'parked' && !v.insideDeck)
     .sort((a, b) => a.pos.distanceTo(valet.walker.pos) - b.pos.distanceTo(valet.walker.pos))[0];
   const spot = g.garage.topFree();
-  if (!car || !spot) return { ok: false, why: 'no car or no free spot' };
+  if (!car || !spot) {
+    return { ok: false, why: 'no car or no free spot' };
+  }
+
   g.valet.take(valet, car, spot);
   const driving = sim.until(() => valet.state === 'driving' && Math.abs(car.speed) > 2, 120, [car]);
-  if (!driving.ok) return { ok: false, why: 'never drove off' };
+  if (!driving.ok) {
+    return { ok: false, why: 'never drove off' };
+  }
+
   g.board(car);
   sim.run(5);
   const back = sim.until(() => valet.state === 'idle', 120, []);
@@ -88,32 +119,52 @@ export function codysSpotIsntFree() {
   sim.run(30);
   const spot = g.garage.topFree();
   const car = g.vehicles.find((v) => v.role === 'parked' && !v.insideDeck && v.form === 'car');
-  if (!spot || !car) return { ok: false, why: 'no free spot or no car' };
+  if (!spot || !car) {
+    return { ok: false, why: 'no free spot or no car' };
+  }
+
   g.board(car);
   car.place(spot.center.x, spot.center.y, spot.center.z, spot.def.yaw, 0, 0, null);
   car.vel.set(0, 0, 0);
   car.speed = 0;
   sim.run(2);
   const next = g.garage.topFree();
-  return { ok: next !== null && next !== spot && g.garage.isFree(spot, car), sitting: spot.def.id, next: next?.def.id ?? null };
+  return {
+    ok: next !== null && next !== spot && g.garage.isFree(spot, car),
+    sitting: spot.def.id,
+    next: next?.def.id ?? null,
+  };
 }
 
-/** A valet's spot is booked for the car while he fetches and drives it, and only taken once it's parked there, the booking gone. */
+/**
+ * A valet's spot is booked for the car while he fetches and drives it, and only taken once it's parked there, the
+ * booking gone.
+ */
 export function spotBookedTillParked() {
   const g = window.__game;
   const sim = window.__sim;
   g.start();
   sim.run(120);
   const valet = g.valet.crew.find((v) => v.state === 'idle');
-  if (!valet) return { ok: false, why: 'no idle valet' };
+  if (!valet) {
+    return { ok: false, why: 'no idle valet' };
+  }
+
   const car = g.vehicles
     .filter((v) => v.role === 'parked' && !v.insideDeck && v.form === 'car')
     .sort((a, b) => a.pos.distanceTo(valet.walker.pos) - b.pos.distanceTo(valet.walker.pos))[0];
   const spot = g.garage.topFree();
-  if (!car || !spot) return { ok: false, why: 'no car or spot' };
+  if (!car || !spot) {
+    return { ok: false, why: 'no car or spot' };
+  }
+
   g.valet.take(valet, car, spot);
   sim.run(60);
-  const booked = g.claims.holder('spot', spot) === car && spot.occupant === null && !g.garage.isFree(spot) && g.garage.topFree() !== spot;
+  const booked =
+    g.claims.holder('spot', spot) === car &&
+    spot.occupant === null &&
+    !g.garage.isFree(spot) &&
+    g.garage.topFree() !== spot;
   const parked = sim.until(() => spot.occupant === car, 150, [car]);
   sim.run(2);
   const released = g.claims.holder('spot', spot) === null;

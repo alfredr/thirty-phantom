@@ -1,9 +1,8 @@
 // Cars nobody is driving: wrecks tumbling on their own. Each case runs in the page (see tools/scenarios.mjs).
 
 /**
- * A monster truck flung at a deck parapet with nobody at the wheel smashes through it like one
- * Cody drives: the piece is broken (gone from view), never a hole left open in a parapet that
- * still shows.
+ * A monster truck flung at a deck parapet with nobody at the wheel smashes through it like one Cody drives: the piece
+ * is broken (gone from view), never a hole left open in a parapet that still shows.
  */
 export function wreckSmashesThroughAParapet() {
   const g = window.__game;
@@ -12,7 +11,10 @@ export function wreckSmashesThroughAParapet() {
   sim.run(30);
   const deck = g.world.breakables.filter((b) => b.solid.min[1] > 3);
   const piece = deck[0];
-  if (!piece) return { ok: false, why: 'no parapet above the street' };
+  if (!piece) {
+    return { ok: false, why: 'no parapet above the street' };
+  }
+
   const s = piece.solid;
   // square on to it from the deck side, eight metres back, on its floor
   const alongX = s.max[0] - s.min[0] > s.max[2] - s.min[2];
@@ -36,8 +38,8 @@ export function wreckSmashesThroughAParapet() {
 }
 
 /**
- * Phantom Cody possesses a car in the deck and gets the truck out without going through the gate:
- * a phantom's left behind, the truck rolls on a moment, dissolves, and leaves him on foot.
+ * Phantom Cody possesses a car in the deck and gets the truck out without going through the gate: a phantom's left
+ * behind, the truck rolls on a moment, dissolves, and leaves him on foot.
  */
 export function escapedTruckRollsOnThenDissolves() {
   const g = window.__game;
@@ -47,26 +49,48 @@ export function escapedTruckRollsOnThenDissolves() {
   g.debug.night();
   sim.until(() => g.player.form === 'night', 20, []);
   const car = g.vehicles.find((v) => v.role === 'parked' && v.insideDeck && v.form === 'car' && v.pos.y < 1);
-  if (!car) return { ok: false, why: 'no car on the deck floor' };
+  if (!car) {
+    return { ok: false, why: 'no car on the deck floor' };
+  }
+
   g.board(car);
   const changed = sim.until(() => g.codyRide.driving !== null, 10, []);
   const truck = g.driving;
-  if (!truck || truck.form !== 'truck') return { ok: false, why: 'no truck', changed: changed.ok };
+  if (!truck || truck.form !== 'truck') {
+    return { ok: false, why: 'no truck', changed: changed.ok };
+  }
+
   // straight out through the side, well clear of any gate
   const out = truck.pos.clone();
-  while (g.garage.inFootprint(out)) out.x -= 1;
+  while (g.garage.inFootprint(out)) {
+    out.x -= 1;
+  }
+
   out.x -= 8;
-  if (g.world.gates.inZone(out)) return { ok: false, why: 'came out by a gate' };
+
+  if (g.world.gates.inZone(out)) {
+    return { ok: false, why: 'came out by a gate' };
+  }
+
   let phantoms = 0;
   g.events.on('phantom', () => phantoms++);
   truck.place(out.x, 0, out.z, truck.yaw, 0, 0, null);
   sim.run(2);
   const rolling = g.codyRide.escaping;
   const gone = sim.until(() => g.codyRide.onFoot, 10, []);
-  return { ok: phantoms === 1 && rolling && gone.ok && truck.status === 'vanishing', phantoms, rolling, onFootAfter: gone.seconds, status: truck.status };
+  return {
+    ok: phantoms === 1 && rolling && gone.ok && truck.status === 'vanishing',
+    phantoms,
+    rolling,
+    onFootAfter: gone.seconds,
+    status: truck.status,
+  };
 }
 
-/** Cody's monster truck runs over a parked car outside the deck: it's flattened, nobody's to drive it, and it's gone a few seconds later. */
+/**
+ * Cody's monster truck runs over a parked car outside the deck: it's flattened, nobody's to drive it, and it's gone a
+ * few seconds later.
+ */
 export function truckCrushesACar() {
   const g = window.__game;
   const sim = window.__sim;
@@ -74,7 +98,10 @@ export function truckCrushesACar() {
   sim.run(30);
   const victim = g.vehicles.find((v) => v.role === 'parked' && !v.insideDeck && v.form === 'car');
   const ride = g.vehicles.find((v) => v !== victim && v.role === 'parked' && !v.insideDeck && v.form === 'car');
-  if (!victim || !ride) return { ok: false, why: 'no parked cars outside the deck' };
+  if (!victim || !ride) {
+    return { ok: false, why: 'no parked cars outside the deck' };
+  }
+
   g.board(ride);
   g.scene.remove(ride.rig.root);
   const rig = g.assets.truckRig();
@@ -87,7 +114,9 @@ export function truckCrushesACar() {
   ride.speed = 12;
   let crushed = 0;
   g.events.on('crushed', ({ car, by }) => {
-    if (car === victim && by === ride) crushed++;
+    if (car === victim && by === ride) {
+      crushed++;
+    }
   });
   sim.run(45);
   const flat = victim.status === 'crushed' && victim.role === 'parked' && victim.gone;

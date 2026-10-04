@@ -1,6 +1,6 @@
-import type { NpcDef } from '@/world/level-data';
 import type { Inventory, ItemActionId } from '@/game/items/inventory';
 import type { ItemKind } from '@/game/items/item-breeds';
+import type { NpcDef } from '@/world/level-data';
 
 /** Something Cody did with an item: picked it up (or was handed it), used it, gave it to someone. */
 export type ItemDeed =
@@ -9,10 +9,9 @@ export type ItemDeed =
   | { how: 'gave'; kind: ItemKind; n: number; to: NpcDef['id'] };
 
 /**
- * What a trigger waits for. `has` is a state: met as soon as Cody holds
- * `count` (default 1) of the item. The others count deeds: `count` of them
- * (default 1) from when the trigger was set, or from the start of the game
- * with `past`. `gave` without `to` takes anyone.
+ * What a trigger waits for. `has` is a state: met as soon as Cody holds `count` (default 1) of the item. The others
+ * count deeds: `count` of them (default 1) from when the trigger was set, or from the start of the game with `past`.
+ * `gave` without `to` takes anyone.
  */
 export type ItemTrigger =
   | { has: ItemKind; count?: number }
@@ -29,17 +28,25 @@ interface Live {
 
 /** How much deed `d` counts toward trigger `t` (0 if it's not what it waits for). */
 function counts(t: ItemTrigger, d: ItemDeed): number {
-  if ('got' in t) return d.how === 'got' && d.kind === t.got ? d.n : 0;
-  if ('used' in t) return d.how === 'used' && d.kind === t.used && d.action === t.action ? 1 : 0;
-  if ('gave' in t) return d.how === 'gave' && d.kind === t.gave && (t.to === undefined || t.to === d.to) ? d.n : 0;
+  if ('got' in t) {
+    return d.how === 'got' && d.kind === t.got ? d.n : 0;
+  }
+
+  if ('used' in t) {
+    return d.how === 'used' && d.kind === t.used && d.action === t.action ? 1 : 0;
+  }
+
+  if ('gave' in t) {
+    return d.how === 'gave' && d.kind === t.gave && (t.to === undefined || t.to === d.to) ? d.n : 0;
+  }
+
   return 0;
 }
 
 /**
- * Triggers on what Cody carries and does with it, for scripts to hang
- * milestones on: "has the badge", "gave Randy tires", "ate a brisket". Each
- * fires once, when it's met; the game reports every deed here and checks
- * again whenever the inventory changes.
+ * Triggers on what Cody carries and does with it, for scripts to hang milestones on: "has the badge", "gave Randy
+ * tires", "ate a brisket". Each fires once, when it's met; the game reports every deed here and checks again whenever
+ * the inventory changes.
  */
 export class Triggers {
   /** Every deed so far, for triggers that count from the start. */
@@ -54,16 +61,23 @@ export class Triggers {
     const t: Live = { when, fire, seen: past ? this.history.reduce((n, d) => n + counts(when, d), 0) : 0 };
     this.live.push(t);
     this.check();
+
     return () => {
       const i = this.live.indexOf(t);
-      if (i >= 0) this.live.splice(i, 1);
+      if (i >= 0) {
+        this.live.splice(i, 1);
+      }
     };
   }
 
   /** Cody did something with an item: count it toward every trigger it matches, then fire the ones that are met. */
   deed(d: ItemDeed): void {
     this.history.push(d);
-    for (const t of this.live) t.seen += counts(t.when, d);
+
+    for (const t of this.live) {
+      t.seen += counts(t.when, d);
+    }
+
     this.check();
   }
 
@@ -72,7 +86,10 @@ export class Triggers {
     for (const t of [...this.live]) {
       // An earlier callback may have cancelled this trigger or fired it in a nested check.
       const i = this.live.indexOf(t);
-      if (i < 0 || !this.met(t)) continue;
+      if (i < 0 || !this.met(t)) {
+        continue;
+      }
+
       this.live.splice(i, 1);
       t.fire();
     }
@@ -80,7 +97,10 @@ export class Triggers {
 
   private met(t: Live): boolean {
     const need = t.when.count ?? 1;
-    if ('has' in t.when) return this.inventory.count(t.when.has) >= need;
+    if ('has' in t.when) {
+      return this.inventory.count(t.when.has) >= need;
+    }
+
     return t.seen >= need;
   }
 }

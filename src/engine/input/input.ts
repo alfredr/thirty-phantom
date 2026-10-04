@@ -20,9 +20,8 @@ export interface KeyPress {
 }
 
 /**
- * Something that takes keys before the world does: a conversation, a sign, a menu, a shop. It
- * says which controls it takes right now; the top layer that takes a key's control gets the
- * press, and the world never sees that key.
+ * Something that takes keys before the world does: a conversation, a sign, a menu, a shop. It says which controls it
+ * takes right now; the top layer that takes a key's control gets the press, and the world never sees that key.
  */
 export interface FocusLayer<C extends string> {
   controls(): readonly C[];
@@ -38,9 +37,12 @@ export class Focus<C extends string> {
   /** Adds a layer above the others. The returned function removes it. */
   add(layer: FocusLayer<C>): () => void {
     this.layers.push(layer);
+
     return () => {
       const i = this.layers.indexOf(layer);
-      if (i >= 0) this.layers.splice(i, 1);
+      if (i >= 0) {
+        this.layers.splice(i, 1);
+      }
     };
   }
 
@@ -59,6 +61,7 @@ export class Focus<C extends string> {
         return true;
       }
     }
+
     return false;
   }
 }
@@ -80,7 +83,10 @@ export class Input<C extends string> {
   private mouseY = 0;
   private lockEl: HTMLElement | null = null;
   private dragging = false;
-  /** A cutscene has the controls: every read comes back empty (keys, stick, mouse, wheel). Focus layers still get their keys. */
+  /**
+   * A cutscene has the controls: every read comes back empty (keys, stick, mouse, wheel). Focus layers still get their
+   * keys.
+   */
   muted = false;
   /** Conversations, signs and menus, which take keys before the world. */
   readonly focus: Focus<C>;
@@ -94,13 +100,20 @@ export class Input<C extends string> {
   ) {
     this.focus = new Focus(keys);
     window.addEventListener('keydown', (e) => {
-      if (BLOCKED.has(e.code)) e.preventDefault();
+      if (BLOCKED.has(e.code)) {
+        e.preventDefault();
+      }
+
       // A conversation, sign or menu that takes this key gets it, and the world doesn't.
       if (this.focus.route(e.code, { repeat: e.repeat, shift: e.shiftKey })) {
         e.preventDefault();
         return;
       }
-      if (!e.repeat) this.pressed.add(e.code);
+
+      if (!e.repeat) {
+        this.pressed.add(e.code);
+      }
+
       this.down.add(e.code);
     });
     window.addEventListener('keyup', (e) => this.down.delete(e.code));
@@ -112,7 +125,10 @@ export class Input<C extends string> {
       'wheel',
       (e) => {
         // over something on the HUD that scrolls (the phone's screen), the wheel scrolls it rather than zooming
-        if (e.target instanceof Element && e.target.closest('[data-scroll]')) return;
+        if (e.target instanceof Element && e.target.closest('[data-scroll]')) {
+          return;
+        }
+
         this.wheel += Math.sign(e.deltaY);
         e.preventDefault();
       },
@@ -129,7 +145,10 @@ export class Input<C extends string> {
   }
 
   axis(neg: C, pos: C): number {
-    if (this.muted) return 0;
+    if (this.muted) {
+      return 0;
+    }
+
     const keys = (this.isDown(pos) ? 1 : 0) - (this.isDown(neg) ? 1 : 0);
     return clamp(keys + this.analog(pos) - this.analog(neg), -1, 1);
   }
@@ -137,10 +156,22 @@ export class Input<C extends string> {
   /** How far the stick pushes toward one of its controls, 0..1. */
   private analog(c: C): number {
     const s = this.stick;
-    if (c === s.right) return Math.max(0, this.stickX);
-    if (c === s.left) return Math.max(0, -this.stickX);
-    if (c === s.forward) return Math.max(0, this.stickY);
-    if (c === s.back) return Math.max(0, -this.stickY);
+    if (c === s.right) {
+      return Math.max(0, this.stickX);
+    }
+
+    if (c === s.left) {
+      return Math.max(0, -this.stickX);
+    }
+
+    if (c === s.forward) {
+      return Math.max(0, this.stickY);
+    }
+
+    if (c === s.back) {
+      return Math.max(0, -this.stickY);
+    }
+
     return 0;
   }
 
@@ -162,20 +193,29 @@ export class Input<C extends string> {
   }
 
   /**
-   * Mouse look on `el`. A click captures the pointer while `wantLock()` holds (Esc releases it);
-   * dragging with the left button also looks, for browsers that refuse the capture.
+   * Mouse look on `el`. A click captures the pointer while `wantLock()` holds (Esc releases it); dragging with the left
+   * button also looks, for browsers that refuse the capture.
    */
   attachPointer(el: HTMLElement, wantLock: () => boolean): void {
     this.lockEl = el;
     el.addEventListener('mousedown', (e) => {
-      if (e.button !== 0 || !wantLock()) return;
+      if (e.button !== 0 || !wantLock()) {
+        return;
+      }
+
       this.dragging = true;
+
       // older browsers return nothing here; newer ones reject if the user backs out of the capture
-      if (document.pointerLockElement !== el) void Promise.resolve(el.requestPointerLock()).catch(() => undefined);
+      if (document.pointerLockElement !== el) {
+        void Promise.resolve(el.requestPointerLock()).catch(() => undefined);
+      }
     });
     window.addEventListener('mouseup', () => (this.dragging = false));
     window.addEventListener('mousemove', (e) => {
-      if (document.pointerLockElement !== el && !this.dragging) return;
+      if (document.pointerLockElement !== el && !this.dragging) {
+        return;
+      }
+
       // Chrome can report one huge jump right after the capture starts
       this.mouseX += clamp(e.movementX, -200, 200);
       this.mouseY += clamp(e.movementY, -200, 200);
@@ -184,7 +224,10 @@ export class Input<C extends string> {
 
   releasePointer(): void {
     this.dragging = false;
-    if (this.lockEl && document.pointerLockElement === this.lockEl) document.exitPointerLock();
+
+    if (this.lockEl && document.pointerLockElement === this.lockEl) {
+      document.exitPointerLock();
+    }
   }
 
   /** Mouse movement in pixels since the last call. */
@@ -205,14 +248,23 @@ export class Input<C extends string> {
     this.pressed.clear();
   }
 
-  /** A press from outside the keyboard (a tap on a key cap, a test, the debug console), routed like a key: open layers first. Takes key codes ('KeyW'), not controls. */
+  /**
+   * A press from outside the keyboard (a tap on a key cap, a test, the debug console), routed like a key: open layers
+   * first. Takes key codes ('KeyW'), not controls.
+   */
   press(code: string): void {
-    if (this.focus.route(code, { repeat: false, shift: false })) return;
+    if (this.focus.route(code, { repeat: false, shift: false })) {
+      return;
+    }
+
     this.pressed.add(code);
   }
 
   hold(code: string, isDown: boolean): void {
-    if (isDown) this.down.add(code);
-    else this.down.delete(code);
+    if (isDown) {
+      this.down.add(code);
+    } else {
+      this.down.delete(code);
+    }
   }
 }

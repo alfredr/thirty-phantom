@@ -1,6 +1,7 @@
 import { TAU, type V3 } from '@/engine/core/math';
 import type { Rng } from '@/engine/core/rng';
 import { PALETTE } from '@/render/palette';
+
 import { box, build, group, model, NO_CAST, pivot, SIDES, solid } from './part';
 import { type CharacterRig, characterRig, limb } from './rig';
 
@@ -45,16 +46,35 @@ export function person(o: Outfit) {
   const hair = head.sized(0.44, 0.12, 0.42).on(head.top - 0.06);
   const headParts = [
     solid(head, 'skin'),
-    ...(o.hat === 'cap' ? [solid(cap, 'hat'), ...(o.trim ? [solid(cap.sized(0.37, 0.04, 0.37).y(cap.bottom + 0.02), 'trim', NO_CAST)] : [])] : []),
+    ...(o.hat === 'cap'
+      ? [
+          solid(cap, 'hat'),
+          ...(o.trim ? [solid(cap.sized(0.37, 0.04, 0.37).y(cap.bottom + 0.02), 'trim', NO_CAST)] : []),
+        ]
+      : []),
     ...(o.hat === 'beanie' ? [solid(beanie, 'hat')] : []),
     ...(!o.hat ? [solid(hair, 'hair')] : []),
-    ...SIDES.map((s) => solid(head.sized(0.06, 0.07, 0.03).onFace(head, '+z', 0.01).move(s * 0.1, 0.05), 'ink', NO_CAST)),
+    ...SIDES.map((s) =>
+      solid(
+        head
+          .sized(0.06, 0.07, 0.03)
+          .onFace(head, '+z', 0.01)
+          .move(s * 0.1, 0.05),
+        'ink',
+        NO_CAST,
+      ),
+    ),
     solid(head.sized(0.14, 0.03, 0.03).onFace(head, '+z', 0.01).move(0, -0.1), 'ink', NO_CAST),
   ];
   return model(
     {
       top: { color: o.top, roughness: 0.7 },
-      trim: { color: o.trim ?? o.top, emissive: o.trim ?? '#000000', emissiveIntensity: o.trim ? 0.5 : 0, roughness: 0.5 },
+      trim: {
+        color: o.trim ?? o.top,
+        emissive: o.trim ?? '#000000',
+        emissiveIntensity: o.trim ? 0.5 : 0,
+        roughness: 0.5,
+      },
       bottom: { color: o.bottom, roughness: 0.85 },
       shirt: { color: o.shirt ?? PALETTE.bone, roughness: 0.7 },
       skin: { color: o.skin, roughness: 0.8 },
@@ -66,16 +86,35 @@ export function person(o: Outfit) {
     [
       group({ name: 'body' }, [
         ...SIDES.map((s) => {
-          const leg = box(...b.leg).x(s * b.stance).under(b.hip);
-          return limb(s < 0 ? 'legL' : 'legR', leg, 'bottom', [solid(leg.sized(0.26, 0.12, 0.38).on(0).move(0, 0, 0.05), 'shoes')]);
+          const leg = box(...b.leg)
+            .x(s * b.stance)
+            .under(b.hip);
+          return limb(s < 0 ? 'legL' : 'legR', leg, 'bottom', [
+            solid(leg.sized(0.26, 0.12, 0.38).on(0).move(0, 0, 0.05), 'shoes'),
+          ]);
         }),
         solid(jacket, 'top'),
         ...(o.trim ? [solid(jacket.sized(0.68, 0.06, 0.42).y(jacket.bottom + 0.04), 'trim', NO_CAST)] : []),
         ...(o.shirt ? [solid(shirt, 'shirt', NO_CAST)] : []),
-        ...(o.tie ? [solid(shirt.sized(0.18, 0.07, 0.04).y(shirt.top - 0.04).onFace(jacket, '+z', 0.035), 'ink', NO_CAST)] : []),
+        ...(o.tie
+          ? [
+              solid(
+                shirt
+                  .sized(0.18, 0.07, 0.04)
+                  .y(shirt.top - 0.04)
+                  .onFace(jacket, '+z', 0.035),
+                'ink',
+                NO_CAST,
+              ),
+            ]
+          : []),
         ...SIDES.map((s) => {
-          const arm = box(...b.arm).under(jacket.top - 0.04).outside(jacket, s < 0 ? '-x' : '+x');
-          return limb(s < 0 ? 'armL' : 'armR', arm, 'top', [solid(arm.sized(0.16, 0.15, 0.18).under(arm.bottom + 0.01), 'skin')]);
+          const arm = box(...b.arm)
+            .under(jacket.top - 0.04)
+            .outside(jacket, s < 0 ? '-x' : '+x');
+          return limb(s < 0 ? 'armL' : 'armR', arm, 'top', [
+            solid(arm.sized(0.16, 0.15, 0.18).under(arm.bottom + 0.01), 'skin'),
+          ]);
         }),
         pivot('head', [0, jacket.top + 0.02, 0], headParts),
       ]),
@@ -89,7 +128,18 @@ export function buildPerson(o: Outfit, scale = 1): CharacterRig {
   return rig;
 }
 
-const TOPS = ['#5b3a78', '#2f6a5a', '#7a3d3d', '#3d4f7a', '#6b5a3a', '#4a2f5a', '#2f4a3a', '#8a6a4a', '#444455', '#6a2f4a'];
+const TOPS = [
+  '#5b3a78',
+  '#2f6a5a',
+  '#7a3d3d',
+  '#3d4f7a',
+  '#6b5a3a',
+  '#4a2f5a',
+  '#2f4a3a',
+  '#8a6a4a',
+  '#444455',
+  '#6a2f4a',
+];
 const BOTTOMS = ['#2b2f48', '#1b1622', '#3a3a3a', '#5a4a3a', '#2a3a4a', '#4a3a5a'];
 const SKINS = ['#e0b08c', '#c48a64', '#8a5a3c', '#f0c8a8', '#6a4028', '#d9a07a'];
 const HAIR = ['#1a120e', '#5a3a24', '#c8a050', '#8a8a8a', '#2a1a12', '#7a2f8a'];

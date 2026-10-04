@@ -1,4 +1,5 @@
 import type { Color, Group, Material, MeshStandardMaterial, Object3D } from 'three';
+
 import { box, type Box, type Built, cylinder, group, type Part, pivot, solid } from './part';
 
 export interface WheelRig {
@@ -83,29 +84,46 @@ export const isFrontWheel = (name: string): boolean => name[6] === 'f';
 const isLeftWheel = (name: string): boolean => name[7] === 'l';
 
 /**
- * The four wheels, named like the GLB contract (+X is left when facing +Z):
- * pivot (steers) > spin (rolls about X) > tire, hub, extras.
+ * The four wheels, named like the GLB contract (+X is left when facing +Z): pivot (steers) > spin (rolls about X) >
+ * tire, hub, extras.
  */
 export function wheels<M extends string>(s: WheelSpec, tire: M, hub: M, extras: readonly Part<M>[] = []): Part<M>[] {
   return WHEELS.map((name) =>
-    group({ name, at: [isLeftWheel(name) ? s.track / 2 : -s.track / 2, s.r, isFrontWheel(name) ? s.base / 2 : -s.base / 2], data: { radius: s.r } }, [
-      group({ name: `${name}.spin`, cast: false, receive: false }, [
-        cylinder(s.r, s.w, 20, tire, { rot: [0, 0, Math.PI / 2], cast: true }),
-        solid(box(s.w * 1.02, s.r * 0.7, s.r * 0.7), hub),
-        ...extras,
-      ]),
-    ]),
+    group(
+      {
+        name,
+        at: [isLeftWheel(name) ? s.track / 2 : -s.track / 2, s.r, isFrontWheel(name) ? s.base / 2 : -s.base / 2],
+        data: { radius: s.r },
+      },
+      [
+        group({ name: `${name}.spin`, cast: false, receive: false }, [
+          cylinder(s.r, s.w, 20, tire, { rot: [0, 0, Math.PI / 2], cast: true }),
+          solid(box(s.w * 1.02, s.r * 0.7, s.r * 0.7), hub),
+          ...extras,
+        ]),
+      ],
+    ),
   );
 }
 
 /** VehicleRig from a built model that has a "body" node and wheel nodes named `names` (wheels() makes them). */
-export function vehicleRig<M extends string>(b: Built<M>, lights: readonly M[], height: number, names: readonly string[] = WHEELS): VehicleRig {
+export function vehicleRig<M extends string>(
+  b: Built<M>,
+  lights: readonly M[],
+  height: number,
+  names: readonly string[] = WHEELS,
+): VehicleRig {
   return {
     root: b.root,
     body: b.node('body') as Group,
     wheels: names.map((name) => {
       const pivot = b.node(name);
-      return { pivot, spin: b.node(`${name}.spin`), front: isFrontWheel(name), radius: pivot.userData.radius as number };
+      return {
+        pivot,
+        spin: b.node(`${name}.spin`),
+        front: isFrontWheel(name),
+        radius: pivot.userData.radius as number,
+      };
     }),
     lights: lights.map((k) => b.mats[k]),
     materials: b.materials,

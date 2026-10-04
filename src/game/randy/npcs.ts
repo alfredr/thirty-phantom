@@ -1,4 +1,5 @@
 import { type Object3D, Quaternion, type Scene, Vector3 } from 'three';
+
 import { buildJunk } from '@/actors/models/junk';
 import { buildRandy, type RandyRig, ROAST_LIFT } from '@/actors/models/randy';
 import { buildTrashFire, CAN_TOP } from '@/actors/models/trash-fire';
@@ -7,16 +8,19 @@ import { Mind } from '@/engine/sim/mind';
 import { ArcPath } from '@/fx/arc-path';
 import { Highlight } from '@/fx/highlight';
 import type { NpcDef } from '@/world/level-data';
+
 import { type Pitch, RANDY_PITCH, RANDY_WORK, type RandyEvent, type Work } from './randy-mind';
 
-/** Cody this close (m, on his level) gets Randy's attention: he looks over, and between pitches turns to him and opens his coat. */
+/**
+ * Cody this close (m, on his level) gets Randy's attention: he looks over, and between pitches turns to him and opens
+ * his coat.
+ */
 const PITCH_REACH = 5;
 const SAME_LEVEL = 2;
 /**
- * He flashes one side of the coat, the left (his right hand has the stick):
- * how wide that flap swings (rad: past a right angle, so the lining and the
- * goods face whoever's in front) and how fast (damp rate). His left hand
- * holds it by its front edge the whole way.
+ * He flashes one side of the coat, the left (his right hand has the stick): how wide that flap swings (rad: past a
+ * right angle, so the lining and the goods face whoever's in front) and how fast (damp rate). His left hand holds it by
+ * its front edge the whole way.
  */
 const FLAP_OPEN = 1.9;
 const FLAP_RATE = 9;
@@ -26,7 +30,10 @@ const _grip = new Vector3();
 const _held = new Vector3();
 const _aim = new Quaternion();
 const _rest = new Quaternion();
-/** Turning (damp rate); how far his body turns from the fire toward Cody (rad, so the meat stays over it), and his head the rest of the way. */
+/**
+ * Turning (damp rate); how far his body turns from the fire toward Cody (rad, so the meat stays over it), and his head
+ * the rest of the way.
+ */
 const TURN_RATE = 6;
 const BODY_TURN = 0.6;
 const LOOK = 1.1;
@@ -38,19 +45,20 @@ const GLANCE = 0.7;
 /** Turning the meat over the fire: the stick dips and rises this much (rad) at this rate (rad/s). */
 const TURN_MEAT = 0.06;
 const TURN_MEAT_RATE = 2.2;
-/** Flames lick up and down: each one's height swings by FLICKER around FLAME_REST of its own, at two rates, and its width by WOBBLE. */
+/**
+ * Flames lick up and down: each one's height swings by FLICKER around FLAME_REST of its own, at two rates, and its
+ * width by WOBBLE.
+ */
 const FLAME_REST = 0.8;
 const FLICKER = 0.35;
 const FLICKER_RATES: readonly [number, number] = [7.3, 11.1];
 const WOBBLE = 0.12;
 /**
- * Tossing something from his left hand: the arm winds back and swings
- * through in TOSS_WIND seconds, letting go at the end. It flies a gravity
- * arc at least TOSS_ARC high (more for a long throw), lobbed higher if it
- * must, to pass TOSS_CLEAR over every surface under its path (the roof, a
- * parapet) till the last TOSS_LAND of the way, where it comes down; for
- * TOSS_FLIGHT plus a second per TOSS_SPEED metres, or as long as a fall
- * from its peak takes under TOSS_G. It tumbles, and lies flat where it lands.
+ * Tossing something from his left hand: the arm winds back and swings through in TOSS_WIND seconds, letting go at the
+ * end. It flies a gravity arc at least TOSS_ARC high (more for a long throw), lobbed higher if it must, to pass
+ * TOSS_CLEAR over every surface under its path (the roof, a parapet) till the last TOSS_LAND of the way, where it comes
+ * down; for TOSS_FLIGHT plus a second per TOSS_SPEED metres, or as long as a fall from its peak takes under TOSS_G. It
+ * tumbles, and lies flat where it lands.
  */
 const TOSS_WIND = 0.75;
 const TOSS_BACK = 1.15;
@@ -66,7 +74,10 @@ const TOSS_G = 9.8;
 const TOSS_SAMPLES = 40;
 const TOSS_SPIN = 9;
 const ARM_RATE = 8;
-/** Feeding the fire: something lobbed in flies FEED_FLIGHT seconds over an arc FEED_ARC high, tumbling, and drops in below the rim. */
+/**
+ * Feeding the fire: something lobbed in flies FEED_FLIGHT seconds over an arc FEED_ARC high, tumbling, and drops in
+ * below the rim.
+ */
 const FEED_FLIGHT = 0.7;
 const FEED_ARC = 1.2;
 const FEED_SINK = 0.3;
@@ -85,7 +96,10 @@ export interface TrashFire {
   at: [number, number];
 }
 
-/** Something he's throwing: from his hand to `to` (world), its flight time, how far into the throw, and where in his hand it came from. */
+/**
+ * Something he's throwing: from his hand to `to` (world), its flight time, how far into the throw, and where in his
+ * hand it came from.
+ */
 interface Toss {
   item: Object3D;
   to: Vector3;
@@ -108,10 +122,9 @@ interface Feed {
 }
 
 /**
- * Randy: his body and fire, and his two minds (randy-mind.ts), the pitch
- * (his coat, and a scene holding him) and his work at the fire. Tell him
- * things with send(): a scene holds and releases him and flashes his coat,
- * the shop has Cody browsing, and Cody hands him tires.
+ * Randy: his body and fire, and his two minds (randy-mind.ts), the pitch (his coat, and a scene holding him) and his
+ * work at the fire. Tell him things with send(): a scene holds and releases him and flashes his coat, the shop has Cody
+ * browsing, and Cody hands him tires.
  */
 export class Npc {
   readonly pitch: Mind<Npc, Pitch, RandyEvent>;
@@ -180,9 +193,8 @@ export interface NpcHooks {
 }
 
 /**
- * Randy's placement, idle animation, coat display, and thrown items.
- * Dialogue is managed by the tutorial, which uses talkable() and holds
- * the NPC during conversations.
+ * Randy's placement, idle animation, coat display, and thrown items. Dialogue is managed by the tutorial, which uses
+ * talkable() and holds the NPC during conversations.
  */
 export class Npcs {
   readonly list: Npc[];
@@ -210,6 +222,7 @@ export class Npcs {
         const sn = Math.sin(def.yaw);
         fire = { root: built.root, flames: built.flames, at: [dx * c - dz * sn, dx * sn + dz * c] };
       }
+
       return new Npc(def, rig, pos, fire, this);
     });
   }
@@ -220,16 +233,20 @@ export class Npcs {
     n.homeYaw = n.yaw = yaw;
     n.rig.root.position.copy(pos);
     n.rig.root.rotation.y = yaw;
+
     if (n.fire) {
       const [x, z] = n.fire.at;
-      n.fire.root.position.set(pos.x + x * Math.cos(yaw) + z * Math.sin(yaw), pos.y, pos.z - x * Math.sin(yaw) + z * Math.cos(yaw));
+      n.fire.root.position.set(
+        pos.x + x * Math.cos(yaw) + z * Math.sin(yaw),
+        pos.y,
+        pos.z - x * Math.sin(yaw) + z * Math.cos(yaw),
+      );
     }
   }
 
   /**
-   * He throws what's in his left hand (Cody's badge, rig.badge: it's shown
-   * if it wasn't) over an arc to land and lie at `to`. Returns the seconds
-   * until it lands.
+   * He throws what's in his left hand (Cody's badge, rig.badge: it's shown if it wasn't) over an arc to land and lie at
+   * `to`. Returns the seconds until it lands.
    */
   toss(n: Npc, to: Vector3, opts: { showPath?: boolean } = {}): number {
     const item = n.rig.badge;
@@ -248,14 +265,14 @@ export class Npcs {
       path.set((u, out) => arcAt(from, to, lift, u, out));
       this.scene.add(path.root);
     }
+
     n.toss = { item, to: to.clone(), from, flight, t: 0, released: false, hand, highlight, path, lift };
     return TOSS_WIND + flight;
   }
 
   /**
-   * Lob `item` (already in the scene) from `from` into his fire: it arcs in,
-   * the fire plumes up, and `done` runs as it goes in. Without a fire it just
-   * goes, and `done` runs at once.
+   * Lob `item` (already in the scene) from `from` into his fire: it arcs in, the fire plumes up, and `done` runs as it
+   * goes in. Without a fire it just goes, and `done` runs at once.
    */
   feed(n: Npc, item: Object3D, from: Vector3, done: () => void = () => {}): void {
     if (!n.fire) {
@@ -263,6 +280,7 @@ export class Npcs {
       done();
       return;
     }
+
     item.position.copy(from);
     n.feeding.push({ item, from: from.clone(), t: 0, done });
   }
@@ -277,7 +295,9 @@ export class Npcs {
     const tire = buildJunk('tire');
     this.scene.add(tire);
     this.feed(n, tire, from, () => {
-      if (n.fire) this.hooks.burned(n.fire.root.position);
+      if (n.fire) {
+        this.hooks.burned(n.fire.root.position);
+      }
     });
   }
 
@@ -287,9 +307,8 @@ export class Npcs {
   }
 
   /**
-   * How hard a throw from `from` to `to` is lobbed (the arc's `lift`, see
-   * arcAt): enough for its usual height, and to clear everything under it
-   * (no higher than the throw) till it comes down at the end.
+   * How hard a throw from `from` to `to` is lobbed (the arc's `lift`, see arcAt): enough for its usual height, and to
+   * clear everything under it (no higher than the throw) till it comes down at the end.
    */
   private liftFor(from: Vector3, to: Vector3): number {
     const d = from.distanceTo(to);
@@ -298,11 +317,18 @@ export class Npcs {
     const drop = to.y - from.y;
     for (let i = 1; i < TOSS_SAMPLES; i++) {
       const u = i / TOSS_SAMPLES;
-      if (u > 1 - TOSS_LAND) break;
+      if (u > 1 - TOSS_LAND) {
+        break;
+      }
+
       const h = this.hooks.ground(from.x + (to.x - from.x) * u, from.z + (to.z - from.z) * u, top);
-      if (!Number.isFinite(h)) continue;
+      if (!Number.isFinite(h)) {
+        continue;
+      }
+
       lift = Math.max(lift, (h + TOSS_CLEAR - from.y - drop * u * u) / (u * (1 - u)));
     }
+
     return lift;
   }
 
@@ -325,6 +351,7 @@ export class Npcs {
         best = n;
       }
     }
+
     return best;
   }
 
@@ -332,14 +359,22 @@ export class Npcs {
   update(dt: number, cody: Vector3 | null): void {
     const fading: ArcPath[] = [];
     for (const tr of this.trails) {
-      if (tr.update(dt)) fading.push(tr);
-      else tr.dispose();
+      if (tr.update(dt)) {
+        fading.push(tr);
+      } else {
+        tr.dispose();
+      }
     }
+
     this.trails = fading;
+
     for (const n of this.list) {
       n.toss?.path?.update(dt);
       n.t += dt;
-      n.near = cody !== null && Math.hypot(cody.x - n.pos.x, cody.z - n.pos.z) < PITCH_REACH && Math.abs(cody.y - n.pos.y) < SAME_LEVEL;
+      n.near =
+        cody !== null &&
+        Math.hypot(cody.x - n.pos.x, cody.z - n.pos.z) < PITCH_REACH &&
+        Math.abs(cody.y - n.pos.y) < SAME_LEVEL;
       n.pitch.tick(dt);
       n.work.tick(dt);
       const r = n.rig;
@@ -355,12 +390,19 @@ export class Npcs {
       left.rotation.y = -FLAP_OPEN * n.open;
       right.rotation.y = 0;
       this.throwing(n, dt);
-      if (!n.toss) this.holdFlap(n);
+
+      if (!n.toss) {
+        this.holdFlap(n);
+      }
+
       // always roasting: the stick held out, turned now and then
       r.armR.rotation.x = -ROAST_LIFT + Math.sin(n.t * TURN_MEAT_RATE) * TURN_MEAT;
       r.body.position.y = Math.sin(n.t * SWAY_RATE) * SWAY;
       // looking: at Cody when he's about (head only, unless he's turned to him), else the odd glance
-      const look = n.near || n.held || n.face ? clamp(wrapAngle(toCody - n.yaw), -LOOK, LOOK) : Math.max(0, Math.sin((n.t / GLANCE_EVERY) * Math.PI * 2)) ** 4 * GLANCE;
+      const look =
+        n.near || n.held || n.face
+          ? clamp(wrapAngle(toCody - n.yaw), -LOOK, LOOK)
+          : Math.max(0, Math.sin((n.t / GLANCE_EVERY) * Math.PI * 2)) ** 4 * GLANCE;
       r.head.rotation.y = damp(r.head.rotation.y, look, TURN_RATE, dt);
       // the fire, roaring up for a moment when fed
       this.feedFire(n, dt);
@@ -369,17 +411,27 @@ export class Npcs {
       n.fire?.flames.forEach((f, i) => {
         const a = Math.sin(n.t * FLICKER_RATES[0] + i * 1.7) * 0.6 + Math.sin(n.t * FLICKER_RATES[1] + i * 2.9) * 0.4;
         const wide = 1 + roar * PLUME_WIDTH;
-        f.scale.set((1 + a * WOBBLE) * wide, (FLAME_REST + a * FLICKER) * (1 + roar * PLUME_HEIGHT), (1 - a * WOBBLE) * wide);
+        f.scale.set(
+          (1 + a * WOBBLE) * wide,
+          (FLAME_REST + a * FLICKER) * (1 + roar * PLUME_HEIGHT),
+          (1 - a * WOBBLE) * wide,
+        );
       });
     }
   }
 
   /** His left arm reaching to the open flap's front edge (as far as it's open), so arm and flap move as one. */
   private holdFlap(n: Npc): void {
-    if (n.open < 0.01) return;
+    if (n.open < 0.01) {
+      return;
+    }
+
     const arm = n.rig.armL;
     const parent = arm.parent;
-    if (!parent) return;
+    if (!parent) {
+      return;
+    }
+
     n.rig.grips[0].getWorldPosition(_grip);
     parent.worldToLocal(_grip);
     _aim.setFromUnitVectors(DOWN, _grip.sub(arm.position).normalize());
@@ -389,7 +441,10 @@ export class Npcs {
   /** Things lobbed into the fire: over an arc into the can, where they're gone and the fire roars. */
   private feedFire(n: Npc, dt: number): void {
     const fire = n.fire;
-    if (!fire) return;
+    if (!fire) {
+      return;
+    }
+
     const flying: Feed[] = [];
     const landed: Feed[] = [];
     for (const f of n.feeding) {
@@ -403,7 +458,9 @@ export class Npcs {
       f.item.rotation.x += TOSS_SPIN * dt;
       (u < 1 ? flying : landed).push(f);
     }
+
     n.feeding = flying;
+
     for (const f of landed) {
       this.scene.remove(f.item);
       this.stoke(n);
@@ -419,14 +476,20 @@ export class Npcs {
       arm.rotation.x = damp(arm.rotation.x, 0, ARM_RATE, dt);
       return;
     }
+
     tw.t += dt;
     tw.highlight.update(dt);
     tw.highlight.place(tw.item.getWorldPosition(_held), tw.to);
+
     if (!tw.released) {
       // wind back, then swing through
       const k = tw.t / TOSS_WIND;
       arm.rotation.x = k < 0.5 ? TOSS_BACK * (k / 0.5) : TOSS_BACK - (TOSS_BACK + TOSS_THROUGH) * ((k - 0.5) / 0.5);
-      if (k < 1) return;
+
+      if (k < 1) {
+        return;
+      }
+
       // let go: into the world where it is
       tw.released = true;
       tw.item.getWorldPosition(tw.from);
@@ -436,21 +499,25 @@ export class Npcs {
       tw.lift = this.liftFor(tw.from, tw.to);
       tw.path?.set((u, out) => arcAt(tw.from, tw.to, tw.lift, u, out));
     }
+
     arm.rotation.x = damp(arm.rotation.x, 0, ARM_RATE, dt);
     const u = Math.min(1, tw.t / tw.flight);
     arcAt(tw.from, tw.to, tw.lift, u, tw.item.position);
     tw.item.rotation.x += TOSS_SPIN * dt;
     tw.item.rotation.z += TOSS_SPIN * 0.6 * dt;
+
     if (u >= 1) {
       // lands flat where it was thrown, and stays there to be found; his hand keeps one to throw next time
       tw.item.rotation.set(-Math.PI / 2, 0, tw.item.rotation.z);
       n.toss = null;
       // the one lying there takes its own mark (Junk keeps it highlighted till it's picked up); the arc fades
       tw.highlight.dispose();
+
       if (tw.path) {
         tw.path.fadeOut();
         this.trails.push(tw.path);
       }
+
       const lying = tw.item.clone();
       this.scene.add(lying);
       this.hooks.landed(lying, tw.to.y);
@@ -463,10 +530,9 @@ export class Npcs {
 }
 
 /**
- * Where something thrown from `from` to `to` is a share u (0..1) of the way
- * through its flight: straight across, and a gravity arc up and down, lobbed
- * by `lift` (its rise is lift * u * (1 - u) over the plain drop, which comes
- * late, as a falling thing's does).
+ * Where something thrown from `from` to `to` is a share u (0..1) of the way through its flight: straight across, and a
+ * gravity arc up and down, lobbed by `lift` (its rise is lift * u * (1 - u) over the plain drop, which comes late, as a
+ * falling thing's does).
  */
 function arcAt(from: Vector3, to: Vector3, lift: number, u: number, out: Vector3): Vector3 {
   out.lerpVectors(from, to, u);

@@ -6,6 +6,7 @@
 //   node tools/scenarios.mjs [baseUrl] [set | set/case[/input] | case[/input] ...]
 // It needs Chromium at /Applications/Chromium.app (override with CHROME).
 import { readdirSync } from 'node:fs';
+
 import { chromium } from 'playwright-core';
 
 const BASE = process.argv[2]?.startsWith('http') ? process.argv[2] : 'http://localhost:5173/';
@@ -15,34 +16,54 @@ const LIVE = new URL('../tests/live/', import.meta.url);
 const JOBS = Math.max(1, Number(process.env.JOBS ?? 3));
 
 /**
- * Every case in every set, in file order. A set's exported functions are its cases, its `steps`
- * (if any) are helpers its cases call as window.__sim.<name>(), and `tutorial = true` runs its
- * cases with the tutorial on (the others start as if it's been done).
- * An exported `cases` table maps names to { run, inputs }: each string input becomes a separate
+ * Every case in every set, in file order. A set's exported functions are its cases, its `steps` (if any) are helpers
+ * its cases call as window.__sim.<name>(), and `tutorial = true` runs its cases with the tutorial on (the others start
+ * as if it's been done). An exported `cases` table maps names to { run, inputs }: each string input becomes a separate
  * name/input case, passed as the run function's argument in the browser.
  */
 const cases = [];
-for (const file of readdirSync(LIVE).filter((f) => f.endsWith('.mjs')).sort()) {
+for (const file of readdirSync(LIVE)
+  .filter((f) => f.endsWith('.mjs'))
+  .sort()) {
   const set = file.slice(0, -'.mjs'.length);
-  const { steps = {}, tutorial = false, cases: parameterized = {}, ...exports } = await import(new URL(file, LIVE).href);
+  const {
+    steps = {},
+    tutorial = false,
+    cases: parameterized = {},
+    ...exports
+  } = await import(new URL(file, LIVE).href);
   const add = (name, run, input) => {
     const id = `${set}/${name}`;
-    const wanted = !only.length || only.some((filter) => [id, name].some((path) => path === filter || path.startsWith(`${filter}/`)));
-    if (wanted) cases.push({ id, run, input, steps, tutorial });
+    const wanted =
+      !only.length ||
+      only.some((filter) => [id, name].some((path) => path === filter || path.startsWith(`${filter}/`)));
+    if (wanted) {
+      cases.push({ id, run, input, steps, tutorial });
+    }
   };
+
   for (const [name, run] of Object.entries(exports)) {
-    if (typeof run === 'function') add(name, run);
+    if (typeof run === 'function') {
+      add(name, run);
+    }
   }
+
   for (const [name, { run, inputs }] of Object.entries(parameterized)) {
-    for (const input of inputs) add(`${name}/${input}`, run, input);
+    for (const input of inputs) {
+      add(`${name}/${input}`, run, input);
+    }
   }
 }
+
 if (!cases.length) {
   console.log(`no live tests match ${only.join(' ')}`);
   process.exit(1);
 }
 
-const browser = await chromium.launch({ executablePath: CHROME, args: ['--headless=new', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const browser = await chromium.launch({
+  executablePath: CHROME,
+  args: ['--headless=new', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
+});
 let failed = 0;
 const queue = [...cases];
 /** One case, start to finish, on a page of its own. */
@@ -52,7 +73,11 @@ async function runCase({ id, run, input, steps, tutorial }) {
   page.setDefaultTimeout(600000);
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  if (!tutorial) await page.addInitScript(() => localStorage.setItem('30pc.tutorial', '1'));
+
+  if (!tutorial) {
+    await page.addInitScript(() => localStorage.setItem('30pc.tutorial', '1'));
+  }
+
   await page.goto(`${BASE}?manual=1&render=0&q=low&curve=0&sound=0&fresh`, { waitUntil: 'load' });
   await page.waitForFunction(() => window.__game !== undefined, null, { timeout: 600000 });
   await page.evaluate(() => {
@@ -61,7 +86,9 @@ async function runCase({ id, run, input, steps, tutorial }) {
     const DT = 1 / 30;
     window.__sim = {
       run: (n) => {
-        for (let i = 0; i < n; i++) g.frame(DT);
+        for (let i = 0; i < n; i++) {
+          g.frame(DT);
+        }
       },
       /** Steps until `done()` or `seconds` pass, tracking the biggest single-frame move of `watch`. */
       until: (done, seconds, watch) => {
@@ -73,28 +100,45 @@ async function runCase({ id, run, input, steps, tutorial }) {
             maxJump = Math.max(maxJump, v.pos.distanceTo(last[k]));
             last[k].copy(v.pos);
           });
-          if (done()) return { ok: true, seconds: Math.round(i * DT * 10) / 10, maxJump: Math.round(maxJump * 100) / 100 };
+
+          if (done()) {
+            return { ok: true, seconds: Math.round(i * DT * 10) / 10, maxJump: Math.round(maxJump * 100) / 100 };
+          }
         }
+
         return { ok: false, seconds, maxJump: Math.round(maxJump * 100) / 100 };
       },
     };
   });
   const helpers = Object.entries(steps).map(([name, fn]) => `${name}: ${fn.toString()}`);
-  if (helpers.length) await page.evaluate(`Object.assign(window.__sim, { ${helpers.join(', ')} })`);
+  if (helpers.length) {
+    await page.evaluate(`Object.assign(window.__sim, { ${helpers.join(', ')} })`);
+  }
+
   // a case that throws fails with what it threw, rather than stopping the run
   const booted = Date.now();
-  const result = await page.evaluate(run, input).catch((e) => ({ ok: false, threw: String(e.message ?? e).split('\n')[0] }));
+  const result = await page
+    .evaluate(run, input)
+    .catch((e) => ({ ok: false, threw: String(e.message ?? e).split('\n')[0] }));
   // A body moving more than 3 m in one frame (about 90 m/s) is a jump, not driving.
   const jumped = (result.maxJump ?? 0) > 3;
   const ok = result.ok && !jumped && errors.length === 0;
-  if (!ok) failed++;
+  if (!ok) {
+    failed++;
+  }
+
   const secs = (a, b) => Math.round((b - a) / 100) / 10;
-  console.log(`${ok ? 'PASS' : 'FAIL'} ${id} (boot ${secs(started, booted)}s, run ${secs(booted, Date.now())}s) ${JSON.stringify(result)}${errors.length ? ` errors: ${errors.join(' | ')}` : ''}${jumped ? ' (jumped)' : ''}`);
+  console.log(
+    `${ok ? 'PASS' : 'FAIL'} ${id} (boot ${secs(started, booted)}s, run ${secs(booted, Date.now())}s) ${JSON.stringify(result)}${errors.length ? ` errors: ${errors.join(' | ')}` : ''}${jumped ? ' (jumped)' : ''}`,
+  );
   await page.close();
 }
+
 await Promise.all(
   Array.from({ length: Math.min(JOBS, queue.length) }, async () => {
-    for (let c = queue.shift(); c; c = queue.shift()) await runCase(c);
+    for (let c = queue.shift(); c; c = queue.shift()) {
+      await runCase(c);
+    }
   }),
 );
 await browser.close();

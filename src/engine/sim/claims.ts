@@ -24,9 +24,9 @@ export interface TakeOptions {
 }
 
 /**
- * Claims are a stored relation: `holds(holder, target, kind)`, keyed per kind by target (and by
- * holder where the table says so). Taking a full claim is refused, or evicts the current holder
- * when the taker preempts. Claims end with their owner.
+ * Claims are a stored relation: `holds(holder, target, kind)`, keyed per kind by target (and by holder where the table
+ * says so). Taking a full claim is refused, or evicts the current holder when the taker preempts. Claims end with their
+ * owner.
  */
 export class Claims<K extends string> {
   readonly rows: Relation<Claim<K>>;
@@ -46,7 +46,10 @@ export class Claims<K extends string> {
 
   /** Takes a claim. Returns true if `holder` holds it afterwards, including when it already did. */
   take(kind: K, holder: object, target: object, { owner, preempt = false }: TakeOptions): boolean {
-    if (this.rows.where({ kind, holder, target }).length) return true;
+    if (this.rows.where({ kind, holder, target }).length) {
+      return true;
+    }
+
     const held = this.rows.where({ kind, target });
     const cap = this.table[kind].perTarget;
     const slot = held.length >= cap ? (held[0]?.slot ?? 0) : firstFreeSlot(held, cap);
@@ -80,7 +83,9 @@ export class Claims<K extends string> {
 
   /** Ends one claim, whoever owns it. */
   drop(kind: K, holder: object, target: object): void {
-    for (const row of this.rows.where({ kind, holder, target })) this.rows.delete(row);
+    for (const row of this.rows.where({ kind, holder, target })) {
+      this.rows.delete(row);
+    }
   }
 
   /** Ends every claim `owner` holds. */
@@ -103,6 +108,11 @@ export class Claims<K extends string> {
 }
 
 function firstFreeSlot(held: readonly { slot: number }[], cap: number): number {
-  for (let s = 0; s < cap; s++) if (!held.some(({ slot }) => slot === s)) return s;
+  for (let s = 0; s < cap; s++) {
+    if (!held.some(({ slot }) => slot === s)) {
+      return s;
+    }
+  }
+
   return 0;
 }

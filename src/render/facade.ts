@@ -1,14 +1,15 @@
 import { type CanvasTexture, type MeshStandardMaterial, Vector4, type WebGLProgramParametersWithUniforms } from 'three';
+
 import { FACADE, FACE_CODE } from '@/world/facade-layout';
+
 import { FACE_DATA } from './geometry';
 import { makeCanvas, toTexture } from './textures';
 
 /**
- * Facade shader tuning (metres unless noted). Windows are laid out per bay and
- * storey from each face's FACE_DATA (world/facade-layout.ts), and the rooms
- * behind them are ray-cast in the fragment shader ("interior mapping", Joost
- * van Dongen 2008): a back wall, side walls, floor and ceiling, a furniture
- * silhouette card part way in, and blinds or curtains on some windows.
+ * Facade shader tuning (metres unless noted). Windows are laid out per bay and storey from each face's FACE_DATA
+ * (world/facade-layout.ts), and the rooms behind them are ray-cast in the fragment shader ("interior mapping", Joost
+ * van Dongen 2008): a back wall, side walls, floor and ceiling, a furniture silhouette card part way in, and blinds or
+ * curtains on some windows.
  */
 const LOOK = {
   /** The ink frame round each window: at least this thick, and at least this many pixels. */
@@ -21,7 +22,10 @@ const LOOK = {
   roomGlow: 0.35,
   /** Plain ground floors: the dark plinth along the bottom. */
   plinth: 0.6,
-  /** Rooms: depth by kind (upper floors, shops, lobbies), and how far in the furniture card stands (share of the depth, range). */
+  /**
+   * Rooms: depth by kind (upper floors, shops, lobbies), and how far in the furniture card stands (share of the depth,
+   * range).
+   */
   depth: [FACADE.room, 6, 8],
   card: [0.35, 0.65],
   /** Night: share of rooms lit (base, plus up to this much more per floor), and the chance a whole floor is dark. */
@@ -34,7 +38,10 @@ const LOOK = {
   glow: 0.6,
   falloff: 0.18,
   glowFloor: 0.2,
-  /** Day: how dim a room looks through the glass, and how much of the glass is sky reflection (bottom to top of a window). */
+  /**
+   * Day: how dim a room looks through the glass, and how much of the glass is sky reflection (bottom to top of a
+   * window).
+   */
   dayRoom: 0.32,
   reflect: [0.3, 0.55],
   /** Shops and lobbies run this many bays wide (one room behind several windows). */
@@ -58,10 +65,9 @@ const G = FACADE.glazing;
 export const LIVE_MAX = 2;
 
 /**
- * Walk-in buildings whose rooms are built (world/interiors.ts): each one's
- * footprint (x0, z0, x1, z1) and the top of its built floors. Their facades
- * open up there: the glass and doors become holes onto the real rooms, which
- * have panes of their own. An unused slot has an empty rect.
+ * Walk-in buildings whose rooms are built (world/interiors.ts): each one's footprint (x0, z0, x1, z1) and the top of
+ * its built floors. Their facades open up there: the glass and doors become holes onto the real rooms, which have panes
+ * of their own. An unused slot has an empty rect.
  */
 export const facadeUniforms = {
   uLiveRect: { value: Array.from({ length: LIVE_MAX }, () => new Vector4(0, 0, -1, -1)) },
@@ -330,17 +336,23 @@ function furnitureAtlas(): CanvasTexture {
   const T = 64;
   const { c, ctx } = makeCanvas(T * 4, T * 2);
   ctx.fillStyle = '#fff';
-  /** Tile k's frame: x0, y of its floor (canvas y runs down), and a rect helper in tile units (0..1, y up from the floor). */
+
+  /**
+   * Tile k's frame: x0, y of its floor (canvas y runs down), and a rect helper in tile units (0..1, y up from the
+   * floor).
+   */
   const tile = (k: number): ((x: number, y: number, w: number, h: number) => void) => {
     const x0 = (k % 4) * T;
     const floor = (Math.floor(k / 4) === 0 ? 2 : 1) * T;
     return (x, y, w, h) => ctx.fillRect(x0 + x * T, floor - (y + h) * T, w * T, h * T);
   };
+
   const disc = (k: number, x: number, y: number, r: number): void => {
     ctx.beginPath();
     ctx.arc((k % 4) * T + x * T, (Math.floor(k / 4) === 0 ? 2 : 1) * T - y * T, r * T, 0, Math.PI * 2);
     ctx.fill();
   };
+
   // 0: sofa and a standing lamp
   let r = tile(0);
   r(0.15, 0, 0.6, 0.2);
@@ -397,11 +409,9 @@ function furnitureAtlas(): CanvasTexture {
 let atlas: CanvasTexture | null = null;
 
 /**
- * The facade shader on a world material: windows, frames and sills laid out by
- * bay and storey, shop and lobby fronts, awning stripes, and the rooms behind
- * the glass, lit at night through the material's emissive (so its emissive
- * channel still sets how bright windows are). Chains onto whatever patches the
- * material already has (the cutaway).
+ * The facade shader on a world material: windows, frames and sills laid out by bay and storey, shop and lobby fronts,
+ * awning stripes, and the rooms behind the glass, lit at night through the material's emissive (so its emissive channel
+ * still sets how bright windows are). Chains onto whatever patches the material already has (the cutaway).
  */
 export function withFacade<T extends MeshStandardMaterial>(mat: T): T {
   const tex = (atlas ??= furnitureAtlas());
@@ -410,15 +420,27 @@ export function withFacade<T extends MeshStandardMaterial>(mat: T): T {
     prev(shader, renderer);
     shader.uniforms.uFurniture = { value: tex };
     Object.assign(shader.uniforms, facadeUniforms);
-    shader.vertexShader = VERT_HEAD + shader.vertexShader.replace(
-      '#include <beginnormal_vertex>',
-      `#include <beginnormal_vertex>\n  vFaceData = ${FACE_DATA};\n  vFaceUv = uv;\n  vFaceN = normalize(mat3(modelMatrix) * objectNormal);`,
-    );
+    shader.vertexShader =
+      VERT_HEAD +
+      shader.vertexShader.replace(
+        '#include <beginnormal_vertex>',
+        `#include <beginnormal_vertex>\n  vFaceData = ${FACE_DATA};\n  vFaceUv = uv;\n  vFaceN = normalize(mat3(modelMatrix) * objectNormal);`,
+      );
     shader.fragmentShader = (FRAG_HEAD + FRAG_BODY + shader.fragmentShader)
-      .replace('#include <alphamap_fragment>', '#include <alphamap_fragment>\n  facadePaint(diffuseColor.rgb, vCutWorld);')
-      .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\n  roughnessFactor = mix(roughnessFactor, 0.3, facGlass);\n  metalnessFactor = mix(metalnessFactor, 0.25, facGlass);')
-      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n  totalEmissiveRadiance *= facEmit;');
+      .replace(
+        '#include <alphamap_fragment>',
+        '#include <alphamap_fragment>\n  facadePaint(diffuseColor.rgb, vCutWorld);',
+      )
+      .replace(
+        '#include <metalnessmap_fragment>',
+        '#include <metalnessmap_fragment>\n  roughnessFactor = mix(roughnessFactor, 0.3, facGlass);\n  metalnessFactor = mix(metalnessFactor, 0.25, facGlass);',
+      )
+      .replace(
+        '#include <emissivemap_fragment>',
+        '#include <emissivemap_fragment>\n  totalEmissiveRadiance *= facEmit;',
+      );
   };
+
   const prevKey = mat.customProgramCacheKey.bind(mat);
   mat.customProgramCacheKey = () => prevKey() + '|facade1';
   return mat;

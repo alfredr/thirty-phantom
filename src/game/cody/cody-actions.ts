@@ -1,16 +1,17 @@
 import type { Vehicle } from '@/actors/vehicle';
 import { Action, done, fail, type Fail, type Result } from '@/engine/sim/action';
 import type { Candidate } from '@/engine/sim/offers';
-import type { Elevator } from '@/world/elevators';
 import type { Control } from '@/game/controls';
 import type { Npc } from '@/game/randy/npcs';
-import type { Valet } from '@/game/valets/valet';
 import type { WorldConditions } from '@/game/rules/world-conditions';
+import type { Valet } from '@/game/valets/valet';
+import type { Elevator } from '@/world/elevators';
+
 import type { CodyState } from './cody-state';
 
 /**
- * What Cody's actions need from the game. The game provides this narrow view, and actions never
- * reach past it, so each action's dependencies are visible in one place.
+ * What Cody's actions need from the game. The game provides this narrow view, and actions never reach past it, so each
+ * action's dependencies are visible in one place.
  */
 export interface Play {
   readonly cody: CodyState;
@@ -80,9 +81,18 @@ export class InteractWithVehicle extends Action<Play, Play> {
   resolve(w: Play): CodyAction | Fail {
     const { car } = this.p;
     const { cody } = w;
-    if (w.possessable(car)) return new Possess({ car });
-    if (car.form === 'truck') return cody.can('truck') ? new GetIn({ car }) : fail('');
-    if (!cody.can('steal')) return fail('');
+    if (w.possessable(car)) {
+      return new Possess({ car });
+    }
+
+    if (car.form === 'truck') {
+      return cody.can('truck') ? new GetIn({ car }) : fail('');
+    }
+
+    if (!cody.can('steal')) {
+      return fail('');
+    }
+
     return car.role === 'traffic' || !car.insideDeck ? new Steal({ car }) : new GetIn({ car });
   }
   perform(): Result<CodyAction> {
@@ -159,7 +169,10 @@ export class GetOut extends Action<Play, Play> {
   resolve(w: Play): CodyAction | Fail {
     const { car } = this.p;
     // An escaped truck rolls on by itself, and nobody gets out of a car in the air.
-    if (w.escaping() || !(car.grounded || (car.crashing && car.resting))) return fail('');
+    if (w.escaping() || !(car.grounded || (car.crashing && car.resting))) {
+      return fail('');
+    }
+
     return this;
   }
   perform(w: Play): Result<CodyAction> {
@@ -168,7 +181,10 @@ export class GetOut extends Action<Play, Play> {
   }
 }
 
-/** A car on its side or roof, gone still: the hop key rocks it back over. The hop itself is a driving input; this offer names it. */
+/**
+ * A car on its side or roof, gone still: the hop key rocks it back over. The hop itself is a driving input; this offer
+ * names it.
+ */
 export class RockOver extends Action<Play, Play> {
   label(): string {
     return 'ROCK IT OVER';
@@ -231,5 +247,6 @@ function heading(e: Elevator): string {
     const arrow = e.stopY(to) > e.y ? '&#9650;' : '&#9660;';
     return ` &nbsp;&middot;&nbsp; ${arrow} ${e.label(to)}`;
   }
+
   return e.at !== null ? ` &nbsp;&middot;&nbsp; ${e.label(e.at)}` : '';
 }

@@ -37,7 +37,11 @@ export const options: MindOptions<void, TestState, TestEvent> = {
     start: (_self, state, event) => {
       // @ts-expect-error A fallback can receive any state.
       void state.seconds;
-      if (state.at === 'waiting') state.seconds.toFixed();
+
+      if (state.at === 'waiting') {
+        state.seconds.toFixed();
+      }
+
       return { at: 'waiting', seconds: event.seconds };
     },
   },
@@ -86,10 +90,16 @@ export function checkTransitions(machine: Mind<void, TestState, TestEvent>): voi
   machine.send({ type: 'missing' });
 
   const waiting = machine.in('waiting');
-  if (waiting) waiting.seconds -= 1;
+  if (waiting) {
+    waiting.seconds -= 1;
+  }
+
   const idle = machine.in('idle');
-  // @ts-expect-error Narrowing to idle does not expose waiting's data.
-  if (idle) idle.seconds -= 1;
+  if (idle) {
+    // @ts-expect-error Narrowing to idle does not expose waiting's data.
+    idle.seconds -= 1;
+  }
+
   // @ts-expect-error Queries use the declared state names.
   machine.in('missing');
 }
@@ -100,16 +110,20 @@ export function checkNoEvents(machine: Mind<void, TestState>): void {
 }
 
 export function checkNarrowing(state: TestState, event: TestEvent): void {
-  if (state.at === 'waiting') state.seconds -= 1;
-  else {
+  if (state.at === 'waiting') {
+    state.seconds -= 1;
+  } else {
     // @ts-expect-error The tag narrows to the state with no payload.
     void state.seconds;
   }
-  if (event.type === 'start') event.seconds.toFixed();
-  else {
+
+  if (event.type === 'start') {
+    event.seconds.toFixed();
+  } else {
     // @ts-expect-error The tag narrows to the event with no payload.
     void event.seconds;
   }
+
   // @ts-expect-error State tags cannot be changed in place.
   state.at = 'idle';
   // @ts-expect-error Event tags cannot be changed in place.

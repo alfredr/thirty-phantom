@@ -1,5 +1,7 @@
 import { BufferGeometry, Color, Float32BufferAttribute, Uint32BufferAttribute } from 'three';
+
 import { lerp, type V3 } from '@/engine/core/math';
+
 import { CURVE_TILE } from './curvature';
 
 const _a = [0, 0, 0];
@@ -59,10 +61,9 @@ export interface BoxOptions {
 export const FACE_DATA = 'faceData';
 
 /**
- * A face's own mapping: the world-space u and v a quad would get, less
- * (u0, v0) and over (su, sv), so a texture or shader can lay out cells that
- * line up with the face's edges; plus four numbers for the FACE_DATA
- * attribute (what the material makes of them is its own business).
+ * A face's own mapping: the world-space u and v a quad would get, less (u0, v0) and over (su, sv), so a texture or
+ * shader can lay out cells that line up with the face's edges; plus four numbers for the FACE_DATA attribute (what the
+ * material makes of them is its own business).
  */
 export interface FaceMap {
   u0: number;
@@ -101,22 +102,36 @@ export function subtractRects(r: FaceRect, holes: readonly FaceRect[]): FaceRect
         next.push(p);
         continue;
       }
-      if (p.u0 < u0) next.push({ ...p, u1: u0 });
-      if (u1 < p.u1) next.push({ ...p, u0: u1 });
-      if (p.v0 < v0) next.push({ u0, u1, v0: p.v0, v1: v0 });
-      if (v1 < p.v1) next.push({ u0, u1, v0: v1, v1: p.v1 });
+
+      if (p.u0 < u0) {
+        next.push({ ...p, u1: u0 });
+      }
+
+      if (u1 < p.u1) {
+        next.push({ ...p, u0: u1 });
+      }
+
+      if (p.v0 < v0) {
+        next.push({ u0, u1, v0: p.v0, v1: v0 });
+      }
+
+      if (v1 < p.v1) {
+        next.push({ u0, u1, v0: v1, v1: p.v1 });
+      }
     }
+
     out = next;
   }
+
   return out;
 }
 
 const NO_DATA = [0, 0, 0, 0] as const;
 
 /**
- * Where the edge a-b crosses the CURVE_TILE grid, as fractions of the way along it (0 and 1
- * included). Edges along x or z cut at grid lines; slanted ones in even steps; vertical ones and
- * ones shorter than a tile not at all (they barely bend).
+ * Where the edge a-b crosses the CURVE_TILE grid, as fractions of the way along it (0 and 1 included). Edges along x or
+ * z cut at grid lines; slanted ones in even steps; vertical ones and ones shorter than a tile not at all (they barely
+ * bend).
  */
 function gridCuts(a: V3, b: V3): number[] {
   const dx = b[0] - a[0];
@@ -131,13 +146,21 @@ function gridCuts(a: V3, b: V3): number[] {
     if (Math.abs(d) > 1e-6) {
       const lo = Math.min(a[k], b[k]);
       const hi = Math.max(a[k], b[k]);
-      for (let g = Math.floor(lo / t + 1) * t; g < hi - 1e-3; g += t) if (g > lo + 1e-3) out.push((g - a[k]) / d);
+      for (let g = Math.floor(lo / t + 1) * t; g < hi - 1e-3; g += t) {
+        if (g > lo + 1e-3) {
+          out.push((g - a[k]) / d);
+        }
+      }
     }
+
     out.sort((p, q) => p - q);
   } else {
     const steps = Math.ceil(Math.hypot(dx, dz) / t);
-    for (let i = 1; i < steps; i++) out.push(i / steps);
+    for (let i = 1; i < steps; i++) {
+      out.push(i / steps);
+    }
   }
+
   out.push(1);
   return out;
 }
@@ -146,7 +169,10 @@ function gridCuts(a: V3, b: V3): number[] {
 function bilerp(p: readonly V3[], u: number, v: number): V3 {
   const [a, b, c, d] = p as [V3, V3, V3, V3];
   const out: V3 = [0, 0, 0];
-  for (let k = 0; k < 3; k++) out[k] = lerp(lerp(a[k]!, b[k]!, u), lerp(d[k]!, c[k]!, u), v);
+  for (let k = 0; k < 3; k++) {
+    out[k] = lerp(lerp(a[k]!, b[k]!, u), lerp(d[k]!, c[k]!, u), v);
+  }
+
   return out;
 }
 
@@ -156,8 +182,8 @@ export const CHUNK = 48;
 export const NO_TINT = new Color(1, 1, 1);
 
 /**
- * Accumulates quads into one indexed BufferGeometry with world-space UVs
- * (so textures line up across neighbouring blocks) and per-vertex colors.
+ * Accumulates quads into one indexed BufferGeometry with world-space UVs (so textures line up across neighbouring
+ * blocks) and per-vertex colors.
  */
 export class GeometryBatch {
   private readonly pos: number[] = [];
@@ -178,9 +204,9 @@ export class GeometryBatch {
   }
 
   /**
-   * Add a planar quad a-b-c-d. If `center` is given, winding is fixed so the
-   * face points away from it (convex solids). Shade multiplies vertex color per corner.
-   * `map` gives it its own UVs and FACE_DATA instead of world-space UVs over `uvScale`.
+   * Add a planar quad a-b-c-d. If `center` is given, winding is fixed so the face points away from it (convex solids).
+   * Shade multiplies vertex color per corner. `map` gives it its own UVs and FACE_DATA instead of world-space UVs over
+   * `uvScale`.
    */
   quad(
     a: V3,
@@ -205,7 +231,11 @@ export class GeometryBatch {
         n = [-n[0], -n[1], -n[2]];
       }
     }
-    if (!Number.isFinite(n[0])) return;
+
+    if (!Number.isFinite(n[0])) {
+      return;
+    }
+
     // world curvature bends vertices only (render/curvature.ts): a big face is split on the world
     // grid so it curves, and so neighbours split their shared edges at the same places
     if (CURVE_TILE > 0) {
@@ -217,19 +247,38 @@ export class GeometryBatch {
         for (let j = 0; j + 1 < vs.length; j++) {
           for (let i = 0; i + 1 < us.length; i++) {
             const [u0, u1, v0, v1] = [us[i]!, us[i + 1]!, vs[j]!, vs[j + 1]!];
-            this.emit([at(u0, v0), at(u1, v0), at(u1, v1), at(u0, v1)], n, [sat(u0, v0), sat(u1, v0), sat(u1, v1), sat(u0, v1)], color, uvScale, map);
+            this.emit(
+              [at(u0, v0), at(u1, v0), at(u1, v1), at(u0, v1)],
+              n,
+              [sat(u0, v0), sat(u1, v0), sat(u1, v1), sat(u0, v1)],
+              color,
+              uvScale,
+              map,
+            );
           }
         }
+
         return;
       }
     }
+
     this.emit(pts as [V3, V3, V3, V3], n, sh, color, uvScale, map);
   }
 
   /** One quad's vertices, world-space (or mapped) UVs, colors and indices. */
-  private emit(pts: readonly [V3, V3, V3, V3], n: V3, sh: readonly number[], color: Color, uvScale: number, map?: FaceMap): void {
+  private emit(
+    pts: readonly [V3, V3, V3, V3],
+    n: V3,
+    sh: readonly number[],
+    color: Color,
+    uvScale: number,
+    map?: FaceMap,
+  ): void {
     const base = this.pos.length / 3;
-    if (map) this.data ??= new Array<number>(base * 4).fill(0);
+    if (map) {
+      this.data ??= new Array<number>(base * 4).fill(0);
+    }
+
     const ax = Math.abs(n[0]);
     const ay = Math.abs(n[1]);
     const az = Math.abs(n[2]);
@@ -249,12 +298,18 @@ export class GeometryBatch {
         u = n[2] > 0 ? p[0] : -p[0];
         v = p[1];
       }
-      if (map) this.uv.push((u - map.u0) / map.su, (v - map.v0) / map.sv);
-      else this.uv.push(u / uvScale, v / uvScale);
+
+      if (map) {
+        this.uv.push((u - map.u0) / map.su, (v - map.v0) / map.sv);
+      } else {
+        this.uv.push(u / uvScale, v / uvScale);
+      }
+
       const s = sh[i] ?? 1;
       this.col.push(color.r * s, color.g * s, color.b * s);
       this.data?.push(...(map?.data ?? NO_DATA));
     }
+
     this.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
   }
 
@@ -266,7 +321,8 @@ export class GeometryBatch {
     const c: V3 = [(min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2];
     const h = max[1] - min[1];
     const lo = opts.lo ?? (ao ? (h < 1.5 ? 0.78 : h < 6 ? 0.62 : 0.5) : 1);
-    const shade = (axis: number, dir: number, p: V3): number => (axis !== 1 ? lo + ((1 - lo) * (p[1] - min[1])) / (h || 1) : dir > 0 ? 1 : 0.7);
+    const shade = (axis: number, dir: number, p: V3): number =>
+      axis !== 1 ? lo + ((1 - lo) * (p[1] - min[1])) / (h || 1) : dir > 0 ? 1 : 0.7;
     for (const f of opts.faces ?? boxFaces(min)) {
       const { axis, dir } = BOX_FACES[f];
       const [ua, va] = faceAxes(axis);
@@ -274,7 +330,14 @@ export class GeometryBatch {
       const holes = opts.holes?.(f);
       const map = opts.map?.(f);
       for (const r of holes?.length ? subtractRects(full, holes) : [full]) {
-        const pts = ([[r.u0, r.v0], [r.u1, r.v0], [r.u1, r.v1], [r.u0, r.v1]] as const).map(([u, v]) => {
+        const pts = (
+          [
+            [r.u0, r.v0],
+            [r.u1, r.v0],
+            [r.u1, r.v1],
+            [r.u0, r.v1],
+          ] as const
+        ).map(([u, v]) => {
           const p: V3 = [0, 0, 0];
           p[axis] = dir > 0 ? max[axis] : min[axis];
           p[ua] = u;
@@ -287,10 +350,7 @@ export class GeometryBatch {
     }
   }
 
-  /**
-   * Solid wedge: base at min.y, sloped top rising from `low` to max.y along
-   * `axis` in direction `dir`.
-   */
+  /** Solid wedge: base at min.y, sloped top rising from `low` to max.y along `axis` in direction `dir`. */
   wedge(min: V3, max: V3, axis: 'x' | 'z', dir: 1 | -1, low: number, color: Color, uvScale: number): void {
     const [x0, y0, z0] = min;
     const [x1, , z1] = max;
@@ -303,14 +363,21 @@ export class GeometryBatch {
       const y = top ? lerp(low, high, s) : y0;
       return [x, y, z];
     };
+
     const c: V3 = [(x0 + x1) / 2, (y0 + (low + high) / 2) / 2, (z0 + z1) / 2];
     const lo = 0.65;
     this.quad(P(0, 0, true), P(1, 0, true), P(1, 1, true), P(0, 1, true), color, uvScale, c);
     this.quad(P(0, 0, false), P(1, 0, false), P(1, 0, true), P(0, 0, true), color, uvScale, c, [lo, lo, 1, 1]);
     this.quad(P(0, 1, false), P(1, 1, false), P(1, 1, true), P(0, 1, true), color, uvScale, c, [lo, lo, 1, 1]);
     this.quad(P(1, 0, false), P(1, 1, false), P(1, 1, true), P(1, 0, true), color, uvScale, c, [lo, lo, 1, 1]);
-    if (low - y0 > 0.01) this.quad(P(0, 0, false), P(0, 1, false), P(0, 1, true), P(0, 0, true), color, uvScale, c, [lo, lo, 1, 1]);
-    if (y0 > 0.001) this.quad(P(0, 0, false), P(1, 0, false), P(1, 1, false), P(0, 1, false), color, uvScale, c);
+
+    if (low - y0 > 0.01) {
+      this.quad(P(0, 0, false), P(0, 1, false), P(0, 1, true), P(0, 0, true), color, uvScale, c, [lo, lo, 1, 1]);
+    }
+
+    if (y0 > 0.001) {
+      this.quad(P(0, 0, false), P(1, 0, false), P(1, 1, false), P(0, 1, false), color, uvScale, c);
+    }
   }
 
   /** Horizontal quad (decals/puddles) with 0..1 UVs, facing up. */
@@ -335,6 +402,7 @@ export class GeometryBatch {
       this.col.push(color.r, color.g, color.b);
       this.data?.push(...NO_DATA);
     }
+
     this.idx.push(base, base + 2, base + 1, base, base + 3, base + 2);
   }
 
@@ -344,7 +412,11 @@ export class GeometryBatch {
     g.setAttribute('normal', new Float32BufferAttribute(this.nor, 3));
     g.setAttribute('uv', new Float32BufferAttribute(this.uv, 2));
     g.setAttribute('color', new Float32BufferAttribute(this.col, 3));
-    if (this.data) g.setAttribute(FACE_DATA, new Float32BufferAttribute(this.data, 4));
+
+    if (this.data) {
+      g.setAttribute(FACE_DATA, new Float32BufferAttribute(this.data, 4));
+    }
+
     g.setIndex(new Uint32BufferAttribute(this.idx, 1));
     g.computeBoundingSphere();
     g.computeBoundingBox();

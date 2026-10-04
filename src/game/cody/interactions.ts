@@ -1,19 +1,36 @@
 import type { Vector3 } from 'three';
+
 import type { Player } from '@/actors/player';
 import type { Vehicle } from '@/actors/vehicle';
 import { TUNING } from '@/config';
 import type { Input } from '@/engine/input/input';
 import { Doing, resolveFully } from '@/engine/sim/action';
 import { bestOffers } from '@/engine/sim/offers';
-import type { InvItem } from '@/ui/inventory';
-import type { Elevators } from '@/world/elevators';
 import type { Control } from '@/game/controls';
 import type { Inventory, ItemActionId } from '@/game/items/inventory';
 import { ITEM_BREEDS, type ItemKind, isItemKind } from '@/game/items/item-breeds';
 import { NPC_NAMES, type Npc } from '@/game/randy/npcs';
 import type { RandyTalk } from '@/game/randy/talk';
 import type { ValetService } from '@/game/valets/valet';
-import { CallElevator, type CodyAction, type CodyCandidate, Eat, GetOut, GiveTires, InteractWithVehicle, PickFloor, type Play, RANK, RockOver, Summon, TalkToRandy, TalkToValet } from './cody-actions';
+import type { InvItem } from '@/ui/inventory';
+import type { Elevators } from '@/world/elevators';
+
+import {
+  CallElevator,
+  type CodyAction,
+  type CodyCandidate,
+  Eat,
+  GetOut,
+  GiveTires,
+  InteractWithVehicle,
+  PickFloor,
+  type Play,
+  RANK,
+  RockOver,
+  Summon,
+  TalkToRandy,
+  TalkToValet,
+} from './cody-actions';
 
 /** Maximum vertical distance to a vehicle Cody could enter, in meters. */
 const ENTER_HEIGHT = 1.8;
@@ -54,7 +71,10 @@ export class Interactions {
       end: () => undefined,
       performed: (action) => view.performed(action),
       failed: (action, reason) => {
-        if (reason) view.refused(reason);
+        if (reason) {
+          view.refused(reason);
+        }
+
         view.failed(action, reason);
       },
     });
@@ -67,9 +87,14 @@ export class Interactions {
 
   /** Resolve again at the click: the menu may have been drawn before a target moved. */
   useItem(kind: string, id: string): void {
-    if (!isItemKind(kind)) return;
+    if (!isItemKind(kind)) {
+      return;
+    }
+
     const offer = this.itemOffers(kind).find((o) => o.id === id);
-    if (offer) this.doing.do(this.play, offer.action);
+    if (offer) {
+      this.doing.do(this.play, offer.action);
+    }
   }
 
   giveTires(to: Npc): boolean {
@@ -88,9 +113,9 @@ export class Interactions {
   }
 
   /**
-   * Cody's offers this frame. The prompt shows the best offer for each key, and pressing a key
-   * performs the offer the prompt showed. A key with nothing to offer shows the reason, if any.
-   * Keys a focus layer takes never reach here: the layer gets them instead.
+   * Cody's offers this frame. The prompt shows the best offer for each key, and pressing a key performs the offer the
+   * prompt showed. A key with nothing to offer shows the reason, if any. Keys a focus layer takes never reach here: the
+   * layer gets them instead.
    */
   update(): void {
     const { offers, refusals } = bestOffers(this.play, this.candidates());
@@ -100,47 +125,88 @@ export class Interactions {
       return offer?.label && !this.input.focus.owns(control) ? [offer] : [];
     });
     const [first] = shown;
-    this.view.prompt(first ? shown.map(({ control, label }) => `{${control}} ${label}`).join(' &nbsp;') : null, first?.control);
+    this.view.prompt(
+      first ? shown.map(({ control, label }) => `{${control}} ${label}`).join(' &nbsp;') : null,
+      first?.control,
+    );
+
     for (const control of ACT_CONTROLS) {
-      if (!this.input.wasPressed(control)) continue;
+      if (!this.input.wasPressed(control)) {
+        continue;
+      }
+
       const offer = offers.get(control);
       const reason = refusals.get(control);
-      if (offer) this.doing.do(this.play, offer.action);
-      else if (reason) this.view.refused(reason);
+      if (offer) {
+        this.doing.do(this.play, offer.action);
+      } else if (reason) {
+        this.view.refused(reason);
+      }
     }
   }
 
   /** Everything Cody might do with a key right now, before resolving. Nearest vehicles come first. */
   private candidates(): CodyCandidate[] {
-    if (this.world.blocked()) return [];
+    if (this.world.blocked()) {
+      return [];
+    }
+
     const out: CodyCandidate[] = [];
     const v = this.play.ride();
     if (v) {
       const { handOverSpeed, talkReach } = TUNING.valet;
-      const valet = v.form === 'car' && v.grounded && Math.abs(v.speed) < handOverSpeed ? this.world.valet.talkable(v.pos, talkReach.car, this.play.conditions.valetsOnShift()) : null;
-      if (valet) out.push({ control: 'interact', rank: RANK.valet, action: new TalkToValet({ valet }) });
+      const valet =
+        v.form === 'car' && v.grounded && Math.abs(v.speed) < handOverSpeed
+          ? this.world.valet.talkable(v.pos, talkReach.car, this.play.conditions.valetsOnShift())
+          : null;
+      if (valet) {
+        out.push({ control: 'interact', rank: RANK.valet, action: new TalkToValet({ valet }) });
+      }
+
       out.push({ control: 'interact', rank: RANK.getOut, action: new GetOut({ car: v }) });
-      if (v.crashing && v.resting) out.push({ control: 'hop', rank: RANK.getOut, action: new RockOver() });
+
+      if (v.crashing && v.resting) {
+        out.push({ control: 'hop', rank: RANK.getOut, action: new RockOver() });
+      }
+
       return out;
     }
+
     const p = this.world.player.pos;
     for (const source of this.offerSources) {
       const action = source();
-      if (action) out.push({ control: 'interact', rank: RANK.script, action });
+      if (action) {
+        out.push({ control: 'interact', rank: RANK.script, action });
+      }
     }
+
     const valet = this.world.valet.talkable(p, TUNING.valet.talkReach.foot, this.play.conditions.valetsOnShift());
-    if (valet) out.push({ control: 'interact', rank: RANK.valet, action: new TalkToValet({ valet }) });
+    if (valet) {
+      out.push({ control: 'interact', rank: RANK.valet, action: new TalkToValet({ valet }) });
+    }
+
     const randy = this.world.randyTalk.talkable(p);
-    if (randy) out.push({ control: 'interact', rank: RANK.randy, action: new TalkToRandy({ randy }) });
+    if (randy) {
+      out.push({ control: 'interact', rank: RANK.randy, action: new TalkToRandy({ randy }) });
+    }
+
     const cab = this.world.elevators.cabAt(p);
     const landing = cab ? null : this.world.elevators.landingAt(p, TUNING.elevator.callReach);
     if (cab) {
       out.push({ control: 'interact', rank: RANK.elevator, action: new PickFloor({ cab, dir: 1 }) });
       out.push({ control: 'pay', rank: RANK.elevator, action: new PickFloor({ cab, dir: -1 }) });
     } else if (landing && !landing.elevator.openAt(landing.stop)) {
-      out.push({ control: 'interact', rank: RANK.elevator, action: new CallElevator({ elevator: landing.elevator, stop: landing.stop }) });
+      out.push({
+        control: 'interact',
+        rank: RANK.elevator,
+        action: new CallElevator({ elevator: landing.elevator, stop: landing.stop }),
+      });
     }
-    for (const car of this.vehiclesInReach(p)) out.push({ control: 'interact', rank: RANK.vehicle, action: new InteractWithVehicle({ car }) });
+
+    for (const car of this.vehiclesInReach(p)) {
+      out.push({ control: 'interact', rank: RANK.vehicle, action: new InteractWithVehicle({ car }) });
+    }
+
     out.push({ control: 'summon', rank: 0, action: new Summon() });
     return out;
   }
@@ -148,7 +214,11 @@ export class Interactions {
   /** Vehicles Cody could get into from `p`, nearest first. */
   private vehiclesInReach(p: Vector3): Vehicle[] {
     const near = this.world.vehicles.filter(
-      (v) => v.role !== 'player' && !v.status && Math.abs(v.pos.y - p.y) < ENTER_HEIGHT && v.pos.distanceTo(p) < v.breed.enterReach,
+      (v) =>
+        v.role !== 'player' &&
+        !v.status &&
+        Math.abs(v.pos.y - p.y) < ENTER_HEIGHT &&
+        v.pos.distanceTo(p) < v.breed.enterReach,
     );
     return near.sort((a, b) => a.pos.distanceTo(p) - b.pos.distanceTo(p));
   }
@@ -156,9 +226,15 @@ export class Interactions {
   /** What Cody could do with one kind of item right now, resolved: EAT, or GIVE TO RANDY. */
   private itemOffers(kind: ItemKind): { id: ItemActionId; action: CodyAction; label: string }[] {
     const candidates: [ItemActionId, CodyAction][] = [];
-    if (kind === 'brisket') candidates.push(['eat', new Eat()]);
+    if (kind === 'brisket') {
+      candidates.push(['eat', new Eat()]);
+    }
+
     const taker = kind === 'tire' && this.world.playing() ? this.play.tireTaker() : null;
-    if (taker) candidates.push(['give', new GiveTires({ to: taker, name: NPC_NAMES[taker.def.id] })]);
+    if (taker) {
+      candidates.push(['give', new GiveTires({ to: taker, name: NPC_NAMES[taker.def.id] })]);
+    }
+
     return candidates.flatMap(([id, action]) => {
       const resolved = resolveFully(this.play, action);
       return 'fail' in resolved ? [] : [{ id, action: resolved, label: resolved.label(this.play) }];

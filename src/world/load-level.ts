@@ -11,10 +11,12 @@ export async function loadLevel(url: string | null): Promise<LevelData> {
         const { parseLevel } = await import('./parse-level');
         return parseLevel(json);
       }
+
       console.warn(`[level] ${url}: HTTP ${response.status}, using procedural level`);
     } catch (err) {
       console.warn(`[level] ${url} failed, using procedural level`, err);
     }
   }
+
   return generateLevel();
 }

@@ -1,12 +1,14 @@
 import type { Vector3 } from 'three';
+
 import type { Vehicle } from '@/actors/vehicle';
 import { TUNING } from '@/config';
 import type { Rng } from '@/engine/core/rng';
 import type { Focus } from '@/engine/input/input';
-import type { Hud } from '@/ui/hud';
 import type { Control } from '@/game/controls';
 import { type Garage, spotLabel, type SpotRuntime } from '@/game/deck/garage';
 import { type Choice, Conversation } from '@/game/story/conversation';
+import type { Hud } from '@/ui/hud';
+
 import type { Valet, ValetService } from './valet';
 
 const DECK_FULL = "SORRY. THE DECK'S FULL.";
@@ -26,17 +28,18 @@ export interface TalkHooks {
   pay(amount: number): boolean;
 }
 
-/** How a car gets handed over: free to the top floor, tipped or bribed to the top floor, or untipped (wherever there's room). */
+/**
+ * How a car gets handed over: free to the top floor, tipped or bribed to the top floor, or untipped (wherever there's
+ * room).
+ */
 type Deal = 'top' | 'tipped' | 'bribed' | 'anywhere';
 
 /**
- * Talking to a valet. While it's open he faces Cody (his attention mind)
- * without dropping what he was doing. The first car goes to the top floor
- * free. After that he may name a tip (TUNING.valet.tipChance), bigger each
- * time he asks; paid, the car goes to the top floor, otherwise wherever
- * there's room. A tip he's named stands until a car is handed over, so walking
- * off doesn't make it go away. One caught walking back to the stand takes a car
- * only for a bribe (TUNING.valet.bribe), and then it goes to the top floor.
+ * Talking to a valet. While it's open he faces Cody (his attention mind) without dropping what he was doing. The first
+ * car goes to the top floor free. After that he may name a tip (TUNING.valet.tipChance), bigger each time he asks;
+ * paid, the car goes to the top floor, otherwise wherever there's room. A tip he's named stands until a car is handed
+ * over, so walking off doesn't make it go away. One caught walking back to the stand takes a car only for a bribe
+ * (TUNING.valet.bribe), and then it goes to the top floor.
  */
 export class ValetTalk extends Conversation<Valet, Deal> {
   /** Cars handed over so far, and tips asked for. */
@@ -55,7 +58,11 @@ export class ValetTalk extends Conversation<Valet, Deal> {
     focus: Focus<Control>,
     private readonly hooks: TalkHooks,
   ) {
-    super(focus, { breakAt: TUNING.valet.talkBreak, timeout: TUNING.valet.talkTimeout, lineTime: TUNING.valet.lineTime });
+    super(focus, {
+      breakAt: TUNING.valet.talkBreak,
+      timeout: TUNING.valet.talkTimeout,
+      lineTime: TUNING.valet.lineTime,
+    });
   }
 
   /** Interact next to a valet: he stops, turns to Cody and asks what he can do. */
@@ -63,15 +70,28 @@ export class ValetTalk extends Conversation<Valet, Deal> {
     const V = TUNING.valet;
     valet.send({ type: 'talk', who: () => this.hooks.me() });
     this.bribe = valet.state === 'returning';
-    if (!this.bribe && this.tip === null) this.tip = this.handed > 0 && this.rng.chance(V.tipChance) ? V.tipBase * V.tipGrowth ** this.asked++ : 0;
-    const line = this.bribe ? `I'M ON A BREAK. $${V.bribe} SAYS I'M NOT.` : this.handed === 0 ? 'WELCOME TO THE FOXY.' : (this.tip ?? 0) > 0 ? `TOP FLOOR? THAT'LL BE $${this.tip}.` : 'WELCOME BACK.';
+
+    if (!this.bribe && this.tip === null) {
+      this.tip = this.handed > 0 && this.rng.chance(V.tipChance) ? V.tipBase * V.tipGrowth ** this.asked++ : 0;
+    }
+
+    const line = this.bribe
+      ? `I'M ON A BREAK. $${V.bribe} SAYS I'M NOT.`
+      : this.handed === 0
+        ? 'WELCOME TO THE FOXY.'
+        : (this.tip ?? 0) > 0
+          ? `TOP FLOOR? THAT'LL BE $${this.tip}.`
+          : 'WELCOME BACK.';
     this.open(valet, line);
     this.hud.setPrompt(null);
   }
 
   /** The valet drove it in and parked it: same as parking it yourself. */
   parked(spot: SpotRuntime, valet: Valet): void {
-    if (!valet.badged) this.garage.logged++;
+    if (!valet.badged) {
+      this.garage.logged++;
+    }
+
     this.hud.toast('VALET PARKED IT', `${spotLabel(spot)}. ENTRY LOGGED.`, 'purple', 2.4);
   }
 
@@ -90,13 +110,17 @@ export class ValetTalk extends Conversation<Valet, Deal> {
   protected choices(): Choice<Deal>[] {
     const V = TUNING.valet;
     const tip = this.tip ?? 0;
-    if (this.bribe) return [{ action: 'pay', label: `PAY $${V.bribe}: TOP FLOOR`, off: this.hooks.cash() < V.bribe, does: 'bribed' }];
+    if (this.bribe) {
+      return [{ action: 'pay', label: `PAY $${V.bribe}: TOP FLOOR`, off: this.hooks.cash() < V.bribe, does: 'bribed' }];
+    }
+
     if (tip > 0) {
       return [
         { action: 'pay', label: `PAY $${tip}: TOP FLOOR`, off: this.hooks.cash() < tip, does: 'tipped' },
         { action: 'interact', label: 'JUST PARK IT', off: false, does: 'anywhere' },
       ];
     }
+
     return [{ action: 'interact', label: 'PARK IT', off: false, does: 'top' }];
   }
 
@@ -113,13 +137,23 @@ export class ValetTalk extends Conversation<Valet, Deal> {
       this.lastLine('NO CAR, NO SERVICE.');
     } else if (!spot) {
       this.lastLine(DECK_FULL);
-    } else if (deal === 'bribed' ? this.hooks.pay(TUNING.valet.bribe) : deal !== 'tipped' || this.hooks.pay(this.tip ?? 0)) {
+    } else if (
+      deal === 'bribed' ? this.hooks.pay(TUNING.valet.bribe) : deal !== 'tipped' || this.hooks.pay(this.tip ?? 0)
+    ) {
       this.hooks.handOff(car);
       this.valets.take(valet, car, spot);
       this.handed++;
+
       // a bribe is between him and Cody: the stand's tip still stands
-      if (deal !== 'bribed') this.tip = null;
-      this.lastLine(deal === 'anywhere' ? "SURE. I'LL FIND IT A SPOT." : `RIGHT AWAY. LEVEL ${spot.def.level + 1}, TOP OF THE DECK.`);
+      if (deal !== 'bribed') {
+        this.tip = null;
+      }
+
+      this.lastLine(
+        deal === 'anywhere'
+          ? "SURE. I'LL FIND IT A SPOT."
+          : `RIGHT AWAY. LEVEL ${spot.def.level + 1}, TOP OF THE DECK.`,
+      );
     }
   }
 }

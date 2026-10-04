@@ -1,4 +1,5 @@
 import { type BufferAttribute, Color, Group, Matrix4, Vector3 } from 'three';
+
 import type { Instanced } from '@/actors/models/part';
 import { TUNING } from '@/config';
 import { clamp, TAU, type V3 } from '@/engine/core/math';
@@ -24,9 +25,8 @@ export interface PropKind {
   /** What it is ('lamp', 'fence', 'bench', 'tree' ...), for whatever goes by kind (its sound). */
   name: string;
   /**
-   * Its copies, instanced. With `baked`, they're drawn only while knocked down
-   * (standing, the baked copy shows instead, and with none down the instances
-   * cost no draw call at all). Null for a kind that only shatters.
+   * Its copies, instanced. With `baked`, they're drawn only while knocked down (standing, the baked copy shows instead,
+   * and with none down the instances cost no draw call at all). Null for a kind that only shatters.
    */
   draw: Instanced<string> | null;
   /** Its copies in a static bake (decor), by slot: each hidden while it's down or broken. */
@@ -70,9 +70,9 @@ export interface PropSpec {
   /** Which way it goes over when nothing pushed it (off the edge it guards); random if unset. */
   fall?: [number, number];
   /**
-   * Posed by its owner while it stands (a gate's arm, which the gate lifts): tipped toward
-   * `heading`, starting at `tilt`, then set with hold(), and broken off with release(). Its
-   * solid isn't in the collision world, so it never falls over on its own.
+   * Posed by its owner while it stands (a gate's arm, which the gate lifts): tipped toward `heading`, starting at
+   * `tilt`, then set with hold(), and broken off with release(). Its solid isn't in the collision world, so it never
+   * falls over on its own.
    */
   held?: { heading: number; tilt: number };
   /** A lamp: its light, and the first of its four ground-glow vertices, to switch off when it goes dark. */
@@ -93,7 +93,10 @@ const RESTITUTION = 0.2;
 const RECOIL = 0.04;
 /** Props slide up a curb this high, not a wall. */
 const STEP = 0.3;
-/** A shove moves a prop at most this far in a step (m): one a truck stops on top of (a felled tree) slides out from under it rather than jumping. */
+/**
+ * A shove moves a prop at most this far in a step (m): one a truck stops on top of (a felled tree) slides out from
+ * under it rather than jumping.
+ */
 const SHOVE_MAX = 0.5;
 /** A lamp's ground glow: 4 vertices of rgb in the glow decal's color buffer. */
 const GLOW_FLOATS = 12;
@@ -108,35 +111,47 @@ const _q0: V3 = [0, 0, 0];
 const _q1: V3 = [0, 0, 0];
 
 /**
- * A prop that goes over the way it was hit (a lamp, a tree) and would come down through a wall
- * tries these turns off that way instead, nearest first (radians); if none is clear it goes the
- * way it was hit. Its way down is checked this high off its base, over this share of its height,
- * along its middle and out to this share of its lying half-width each side (so a tree's crown
- * doesn't go through a doorway).
+ * A prop that goes over the way it was hit (a lamp, a tree) and would come down through a wall tries these turns off
+ * that way instead, nearest first (radians); if none is clear it goes the way it was hit. Its way down is checked this
+ * high off its base, over this share of its height, along its middle and out to this share of its lying half-width each
+ * side (so a tree's crown doesn't go through a doorway).
  */
-const FALL_TURNS = [0, Math.PI / 4, -Math.PI / 4, Math.PI / 2, -Math.PI / 2, (3 * Math.PI) / 4, (-3 * Math.PI) / 4, Math.PI];
+const FALL_TURNS = [
+  0,
+  Math.PI / 4,
+  -Math.PI / 4,
+  Math.PI / 2,
+  -Math.PI / 2,
+  (3 * Math.PI) / 4,
+  (-3 * Math.PI) / 4,
+  Math.PI,
+];
 const FALL_PROBE = { y: 1, reach: 0.9, side: 0.5, lanes: [-1, 0, 1] };
 
 /** Every one of the prop's extra solids still standing. */
 function partsUp(p: PropSpec): boolean {
   const parts = p.parts;
-  if (!parts) return true;
-  for (let k = 0; k < parts.length; k++) if (!(parts[k] as Solid).enabled) return false;
+  if (!parts) {
+    return true;
+  }
+
+  for (let k = 0; k < parts.length; k++) {
+    if (!(parts[k] as Solid).enabled) {
+      return false;
+    }
+  }
+
   return true;
 }
 
 /**
- * Street furniture vehicles knock over. Standing, a prop is a static solid. Hit
- * at TUNING.knockdown.speed (a heavy one: by the monster truck at its smash
- * speed), or when what it stands on breaks, it tips over about its base (a
- * lamp the way it was hit, a fence panel flat), and lying it's a loose body: it
- * drops onto whatever is below, vehicles shove and spin it, it slides with
- * friction, stops at walls and settles. A lamp flickers on the way down and
- * goes dark when it lands. Kinds that shatter (a hedge, a bus shelter) are
- * simply gone instead. Sunrise stands them all back up.
+ * Street furniture vehicles knock over. Standing, a prop is a static solid. Hit at TUNING.knockdown.speed (a heavy one:
+ * by the monster truck at its smash speed), or when what it stands on breaks, it tips over about its base (a lamp the
+ * way it was hit, a fence panel flat), and lying it's a loose body: it drops onto whatever is below, vehicles shove and
+ * spin it, it slides with friction, stops at walls and settles. A lamp flickers on the way down and goes dark when it
+ * lands. Kinds that shatter (a hedge, a bus shelter) are simply gone instead. Sunrise stands them all back up.
  *
- * Per-prop state lives in typed arrays and instance matrices are written in
- * place, so a frame allocates nothing.
+ * Per-prop state lives in typed arrays and instance matrices are written in place, so a frame allocates nothing.
  */
 export class Props {
   readonly root = new Group();
@@ -218,13 +233,24 @@ export class Props {
     props.forEach((p, i) => {
       if (!this.kinds.includes(p.kind)) {
         this.kinds.push(p.kind);
-        if (p.kind.draw) this.root.add(p.kind.draw.root);
+
+        if (p.kind.draw) {
+          this.root.add(p.kind.draw.root);
+        }
+
         // baked while standing: nothing to draw till one goes down
-        if (p.kind.draw && p.kind.baked) p.kind.draw.root.visible = false;
+        if (p.kind.draw && p.kind.baked) {
+          p.kind.draw.root.visible = false;
+        }
       }
+
       this.kindOf[i] = this.kinds.indexOf(p.kind);
       this.bySolid.set(p.solid.id, i);
-      for (const s of p.parts ?? []) this.bySolid.set(s.id, i);
+
+      for (const s of p.parts ?? []) {
+        this.bySolid.set(s.id, i);
+      }
+
       const size = p.scale ?? 1;
       this.long[i] = (p.kind.height * size) / 2;
       this.wide[i] = p.kind.wide * p.stretch * size;
@@ -242,7 +268,11 @@ export class Props {
     this.glowColor = color;
     const a = color.array;
     this.props.forEach((p, i) => {
-      if (p.light) for (let j = 0; j < GLOW_FLOATS; j++) this.glowLit[i * GLOW_FLOATS + j] = a[p.light.glow * 3 + j] as number;
+      if (p.light) {
+        for (let j = 0; j < GLOW_FLOATS; j++) {
+          this.glowLit[i * GLOW_FLOATS + j] = a[p.light.glow * 3 + j] as number;
+        }
+      }
     });
   }
 
@@ -253,15 +283,24 @@ export class Props {
 
   /** A held prop's tilt toward its heading while it stands (a gate lifting its arm). */
   hold(i: number, tilt: number): void {
-    if (this.state[i] !== UP || this.tilt[i] === tilt) return;
+    if (this.state[i] !== UP || this.tilt[i] === tilt) {
+      return;
+    }
+
     this.tilt[i] = tilt;
     this.place(i);
   }
 
-  /** Snap a standing prop loose, moving (vx, vy, vz): it drops flat and lies there to be shoved about. Its kind, or null if it wasn't standing. */
+  /**
+   * Snap a standing prop loose, moving (vx, vy, vz): it drops flat and lies there to be shoved about. Its kind, or null
+   * if it wasn't standing.
+   */
   release(i: number, vx: number, vy: number, vz: number): PropKind | null {
     const p = this.props[i];
-    if (!p || this.state[i] !== UP) return null;
+    if (!p || this.state[i] !== UP) {
+      return null;
+    }
+
     this.unstand(i);
     const h = this.heading[i] as number;
     const r = (this.long[i] as number) * Math.sin(this.tilt[i] as number);
@@ -279,10 +318,16 @@ export class Props {
     return p.kind;
   }
 
-  /** `by`, going (vx, vz), hit the prop solid `solidId`: the kind it knocked over (or broke), or null if that's not a standing prop. */
+  /**
+   * `by`, going (vx, vz), hit the prop solid `solidId`: the kind it knocked over (or broke), or null if that's not a
+   * standing prop.
+   */
   knock(solidId: number, vx: number, vz: number, by: object | null = null): PropKind | null {
     const i = this.bySolid.get(solidId);
-    if (i === undefined || this.state[i] !== UP) return null;
+    if (i === undefined || this.state[i] !== UP) {
+      return null;
+    }
+
     this.topple(i, vx, vz, by);
     return (this.props[i] as PropSpec).kind;
   }
@@ -294,27 +339,49 @@ export class Props {
         // driven through by someone who didn't report it, or what it stood on is gone
         const p = this.props[i] as PropSpec;
         if (!p.held && (!p.solid.enabled || !partsUp(p) || (p.support && !p.support.enabled))) {
-          this.topple(i, (this.fallX[i] as number) * TUNING.knockdown.speed, (this.fallZ[i] as number) * TUNING.knockdown.speed);
+          this.topple(
+            i,
+            (this.fallX[i] as number) * TUNING.knockdown.speed,
+            (this.fallZ[i] as number) * TUNING.knockdown.speed,
+          );
         }
+
         continue;
       }
-      if (st === BROKEN) continue;
-      if (st === FALLING) this.fall(i, dt);
-      else {
+
+      if (st === BROKEN) {
+        continue;
+      }
+
+      if (st === FALLING) {
+        this.fall(i, dt);
+      } else {
         const ox = this.cx[i] as number;
         const oz = this.cz[i] as number;
         this.shove(i, pushers);
-        if (this.awake[i]) this.slide(i, dt, world);
+
+        if (this.awake[i]) {
+          this.slide(i, dt, world);
+        }
+
         this.keepOut(i, ox, oz, world);
       }
     }
-    for (const k of this.kinds) k.draw?.flush();
+
+    for (const k of this.kinds) {
+      k.draw?.flush();
+    }
   }
 
   /** Stand every prop back up where it was; lamps lit. */
   repair(): void {
-    for (let i = 0; i < this.props.length; i++) this.stand(i);
-    for (const k of this.kinds) k.draw?.flush();
+    for (let i = 0; i < this.props.length; i++) {
+      this.stand(i);
+    }
+
+    for (const k of this.kinds) {
+      k.draw?.flush();
+    }
   }
 
   /** Prop i back standing where it belongs, its solid on, a lamp lit. */
@@ -324,11 +391,21 @@ export class Props {
       if (this.state[i] !== UP) {
         const k = this.kindOf[i] as number;
         const n = (this.downs[k] = (this.downs[k] as number) - 1);
-        if (n === 0 && p.kind.baked && p.kind.draw) p.kind.draw.root.visible = false;
+        if (n === 0 && p.kind.baked && p.kind.draw) {
+          p.kind.draw.root.visible = false;
+        }
       }
+
       p.kind.baked?.show(p.slot, true);
-      for (const s of p.parts ?? []) s.enabled = true;
-      for (const s of p.sight ?? []) s.enabled = true;
+
+      for (const s of p.parts ?? []) {
+        s.enabled = true;
+      }
+
+      for (const s of p.sight ?? []) {
+        s.enabled = true;
+      }
+
       this.state[i] = UP;
       this.awake[i] = 0;
       this.dark[i] = 0;
@@ -344,12 +421,14 @@ export class Props {
       this.vz[i] = 0;
       this.spin[i] = 0;
       p.solid.enabled = true;
+
       if (p.light) {
         p.light.emitter.strength = this.strength[i] as number;
         p.kind.draw?.show(p.slot, 'lit', true);
         p.kind.draw?.show(p.slot, 'dead', false);
         this.setGlow(i, true);
       }
+
       this.place(i);
     }
   }
@@ -358,12 +437,22 @@ export class Props {
   private unstand(i: number): void {
     const p = this.props[i] as PropSpec;
     p.solid.enabled = false;
-    for (const s of p.parts ?? []) s.enabled = false;
-    for (const s of p.sight ?? []) s.enabled = false;
+
+    for (const s of p.parts ?? []) {
+      s.enabled = false;
+    }
+
+    for (const s of p.sight ?? []) {
+      s.enabled = false;
+    }
+
     p.kind.baked?.show(p.slot, false);
     const k = this.kindOf[i] as number;
     this.downs[k] = (this.downs[k] as number) + 1;
-    if (p.kind.baked && p.kind.draw) p.kind.draw.root.visible = true;
+
+    if (p.kind.baked && p.kind.draw) {
+      p.kind.draw.root.visible = true;
+    }
   }
 
   /** Prop i breaks up where it stands: gone till sunrise, the box its solids filled left for the debris (onBroken). */
@@ -374,10 +463,12 @@ export class Props {
     this.place(i);
     this.brokenMin.fromArray(p.solid.min);
     this.brokenMax.fromArray(p.solid.max);
+
     for (const s of p.parts ?? []) {
       this.brokenMin.min(_v.fromArray(s.min));
       this.brokenMax.max(_v.fromArray(s.max));
     }
+
     this.brokenKind = p.kind;
     this.brokenBy = by;
     this.onBroken?.();
@@ -389,6 +480,7 @@ export class Props {
       this.shatter(i, by);
       return;
     }
+
     const speed = Math.hypot(vx, vz);
     let dx = speed > 0.1 ? vx / speed : (this.fallX[i] as number);
     let dz = speed > 0.1 ? vz / speed : (this.fallZ[i] as number);
@@ -407,14 +499,22 @@ export class Props {
       const h0 = Math.atan2(dx, dz);
       for (const turn of FALL_TURNS) {
         const h = h0 + turn;
-        if (!this.clearFall(i, h)) continue;
+        if (!this.clearFall(i, h)) {
+          continue;
+        }
+
         dx = Math.sin(h);
         dz = Math.cos(h);
+
         // the way it was hit is blocked: it snaps where it stood
-        if (turn !== 0) drag = 0;
+        if (turn !== 0) {
+          drag = 0;
+        }
+
         break;
       }
     }
+
     this.state[i] = FALLING;
     this.heading[i] = Math.atan2(dx, dz);
     this.sigma[i] = p.yaw - (this.heading[i] as number);
@@ -423,7 +523,10 @@ export class Props {
     this.vz[i] = vz * drag;
   }
 
-  /** Prop i could come down toward heading h without going through a wall: its middle and both sides, low over the ground. */
+  /**
+   * Prop i could come down toward heading h without going through a wall: its middle and both sides, low over the
+   * ground.
+   */
   private clearFall(i: number, h: number): boolean {
     const p = this.props[i] as PropSpec;
     const reach = 2 * (this.long[i] as number) * FALL_PROBE.reach;
@@ -440,8 +543,12 @@ export class Props {
       _q1[0] = _q0[0] + fx * reach;
       _q1[1] = _q0[1];
       _q1[2] = _q0[2] + fz * reach;
-      if (this.world.segmentBlocked(_q0, _q1)) return false;
+
+      if (this.world.segmentBlocked(_q0, _q1)) {
+        return false;
+      }
     }
+
     return true;
   }
 
@@ -456,14 +563,23 @@ export class Props {
     this.friction(i, dt);
     this.bx[i] = (this.bx[i] as number) + (this.vx[i] as number) * dt;
     this.bz[i] = (this.bz[i] as number) + (this.vz[i] as number) * dt;
-    if (p.light && !this.dark[i]) p.light.emitter.strength = Math.random() < 0.3 ? 0.15 : (this.strength[i] as number);
+
+    if (p.light && !this.dark[i]) {
+      p.light.emitter.strength = Math.random() < 0.3 ? 0.15 : (this.strength[i] as number);
+    }
+
     if (a >= down) {
       a = down;
-      if (!this.dark[i]) this.land(i);
+
+      if (!this.dark[i]) {
+        this.land(i);
+      }
+
       // a bounce if it came down hard (judged before this step's pull, which alone tops that for a
       // short prop), then it lies there loose
-      if (was > 1.2) w = -w * 0.28;
-      else {
+      if (was > 1.2) {
+        w = -w * 0.28;
+      } else {
         w = 0;
         const h = this.heading[i] as number;
         const r = (this.long[i] as number) * Math.sin(a);
@@ -473,6 +589,7 @@ export class Props {
         this.awake[i] = 1;
       }
     }
+
     this.tilt[i] = a;
     this.tiltV[i] = w;
     this.place(i);
@@ -481,36 +598,55 @@ export class Props {
   private land(i: number): void {
     const p = this.props[i] as PropSpec;
     this.dark[i] = 1;
-    if (!p.light) return;
+
+    if (!p.light) {
+      return;
+    }
+
     p.light.emitter.strength = 0;
     p.kind.draw?.show(p.slot, 'lit', false);
     p.kind.draw?.show(p.slot, 'dead', true);
     this.setGlow(i, false);
-    if (!this.onLanded) return;
+
+    if (!this.onLanded) {
+      return;
+    }
+
     const h = this.heading[i] as number;
     const a = this.tilt[i] as number;
     const r = 2 * (this.long[i] as number) * 0.95;
-    this.landed.set((this.bx[i] as number) + Math.sin(h) * Math.sin(a) * r, (this.by[i] as number) + Math.cos(a) * r, (this.bz[i] as number) + Math.cos(h) * Math.sin(a) * r);
+    this.landed.set(
+      (this.bx[i] as number) + Math.sin(h) * Math.sin(a) * r,
+      (this.by[i] as number) + Math.cos(a) * r,
+      (this.bz[i] as number) + Math.cos(h) * Math.sin(a) * r,
+    );
     this.landedColor.copy(p.light.color);
     this.landedKind = p.kind;
     this.onLanded();
   }
 
   /**
-   * A lying prop shoved hard against a thin wall (a truck pinning a tree to a shop front) can be
-   * pushed through it in one step: if its middle went through a solid from (ox, oz), it goes back.
+   * A lying prop shoved hard against a thin wall (a truck pinning a tree to a shop front) can be pushed through it in
+   * one step: if its middle went through a solid from (ox, oz), it goes back.
    */
   private keepOut(i: number, ox: number, oz: number, world: CollisionWorld): void {
     const x = this.cx[i] as number;
     const z = this.cz[i] as number;
-    if (x === ox && z === oz) return;
+    if (x === ox && z === oz) {
+      return;
+    }
+
     _q0[0] = ox;
     _q0[1] = (this.by[i] as number) + FALL_PROBE.y;
     _q0[2] = oz;
     _q1[0] = x;
     _q1[1] = _q0[1];
     _q1[2] = z;
-    if (!world.segmentBlocked(_q0, _q1)) return;
+
+    if (!world.segmentBlocked(_q0, _q1)) {
+      return;
+    }
+
     this.cx[i] = ox;
     this.cz[i] = oz;
     this.vx[i] = 0;
@@ -536,7 +672,10 @@ export class Props {
     const reach = L + W;
     for (let k = 0; k < pushers.length; k++) {
       const v = pushers[k] as Pusher;
-      if (Math.abs(v.pos.y - (this.by[i] as number)) > 2) continue;
+      if (Math.abs(v.pos.y - (this.by[i] as number)) > 2) {
+        continue;
+      }
+
       const P = v.params;
       const half = bodyHalf(P);
       const fx = Math.sin(v.yaw);
@@ -544,7 +683,10 @@ export class Props {
       const far = reach + half + P.radius;
       const ox = v.pos.x - (this.cx[i] as number);
       const oz = v.pos.z - (this.cz[i] as number);
-      if (ox * ox + oz * oz > far * far) continue;
+      if (ox * ox + oz * oz > far * far) {
+        continue;
+      }
+
       for (let c = -1; c <= 1; c++) {
         // circle center relative to the footprint, in its own axes
         const rx = ox + fx * half * c;
@@ -557,7 +699,10 @@ export class Props {
         let ns = s - qs;
         const d2 = nu * nu + ns * ns;
         const r = P.radius;
-        if (d2 >= r * r) continue;
+        if (d2 >= r * r) {
+          continue;
+        }
+
         let pen: number;
         if (d2 > 1e-8) {
           const d = Math.sqrt(d2);
@@ -573,19 +718,28 @@ export class Props {
           ns = s < 0 ? -1 : 1;
           pen = r + W - Math.abs(s);
         }
+
         // m: from the circle into the prop
         const mx = -(dx * nu + ex * ns);
         const mz = -(dz * nu + ez * ns);
-        if (pen > SHOVE_MAX) pen = SHOVE_MAX;
+        if (pen > SHOVE_MAX) {
+          pen = SHOVE_MAX;
+        }
+
         this.cx[i] = (this.cx[i] as number) + mx * pen;
         this.cz[i] = (this.cz[i] as number) + mz * pen;
         // contact point relative to the prop's center, and how fast it's closing
         const px = dx * qu + ex * qs;
         const pz = dz * qu + ez * qs;
         const w = this.spin[i] as number;
-        const vn = (v.vel.x - ((this.vx[i] as number) + w * pz)) * mx + (v.vel.z - ((this.vz[i] as number) - w * px)) * mz;
+        const vn =
+          (v.vel.x - ((this.vx[i] as number) + w * pz)) * mx + (v.vel.z - ((this.vz[i] as number) - w * px)) * mz;
         this.awake[i] = 1;
-        if (vn <= 0) continue;
+
+        if (vn <= 0) {
+          continue;
+        }
+
         const arm = pz * mx - px * mz;
         const j = ((1 + RESTITUTION) * vn) / (1 + invI * arm * arm);
         this.vx[i] = (this.vx[i] as number) + mx * j;
@@ -619,7 +773,10 @@ export class Props {
       _p[2] = cz + Math.cos(h) * off;
       const x0 = _p[0];
       const z0 = _p[2];
-      if (!world.resolveCircle(_p, W, 0.6, STEP)) continue;
+      if (!world.resolveCircle(_p, W, 0.6, STEP)) {
+        continue;
+      }
+
       const ddx = _p[0] - x0;
       const ddz = _p[2] - z0;
       mx += ddx / 3;
@@ -627,6 +784,7 @@ export class Props {
       // a push at one end turns it
       w += ((Math.cos(h) * off * ddx - Math.sin(h) * off * ddz) / (L * L)) * 2;
     }
+
     if (mx !== 0 || mz !== 0) {
       cx += mx;
       cz += mz;
@@ -637,6 +795,7 @@ export class Props {
         this.vz[i] = (this.vz[i] as number) - (mz / m) * vn * 1.2;
       }
     }
+
     this.cx[i] = cx;
     this.cz[i] = cz;
     this.spin[i] = w;
@@ -648,15 +807,25 @@ export class Props {
     if (y > g + 0.01) {
       vy -= TUNING.gravity * dt;
       ny = Math.max(g, y + vy * dt);
-      if (ny === g) vy = 0;
-    } else vy = 0;
+
+      if (ny === g) {
+        vy = 0;
+      }
+    } else {
+      vy = 0;
+    }
+
     this.by[i] = ny;
     this.vy[i] = vy;
     // base from the center, for drawing
     const r = L * Math.sin(this.tilt[i] as number);
     this.bx[i] = cx - Math.sin(h) * r;
     this.bz[i] = cz - Math.cos(h) * r;
-    if (this.vx[i] === 0 && this.vz[i] === 0 && w === 0 && vy === 0 && ny === g) this.awake[i] = 0;
+
+    if (this.vx[i] === 0 && this.vz[i] === 0 && w === 0 && vy === 0 && ny === g) {
+      this.awake[i] = 0;
+    }
+
     this.place(i);
   }
 
@@ -673,16 +842,24 @@ export class Props {
   private place(i: number): void {
     const p = this.props[i] as PropSpec;
     const draw = p.kind.draw;
-    if (!draw) return;
+    if (!draw) {
+      return;
+    }
+
     const st = this.state[i];
     // broken, or standing while its baked copy shows
     if (st === BROKEN || (st === UP && p.kind.baked)) {
       draw.place(p.slot, HIDDEN);
       return;
     }
+
     const size = p.scale ?? 1;
     _a.makeScale(p.stretch * size, size, size);
-    if (p.shear) _a.premultiply(_b.set(1, 0, 0, 0, p.shear, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1));
+
+    if (p.shear) {
+      _a.premultiply(_b.set(1, 0, 0, 0, p.shear, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1));
+    }
+
     _a.premultiply(_b.makeRotationY(this.sigma[i] as number));
     _a.premultiply(_b.makeRotationX(this.tilt[i] as number)).premultiply(_b.makeRotationY(this.heading[i] as number));
     _a.setPosition(this.bx[i] as number, this.by[i] as number, this.bz[i] as number);
@@ -692,9 +869,15 @@ export class Props {
   private setGlow(i: number, on: boolean): void {
     const c = this.glowColor;
     const light = (this.props[i] as PropSpec).light;
-    if (!c || !light) return;
+    if (!c || !light) {
+      return;
+    }
+
     const a = c.array;
-    for (let j = 0; j < GLOW_FLOATS; j++) a[light.glow * 3 + j] = on ? (this.glowLit[i * GLOW_FLOATS + j] as number) : 0;
+    for (let j = 0; j < GLOW_FLOATS; j++) {
+      a[light.glow * 3 + j] = on ? (this.glowLit[i * GLOW_FLOATS + j] as number) : 0;
+    }
+
     c.needsUpdate = true;
   }
 }
