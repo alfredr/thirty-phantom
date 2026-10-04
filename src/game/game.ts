@@ -1423,6 +1423,8 @@ export class Game {
     for (const v of this.vehicles) {
       if (!v.crashing || v.role === 'player' || v.gone || v.steppedThisFrame) continue;
       this.drove(v, v.drive(dt, null, this.world.collision));
+      // tumbled into or out of the deck: it's there now, though nobody drove it through a gate
+      v.insideDeck = this.garage.inFootprint(v.pos);
     }
     for (const [o, from] of this.shaken) {
       if (!o.resting) continue;
