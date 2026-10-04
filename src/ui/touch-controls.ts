@@ -1,8 +1,8 @@
-import { urlFlag } from '../engine/core/url-flags';
-import type { Input } from '../engine/input/input';
-import { el } from '../engine/ui/dom';
+import { urlFlag } from '@/engine/core/url-flags';
+import type { Input } from '@/engine/input/input';
+import { el } from '@/engine/ui/dom';
+import { type Control, isControl, KEYS } from '@/game/controls';
 import './touch.css';
-import { type Control, isControl, KEYS } from '../game/controls';
 
 /** Phones and tablets (a coarse pointer), or ?touch to try the controls with a mouse. */
 export function wantsTouch(): boolean {

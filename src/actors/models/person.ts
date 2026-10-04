@@ -1,6 +1,6 @@
-import { TAU, type V3 } from '../../engine/core/math';
-import type { Rng } from '../../engine/core/rng';
-import { PALETTE } from '../../render/palette';
+import { TAU, type V3 } from '@/engine/core/math';
+import type { Rng } from '@/engine/core/rng';
+import { PALETTE } from '@/render/palette';
 import { box, build, group, model, NO_CAST, pivot, SIDES, solid } from './part';
 import { type CharacterRig, characterRig, limb } from './rig';
 

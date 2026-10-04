@@ -1,19 +1,19 @@
 import { type Mesh, type Object3D, Raycaster, Vector3 } from 'three';
-import { TUNING } from '../../config';
-import type { Vehicle } from '../../actors/vehicle';
-import { type EventOf, Mind, mind, type MindEvent, type State, type StateOf } from '../../engine/sim/mind';
-import { el } from '../../engine/ui/dom';
-import { ISO_ELEVATION } from '../../render/iso-camera';
-import { Dialogue, type DialogueLine } from '../../ui/dialogue';
-import type { Phone } from '../../ui/phone/phone';
-import { Signpost } from '../../ui/signpost';
-import { wantsTouch } from '../../ui/touch-controls';
-import type { LevelData, RampDef } from '../../world/level-data';
-import { type CodyAction, ScriptedOffer } from '../cody/cody-actions';
-import type { CamMode, Cutscene, Game } from '../game';
-import { type Crossing, type Garage, spotLabel, type SpotRuntime } from '../deck/garage';
-import { GameClock } from '../game-clock';
-import type { Npc } from '../randy/npcs';
+import { TUNING } from '@/config';
+import type { Vehicle } from '@/actors/vehicle';
+import { type EventOf, Mind, mind, type MindEvent, type State, type StateOf } from '@/engine/sim/mind';
+import { el } from '@/engine/ui/dom';
+import { ISO_ELEVATION } from '@/render/iso-camera';
+import { Dialogue, type DialogueLine } from '@/ui/dialogue';
+import type { Phone } from '@/ui/phone/phone';
+import { Signpost } from '@/ui/signpost';
+import { wantsTouch } from '@/ui/touch-controls';
+import type { LevelData, RampDef } from '@/world/level-data';
+import { type CodyAction, ScriptedOffer } from '@/game/cody/cody-actions';
+import type { CamMode, Cutscene, Game } from '@/game/game';
+import { type Crossing, type Garage, spotLabel, type SpotRuntime } from '@/game/deck/garage';
+import { GameClock } from '@/game/game-clock';
+import type { Npc } from '@/game/randy/npcs';
 import type { Objective } from './objectives';
 
 /** Remembered once the tutorial's been through its jump, or skipped. */

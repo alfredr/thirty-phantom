@@ -1,6 +1,6 @@
-import type { PartKind } from '../../actors/models/junk';
-import type { SoundOf } from '../../audio/cues';
-import { ITEM_ICONS } from '../../ui/item-icons';
+import type { PartKind } from '@/actors/models/junk';
+import type { SoundOf } from '@/audio/cues';
+import { ITEM_ICONS } from '@/ui/item-icons';
 
 /** What Cody can carry: car parts picked up after smashes, Randy's brisket, what's left of his badge, and the burner phone Randy gives him. */
 export type ItemKind = PartKind | 'brisket' | 'badge' | 'burner';

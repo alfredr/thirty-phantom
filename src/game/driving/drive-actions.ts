@@ -1,17 +1,17 @@
 import { Vector3 } from 'three';
-import { Autopilot, type Obstacle } from '../../actors/autopilot';
-import { footprint } from '../../actors/avoidance';
-import { roadLeadsToward } from '../../actors/traffic';
-import type { DriveInput, Vehicle, VehicleRole } from '../../actors/vehicle';
-import { TUNING } from '../../config';
-import { smoothstep, wrapAngle } from '../../engine/core/math';
-import { Polyline, type RouteCursor } from '../../engine/nav/polyline';
-import { Action, done, type Fail, fail, type Result, running } from '../../engine/sim/action';
-import type { Claims } from '../../engine/sim/claims';
-import type { ZoneDef } from '../../world/level-data';
-import type { NavGrid, NavJob, NavPlanner, RouteLeg } from '../../world/nav-grid';
-import type { ClaimKind } from '../rules/claim-kinds';
-import { type Garage, type SpotRuntime, spotZone } from '../deck/garage';
+import { Autopilot, type Obstacle } from '@/actors/autopilot';
+import { footprint } from '@/actors/avoidance';
+import { roadLeadsToward } from '@/actors/traffic';
+import type { DriveInput, Vehicle, VehicleRole } from '@/actors/vehicle';
+import { TUNING } from '@/config';
+import { smoothstep, wrapAngle } from '@/engine/core/math';
+import { Polyline, type RouteCursor } from '@/engine/nav/polyline';
+import { Action, done, type Fail, fail, type Result, running } from '@/engine/sim/action';
+import type { Claims } from '@/engine/sim/claims';
+import type { ZoneDef } from '@/world/level-data';
+import type { NavGrid, NavJob, NavPlanner, RouteLeg } from '@/world/nav-grid';
+import type { ClaimKind } from '@/game/rules/claim-kinds';
+import { type Garage, type SpotRuntime, spotZone } from '@/game/deck/garage';
 import type { Fleet } from './fleet';
 
 /** A frightened driver looks this far ahead (m): they see phantom Cody within panicReach, so anywhere within a berth of him is within this of them. */

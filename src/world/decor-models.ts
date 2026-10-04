@@ -1,7 +1,7 @@
-import { box, cone, cylinder, type MatSpec, type Model, model, NO_CAST, type Part, solid, sphere, torus } from '../actors/models/part';
-import type { V3 } from '../engine/core/math';
-import { BARK, FOLIAGE, METAL, NEEDLES, PETALS } from '../render/materials';
-import { PALETTE } from '../render/palette';
+import { box, cone, cylinder, type MatSpec, type Model, model, NO_CAST, type Part, solid, sphere, torus } from '@/actors/models/part';
+import type { V3 } from '@/engine/core/math';
+import { BARK, FOLIAGE, METAL, NEEDLES, PETALS } from '@/render/materials';
+import { PALETTE } from '@/render/palette';
 import type { DecorKind } from './level-kinds';
 import { restTilt } from './props';
 

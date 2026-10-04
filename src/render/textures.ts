@@ -1,6 +1,6 @@
 import { CanvasTexture, RepeatWrapping, SRGBColorSpace } from 'three';
-import { TAU } from '../engine/core/math';
-import { Rng } from '../engine/core/rng';
+import { TAU } from '@/engine/core/math';
+import { Rng } from '@/engine/core/rng';
 import { PALETTE } from './palette';
 
 export type Ctx = CanvasRenderingContext2D;

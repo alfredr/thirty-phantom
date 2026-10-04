@@ -1,5 +1,5 @@
-import { TUNING } from '../../config';
-import type { ClaimTable } from '../../engine/sim/claims';
+import { TUNING } from '@/config';
+import type { ClaimTable } from '@/engine/sim/claims';
 
 /** The kinds of claim in the game. */
 export type ClaimKind = 'driverSeat' | 'spot' | 'divert' | 'quarry';

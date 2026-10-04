@@ -1,5 +1,5 @@
 import type { Vector3 } from 'three';
-import { Mind, mind, type MindEvent, type State } from '../../engine/sim/mind';
+import { Mind, mind, type MindEvent, type State } from '@/engine/sim/mind';
 import type { Objective } from './objectives';
 
 /** Quest progress that survives a reload. */

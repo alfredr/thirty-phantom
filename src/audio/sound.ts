@@ -1,9 +1,9 @@
-import type { Vehicle } from '../actors/vehicle';
-import { TUNING } from '../config';
-import { clamp } from '../engine/core/math';
-import { KEYS, keyName } from '../game/controls';
-import type { Game, GameEvents } from '../game/game';
-import { ITEM_BREEDS } from '../game/items/item-breeds';
+import type { Vehicle } from '@/actors/vehicle';
+import { TUNING } from '@/config';
+import { clamp } from '@/engine/core/math';
+import { KEYS, keyName } from '@/game/controls';
+import type { Game, GameEvents } from '@/game/game';
+import { ITEM_BREEDS } from '@/game/items/item-breeds';
 import type { SoundOf } from './cues';
 import { soundLog } from './flags';
 import { Loops } from './loops';

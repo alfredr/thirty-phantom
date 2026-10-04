@@ -14,8 +14,8 @@ import {
   Vector4,
   type WebGLProgramParametersWithUniforms,
 } from 'three';
-import { TUNING } from '../config';
-import { urlChoice } from '../engine/core/url-flags';
+import { TUNING } from '@/config';
+import { urlChoice } from '@/engine/core/url-flags';
 
 /**
  * World curvature, an experiment (TUNING.camera.curve): in the top-down view every material's

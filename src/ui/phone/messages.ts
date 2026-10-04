@@ -1,5 +1,5 @@
-import { el } from '../../engine/ui/dom';
-import { keyText } from '../hud';
+import { el } from '@/engine/ui/dom';
+import { keyText } from '@/ui/hud';
 import { ICONS } from './icons';
 import type { PhoneApp } from './phone';
 

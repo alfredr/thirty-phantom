@@ -1,7 +1,7 @@
 import type { Vector3 } from 'three';
-import type { Focus } from '../../engine/input/input';
-import type { Control } from '../controls';
-import { type Choice, Conversation } from '../story/conversation';
+import type { Focus } from '@/engine/input/input';
+import type { Control } from '@/game/controls';
+import { type Choice, Conversation } from '@/game/story/conversation';
 import { NPC_NAMES, type Npc, type Npcs } from './npcs';
 
 /** Cody on foot this close to Randy (m, on his level) can talk to him. */

@@ -1,11 +1,11 @@
 import { Vector3 } from 'three';
-import { TUNING } from '../config';
-import { wrapAngle } from '../engine/core/math';
-import type { Rng } from '../engine/core/rng';
-import { type DriveGoal, type DriveGoals, type DriveGround, type DrivePose, DriveSearch } from '../engine/nav/drive-search';
-import { Polyline } from '../engine/nav/polyline';
-import type { CollisionWorld, Solid } from '../engine/physics/collision';
-import { bodyOffsets, type VehicleParams } from '../engine/physics/vehicle-params';
+import { TUNING } from '@/config';
+import { wrapAngle } from '@/engine/core/math';
+import type { Rng } from '@/engine/core/rng';
+import { type DriveGoal, type DriveGoals, type DriveGround, type DrivePose, DriveSearch } from '@/engine/nav/drive-search';
+import { Polyline } from '@/engine/nav/polyline';
+import type { CollisionWorld, Solid } from '@/engine/physics/collision';
+import { bodyOffsets, type VehicleParams } from '@/engine/physics/vehicle-params';
 import { landingPoint } from './elevator-shaft';
 import type { Elevators } from './elevators';
 import type { ElevatorDef, LevelData, V3, ZoneDef } from './level-data';

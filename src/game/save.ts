@@ -1,6 +1,6 @@
 import { Vector3 } from 'three';
-import { TUNING } from '../config';
-import { urlFlag } from '../engine/core/url-flags';
+import { TUNING } from '@/config';
+import { urlFlag } from '@/engine/core/url-flags';
 import type { Game } from './game';
 import { type ItemKind, isItemKind } from './items/item-breeds';
 import type { FoundCash } from './items/money';

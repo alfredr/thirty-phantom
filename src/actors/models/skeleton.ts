@@ -1,5 +1,5 @@
-import type { V3 } from '../../engine/core/math';
-import { PALETTE } from '../../render/palette';
+import type { V3 } from '@/engine/core/math';
+import { PALETTE } from '@/render/palette';
 import { box, build, group, model, NO_CAST, pivot, SIDES, solid } from './part';
 import { BODY } from './person';
 import { type CharacterRig, characterRig, limb } from './rig';

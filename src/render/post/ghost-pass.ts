@@ -9,7 +9,7 @@ import {
   type WebGLRenderTarget,
 } from 'three';
 import { FullScreenQuad, Pass } from 'three/addons/postprocessing/Pass.js';
-import { GHOST_LAYER } from '../layers';
+import { GHOST_LAYER } from '@/render/layers';
 import { FULLSCREEN_VERT } from './fullscreen';
 
 /**

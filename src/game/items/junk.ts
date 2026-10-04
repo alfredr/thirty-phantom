@@ -1,10 +1,10 @@
 import { type Object3D, type Scene, Vector3 } from 'three';
-import { buildJunk, PART_KINDS, type PartKind } from '../../actors/models/junk';
-import type { Rng } from '../../engine/core/rng';
-import { Highlight } from '../../fx/highlight';
-import type { Vehicle } from '../../actors/vehicle';
-import { TUNING } from '../../config';
-import type { NavGrid } from '../../world/nav-grid';
+import { buildJunk, PART_KINDS, type PartKind } from '@/actors/models/junk';
+import type { Rng } from '@/engine/core/rng';
+import { Highlight } from '@/fx/highlight';
+import type { Vehicle } from '@/actors/vehicle';
+import { TUNING } from '@/config';
+import type { NavGrid } from '@/world/nav-grid';
 import type { ItemKind } from './item-breeds';
 
 const J = TUNING.junk;

@@ -1,4 +1,4 @@
-import { keyCap, type StickControls } from '../engine/input/input';
+import { keyCap, type StickControls } from '@/engine/input/input';
 
 const SHIFT: [string, string] = ['ShiftLeft', 'ShiftRight'];
 

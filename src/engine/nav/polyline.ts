@@ -1,5 +1,5 @@
 import { Vector3 } from 'three';
-import { clamp, lerp, mod, type V3 } from '../core/math';
+import { clamp, lerp, mod, type V3 } from '@/engine/core/math';
 
 const _a = new Vector3();
 const _d = new Vector3();

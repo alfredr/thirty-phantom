@@ -1,6 +1,6 @@
 import { Group, PointLight, type Vector3 } from 'three';
-import { clamp } from '../engine/core/math';
-import type { LightEmitter } from '../world/build-world';
+import { clamp } from '@/engine/core/math';
+import type { LightEmitter } from '@/world/build-world';
 
 /** How far each kind of lamp's light reaches (m). */
 const RANGE: Readonly<Record<LightEmitter['kind'], number>> = { street: 16, ceiling: 11, flood: 30 };

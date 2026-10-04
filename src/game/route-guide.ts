@@ -1,6 +1,6 @@
 import { Vector3 } from 'three';
-import { RouteCursor } from '../engine/nav/polyline';
-import type { NavJob, NavPlanner, NavProfile, NavQuery } from '../world/nav-grid';
+import { RouteCursor } from '@/engine/nav/polyline';
+import type { NavJob, NavPlanner, NavProfile, NavQuery } from '@/world/nav-grid';
 
 /** Replan when the goal changes, when the driver strays this far, or this often anyway. */
 const STRAY = 7;

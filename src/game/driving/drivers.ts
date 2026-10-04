@@ -1,6 +1,6 @@
 import type { Vector3 } from 'three';
-import type { Vehicle } from '../../actors/vehicle';
-import { Doing } from '../../engine/sim/action';
+import type { Vehicle } from '@/actors/vehicle';
+import { Doing } from '@/engine/sim/action';
 import type { DriverJob, DriveWorld } from './drive-actions';
 
 /**

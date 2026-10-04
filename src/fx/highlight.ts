@@ -1,7 +1,7 @@
 import { AdditiveBlending, Color, Group, Mesh, MeshBasicMaterial, PlaneGeometry, RingGeometry, Sprite, SpriteMaterial, type Vector3 } from 'three';
-import { fxDecal, FX_LAYER } from '../render/layers';
-import { withCutaway } from '../render/materials';
-import { radialGlowTexture } from '../render/textures';
+import { fxDecal, FX_LAYER } from '@/render/layers';
+import { withCutaway } from '@/render/materials';
+import { radialGlowTexture } from '@/render/textures';
 
 /**
  * Something that matters, marked so the eye catches it: a pulsing ring with

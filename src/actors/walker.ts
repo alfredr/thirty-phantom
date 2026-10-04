@@ -1,7 +1,7 @@
 import { Vector3 } from 'three';
-import { damp, dampAngle } from '../engine/core/math';
-import { type Polyline, RouteCursor } from '../engine/nav/polyline';
-import { NAV, type NavGrid, type NavJob } from '../world/nav-grid';
+import { damp, dampAngle } from '@/engine/core/math';
+import { type Polyline, RouteCursor } from '@/engine/nav/polyline';
+import { NAV, type NavGrid, type NavJob } from '@/world/nav-grid';
 import { type Avoidance, PERSON_RADIUS } from './avoidance';
 import { Gait } from './models/person';
 import type { CharacterRig } from './models/rig';

@@ -1,5 +1,5 @@
-import type { MatKey } from '../render/materials';
-import type { SignStyle } from '../render/signs';
+import type { MatKey } from '@/render/materials';
+import type { SignStyle } from '@/render/signs';
 import type { DecorKind } from './decor-models';
 import { emptyLevel, type BoxDef, type BuildingDef, type DecorDef, type Facing, type LampColor, type LampKind, type LevelData, type RampDef, type V3 } from './level-data';
 

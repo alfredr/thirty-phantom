@@ -1,13 +1,13 @@
 import { type Scene, Vector3 } from 'three';
-import { Traffic } from '../../actors/traffic';
-import { Vehicle } from '../../actors/vehicle';
-import { CAR_KINDS, type CarKind, VEHICLE_BREEDS } from '../../actors/vehicle-breeds';
-import type { AssetRegistry } from '../../assets/asset-registry';
-import { TUNING } from '../../config';
-import { lerp, TAU } from '../../engine/core/math';
-import type { Rng } from '../../engine/core/rng';
-import { CAR_COLORS } from '../../render/palette';
-import type { Garage } from '../deck/garage';
+import { Traffic } from '@/actors/traffic';
+import { Vehicle } from '@/actors/vehicle';
+import { CAR_KINDS, type CarKind, VEHICLE_BREEDS } from '@/actors/vehicle-breeds';
+import type { AssetRegistry } from '@/assets/asset-registry';
+import { TUNING } from '@/config';
+import { lerp, TAU } from '@/engine/core/math';
+import type { Rng } from '@/engine/core/rng';
+import { CAR_COLORS } from '@/render/palette';
+import type { Garage } from '@/game/deck/garage';
 
 /** Traffic top-ups: one car at most this often (s), spawned at least SPAWN_DIST from the view; extras go once DROP_DIST away (m). */
 const SPAWN_EVERY = 1.2;

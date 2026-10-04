@@ -1,6 +1,6 @@
-import type { Focus } from '../engine/input/input';
-import { el } from '../engine/ui/dom';
-import { type Control, keyName } from '../game/controls';
+import type { Focus } from '@/engine/input/input';
+import { el } from '@/engine/ui/dom';
+import { type Control, keyName } from '@/game/controls';
 
 /** Something Cody carries, as the HUD shows it. */
 export interface InvItem {

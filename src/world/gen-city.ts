@@ -1,7 +1,7 @@
-import { mod } from '../engine/core/math';
-import { Rng } from '../engine/core/rng';
-import { subtractRects } from '../render/geometry';
-import type { MatKey } from '../render/materials';
+import { mod } from '@/engine/core/math';
+import { Rng } from '@/engine/core/rng';
+import { subtractRects } from '@/render/geometry';
+import type { MatKey } from '@/render/materials';
 import { buildingLook, dressBuilding, roofAt, walkIn } from './gen-building';
 import { elevatorShaft, stairShaft } from './gen-deck';
 import type { Facing, V3 } from './level-data';

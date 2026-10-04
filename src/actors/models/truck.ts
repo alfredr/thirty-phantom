@@ -1,11 +1,11 @@
 import { AdditiveBlending, Mesh, MeshBasicMaterial, PlaneGeometry } from 'three';
-import { TAU, type V3 } from '../../engine/core/math';
-import { Rng } from '../../engine/core/rng';
-import { truckLivery } from '../../render/livery';
-import { withCutaway } from '../../render/materials';
-import { PALETTE } from '../../render/palette';
-import { FX_LAYER } from '../../render/layers';
-import { radialGlowTexture } from '../../render/textures';
+import { TAU, type V3 } from '@/engine/core/math';
+import { Rng } from '@/engine/core/rng';
+import { truckLivery } from '@/render/livery';
+import { withCutaway } from '@/render/materials';
+import { PALETTE } from '@/render/palette';
+import { FX_LAYER } from '@/render/layers';
+import { radialGlowTexture } from '@/render/textures';
 import { box, type Box, build, type Face, group, model, NO_CAST, type Part, SIDES, solid, torus } from './part';
 import { vehicleRig, wheels, type VehicleRig, type WheelSpec } from './rig';
 

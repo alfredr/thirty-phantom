@@ -1,5 +1,5 @@
-import { Rng } from '../engine/core/rng';
-import type { MatKey } from '../render/materials';
+import { Rng } from '@/engine/core/rng';
+import type { MatKey } from '@/render/materials';
 import { bayCount, doorBay, doorWidth, FACADE, storeyCount, type Facade } from './facade-layout';
 import { buildingLift, INTERIOR, placeCore, ROOM_WALLS } from './interior-layout';
 import type { BuildingDef, BuildingUse, DoorDef, FacadeDef, Facing, StreetFront, V3, WindowStyle } from './level-data';

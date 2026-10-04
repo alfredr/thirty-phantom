@@ -1,5 +1,5 @@
 import { type CanvasTexture, type MeshStandardMaterial, Vector4, type WebGLProgramParametersWithUniforms } from 'three';
-import { FACADE, FACE_CODE } from '../world/facade-layout';
+import { FACADE, FACE_CODE } from '@/world/facade-layout';
 import { FACE_DATA } from './geometry';
 import { makeCanvas, toTexture } from './textures';
 

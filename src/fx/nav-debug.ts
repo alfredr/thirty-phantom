@@ -1,7 +1,7 @@
 import { BufferGeometry, Float32BufferAttribute, Group, Line, LineBasicMaterial } from 'three';
-import type { Polyline } from '../engine/nav/polyline';
-import { FX_LAYER } from '../render/layers';
-import { PALETTE } from '../render/palette';
+import type { Polyline } from '@/engine/nav/polyline';
+import { FX_LAYER } from '@/render/layers';
+import { PALETTE } from '@/render/palette';
 
 const COLORS: Record<string, string> = { car: PALETTE.slime, truck: PALETTE.purpleHot, person: PALETTE.foxy };
 

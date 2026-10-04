@@ -1,4 +1,4 @@
-import { clamp, lerp, type V3 } from '../core/math';
+import { clamp, lerp, type V3 } from '@/engine/core/math';
 
 /** Solids thinner than this (floors, curbs) never block a sightline or a camera boom. */
 const THIN_SLAB = 0.3;

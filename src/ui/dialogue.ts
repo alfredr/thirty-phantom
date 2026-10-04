@@ -1,7 +1,7 @@
-import type { Focus } from '../engine/input/input';
-import { el } from '../engine/ui/dom';
+import type { Focus } from '@/engine/input/input';
+import { el } from '@/engine/ui/dom';
+import type { Control } from '@/game/controls';
 import './dialogue.css';
-import type { Control } from '../game/controls';
 
 export type Side = 'left' | 'right';
 

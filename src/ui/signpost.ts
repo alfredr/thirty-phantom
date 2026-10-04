@@ -1,7 +1,7 @@
-import type { Focus } from '../engine/input/input';
-import { el } from '../engine/ui/dom';
+import type { Focus } from '@/engine/input/input';
+import { el } from '@/engine/ui/dom';
+import type { Control } from '@/game/controls';
 import './signpost.css';
-import type { Control } from '../game/controls';
 
 /** These dismiss it, and are kept from the game while it's up. */
 /** F, Space and Enter put it away. */

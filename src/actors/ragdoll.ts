@@ -1,6 +1,6 @@
 import { Matrix4, type Object3D, Quaternion, Vector3 } from 'three';
-import { TUNING } from '../config';
-import type { CollisionWorld } from '../engine/physics/collision';
+import { TUNING } from '@/config';
+import type { CollisionWorld } from '@/engine/physics/collision';
 import { exitHit, penetration } from './crash-body';
 import type { CharacterRig } from './models/rig';
 

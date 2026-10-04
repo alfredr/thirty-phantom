@@ -8,14 +8,14 @@ import {
   PlaneGeometry,
   Vector3,
 } from 'three';
-import type { VehicleRig } from '../../actors/models/rig';
-import { buildTruckRig } from '../../actors/models/truck';
-import type { Vehicle } from '../../actors/vehicle';
-import { FX_LAYER, GHOST_LAYER } from '../../render/layers';
-import { withCutaway } from '../../render/materials';
-import { radialGlowTexture } from '../../render/textures';
-import type { Gates } from '../../world/gates';
-import type { DeckNav, SpotDef, ZoneDef } from '../../world/level-data';
+import type { VehicleRig } from '@/actors/models/rig';
+import { buildTruckRig } from '@/actors/models/truck';
+import type { Vehicle } from '@/actors/vehicle';
+import { FX_LAYER, GHOST_LAYER } from '@/render/layers';
+import { withCutaway } from '@/render/materials';
+import { radialGlowTexture } from '@/render/textures';
+import type { Gates } from '@/world/gates';
+import type { DeckNav, SpotDef, ZoneDef } from '@/world/level-data';
 
 /** Spot glow: purple for an empty or taken spot, slime green under a phantom. */
 const SPOT_GLOW = new Color('#9b3cf0');

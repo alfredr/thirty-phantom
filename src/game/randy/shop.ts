@@ -1,8 +1,8 @@
 import type { Vector3 } from 'three';
-import type { Inventory } from '../items/inventory';
-import type { ItemKind } from '../items/item-breeds';
-import type { Money } from '../items/money';
-import type { ItemDeed } from '../story/triggers';
+import type { Inventory } from '@/game/items/inventory';
+import type { ItemKind } from '@/game/items/item-breeds';
+import type { Money } from '@/game/items/money';
+import type { ItemDeed } from '@/game/story/triggers';
 import type { Npc, Npcs } from './npcs';
 import type { Wares, WareSlot, WareView } from './wares';
 

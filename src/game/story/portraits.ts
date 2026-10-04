@@ -1,7 +1,7 @@
 import type { WebGLRenderer } from 'three';
-import type { CharacterModel } from '../../actors/models/character';
-import { buildRandy } from '../../actors/models/randy';
-import { renderPortrait } from '../../render/portrait';
+import type { CharacterModel } from '@/actors/models/character';
+import { buildRandy } from '@/actors/models/randy';
+import { renderPortrait } from '@/render/portrait';
 
 export interface Portraits {
   randy: string;

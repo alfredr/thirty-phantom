@@ -19,8 +19,8 @@ import {
   TorusGeometry,
 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { softInk, withCutaway } from '../../render/materials';
-import type { V3 } from '../../engine/core/math';
+import { softInk, withCutaway } from '@/render/materials';
+import type { V3 } from '@/engine/core/math';
 
 /**
  * Parametric models: a model is a plain function of its params that returns

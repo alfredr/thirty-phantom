@@ -1,6 +1,6 @@
-import { Rng } from '../engine/core/rng';
-import { subtractRects } from '../render/geometry';
-import type { MatKey } from '../render/materials';
+import { Rng } from '@/engine/core/rng';
+import { subtractRects } from '@/render/geometry';
+import type { MatKey } from '@/render/materials';
 import { BENCH, DECOR, type DecorKind, FOUNTAIN, GAZEBO, hitOf, type LocalBox, SHELTER, worldBox } from './decor-models';
 import { BLOCK_LAYOUT, type BlockKind, blockRect, CITY } from './gen-city';
 import type { BoxDef, LevelData, V3 } from './level-data';

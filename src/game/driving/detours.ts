@@ -1,16 +1,16 @@
 import { Vector3 } from 'three';
-import { Autopilot, type Obstacle } from '../../actors/autopilot';
-import { footprint } from '../../actors/avoidance';
-import type { Jam, Traffic } from '../../actors/traffic';
-import type { DriveEvents, DriveInput, Vehicle } from '../../actors/vehicle';
-import { TUNING } from '../../config';
-import { lerp, mod } from '../../engine/core/math';
-import type { Polyline } from '../../engine/nav/polyline';
-import type { CollisionWorld } from '../../engine/physics/collision';
-import type { Claims } from '../../engine/sim/claims';
-import type { ZoneDef } from '../../world/level-data';
-import type { NavGrid, NavJob, NavPlanner } from '../../world/nav-grid';
-import type { ClaimKind } from '../rules/claim-kinds';
+import { Autopilot, type Obstacle } from '@/actors/autopilot';
+import { footprint } from '@/actors/avoidance';
+import type { Jam, Traffic } from '@/actors/traffic';
+import type { DriveEvents, DriveInput, Vehicle } from '@/actors/vehicle';
+import { TUNING } from '@/config';
+import { lerp, mod } from '@/engine/core/math';
+import type { Polyline } from '@/engine/nav/polyline';
+import type { CollisionWorld } from '@/engine/physics/collision';
+import type { Claims } from '@/engine/sim/claims';
+import type { ZoneDef } from '@/world/level-data';
+import type { NavGrid, NavJob, NavPlanner } from '@/world/nav-grid';
+import type { ClaimKind } from '@/game/rules/claim-kinds';
 import type { Fleet } from './fleet';
 
 /** Looking for where to rejoin the lane: in steps of this along it (m). */

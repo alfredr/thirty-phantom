@@ -1,7 +1,7 @@
 import type { Color } from 'three';
-import type { V3 } from '../engine/core/math';
-import type { Rng } from '../engine/core/rng';
-import type { GeometryBatch } from '../render/geometry';
+import type { V3 } from '@/engine/core/math';
+import type { Rng } from '@/engine/core/rng';
+import type { GeometryBatch } from '@/render/geometry';
 
 /** What placing drips needs to know about the geometry around them. */
 export interface DripWorld {

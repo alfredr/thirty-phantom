@@ -1,4 +1,4 @@
-import { el, polar, svg } from '../engine/ui/dom';
+import { el, polar, svg } from '@/engine/ui/dom';
 
 const GAUGE_MAX_MPH = 80;
 /** Degrees either side of 12 o'clock; the open bottom holds the dashboard clock. */

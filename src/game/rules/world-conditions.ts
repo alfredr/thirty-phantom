@@ -1,4 +1,4 @@
-import type { GameClock } from '../game-clock';
+import type { GameClock } from '@/game/game-clock';
 
 export type WorldConditionName = 'deckAwake' | 'valetsOnShift' | 'parking' | 'daylight';
 

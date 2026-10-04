@@ -1,4 +1,4 @@
-import { ITEM_BREEDS, type ItemKind } from '../items/item-breeds';
+import { ITEM_BREEDS, type ItemKind } from '@/game/items/item-breeds';
 
 /**
  * What Randy carries in his coat, slot by slot: the burner phone he gives

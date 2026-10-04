@@ -1,9 +1,9 @@
 import { Vector3 } from 'three';
-import type { Vehicle } from '../actors/vehicle';
-import { TUNING } from '../config';
-import type { NavDebug } from '../fx/nav-debug';
-import type { V3 } from '../world/level-data';
-import { NAV, type NavProfile, type NavQuery } from '../world/nav-grid';
+import type { Vehicle } from '@/actors/vehicle';
+import { TUNING } from '@/config';
+import type { NavDebug } from '@/fx/nav-debug';
+import type { V3 } from '@/world/level-data';
+import { NAV, type NavProfile, type NavQuery } from '@/world/nav-grid';
 import type { CamMode } from './camera-controller';
 import type { Game } from './game';
 import type { Refuge } from './driving/refuge';

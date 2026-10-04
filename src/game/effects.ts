@@ -1,11 +1,11 @@
 import { Color, Vector3 } from 'three';
-import type { Vehicle } from '../actors/vehicle';
-import { lerp, TAU } from '../engine/core/math';
-import type { Emitter } from '../engine/core/events';
-import { SLIME, WHITE } from '../fx/colors';
-import type { CubeParticles } from '../fx/cube-particles';
-import type { SpriteFx } from '../fx/sprite-fx';
-import type { ToastTone } from '../ui/hud';
+import type { Vehicle } from '@/actors/vehicle';
+import { lerp, TAU } from '@/engine/core/math';
+import type { Emitter } from '@/engine/core/events';
+import { SLIME, WHITE } from '@/fx/colors';
+import type { CubeParticles } from '@/fx/cube-particles';
+import type { SpriteFx } from '@/fx/sprite-fx';
+import type { ToastTone } from '@/ui/hud';
 import type { GameEvents } from './game';
 
 /** What effects play on: the view, the HUD's toasts, the particles. */

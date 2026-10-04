@@ -1,4 +1,4 @@
-import { clamp } from '../core/math';
+import { clamp } from '@/engine/core/math';
 
 /** Each control's keys (KeyboardEvent codes), by control. The first is the one a HUD shows. */
 export type KeyTable<C extends string> = Readonly<Record<C, readonly [string, ...string[]]>>;

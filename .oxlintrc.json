@@ -12,9 +12,18 @@
   },
   "overrides": [
     {
+      "files": ["src/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": ["error", {
+          "patterns": [{ "group": ["../*"], "message": "Import across folders from '@/...' (rooted at src/); './' is for the same folder." }]
+        }]
+      }
+    },
+    {
       "files": ["tools/**/*.{ts,mjs}", "tests/**/*.mjs", "vite.config.ts", "src/world/schema/**/*.ts"],
       "rules": {
-        "import/extensions": ["error", "always", { "ignorePackages": true, "checkTypeImports": true }]
+        "import/extensions": ["error", "always", { "ignorePackages": true, "checkTypeImports": true }],
+        "no-restricted-imports": "off"
       }
     }
   ]

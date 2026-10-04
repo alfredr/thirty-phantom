@@ -5,7 +5,7 @@
  * yaw convention: forward = (sin yaw, cos yaw) in (x, z).
  */
 
-import { mod, TAU } from '../core/math';
+import { mod, TAU } from '@/engine/core/math';
 
 export interface Pose {
   x: number;

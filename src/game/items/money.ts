@@ -1,8 +1,8 @@
 import { type Group, type Scene, Vector3 } from 'three';
-import { buildLoot, type LootKind } from '../../actors/models/loot';
-import { TUNING } from '../../config';
-import type { Rng } from '../../engine/core/rng';
-import { NAV, type NavGrid } from '../../world/nav-grid';
+import { buildLoot, type LootKind } from '@/actors/models/loot';
+import { TUNING } from '@/config';
+import type { Rng } from '@/engine/core/rng';
+import { NAV, type NavGrid } from '@/world/nav-grid';
 
 const M = TUNING.money;
 

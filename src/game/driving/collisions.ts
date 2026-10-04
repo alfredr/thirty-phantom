@@ -1,6 +1,6 @@
 import { Vector3 } from 'three';
-import type { Vehicle } from '../../actors/vehicle';
-import { bodyHalf } from '../../engine/physics/vehicle-params';
+import type { Vehicle } from '@/actors/vehicle';
+import { bodyHalf } from '@/engine/physics/vehicle-params';
 
 /** Bounce between bodies: low, it's crumpling metal. */
 const BOUNCE = 0.2;

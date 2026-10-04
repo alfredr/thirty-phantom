@@ -1,14 +1,15 @@
 import type { Camera, Vector3 } from 'three';
-import type { VehicleForm } from '../actors/vehicle';
-import { SOUND_ON } from '../audio/flags';
-import { urlFlag } from '../engine/core/url-flags';
-import type { Focus } from '../engine/input/input';
-import { Bindings } from '../engine/ui/binding';
-import { el } from '../engine/ui/dom';
-import type { CamMode, CamView } from '../game/game';
-import { GameClock, type Phase } from '../game/game-clock';
-import type { Objective } from '../game/story/objectives';
-import type { LevelData } from '../world/level-data';
+import type { VehicleForm } from '@/actors/vehicle';
+import { SOUND_ON } from '@/audio/flags';
+import { urlFlag } from '@/engine/core/url-flags';
+import type { Focus } from '@/engine/input/input';
+import { Bindings } from '@/engine/ui/binding';
+import { el } from '@/engine/ui/dom';
+import type { CamMode, CamView } from '@/game/game';
+import { GameClock, type Phase } from '@/game/game-clock';
+import type { Objective } from '@/game/story/objectives';
+import type { LevelData } from '@/world/level-data';
+import { type Control, isControl, keyName } from '@/game/controls';
 import { ClockFace } from './clock-face';
 import { type InvItem, InventoryStrip, sameInventory } from './inventory';
 import { OccupancySign } from './occupancy-sign';
@@ -19,7 +20,6 @@ import { SpeedGauge } from './speed-gauge';
 import { touchGlyph } from './touch-controls';
 import { type Wares, WaresPanel, sameWares } from './wares';
 import './hud.css';
-import { type Control, isControl, keyName } from '../game/controls';
 
 /**
  * Key caps for actions, labelled for the device in use when drawn: the key on a keyboard, the

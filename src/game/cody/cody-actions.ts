@@ -1,12 +1,12 @@
-import type { Vehicle } from '../../actors/vehicle';
-import { Action, done, fail, type Fail, type Result } from '../../engine/sim/action';
-import type { Candidate } from '../../engine/sim/offers';
-import type { Elevator } from '../../world/elevators';
-import type { Control } from '../controls';
+import type { Vehicle } from '@/actors/vehicle';
+import { Action, done, fail, type Fail, type Result } from '@/engine/sim/action';
+import type { Candidate } from '@/engine/sim/offers';
+import type { Elevator } from '@/world/elevators';
+import type { Control } from '@/game/controls';
+import type { Npc } from '@/game/randy/npcs';
+import type { Valet } from '@/game/valets/valet';
+import type { WorldConditions } from '@/game/rules/world-conditions';
 import type { CodyState } from './cody-state';
-import type { Npc } from '../randy/npcs';
-import type { Valet } from '../valets/valet';
-import type { WorldConditions } from '../rules/world-conditions';
 
 /**
  * What Cody's actions need from the game. The game provides this narrow view, and actions never

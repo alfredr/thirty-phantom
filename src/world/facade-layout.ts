@@ -1,6 +1,6 @@
-import { clamp } from '../engine/core/math';
-import type { BoxFace, FaceMap } from '../render/geometry';
-import type { MatKey } from '../render/materials';
+import { clamp } from '@/engine/core/math';
+import type { BoxFace, FaceMap } from '@/render/geometry';
+import type { MatKey } from '@/render/materials';
 import type { BoxDef, FacadeDef, FacadeKind, Facing, StreetFront, WindowStyle } from './level-data';
 
 /**

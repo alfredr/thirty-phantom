@@ -1,6 +1,6 @@
 import { Vector3 } from 'three';
-import type { Focus } from '../../engine/input/input';
-import type { Control } from '../controls';
+import type { Focus } from '@/engine/input/input';
+import type { Control } from '@/game/controls';
 
 /** Speech bubbles hang from this high above a speaker's feet. */
 const SPEAKER_HEAD = 2.5;

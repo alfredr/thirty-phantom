@@ -1,12 +1,12 @@
 import type { Vector3 } from 'three';
-import type { Vehicle } from '../../actors/vehicle';
-import { TUNING } from '../../config';
-import type { Rng } from '../../engine/core/rng';
-import type { Focus } from '../../engine/input/input';
-import type { Hud } from '../../ui/hud';
-import type { Control } from '../controls';
-import { type Garage, spotLabel, type SpotRuntime } from '../deck/garage';
-import { type Choice, Conversation } from '../story/conversation';
+import type { Vehicle } from '@/actors/vehicle';
+import { TUNING } from '@/config';
+import type { Rng } from '@/engine/core/rng';
+import type { Focus } from '@/engine/input/input';
+import type { Hud } from '@/ui/hud';
+import type { Control } from '@/game/controls';
+import { type Garage, spotLabel, type SpotRuntime } from '@/game/deck/garage';
+import { type Choice, Conversation } from '@/game/story/conversation';
 import type { Valet, ValetService } from './valet';
 
 const DECK_FULL = "SORRY. THE DECK'S FULL.";

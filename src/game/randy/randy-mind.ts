@@ -1,5 +1,5 @@
 import type { Vector3 } from 'three';
-import { type EventOf, mind, type MindEvent, type State, type StateOf } from '../../engine/sim/mind';
+import { type EventOf, mind, type MindEvent, type State, type StateOf } from '@/engine/sim/mind';
 import type { Npc } from './npcs';
 
 /** He holds the coat open this long (s), then closes it and waits this long before the next pitch. */

@@ -1,8 +1,8 @@
 import { Vector3 } from 'three';
-import type { CharacterRig } from '../../actors/models/rig';
-import { Ragdoll, type RagdollPusher } from '../../actors/ragdoll';
-import type { CollisionWorld } from '../../engine/physics/collision';
-import type { BloodSim } from '../../world/blood';
+import type { CharacterRig } from '@/actors/models/rig';
+import { Ragdoll, type RagdollPusher } from '@/actors/ragdoll';
+import type { CollisionWorld } from '@/engine/physics/collision';
+import type { BloodSim } from '@/world/blood';
 
 /** How badly a hit leaves someone, worst last. Stunned and injured get up; unconscious come round later; dead don't. */
 export type Harm = 'stunned' | 'injured' | 'unconscious' | 'dead';

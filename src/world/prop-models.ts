@@ -1,6 +1,6 @@
-import { box, type Model, model, NO_CAST, solid } from '../actors/models/part';
-import type { V3 } from '../engine/core/math';
-import { GLASS, LAMP_GLASS, METAL } from '../render/materials';
+import { box, type Model, model, NO_CAST, solid } from '@/actors/models/part';
+import type { V3 } from '@/engine/core/math';
+import { GLASS, LAMP_GLASS, METAL } from '@/render/materials';
 import type { LampColor } from './level-data';
 
 export const LAMP = {

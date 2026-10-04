@@ -1,5 +1,5 @@
 import { Vector3 } from 'three';
-import type { Inventory } from '../items/inventory';
+import type { Inventory } from '@/game/items/inventory';
 import type { Npc, Npcs } from './npcs';
 
 /** Cody on foot this close to Randy (m, on his level) can give him tires. */

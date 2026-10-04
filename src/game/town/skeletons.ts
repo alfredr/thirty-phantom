@@ -1,14 +1,14 @@
 import { Group, Vector3 } from 'three';
-import { Gait } from '../../actors/models/person';
-import type { CharacterRig } from '../../actors/models/rig';
-import { buildSkeleton } from '../../actors/models/skeleton';
-import { clamp, damp, dampAngle, TAU, type V3 } from '../../engine/core/math';
-import { RouteCursor } from '../../engine/nav/polyline';
-import type { CollisionWorld } from '../../engine/physics/collision';
-import type { Claims } from '../../engine/sim/claims';
-import { type EventOf, Mind, mind, type MindEvent, type State, type StateOf } from '../../engine/sim/mind';
-import { NAV, type NavGrid, type NavJob, type NavPlanner } from '../../world/nav-grid';
-import type { ClaimKind } from '../rules/claim-kinds';
+import { Gait } from '@/actors/models/person';
+import type { CharacterRig } from '@/actors/models/rig';
+import { buildSkeleton } from '@/actors/models/skeleton';
+import { clamp, damp, dampAngle, TAU, type V3 } from '@/engine/core/math';
+import { RouteCursor } from '@/engine/nav/polyline';
+import type { CollisionWorld } from '@/engine/physics/collision';
+import type { Claims } from '@/engine/sim/claims';
+import { type EventOf, Mind, mind, type MindEvent, type State, type StateOf } from '@/engine/sim/mind';
+import { NAV, type NavGrid, type NavJob, type NavPlanner } from '@/world/nav-grid';
+import type { ClaimKind } from '@/game/rules/claim-kinds';
 
 /**
  * Whom skeletons hunt: the crowd's people, through opaque handles. A handle

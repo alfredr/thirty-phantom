@@ -1,9 +1,9 @@
 import { Vector3 } from 'three';
-import { TUNING } from '../config';
-import { damp, invLerp, lerp } from '../engine/core/math';
-import type { Rng } from '../engine/core/rng';
-import { Polyline } from '../engine/nav/polyline';
-import type { PathDef } from '../world/level-data';
+import { TUNING } from '@/config';
+import { damp, invLerp, lerp } from '@/engine/core/math';
+import type { Rng } from '@/engine/core/rng';
+import { Polyline } from '@/engine/nav/polyline';
+import type { PathDef } from '@/world/level-data';
 import type { Vehicle } from './vehicle';
 
 /** Spawning gives up after this many random tries; a new car needs this much room from others (m). */

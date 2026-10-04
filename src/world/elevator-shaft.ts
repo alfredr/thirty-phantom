@@ -1,4 +1,4 @@
-import type { MatKey } from '../render/materials';
+import type { MatKey } from '@/render/materials';
 import type { ElevatorDef, Facing, V3 } from './level-data';
 import type { LevelWriter } from './level-writer';
 

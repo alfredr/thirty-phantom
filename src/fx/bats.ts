@@ -1,8 +1,8 @@
 import { BoxGeometry, Group, Mesh, MeshStandardMaterial, type Object3D, type Vector3 } from 'three';
-import { TAU } from '../engine/core/math';
-import { Rng } from '../engine/core/rng';
-import { withCutaway } from '../render/materials';
-import { PALETTE } from '../render/palette';
+import { TAU } from '@/engine/core/math';
+import { Rng } from '@/engine/core/rng';
+import { withCutaway } from '@/render/materials';
+import { PALETTE } from '@/render/palette';
 
 interface Bat {
   root: Group;

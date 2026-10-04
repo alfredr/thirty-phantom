@@ -1,8 +1,8 @@
 import { Vector3 } from 'three';
-import type { Vehicle } from '../actors/vehicle';
-import { TUNING } from '../config';
-import { damp, type V3 } from '../engine/core/math';
-import type { CollisionWorld } from '../engine/physics/collision';
+import type { Vehicle } from '@/actors/vehicle';
+import { TUNING } from '@/config';
+import { damp, type V3 } from '@/engine/core/math';
+import type { CollisionWorld } from '@/engine/physics/collision';
 import type { ChaseKind } from './chase-camera';
 import type { IsoCamera } from './iso-camera';
 import { cutUniforms } from './materials';

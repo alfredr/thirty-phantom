@@ -1,5 +1,5 @@
-import { Rng } from '../engine/core/rng';
-import { subtractRects } from '../render/geometry';
+import { Rng } from '@/engine/core/rng';
+import { subtractRects } from '@/render/geometry';
 import { LIFT, shaftParts } from './elevator-shaft';
 import { bayCount, FACADE, type Facade, frontWindow, storeyWindow } from './facade-layout';
 import type { BoxDef, BuildingDef, BuildingUse, DoorDef, ElevatorDef, FacadeDef, Facing, V3 } from './level-data';

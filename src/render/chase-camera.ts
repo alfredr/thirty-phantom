@@ -1,7 +1,7 @@
 import { PerspectiveCamera, Vector3 } from 'three';
-import { TUNING } from '../config';
-import { clamp, damp, dampAngle, type V3 } from '../engine/core/math';
-import type { CollisionWorld } from '../engine/physics/collision';
+import { TUNING } from '@/config';
+import { clamp, damp, dampAngle, type V3 } from '@/engine/core/math';
+import type { CollisionWorld } from '@/engine/physics/collision';
 import { viewFit, ZOOM_STEP } from './iso-camera';
 import { Shake } from './shake';
 

@@ -12,13 +12,13 @@ import {
 } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
-import { atSedanScale, buildCarRig, SEDAN, SEDAN_SCALE } from '../actors/models/car';
-import { type CharacterModel, GltfCharacter, ProceduralCharacter } from '../actors/models/character';
-import { isFrontWheel, type VehicleRig, WHEELS, type WheelRig } from '../actors/models/rig';
-import { addUnderglow, buildTruckRig } from '../actors/models/truck';
-import { urlFlag } from '../engine/core/url-flags';
-import { truckLivery } from '../render/livery';
-import { softInk, withCutaway } from '../render/materials';
+import { atSedanScale, buildCarRig, SEDAN, SEDAN_SCALE } from '@/actors/models/car';
+import { type CharacterModel, GltfCharacter, ProceduralCharacter } from '@/actors/models/character';
+import { isFrontWheel, type VehicleRig, WHEELS, type WheelRig } from '@/actors/models/rig';
+import { addUnderglow, buildTruckRig } from '@/actors/models/truck';
+import { urlFlag } from '@/engine/core/url-flags';
+import { truckLivery } from '@/render/livery';
+import { softInk, withCutaway } from '@/render/materials';
 
 export type ModelKey = 'monsterTruck' | 'car' | 'cody';
 

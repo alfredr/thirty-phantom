@@ -1,4 +1,4 @@
-import { TUNING } from '../config';
+import { TUNING } from '@/config';
 
 export type Phase = 'day' | 'night';
 

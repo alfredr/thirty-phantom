@@ -1,18 +1,18 @@
 import type { Vector3 } from 'three';
-import type { Player } from '../../actors/player';
-import type { Vehicle } from '../../actors/vehicle';
-import { TUNING } from '../../config';
-import type { Input } from '../../engine/input/input';
-import { Doing, resolveFully } from '../../engine/sim/action';
-import { bestOffers } from '../../engine/sim/offers';
-import type { InvItem } from '../../ui/inventory';
-import type { Elevators } from '../../world/elevators';
-import type { Control } from '../controls';
-import type { Inventory, ItemActionId } from '../items/inventory';
-import { ITEM_BREEDS, type ItemKind, isItemKind } from '../items/item-breeds';
-import { NPC_NAMES, type Npc } from '../randy/npcs';
-import type { RandyTalk } from '../randy/talk';
-import type { ValetService } from '../valets/valet';
+import type { Player } from '@/actors/player';
+import type { Vehicle } from '@/actors/vehicle';
+import { TUNING } from '@/config';
+import type { Input } from '@/engine/input/input';
+import { Doing, resolveFully } from '@/engine/sim/action';
+import { bestOffers } from '@/engine/sim/offers';
+import type { InvItem } from '@/ui/inventory';
+import type { Elevators } from '@/world/elevators';
+import type { Control } from '@/game/controls';
+import type { Inventory, ItemActionId } from '@/game/items/inventory';
+import { ITEM_BREEDS, type ItemKind, isItemKind } from '@/game/items/item-breeds';
+import { NPC_NAMES, type Npc } from '@/game/randy/npcs';
+import type { RandyTalk } from '@/game/randy/talk';
+import type { ValetService } from '@/game/valets/valet';
 import { CallElevator, type CodyAction, type CodyCandidate, Eat, GetOut, GiveTires, InteractWithVehicle, PickFloor, type Play, RANK, RockOver, Summon, TalkToRandy, TalkToValet } from './cody-actions';
 
 /** Maximum vertical distance to a vehicle Cody could enter, in meters. */

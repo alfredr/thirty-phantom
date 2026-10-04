@@ -1,4 +1,4 @@
-import { polar, svg } from '../engine/ui/dom';
+import { polar, svg } from '@/engine/ui/dom';
 
 /** Analog clock face (SVG) with live hands. Colors come from CSS so the dial follows the phase. */
 export class ClockFace {

@@ -1,6 +1,6 @@
 import { Color, type DirectionalLight, type HemisphereLight, type Scene, Vector3 } from 'three';
-import { TUNING } from '../config';
-import { invLerp, lerp, smoothstep } from '../engine/core/math';
+import { TUNING } from '@/config';
+import { invLerp, lerp, smoothstep } from '@/engine/core/math';
 import type { GameRenderer } from './game-renderer';
 import type { LightPool } from './light-pool';
 import type { ChannelLevels, MaterialLibrary } from './materials';

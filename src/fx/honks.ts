@@ -1,9 +1,9 @@
 import { type CanvasTexture, Group, Sprite, SpriteMaterial, Vector3 } from 'three';
-import { easeOutBack, lerp } from '../engine/core/math';
-import { withCurve } from '../render/curvature';
-import { FX_LAYER } from '../render/layers';
-import { fitFont, FONT } from '../render/signs';
-import { makeCanvas, toTexture } from '../render/textures';
+import { easeOutBack, lerp } from '@/engine/core/math';
+import { withCurve } from '@/render/curvature';
+import { FX_LAYER } from '@/render/layers';
+import { fitFont, FONT } from '@/render/signs';
+import { makeCanvas, toTexture } from '@/render/textures';
 
 /** A honk's word: this wide at full size (m), popping up over POP (s), gone after LIFE (s), rising RISE (m) as it goes. */
 const WIDTH = 2.4;

@@ -1,11 +1,11 @@
-import type { Focus } from '../../engine/input/input';
-import { Bindings } from '../../engine/ui/binding';
-import { el } from '../../engine/ui/dom';
-import { keyText } from '../hud';
+import type { Focus } from '@/engine/input/input';
+import { Bindings } from '@/engine/ui/binding';
+import { el } from '@/engine/ui/dom';
+import { keyText } from '@/ui/hud';
+import '@/ui/burner.css';
+import type { Control } from '@/game/controls';
 import type { Messages } from './messages';
-import '../burner.css';
 import './phone.css';
-import type { Control } from '../../game/controls';
 
 /** Real milliseconds the phone stays up after coming up by itself (a text) before it slides back to the edge. */
 const HOLD = 9000;

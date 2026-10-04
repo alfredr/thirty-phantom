@@ -1,4 +1,4 @@
-import { type Mind, mind, type MindEvent, type MindOptions, type State } from '../../src/engine/sim/mind';
+import { type Mind, mind, type MindEvent, type MindOptions, type State } from '@/engine/sim/mind';
 
 // Compile-time checks: npm run typecheck also verifies every @ts-expect-error below.
 type TestState = State<'idle'> | State<'waiting', { seconds: number }>;

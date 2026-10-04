@@ -1,7 +1,7 @@
 import { AdditiveBlending, BufferGeometry, Color, Float32BufferAttribute, Points, PointsMaterial, Vector3 } from 'three';
-import { FX_LAYER } from '../render/layers';
-import { withCutaway } from '../render/materials';
-import { radialGlowTexture } from '../render/textures';
+import { FX_LAYER } from '@/render/layers';
+import { withCutaway } from '@/render/materials';
+import { radialGlowTexture } from '@/render/textures';
 
 /**
  * A dotted glowing arc showing where something thrown will fly: `dots` dots

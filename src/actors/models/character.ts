@@ -1,5 +1,5 @@
 import { type AnimationAction, AnimationMixer, type AnimationClip, Group, type Object3D, Vector3 } from 'three';
-import { clamp } from '../../engine/core/math';
+import { clamp } from '@/engine/core/math';
 import { buildCodyDay, buildCodyNight, CODY_DAY, CODY_NIGHT } from './cody';
 import { stride } from './person';
 import type { CharacterRig } from './rig';

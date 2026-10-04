@@ -1,8 +1,8 @@
-import type { AssetRegistry } from '../assets/asset-registry';
-import type { SoundOf } from '../audio/cues';
-import { TUNING } from '../config';
-import { bodyOffsets, type VehicleParams } from '../engine/physics/vehicle-params';
-import { NAV, type NavProfile } from '../world/nav-grid';
+import type { AssetRegistry } from '@/assets/asset-registry';
+import type { SoundOf } from '@/audio/cues';
+import { TUNING } from '@/config';
+import { bodyOffsets, type VehicleParams } from '@/engine/physics/vehicle-params';
+import { NAV, type NavProfile } from '@/world/nav-grid';
 import { buildMotorcycleRig } from './models/motorcycle';
 import { buildPickupRig } from './models/pickup';
 import type { VehicleRig } from './models/rig';

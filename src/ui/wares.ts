@@ -1,6 +1,6 @@
-import type { Focus } from '../engine/input/input';
-import { el } from '../engine/ui/dom';
-import type { Control } from '../game/controls';
+import type { Focus } from '@/engine/input/input';
+import { el } from '@/engine/ui/dom';
+import type { Control } from '@/game/controls';
 
 /** One slot of Randy's stock: a stack of `count` (0 leaves the slot showing, empty), `price` each. */
 export interface WareSlot {

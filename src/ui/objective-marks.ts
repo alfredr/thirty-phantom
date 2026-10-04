@@ -1,6 +1,6 @@
 import { type Camera, Vector3 } from 'three';
-import { el } from '../engine/ui/dom';
-import type { Objective } from '../game/story/objectives';
+import { el } from '@/engine/ui/dom';
+import type { Objective } from '@/game/story/objectives';
 
 /** How high over its target a marker hangs (m). */
 const LIFT = 2.4;

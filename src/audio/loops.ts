@@ -1,8 +1,8 @@
-import type { Vehicle } from '../actors/vehicle';
-import { TUNING } from '../config';
-import { clamp, smoothstep } from '../engine/core/math';
-import type { Npc } from '../game/randy/npcs';
-import type { GateRuntime } from '../world/gates';
+import type { Vehicle } from '@/actors/vehicle';
+import { TUNING } from '@/config';
+import { clamp, smoothstep } from '@/engine/core/math';
+import type { Npc } from '@/game/randy/npcs';
+import type { GateRuntime } from '@/world/gates';
 import type { SoundOf } from './cues';
 import { EngineState } from './engine-state';
 import type { Loop, Mixer } from './mixer';

@@ -1,11 +1,11 @@
 import { FrontSide, Group, type Material, Mesh, MeshBasicMaterial, type Object3D, type Side, SkinnedMesh, Vector3 } from 'three';
-import { TUNING } from '../config';
-import { clamp, damp, dampAngle, invLerp, type V3 } from '../engine/core/math';
-import type { Input } from '../engine/input/input';
-import type { CollisionWorld } from '../engine/physics/collision';
-import type { Control } from '../game/controls';
-import { withCurve } from '../render/curvature';
-import { GHOST_LAYER } from '../render/layers';
+import { TUNING } from '@/config';
+import { clamp, damp, dampAngle, invLerp, type V3 } from '@/engine/core/math';
+import type { Input } from '@/engine/input/input';
+import type { CollisionWorld } from '@/engine/physics/collision';
+import type { Control } from '@/game/controls';
+import { withCurve } from '@/render/curvature';
+import { GHOST_LAYER } from '@/render/layers';
 import type { CharacterModel, CodyForm } from './models/character';
 
 export type { CodyForm };

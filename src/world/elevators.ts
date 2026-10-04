@@ -1,11 +1,11 @@
 import { type BufferAttribute, BoxGeometry, Group, type Material, Mesh, Sphere, Vector3 } from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { TUNING } from '../config';
-import type { V3 } from '../engine/core/math';
-import type { RouteCursor } from '../engine/nav/polyline';
-import type { CollisionWorld, Solid } from '../engine/physics/collision';
-import { GeometryBatch, NO_TINT, whiteColors } from '../render/geometry';
-import type { MaterialLibrary, MatKey } from '../render/materials';
+import { TUNING } from '@/config';
+import type { V3 } from '@/engine/core/math';
+import type { RouteCursor } from '@/engine/nav/polyline';
+import type { CollisionWorld, Solid } from '@/engine/physics/collision';
+import { GeometryBatch, NO_TINT, whiteColors } from '@/render/geometry';
+import type { MaterialLibrary, MatKey } from '@/render/materials';
 import { doorPoint, facingAxis, landingPoint, LIFT, shaftCenter } from './elevator-shaft';
 import type { ElevatorDef, Facing } from './level-data';
 import { NavRoute, type NavHop } from './nav-grid';

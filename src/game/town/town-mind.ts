@@ -1,13 +1,13 @@
 import { Vector3 } from 'three';
-import type { Avoidance } from '../../actors/avoidance';
-import type { Vehicle } from '../../actors/vehicle';
-import type { Walker } from '../../actors/walker';
-import { TUNING } from '../../config';
-import type { Rng } from '../../engine/core/rng';
-import type { Polyline } from '../../engine/nav/polyline';
-import { type EventOf, Mind, mind, type MindEvent, type State, type StateOf } from '../../engine/sim/mind';
-import type { NavGrid, NavJob } from '../../world/nav-grid';
-import type { Visitors } from '../driving/visitors';
+import type { Avoidance } from '@/actors/avoidance';
+import type { Vehicle } from '@/actors/vehicle';
+import type { Walker } from '@/actors/walker';
+import { TUNING } from '@/config';
+import type { Rng } from '@/engine/core/rng';
+import type { Polyline } from '@/engine/nav/polyline';
+import { type EventOf, Mind, mind, type MindEvent, type State, type StateOf } from '@/engine/sim/mind';
+import type { NavGrid, NavJob } from '@/world/nav-grid';
+import type { Visitors } from '@/game/driving/visitors';
 import type { Casualties, Casualty, Harm } from './casualties';
 
 const C = TUNING.crowd;

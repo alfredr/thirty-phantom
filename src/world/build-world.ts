@@ -10,16 +10,17 @@ import {
   PlaneGeometry,
   Vector3,
 } from 'three';
-import { Rng } from '../engine/core/rng';
-import { type BoxFace, boxFaces, CHUNK, GeometryBatch, NO_TINT } from '../render/geometry';
-import { instanced, type Model } from '../actors/models/part';
-import { fxDecal } from '../render/layers';
-import { UV_SCALE, withCutaway, type MatKey, type MaterialLibrary } from '../render/materials';
-import { PALETTE } from '../render/palette';
-import { signMaterial, signTextures } from '../render/signs';
-import { puddleTexture, radialGlowTexture } from '../render/textures';
+import { Rng } from '@/engine/core/rng';
+import { type BoxFace, boxFaces, CHUNK, GeometryBatch, NO_TINT } from '@/render/geometry';
+import { instanced, type Model } from '@/actors/models/part';
+import { fxDecal } from '@/render/layers';
+import { UV_SCALE, withCutaway, type MatKey, type MaterialLibrary } from '@/render/materials';
+import { PALETTE } from '@/render/palette';
+import { signMaterial, signTextures } from '@/render/signs';
+import { puddleTexture, radialGlowTexture } from '@/render/textures';
+import { CollisionWorld, type GroundHit, type RampShape, type Solid } from '@/engine/physics/collision';
+import type { V3 } from '@/engine/core/math';
 import { ClockFaces } from './clock-faces';
-import { CollisionWorld, type GroundHit, type RampShape, type Solid } from '../engine/physics/collision';
 import { buildDecor } from './build-decor';
 import { coplanarHoles } from './coplanar';
 import { facadeFaces, facadeOf } from './facade-layout';
@@ -46,7 +47,6 @@ import {
 } from './prop-models';
 import { type PropKind, Props, type PropSpec, restTilt } from './props';
 import { facingYaw, type BoxDef, type LampColor, type LampKind, type LevelData, type RampDef } from './level-data';
-import type { V3 } from '../engine/core/math';
 
 export interface LightEmitter {
   pos: Vector3;

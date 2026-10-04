@@ -1,10 +1,10 @@
 import { type BufferAttribute, Color, Group, Matrix4, Vector3 } from 'three';
-import type { Instanced } from '../actors/models/part';
-import { TUNING } from '../config';
-import { clamp, TAU, type V3 } from '../engine/core/math';
-import { Rng } from '../engine/core/rng';
-import type { CollisionWorld, Solid } from '../engine/physics/collision';
-import { bodyHalf } from '../engine/physics/vehicle-params';
+import type { Instanced } from '@/actors/models/part';
+import { TUNING } from '@/config';
+import { clamp, TAU, type V3 } from '@/engine/core/math';
+import { Rng } from '@/engine/core/rng';
+import type { CollisionWorld, Solid } from '@/engine/physics/collision';
+import { bodyHalf } from '@/engine/physics/vehicle-params';
 
 /** Something that shoves loose props around: a vehicle, by its three body circles. */
 export interface Pusher {

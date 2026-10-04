@@ -1,4 +1,4 @@
-import type { V3 } from '../../engine/core/math';
+import type { V3 } from '@/engine/core/math';
 import { box, build, group, model, NO_CAST, SIDES, solid } from './part';
 import { vehicleRig, wheels, type VehicleRig, type WheelSpec } from './rig';
 

@@ -1,6 +1,6 @@
 import type { Vector3 } from 'three';
-import { bodyOffsets } from '../engine/physics/vehicle-params';
-import type { ZoneDef } from '../world/level-data';
+import { bodyOffsets } from '@/engine/physics/vehicle-params';
+import type { ZoneDef } from '@/world/level-data';
 import type { Vehicle } from './vehicle';
 
 /** A person's room: shoulders plus a little space. */

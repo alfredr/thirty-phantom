@@ -1,12 +1,12 @@
 import { type Object3D, Quaternion, type Scene, Vector3 } from 'three';
-import { buildJunk } from '../../actors/models/junk';
-import { buildRandy, type RandyRig, ROAST_LIFT } from '../../actors/models/randy';
-import { buildTrashFire, CAN_TOP } from '../../actors/models/trash-fire';
-import { clamp, damp, dampAngle, wrapAngle } from '../../engine/core/math';
-import { Mind } from '../../engine/sim/mind';
-import { ArcPath } from '../../fx/arc-path';
-import { Highlight } from '../../fx/highlight';
-import type { NpcDef } from '../../world/level-data';
+import { buildJunk } from '@/actors/models/junk';
+import { buildRandy, type RandyRig, ROAST_LIFT } from '@/actors/models/randy';
+import { buildTrashFire, CAN_TOP } from '@/actors/models/trash-fire';
+import { clamp, damp, dampAngle, wrapAngle } from '@/engine/core/math';
+import { Mind } from '@/engine/sim/mind';
+import { ArcPath } from '@/fx/arc-path';
+import { Highlight } from '@/fx/highlight';
+import type { NpcDef } from '@/world/level-data';
 import { type Pitch, RANDY_PITCH, RANDY_WORK, type RandyEvent, type Work } from './randy-mind';
 
 /** Cody this close (m, on his level) gets Randy's attention: he looks over, and between pitches turns to him and opens his coat. */

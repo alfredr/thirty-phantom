@@ -19,8 +19,8 @@ import {
   WebGLRenderTarget,
 } from 'three';
 import { FullScreenQuad, Pass } from 'three/addons/postprocessing/Pass.js';
-import { FX_LAYER } from '../layers';
-import { MaterialLibrary } from '../materials';
+import { FX_LAYER } from '@/render/layers';
+import { MaterialLibrary } from '@/render/materials';
 import { FULLSCREEN_VERT } from './fullscreen';
 
 const frag = /* glsl */ `

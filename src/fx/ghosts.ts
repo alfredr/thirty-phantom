@@ -1,9 +1,9 @@
 import { Group, Sprite, SpriteMaterial, Vector3 } from 'three';
-import { Rng } from '../engine/core/rng';
-import { withCurve } from '../render/curvature';
-import { FX_LAYER } from '../render/layers';
-import { ghostTexture } from '../render/textures';
-import type { ZoneDef } from '../world/level-data';
+import { Rng } from '@/engine/core/rng';
+import { withCurve } from '@/render/curvature';
+import { FX_LAYER } from '@/render/layers';
+import { ghostTexture } from '@/render/textures';
+import type { ZoneDef } from '@/world/level-data';
 
 const _to = new Vector3();
 /** Risen ghosts (out of townsfolk the skeletons killed): at most this many, the oldest going to make room. */

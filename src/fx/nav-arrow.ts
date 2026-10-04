@@ -1,6 +1,6 @@
 import { BoxGeometry, Group, Mesh, MeshStandardMaterial, type Vector3 } from 'three';
-import { withCutaway } from '../render/materials';
-import { PALETTE } from '../render/palette';
+import { withCutaway } from '@/render/materials';
+import { PALETTE } from '@/render/palette';
 
 /** Blocky neon chevron hovering above whatever Cody is driving, pointing at the objective. */
 export class NavArrow {

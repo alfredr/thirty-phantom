@@ -9,8 +9,8 @@ import {
   Vector3,
   type WebGLProgramParametersWithUniforms,
 } from 'three';
-import type { MatKey } from '../world/level-kinds';
-import type { LampColor } from '../world/level-data';
+import type { MatKey } from '@/world/level-kinds';
+import type { LampColor } from '@/world/level-data';
 import { CURVE_ON, curveVertex, markCurved } from './curvature';
 import { withFacade } from './facade';
 import { PALETTE } from './palette';
@@ -22,7 +22,7 @@ import {
   sidewalkTexture,
 } from './textures';
 
-export { MAT_KEYS, type MatKey } from '../world/level-kinds';
+export { MAT_KEYS, type MatKey } from '@/world/level-kinds';
 
 /**
  * Occlusion cutaway shared by every world material.

@@ -1,5 +1,5 @@
-import type { V3 } from '../engine/core/math';
-import { BOX_FACES, type BoxFace, faceRect, type FaceRect, intersectRects } from '../render/geometry';
+import type { V3 } from '@/engine/core/math';
+import { BOX_FACES, type BoxFace, faceRect, type FaceRect, intersectRects } from '@/render/geometry';
 
 export interface FaceSource {
   min: V3;

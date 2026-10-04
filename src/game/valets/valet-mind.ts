@@ -1,8 +1,8 @@
 import { Vector3 } from 'three';
-import type { Vehicle } from '../../actors/vehicle';
-import { TUNING } from '../../config';
-import { mind, type MindEvent, type State, type StateOf } from '../../engine/sim/mind';
-import type { SpotRuntime } from '../deck/garage';
+import type { Vehicle } from '@/actors/vehicle';
+import { TUNING } from '@/config';
+import { mind, type MindEvent, type State, type StateOf } from '@/engine/sim/mind';
+import type { SpotRuntime } from '@/game/deck/garage';
 import type { Valet, ValetDrive } from './valet';
 
 const T = TUNING.valet;

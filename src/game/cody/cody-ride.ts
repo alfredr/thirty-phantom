@@ -1,17 +1,17 @@
 import { type Scene, Vector3 } from 'three';
-import type { Player } from '../../actors/player';
-import type { Vehicle } from '../../actors/vehicle';
-import { TUNING } from '../../config';
-import type { Emitter } from '../../engine/core/events';
-import type { V3 } from '../../engine/core/math';
-import type { CollisionWorld } from '../../engine/physics/collision';
-import type { Claims } from '../../engine/sim/claims';
-import { Mind, mind, type State } from '../../engine/sim/mind';
-import type { Garage, SpotRuntime } from '../deck/garage';
-import type { TransformSequence } from '../deck/transform-sequence';
-import type { Money } from '../items/money';
-import type { ClaimKind } from '../rules/claim-kinds';
-import type { WorldConditions } from '../rules/world-conditions';
+import type { Player } from '@/actors/player';
+import type { Vehicle } from '@/actors/vehicle';
+import { TUNING } from '@/config';
+import type { Emitter } from '@/engine/core/events';
+import type { V3 } from '@/engine/core/math';
+import type { CollisionWorld } from '@/engine/physics/collision';
+import type { Claims } from '@/engine/sim/claims';
+import { Mind, mind, type State } from '@/engine/sim/mind';
+import type { Garage, SpotRuntime } from '@/game/deck/garage';
+import type { TransformSequence } from '@/game/deck/transform-sequence';
+import type { Money } from '@/game/items/money';
+import type { ClaimKind } from '@/game/rules/claim-kinds';
+import type { WorldConditions } from '@/game/rules/world-conditions';
 import type { CodyState } from './cody-state';
 
 /** Cody steps out this far past the side of the car (m). */

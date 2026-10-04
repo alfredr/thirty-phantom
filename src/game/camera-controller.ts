@@ -1,4 +1,4 @@
-import { urlChoice } from '../engine/core/url-flags';
+import { urlChoice } from '@/engine/core/url-flags';
 
 export type CamMode = 'iso' | 'chase' | 'auto';
 export type CamView = 'iso' | 'chase';

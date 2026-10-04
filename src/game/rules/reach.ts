@@ -1,4 +1,4 @@
-import { TUNING } from '../../config';
+import { TUNING } from '@/config';
 
 /**
  * How far things reach, by name, as distances on the ground plane in meters. Each value is what
