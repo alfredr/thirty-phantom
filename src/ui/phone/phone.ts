@@ -36,12 +36,13 @@ export interface PhoneStatus {
 }
 
 /**
- * Cody's phone: Randy's burner. Tab (or the phone button) brings it up on its
+ * Cody's phone: Randy's burner. ~ (or the phone button) brings it up on its
  * home screen of apps; it also comes up by itself when Randy texts or calls,
  * and slides back to a strip at the edge after (click or tap that to bring
  * it back). Up in Cody's hand, its keys are its own: 1 to 9 open an app, the
- * arrows move between them and Enter opens one, Esc goes back and then puts
- * it away. The task right now sits in a line under the clock, phone up or not.
+ * arrows or Tab move between them and Enter opens one, Esc goes back and then
+ * puts it away. The task right now sits in a line under the clock, phone up or
+ * not.
  */
 export class Phone {
   /** It sounds off (for the game's 'phone' event): starts ringing, stops ringing, a text lands. */

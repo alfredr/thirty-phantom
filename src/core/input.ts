@@ -17,7 +17,7 @@ export const KEYS = {
   /** Opens the item menu, and steps through it while it's open. */
   inventory: ['KeyI'],
   /** Brings Cody's phone up, and puts it away again. */
-  phone: ['Tab'],
+  phone: ['Backquote'],
   summon: ['KeyX'],
   /** Hold in the monster truck: burn GhASt for a boost. */
   boost: ['KeyB'],
@@ -34,7 +34,7 @@ export const KEYS = {
   reload: ['KeyR'],
   // Menus and panels take these while they're open, through focus layers.
   menuUp: ['ArrowUp'],
-  menuDown: ['ArrowDown'],
+  menuDown: ['ArrowDown', 'Tab'],
   cancel: ['Escape'],
   confirm: ['Enter'],
   slot1: ['Digit1'],
@@ -103,8 +103,12 @@ export class Focus {
 }
 
 /** How the HUD names an action's key: KeyF -> F, ShiftLeft -> SHIFT, Space -> SPACE. */
+/** Key caps for codes whose name isn't what's printed on the key. */
+const CAPS: Readonly<Record<string, string>> = { Backquote: '~', Escape: 'ESC' };
+
 export function keyName(action: Action): string {
-  return KEYS[action][0].replace(/^Key|Left$|Right$/g, '').toUpperCase();
+  const code = KEYS[action][0];
+  return CAPS[code] ?? code.replace(/^Key|Left$|Right$/g, '').toUpperCase();
 }
 
 /** Keyboard + wheel state with per-frame edge detection, read by action (see KEYS). */
