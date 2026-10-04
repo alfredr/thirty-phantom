@@ -1,5 +1,5 @@
 import { type CanvasTexture, Group, Sprite, SpriteMaterial, Vector3 } from 'three';
-import { easeOutBack, lerp } from '../core/math';
+import { easeOutBack, lerp } from '../engine/core/math';
 import { withCurve } from '../render/curvature';
 import { FX_LAYER } from '../render/layers';
 import { fitFont, FONT } from '../render/signs';

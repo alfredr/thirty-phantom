@@ -1,6 +1,6 @@
 import { Vector3 } from 'three';
 import { TUNING } from '../config';
-import { clamp, smoothstep } from '../core/math';
+import { clamp, smoothstep } from '../engine/core/math';
 import { type Bus, type Cue, CUES, type CueName, type SoundOf, type Source } from './cues';
 import { soundLog } from './flags';
 import { engine, type Mark } from './grains';

@@ -1,4 +1,4 @@
-import { el } from '../dom';
+import { el } from '../../engine/ui/dom';
 import { keyText } from '../hud';
 import { ICONS } from './icons';
 import type { PhoneApp } from './phone';

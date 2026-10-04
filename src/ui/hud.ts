@@ -1,15 +1,15 @@
 import type { Camera, Vector3 } from 'three';
 import type { VehicleForm } from '../actors/vehicle';
-import { type Action, type Focus, isAction, keyName } from '../core/input';
 import { SOUND_ON } from '../audio/flags';
+import { urlFlag } from '../engine/core/url-flags';
+import type { Focus } from '../engine/input/input';
 import { Bindings } from '../engine/ui/binding';
-import { urlFlag } from '../core/url-flags';
+import { el } from '../engine/ui/dom';
 import type { CamMode, CamView } from '../game/game';
 import { GameClock, type Phase } from '../game/game-clock';
 import type { Objective } from '../game/story/objectives';
 import type { LevelData } from '../world/level-data';
 import { ClockFace } from './clock-face';
-import { el } from './dom';
 import { type InvItem, InventoryStrip } from './inventory';
 import { OccupancySign } from './occupancy-sign';
 import { GhastDial } from './ghast-dial';
@@ -19,22 +19,23 @@ import { SpeedGauge } from './speed-gauge';
 import { touchGlyph } from './touch-controls';
 import { type Wares, WaresPanel } from './wares';
 import './hud.css';
+import { type Control, isControl, keyName } from '../game/controls';
 
 /**
  * Key caps for actions, labelled for the device in use when drawn: the key on a keyboard, the
  * on-screen button on a touch screen, or TAP where touch has no button. Each cap carries its
  * action, so on touch tapping it does that action (touch-controls.ts).
  */
-export const kbd = (...actions: Action[]): string => actions.map((a) => `<kbd data-action="${a}">${capLabel(a)}</kbd>`).join('');
+export const kbd = (...actions: Control[]): string => actions.map((a) => `<kbd data-action="${a}">${capLabel(a)}</kbd>`).join('');
 
-function capLabel(a: Action): string {
+function capLabel(a: Control): string {
   if (!document.body.classList.contains('touch')) return keyName(a);
   return touchGlyph(a) ?? 'TAP';
 }
 
 /** `text` with each `{action}` in it, e.g. `{hop} ROCK IT OVER`, replaced by that action's key cap. */
 export function keyText(text: string): string {
-  return text.replace(/\{(\w+)\}/g, (m, name: string) => (isAction(name) ? kbd(name) : m));
+  return text.replace(/\{(\w+)\}/g, (m, name: string) => (isControl(name) ? kbd(name) : m));
 }
 
 /** On foot the map lives in the phone (its Map app); 'corner' puts it back in the screen's corner as well. */
@@ -107,7 +108,7 @@ export interface Bubble {
   y: number;
   who: string;
   line: string;
-  choices: { action: Action; label: string; off?: boolean }[];
+  choices: { action: Control; label: string; off?: boolean }[];
 }
 
 /** What the status displays show: the game's state as they read it, once a frame. */
@@ -175,7 +176,7 @@ export class Hud {
   /** The status displays, each drawn when what it reads changes. */
   private readonly views = new Bindings();
 
-  constructor(container: HTMLElement, focus: Focus) {
+  constructor(container: HTMLElement, focus: Focus<Control>) {
     const root = el('div', '', container);
     root.id = 'hud';
     this.root = root;
@@ -370,7 +371,7 @@ export class Hud {
    * "F STEAL"-style prompt: `action`'s key cap, then the text, unless the text places its own caps
    * (`{interact} UP {pay} DOWN`). A tap on touch does `action`, or a cap's own. null hides it.
    */
-  setPrompt(text: string | null, action: Action = 'interact'): void {
+  setPrompt(text: string | null, action: Control = 'interact'): void {
     const s = text === null ? '' : keyText(/\{\w+\}/.test(text) ? text : `{${action}} ${text}`);
     if (!this.changed('prompt', s)) return;
     if (s) {

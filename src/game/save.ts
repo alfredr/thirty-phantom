@@ -1,5 +1,5 @@
 import { Vector3 } from 'three';
-import { urlFlag } from '../core/url-flags';
+import { urlFlag } from '../engine/core/url-flags';
 import type { Game } from './game';
 import { type ItemKind, isItemKind } from './items/item-breeds';
 

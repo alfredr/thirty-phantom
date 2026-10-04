@@ -1,5 +1,5 @@
 import { BoxGeometry, Group, Mesh, MeshStandardMaterial, type Object3D, PlaneGeometry } from 'three';
-import { TAU } from '../core/math';
+import { TAU } from '../engine/core/math';
 import { withCutaway, type MaterialLibrary } from '../render/materials';
 import { PALETTE } from '../render/palette';
 import { signMaterial, signTextures } from '../render/signs';

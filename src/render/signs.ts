@@ -1,6 +1,6 @@
 import { type CanvasTexture, MeshStandardMaterial } from 'three';
-import { TAU } from '../core/math';
-import { Rng } from '../core/rng';
+import { TAU } from '../engine/core/math';
+import { Rng } from '../engine/core/rng';
 import type { SignStyle } from '../world/level-kinds';
 import { withCutaway } from './materials';
 import { addNoise, makeCanvas, toTexture, type Ctx } from './textures';

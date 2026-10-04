@@ -4,8 +4,8 @@ import { Vehicle } from '../../actors/vehicle';
 import { CAR_KINDS, type CarKind, VEHICLE_BREEDS } from '../../actors/vehicle-breeds';
 import type { AssetRegistry } from '../../assets/asset-registry';
 import { TUNING } from '../../config';
-import { lerp, TAU } from '../../core/math';
-import type { Rng } from '../../core/rng';
+import { lerp, TAU } from '../../engine/core/math';
+import type { Rng } from '../../engine/core/rng';
 import { CAR_COLORS } from '../../render/palette';
 import type { Garage } from '../deck/garage';
 

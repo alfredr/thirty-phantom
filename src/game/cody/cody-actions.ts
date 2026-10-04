@@ -1,8 +1,8 @@
 import type { Vehicle } from '../../actors/vehicle';
-import type { Action as Control } from '../../core/input';
 import { Action, done, fail, type Fail, type Result } from '../../engine/sim/action';
 import type { Candidate } from '../../engine/sim/offers';
 import type { Elevator } from '../../world/elevators';
+import type { Control } from '../controls';
 import type { CodyState } from './cody-state';
 import type { Npc } from '../randy/npcs';
 import type { Valet } from '../valets/valet';

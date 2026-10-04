@@ -1,5 +1,5 @@
 import { TUNING } from '../config';
-import { clamp } from '../core/math';
+import { clamp } from '../engine/core/math';
 
 const E = TUNING.audio.engines;
 

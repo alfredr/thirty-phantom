@@ -1,17 +1,18 @@
-import type { Action, Focus } from '../../core/input';
+import type { Focus } from '../../engine/input/input';
 import { Bindings } from '../../engine/ui/binding';
-import { el } from '../dom';
+import { el } from '../../engine/ui/dom';
 import { keyText } from '../hud';
 import type { Messages } from './messages';
 import '../burner.css';
 import './phone.css';
+import type { Control } from '../../game/controls';
 
 /** Real milliseconds the phone stays up after coming up by itself (a text) before it slides back to the edge. */
 const HOLD = 9000;
 /** How far an app's screen scrolls for each up or down (px). */
 const SCROLL = 48;
 /** The keys that open apps from the home screen, in order. */
-const APP_KEYS: readonly Action[] = ['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6', 'slot7', 'slot8', 'slot9'];
+const APP_KEYS: readonly Control[] = ['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6', 'slot7', 'slot8', 'slot9'];
 
 /** An app on the phone: a screen of its own, built once and redrawn while it's showing. */
 export interface PhoneApp {
@@ -70,7 +71,7 @@ export class Phone {
 
   constructor(
     hud: HTMLElement,
-    private readonly focus: Focus,
+    private readonly focus: Focus<Control>,
     status: PhoneStatus,
     readonly messages: Messages,
     others: readonly PhoneApp[],
@@ -221,12 +222,12 @@ export class Phone {
     return app ? (this.bodies.get(app) ?? null) : null;
   }
 
-  private controls(): readonly Action[] {
+  private controls(): readonly Control[] {
     if (this.app) return ['phone', 'cancel', 'menuUp', 'menuDown'];
     return ['phone', 'cancel', 'menuUp', 'menuDown', 'confirm', ...APP_KEYS.slice(0, this.apps.length)];
   }
 
-  private press(control: Action): void {
+  private press(control: Control): void {
     if (control === 'phone') this.putAway();
     else if (control === 'cancel') {
       if (this.app) this.go(null);

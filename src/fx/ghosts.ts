@@ -1,5 +1,5 @@
 import { Group, Sprite, SpriteMaterial, Vector3 } from 'three';
-import { Rng } from '../core/rng';
+import { Rng } from '../engine/core/rng';
 import { withCurve } from '../render/curvature';
 import { FX_LAYER } from '../render/layers';
 import { ghostTexture } from '../render/textures';

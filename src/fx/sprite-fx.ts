@@ -1,5 +1,5 @@
 import { AdditiveBlending, type Color, Group, NormalBlending, Sprite, SpriteMaterial, type Texture, Vector3 } from 'three';
-import { lerp } from '../core/math';
+import { lerp } from '../engine/core/math';
 import { withCurve } from '../render/curvature';
 import { FX_LAYER } from '../render/layers';
 import { ghostTexture, puffTexture } from '../render/textures';

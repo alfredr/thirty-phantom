@@ -1,6 +1,7 @@
 import { Euler, Matrix3, Matrix4, Quaternion, Vector3 } from 'three';
-import { TUNING, type VehicleParams } from '../config';
-import type { CollisionWorld } from '../world/collision';
+import { TUNING } from '../config';
+import type { CollisionWorld } from '../engine/physics/collision';
+import type { VehicleParams } from '../engine/physics/vehicle-params';
 
 /** Mass per cubic metre of a vehicle's box (kg): a sedan comes out about 1.3 t, the truck about 7. */
 const DENSITY = 100;

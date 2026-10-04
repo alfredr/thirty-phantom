@@ -1,5 +1,6 @@
-import type { Action, Focus } from '../core/input';
-import { el } from './dom';
+import type { Focus } from '../engine/input/input';
+import { el } from '../engine/ui/dom';
+import type { Control } from '../game/controls';
 
 /** One slot of Randy's stock: a stack of `count` (0 leaves the slot showing, empty), `price` each. */
 export interface WareSlot {
@@ -21,7 +22,7 @@ export interface Wares {
 
 /** Number keys buy from the slot they number (Shift: the whole stack). */
 /** The number keys buy from the slots, in order. */
-const SLOT_KEYS: readonly Action[] = ['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6', 'slot7', 'slot8', 'slot9'];
+const SLOT_KEYS: readonly Control[] = ['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6', 'slot7', 'slot8', 'slot9'];
 
 /**
  * Randy's coat, open: his stock in slots on the purple lining, up while he's open for business
@@ -42,7 +43,7 @@ export class WaresPanel {
   constructor(
     parent: HTMLElement,
     private readonly onBuy: (slotId: string, n: number) => void,
-    layers: Focus,
+    layers: Focus<Control>,
   ) {
     this.root = el('div', 'hud-wares', parent);
     this.root.addEventListener('click', (e) => this.click(e));

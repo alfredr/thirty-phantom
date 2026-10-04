@@ -1,4 +1,4 @@
-import { Rng } from '../core/rng';
+import { Rng } from '../engine/core/rng';
 import type { MatKey } from '../render/materials';
 import { bayCount, doorBay, doorWidth, FACADE, storeyCount, type Facade } from './facade-layout';
 import { buildingLift, INTERIOR, placeCore, ROOM_WALLS } from './interior-layout';

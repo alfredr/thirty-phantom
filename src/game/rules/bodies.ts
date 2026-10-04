@@ -1,7 +1,7 @@
 import { Vector3 } from 'three';
 import type { Obstacle } from '../../actors/autopilot';
 import type { Vehicle } from '../../actors/vehicle';
-import { bodyOffsets } from '../../config';
+import { bodyOffsets } from '../../engine/physics/vehicle-params';
 
 /** What a body is, to whoever's steering round it. */
 export type BodyKind = 'person' | 'down' | 'still' | 'cody' | 'skeleton' | 'car';

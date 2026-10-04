@@ -1,5 +1,5 @@
-import { bodyOffsets, type VehicleParams } from '../config';
 import { wrapAngle } from '../core/math';
+import { bodyOffsets, type VehicleParams } from '../physics/vehicle-params';
 import { dubins, sampleDubins } from './dubins';
 
 /** What a drive search needs to know about the ground it plans over. */

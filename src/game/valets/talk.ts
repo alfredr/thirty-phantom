@@ -1,9 +1,10 @@
 import type { Vector3 } from 'three';
 import type { Vehicle } from '../../actors/vehicle';
 import { TUNING } from '../../config';
-import type { Focus } from '../../core/input';
-import type { Rng } from '../../core/rng';
+import type { Rng } from '../../engine/core/rng';
+import type { Focus } from '../../engine/input/input';
 import type { Hud } from '../../ui/hud';
+import type { Control } from '../controls';
 import { type Garage, spotLabel, type SpotRuntime } from '../deck/garage';
 import { type Choice, Conversation } from '../story/conversation';
 import type { Valet, ValetService } from './valet';
@@ -51,7 +52,7 @@ export class ValetTalk extends Conversation<Valet, Deal> {
     private readonly garage: Garage,
     private readonly valets: ValetService,
     private readonly rng: Rng,
-    focus: Focus,
+    focus: Focus<Control>,
     private readonly hooks: TalkHooks,
   ) {
     super(focus, { breakAt: TUNING.valet.talkBreak, timeout: TUNING.valet.talkTimeout, lineTime: TUNING.valet.lineTime });

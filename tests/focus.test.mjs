@@ -2,12 +2,12 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { loadModules } from './modules.mjs';
 
-const [{ Focus }] = await loadModules('/src/core/input.ts');
+const [{ Focus }, { KEYS }] = await loadModules('/src/engine/input/input.ts', '/src/game/controls.ts');
 
 const press = { repeat: false, shift: false };
 
 test('the top layer that takes a key gets it, and nothing below does', () => {
-  const focus = new Focus();
+  const focus = new Focus(KEYS);
   const got = [];
   let menuOpen = true;
   let talking = false;
@@ -30,7 +30,7 @@ test('the top layer that takes a key gets it, and nothing below does', () => {
 });
 
 test('a removed layer takes nothing', () => {
-  const focus = new Focus();
+  const focus = new Focus(KEYS);
   const remove = focus.add({ controls: () => ['slot1'], press: () => {} });
   assert.equal(focus.route('Digit1', press), true);
   remove();

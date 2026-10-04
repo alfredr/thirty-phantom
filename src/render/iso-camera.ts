@@ -1,6 +1,6 @@
 import { OrthographicCamera, Vector3 } from 'three';
 import { TUNING } from '../config';
-import { clamp, damp, dampAngle } from '../core/math';
+import { clamp, damp, dampAngle } from '../engine/core/math';
 import { Shake } from './shake';
 
 /** 35.264 deg: true isometric. */

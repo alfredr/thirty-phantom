@@ -1,4 +1,4 @@
-import { el, polar, svg } from './dom';
+import { el, polar, svg } from '../engine/ui/dom';
 
 /** Degrees either side of 12 o'clock the needle swings, E to F. */
 const SWEEP = 62;

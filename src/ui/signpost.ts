@@ -1,10 +1,11 @@
-import type { Action, Focus } from '../core/input';
-import { el } from './dom';
+import type { Focus } from '../engine/input/input';
+import { el } from '../engine/ui/dom';
 import './signpost.css';
+import type { Control } from '../game/controls';
 
 /** These dismiss it, and are kept from the game while it's up. */
 /** F, Space and Enter put it away. */
-const DISMISS: readonly Action[] = ['interact', 'start'];
+const DISMISS: readonly Control[] = ['interact', 'start'];
 
 /**
  * A signpost pinned to a point in the world (the tutorial's first phantom imprint): a plate on a
@@ -18,7 +19,7 @@ export class Signpost {
   private readonly body: HTMLElement;
   private dismissed: (() => void) | null = null;
 
-  constructor(parent: HTMLElement, focus: Focus) {
+  constructor(parent: HTMLElement, focus: Focus<Control>) {
     this.root = el('div', 'signpost', parent);
     const plate = el('div', 'signpost-plate plate', this.root);
     this.title = el('div', 'signpost-title slime-text', plate);

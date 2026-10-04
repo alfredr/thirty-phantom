@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { loadModules } from './modules.mjs';
 
 const [{ Triggers }, { SaveGame }, { Emitter }] = await loadModules(
-  '/src/game/story/triggers.ts', '/src/game/save.ts', '/src/core/events.ts',
+  '/src/game/story/triggers.ts', '/src/game/save.ts', '/src/engine/core/events.ts',
 );
 
 test('nested trigger checks fire each callback once and preserve pending triggers', () => {

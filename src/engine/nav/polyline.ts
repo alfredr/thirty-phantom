@@ -1,6 +1,5 @@
 import { Vector3 } from 'three';
-import { clamp, lerp, mod } from '../core/math';
-import type { V3 } from '../render/geometry';
+import { clamp, lerp, mod, type V3 } from '../core/math';
 
 const _a = new Vector3();
 const _d = new Vector3();

@@ -1,5 +1,5 @@
-import { clamp } from '../core/math';
-import { el } from './dom';
+import { clamp } from '../engine/core/math';
+import { el } from '../engine/ui/dom';
 
 /** The deck's occupancy board, the right half of the clock plate: what the badge log believes vs what is really parked. */
 export class OccupancySign {

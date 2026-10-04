@@ -1,7 +1,7 @@
 import { Color, Vector3 } from 'three';
 import type { Vehicle } from '../actors/vehicle';
 import { TUNING } from '../config';
-import { Rng } from '../core/rng';
+import { Rng } from '../engine/core/rng';
 import type { SpriteFx } from './sprite-fx';
 
 /** The tailpipe: this far in from the tail (m), out to the right by this share of the body's half-width, this high (m). */

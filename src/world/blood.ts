@@ -1,10 +1,10 @@
 import { BoxGeometry, Color, DynamicDrawUsage, Group, InstancedMesh, MeshBasicMaterial, MeshStandardMaterial } from 'three';
 import { TUNING } from '../config';
+import type { CollisionWorld, GroundHit, Solid } from '../engine/physics/collision';
 import { GeometryBatch } from '../render/geometry';
 import { FX_LAYER, fxDecal } from '../render/layers';
 import { withCutaway } from '../render/materials';
 import { puddleTexture } from '../render/textures';
-import type { CollisionWorld, GroundHit, Solid } from './collision';
 import { PUDDLE } from './slime';
 
 /** Most drops and pools alive at once; the oldest pool goes to make room. */

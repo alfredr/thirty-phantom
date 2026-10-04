@@ -1,7 +1,8 @@
-import { type Action, type Input, KEYS } from '../core/input';
-import { urlFlag } from '../core/url-flags';
-import { el } from './dom';
+import { urlFlag } from '../engine/core/url-flags';
+import type { Input } from '../engine/input/input';
+import { el } from '../engine/ui/dom';
 import './touch.css';
+import { type Control, isControl, KEYS } from '../game/controls';
 
 /** Phones and tablets (a coarse pointer), or ?touch to try the controls with a mouse. */
 export function wantsTouch(): boolean {
@@ -19,7 +20,7 @@ const LOOK_GAIN = 1.6;
 const PINCH_STEP = 36;
 
 interface ButtonSpec {
-  action: Action;
+  action: Control;
   /** Big glyph, and an optional caption under it. */
   glyph: string;
   caption?: string;
@@ -27,7 +28,7 @@ interface ButtonSpec {
 }
 
 /** Actions the stick does rather than a button. */
-const STICK: ReadonlySet<Action> = new Set<Action>(['forward', 'back', 'left', 'right']);
+const STICK: ReadonlySet<Control> = new Set<Control>(['forward', 'back', 'left', 'right']);
 
 const BUTTONS: readonly ButtonSpec[] = [
   { action: 'interact', glyph: 'F', caption: 'USE', cls: 'use' },
@@ -42,7 +43,7 @@ const BUTTONS: readonly ButtonSpec[] = [
 ];
 
 /** The on-screen button for `action` (the one sending its key, so drift finds RUN), for key caps in HUD text. */
-export function touchGlyph(action: Action): string | undefined {
+export function touchGlyph(action: Control): string | undefined {
   if (STICK.has(action)) return 'STICK';
   return BUTTONS.find((b) => KEYS[b.action][0] === KEYS[action][0])?.glyph;
 }
@@ -76,7 +77,7 @@ export class TouchControls {
   private readonly homeCard: HTMLDivElement;
   private homeSeen = remembered(HOME_HINT_KEY);
 
-  constructor(private readonly input: Input) {
+  constructor(private readonly input: Input<Control>) {
     document.body.classList.add('touch');
     this.root = el('div', 'touch', document.body);
     this.pad = el('div', 'touch-pad', this.root);
@@ -131,8 +132,8 @@ export class TouchControls {
     // the prompt and the speech bubble's choices: a tap does what they say
     document.addEventListener('pointerdown', (e) => {
       const t = (e.target as Element | null)?.closest<HTMLElement>('#hud [data-action]');
-      const action = t?.dataset.action as Action | undefined;
-      if (action && action in KEYS) this.input.press(KEYS[action][0]);
+      const action = t?.dataset.action;
+      if (action && isControl(action)) this.input.press(KEYS[action][0]);
     });
     this.followMode();
   }

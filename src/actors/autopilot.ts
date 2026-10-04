@@ -1,8 +1,9 @@
 import { Vector3 } from 'three';
-import { bodyOffsets, steerScale, TUNING, type VehicleParams } from '../config';
-import { clamp, wrapAngle } from '../core/math';
+import { TUNING } from '../config';
+import { clamp, wrapAngle } from '../engine/core/math';
+import { RouteCursor } from '../engine/nav/polyline';
+import { bodyOffsets, steerScale, type VehicleParams } from '../engine/physics/vehicle-params';
 import { bodyOf, type NavGrid, type NavProfile, type RouteLeg } from '../world/nav-grid';
-import { RouteCursor } from '../world/polyline';
 import type { DriveInput, Vehicle } from './vehicle';
 
 export type AutopilotState = 'driving' | 'reversing' | 'arrived' | 'stuck';

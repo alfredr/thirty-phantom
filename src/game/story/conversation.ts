@@ -1,12 +1,13 @@
 import { Vector3 } from 'three';
-import type { Action, Focus } from '../../core/input';
+import type { Focus } from '../../engine/input/input';
+import type { Control } from '../controls';
 
 /** Speech bubbles hang from this high above a speaker's feet. */
 const SPEAKER_HEAD = 2.5;
 
 /** Something Cody can say: its key, its label, whether he can't just now (he can't pay, say), and what it does. */
 export interface Choice<D> {
-  action: Action;
+  action: Control;
   label: string;
   off: boolean;
   does: D;
@@ -24,7 +25,7 @@ export interface Said {
   at: Vector3;
   who: string;
   line: string;
-  choices: { action: Action; label: string; off: boolean }[];
+  choices: { action: Control; label: string; off: boolean }[];
 }
 
 /**
@@ -42,7 +43,7 @@ export abstract class Conversation<Who, D> {
   private readonly head = new Vector3();
 
   constructor(
-    private readonly focus: Focus,
+    private readonly focus: Focus<Control>,
     private readonly pacing: Pacing,
   ) {}
 
@@ -114,7 +115,7 @@ export abstract class Conversation<Who, D> {
     return talk && talk.closing < 0 ? this.choices(talk.who) : [];
   }
 
-  private choose(control: Action): void {
+  private choose(control: Control): void {
     const talk = this.talk;
     const choice = this.offered().find((c) => c.action === control && !c.off);
     if (talk && choice) this.chose(talk.who, choice.does);

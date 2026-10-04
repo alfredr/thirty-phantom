@@ -2,11 +2,10 @@ import { Group, Vector3 } from 'three';
 import { Gait } from '../../actors/models/person';
 import type { CharacterRig } from '../../actors/models/rig';
 import { buildSkeleton } from '../../actors/models/skeleton';
-import { clamp, damp, dampAngle, TAU } from '../../core/math';
-import type { V3 } from '../../render/geometry';
-import type { CollisionWorld } from '../../world/collision';
+import { clamp, damp, dampAngle, TAU, type V3 } from '../../engine/core/math';
+import { RouteCursor } from '../../engine/nav/polyline';
+import type { CollisionWorld } from '../../engine/physics/collision';
 import { NAV, type NavGrid, type NavJob, type NavPlanner } from '../../world/nav-grid';
-import { RouteCursor } from '../../world/polyline';
 
 /**
  * Whom skeletons hunt: the crowd's people, through opaque handles. A handle

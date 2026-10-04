@@ -1,7 +1,7 @@
 import { Color, Group, Mesh, MeshStandardMaterial, type Vector3 } from 'three';
+import { clamp, lerp } from '../engine/core/math';
 import { facadeUniforms, LIVE_MAX } from '../render/facade';
 import { boxFaces, GeometryBatch } from '../render/geometry';
-import { clamp, lerp } from '../core/math';
 import { FACADE_GLOW, LAMP_GLASS, withCutaway, type MaterialLibrary } from '../render/materials';
 import { coplanarHoles } from './coplanar';
 import type { Elevators } from './elevators';

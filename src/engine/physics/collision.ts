@@ -1,6 +1,4 @@
-import { clamp, lerp } from '../core/math';
-import type { V3 } from '../render/geometry';
-import type { ZoneDef } from './level-data';
+import { clamp, lerp, type V3 } from '../core/math';
 
 /** Solids thinner than this (floors, curbs) never block a sightline or a camera boom. */
 const THIN_SLAB = 0.3;
@@ -41,6 +39,12 @@ export interface Solid {
   stamp: number;
 }
 
+/** An axis-aligned box, by its low and high corners. */
+export interface Box {
+  readonly min: V3;
+  readonly max: V3;
+}
+
 export interface CircleHit {
   solid: Solid;
   nx: number;
@@ -58,17 +62,16 @@ export class CollisionWorld {
   private stamp = 1;
   private readonly scratch: Solid[] = [];
   /** Footprints dug below street level (level.pits): the ground plane drops to each one's floor. */
-  private pits: readonly ZoneDef[] = [];
+  private pits: readonly Box[] = [];
 
   /** Dig the level's pits: inside one there's no ground plane at y=0, only its floor (the zone's min y) far below. */
-  dig(pits: readonly ZoneDef[]): void {
+  dig(pits: readonly Box[]): void {
     this.pits = pits;
   }
 
   /** The bare ground at (x, z) with nothing on it: y=0, or a pit's floor. Cheap and allocation-free. */
   groundPlane(x: number, z: number): number {
-    for (let i = 0; i < this.pits.length; i++) {
-      const p = this.pits[i] as ZoneDef;
+    for (const p of this.pits) {
       if (x >= p.min[0] && x <= p.max[0] && z >= p.min[2] && z <= p.max[2]) return p.min[1];
     }
     return 0;

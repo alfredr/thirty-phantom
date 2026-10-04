@@ -4,11 +4,11 @@ import { footprint } from '../../actors/avoidance';
 import type { Jam, Traffic } from '../../actors/traffic';
 import type { DriveInput, Vehicle } from '../../actors/vehicle';
 import { TUNING } from '../../config';
-import { lerp, mod } from '../../core/math';
-import type { CollisionWorld } from '../../world/collision';
+import { lerp, mod } from '../../engine/core/math';
+import type { Polyline } from '../../engine/nav/polyline';
+import type { CollisionWorld } from '../../engine/physics/collision';
 import type { ZoneDef } from '../../world/level-data';
 import type { NavGrid, NavJob, NavPlanner } from '../../world/nav-grid';
-import type { Polyline } from '../../world/polyline';
 import type { Fleet } from './fleet';
 
 /** Looking for where to rejoin the lane: in steps of this along it (m). */

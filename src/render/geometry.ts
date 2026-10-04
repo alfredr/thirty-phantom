@@ -1,8 +1,6 @@
 import { BufferGeometry, Color, Float32BufferAttribute, Uint32BufferAttribute } from 'three';
-import { lerp } from '../core/math';
+import { lerp, type V3 } from '../engine/core/math';
 import { CURVE_TILE } from './curvature';
-
-export type V3 = [number, number, number];
 
 const _a = [0, 0, 0];
 

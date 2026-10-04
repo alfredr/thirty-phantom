@@ -1,9 +1,9 @@
 import { Color, Vector3 } from 'three';
-import { steerScale, TUNING, type VehicleParams } from '../config';
-import { clamp, damp, lerp, TAU } from '../core/math';
-import { Rng } from '../core/rng';
-import type { V3 } from '../render/geometry';
-import type { CircleHit, CollisionWorld, Solid } from '../world/collision';
+import { TUNING } from '../config';
+import { clamp, damp, lerp, TAU, type V3 } from '../engine/core/math';
+import { Rng } from '../engine/core/rng';
+import type { CircleHit, CollisionWorld, Solid } from '../engine/physics/collision';
+import { steerScale, type VehicleParams } from '../engine/physics/vehicle-params';
 import { CrashBody, vehicleMass } from './crash-body';
 import type { BikeRider, VehicleRig } from './models/rig';
 import { VALET_OUTFIT } from './models/valet';

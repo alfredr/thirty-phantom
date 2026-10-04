@@ -1,6 +1,6 @@
+import { el } from '../engine/ui/dom';
 import type { ObjectiveKind } from '../game/story/objectives';
 import type { BoxDef, LevelData, V3 } from '../world/level-data';
-import { el } from './dom';
 
 /** What the minimap shows this frame. */
 export interface MapView {

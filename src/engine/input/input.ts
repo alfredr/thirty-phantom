@@ -1,59 +1,18 @@
-import { clamp } from './math';
+import { clamp } from '../core/math';
 
-const BLOCKED = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'Tab']);
-const SHIFT: [string, string] = ['ShiftLeft', 'ShiftRight'];
+/** Each control's keys (KeyboardEvent codes), by control. The first is the one a HUD shows. */
+export type KeyTable<C extends string> = Readonly<Record<C, readonly [string, ...string[]]>>;
 
-/** Every key the game reads, by action. The first code is the one the HUD shows. */
-export const KEYS = {
-  forward: ['KeyW', 'ArrowUp'],
-  back: ['KeyS', 'ArrowDown'],
-  left: ['KeyA', 'ArrowLeft'],
-  right: ['KeyD', 'ArrowRight'],
-  run: SHIFT,
-  drift: SHIFT,
-  hop: ['Space'],
-  interact: ['KeyF'],
-  pay: ['KeyG'],
-  /** Opens the item menu, and steps through it while it's open. */
-  inventory: ['KeyI'],
-  /** Brings Cody's phone up, and puts it away again. */
-  phone: ['Backquote'],
-  summon: ['KeyX'],
-  /** Hold in the monster truck: burn GhASt for a boost. */
-  boost: ['KeyB'],
-  rotateLeft: ['KeyQ'],
-  rotateRight: ['KeyE'],
-  camera: ['KeyC'],
-  help: ['KeyH'],
-  /** Sound on and off (src/audio/ reads it straight off the keyboard). */
-  mute: ['KeyM'],
-  fastForward: ['KeyT'],
-  nextPhase: ['KeyN'],
-  start: ['Enter', 'Space'],
-  // dev: only does anything while a code change is waiting
-  reload: ['KeyR'],
-  // Menus and panels take these while they're open, through focus layers.
-  menuUp: ['ArrowUp'],
-  menuDown: ['ArrowDown', 'Tab'],
-  cancel: ['Escape'],
-  confirm: ['Enter'],
-  slot1: ['Digit1'],
-  slot2: ['Digit2'],
-  slot3: ['Digit3'],
-  slot4: ['Digit4'],
-  slot5: ['Digit5'],
-  slot6: ['Digit6'],
-  slot7: ['Digit7'],
-  slot8: ['Digit8'],
-  slot9: ['Digit9'],
-} satisfies Record<string, [string, ...string[]]>;
-
-export type Action = keyof typeof KEYS;
-
-export function isAction(name: string): name is Action {
-  return Object.hasOwn(KEYS, name);
+/** The controls a touch stick pushes, one per direction. */
+export interface StickControls<C extends string> {
+  readonly left: C;
+  readonly right: C;
+  readonly forward: C;
+  readonly back: C;
 }
 
+/** Keys whose browser default (scrolling, moving focus) the game never wants. */
+const BLOCKED = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'Tab']);
 /** The details of a key press that a focus layer may care about. */
 export interface KeyPress {
   readonly repeat: boolean;
@@ -65,17 +24,19 @@ export interface KeyPress {
  * says which controls it takes right now; the top layer that takes a key's control gets the
  * press, and the world never sees that key.
  */
-export interface FocusLayer {
-  controls(): readonly Action[];
-  press(control: Action, key: KeyPress): void;
+export interface FocusLayer<C extends string> {
+  controls(): readonly C[];
+  press(control: C, key: KeyPress): void;
 }
 
 /** The stack of focus layers, newest on top. Input offers every key press to it first. */
-export class Focus {
-  private readonly layers: FocusLayer[] = [];
+export class Focus<C extends string> {
+  private readonly layers: FocusLayer<C>[] = [];
+
+  constructor(private readonly keys: KeyTable<C>) {}
 
   /** Adds a layer above the others. The returned function removes it. */
-  add(layer: FocusLayer): () => void {
+  add(layer: FocusLayer<C>): () => void {
     this.layers.push(layer);
     return () => {
       const i = this.layers.indexOf(layer);
@@ -84,7 +45,7 @@ export class Focus {
   }
 
   /** Whether any layer takes `control` right now, so the world shouldn't offer anything for it. */
-  owns(control: Action): boolean {
+  owns(control: C): boolean {
     return this.layers.some((layer) => layer.controls().includes(control));
   }
 
@@ -92,7 +53,7 @@ export class Focus {
   route(code: string, key: KeyPress): boolean {
     for (let i = this.layers.length - 1; i >= 0; i--) {
       const layer = this.layers[i];
-      const control = layer?.controls().find((c) => KEYS[c].some((k) => k === code));
+      const control = layer?.controls().find((c) => this.keys[c].some((k) => k === code));
       if (layer && control) {
         layer.press(control, key);
         return true;
@@ -102,17 +63,16 @@ export class Focus {
   }
 }
 
-/** How the HUD names an action's key: KeyF -> F, ShiftLeft -> SHIFT, Space -> SPACE. */
 /** Key caps for codes whose name isn't what's printed on the key. */
 const CAPS: Readonly<Record<string, string>> = { Backquote: '~', Escape: 'ESC' };
 
-export function keyName(action: Action): string {
-  const code = KEYS[action][0];
+/** What's printed on a key: KeyF -> F, ShiftLeft -> SHIFT, Space -> SPACE, Backquote -> ~. */
+export function keyCap(code: string): string {
   return CAPS[code] ?? code.replace(/^Key|Left$|Right$/g, '').toUpperCase();
 }
 
-/** Keyboard + wheel state with per-frame edge detection, read by action (see KEYS). */
-export class Input {
+/** Keyboard + wheel state with per-frame edge detection, read by control (see KeyTable). */
+export class Input<C extends string> {
   private readonly down = new Set<string>();
   private readonly pressed = new Set<string>();
   private wheel = 0;
@@ -123,12 +83,16 @@ export class Input {
   /** A cutscene has the controls: every read comes back empty (keys, stick, mouse, wheel). Focus layers still get their keys. */
   muted = false;
   /** Conversations, signs and menus, which take keys before the world. */
-  readonly focus = new Focus();
+  readonly focus: Focus<C>;
   /** Analog stick (touch): x to the right, y forward, each -1..1. axis() adds it to the keys. */
   private stickX = 0;
   private stickY = 0;
 
-  constructor() {
+  constructor(
+    private readonly keys: KeyTable<C>,
+    private readonly stick: StickControls<C>,
+  ) {
+    this.focus = new Focus(keys);
     window.addEventListener('keydown', (e) => {
       if (BLOCKED.has(e.code)) e.preventDefault();
       // A conversation, sign or menu that takes this key gets it, and the world doesn't.
@@ -156,26 +120,27 @@ export class Input {
     );
   }
 
-  isDown(action: Action): boolean {
-    return !this.muted && KEYS[action].some((c) => this.down.has(c));
+  isDown(control: C): boolean {
+    return !this.muted && this.keys[control].some((c) => this.down.has(c));
   }
 
-  wasPressed(action: Action): boolean {
-    return !this.muted && KEYS[action].some((c) => this.pressed.has(c));
+  wasPressed(control: C): boolean {
+    return !this.muted && this.keys[control].some((c) => this.pressed.has(c));
   }
 
-  axis(neg: Action, pos: Action): number {
+  axis(neg: C, pos: C): number {
     if (this.muted) return 0;
     const keys = (this.isDown(pos) ? 1 : 0) - (this.isDown(neg) ? 1 : 0);
     return clamp(keys + this.analog(pos) - this.analog(neg), -1, 1);
   }
 
-  /** How far the stick pushes toward a movement action, 0..1. */
-  private analog(a: Action): number {
-    if (a === 'right') return Math.max(0, this.stickX);
-    if (a === 'left') return Math.max(0, -this.stickX);
-    if (a === 'forward') return Math.max(0, this.stickY);
-    if (a === 'back') return Math.max(0, -this.stickY);
+  /** How far the stick pushes toward one of its controls, 0..1. */
+  private analog(c: C): number {
+    const s = this.stick;
+    if (c === s.right) return Math.max(0, this.stickX);
+    if (c === s.left) return Math.max(0, -this.stickX);
+    if (c === s.forward) return Math.max(0, this.stickY);
+    if (c === s.back) return Math.max(0, -this.stickY);
     return 0;
   }
 
@@ -240,7 +205,7 @@ export class Input {
     this.pressed.clear();
   }
 
-  /** A press from outside the keyboard (a tap on a key cap, a test, the debug console), routed like a key: open layers first. Takes key codes ('KeyW'), not actions. */
+  /** A press from outside the keyboard (a tap on a key cap, a test, the debug console), routed like a key: open layers first. Takes key codes ('KeyW'), not controls. */
   press(code: string): void {
     if (this.focus.route(code, { repeat: false, shift: false })) return;
     this.pressed.add(code);

@@ -3,12 +3,13 @@ import { type Avoidance, inZones, parkedBlocks, PERSON_RADIUS } from '../../acto
 import { driverDoor } from '../../actors/doors';
 import type { LootKind } from '../../actors/models/loot';
 import { buildPerson, randomOutfit } from '../../actors/models/person';
-import { bodyOffsets, TUNING } from '../../config';
-import type { Rng } from '../../core/rng';
+import { TUNING } from '../../config';
 import type { Vehicle } from '../../actors/vehicle';
 import { Walker } from '../../actors/walker';
+import type { Rng } from '../../engine/core/rng';
+import { Polyline } from '../../engine/nav/polyline';
+import { bodyOffsets } from '../../engine/physics/vehicle-params';
 import { NAV, type NavGrid, type NavJob, type NavPlanner, type NavQuery } from '../../world/nav-grid';
-import { Polyline } from '../../world/polyline';
 import { Casualties, type Casualty, type Harm } from './casualties';
 import type { Prey } from './skeletons';
 import type { Visitors } from '../driving/visitors';

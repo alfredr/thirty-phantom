@@ -1,5 +1,5 @@
 import type { Vector3 } from 'three';
-import { bodyOffsets } from '../config';
+import { bodyOffsets } from '../engine/physics/vehicle-params';
 import type { ZoneDef } from '../world/level-data';
 import type { Vehicle } from './vehicle';
 

@@ -1,11 +1,11 @@
 import { FrontSide, Group, type Material, Mesh, MeshBasicMaterial, type Object3D, type Side, SkinnedMesh, Vector3 } from 'three';
 import { TUNING } from '../config';
-import { clamp, damp, dampAngle, invLerp } from '../core/math';
-import type { Input } from '../core/input';
+import { clamp, damp, dampAngle, invLerp, type V3 } from '../engine/core/math';
+import type { Input } from '../engine/input/input';
+import type { CollisionWorld } from '../engine/physics/collision';
+import type { Control } from '../game/controls';
 import { withCurve } from '../render/curvature';
-import type { V3 } from '../render/geometry';
 import { GHOST_LAYER } from '../render/layers';
-import type { CollisionWorld } from '../world/collision';
 import type { CharacterModel, CodyForm } from './models/character';
 
 export type { CodyForm };
@@ -173,7 +173,7 @@ export class Player {
     this.model.animate(dt, 0, true);
   }
 
-  update(dt: number, input: Input | null, frame: MoveFrame, world: CollisionWorld, blockers: { pos: Vector3; r: number }[]): void {
+  update(dt: number, input: Input<Control> | null, frame: MoveFrame, world: CollisionWorld, blockers: { pos: Vector3; r: number }[]): void {
     const P = TUNING.player;
     let mx = 0;
     let mz = 0;

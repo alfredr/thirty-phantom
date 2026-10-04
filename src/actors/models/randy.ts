@@ -1,5 +1,5 @@
 import type { Object3D } from 'three';
-import type { V3 } from '../../render/geometry';
+import type { V3 } from '../../engine/core/math';
 import { FACE_INK } from './person';
 import { type Box, box, build, cylinder, group, model, NO_CAST, type Part, pivot, SIDES, solid } from './part';
 import { type CharacterRig, characterRig, limb } from './rig';

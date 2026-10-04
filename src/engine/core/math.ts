@@ -1,3 +1,6 @@
+/** A point or vector as three numbers, x y z. */
+export type V3 = [number, number, number];
+
 export const TAU = Math.PI * 2;
 
 export const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));

@@ -1,6 +1,7 @@
-import type { Action, Focus } from '../core/input';
-import { el } from './dom';
+import type { Focus } from '../engine/input/input';
+import { el } from '../engine/ui/dom';
 import './dialogue.css';
+import type { Control } from '../game/controls';
 
 export type Side = 'left' | 'right';
 
@@ -13,7 +14,7 @@ export interface DialogueLine {
 
 /** These advance a line, and are kept from the game while a conversation plays. */
 /** F, Space and Enter move the conversation on. */
-const NEXT: readonly Action[] = ['interact', 'start'];
+const NEXT: readonly Control[] = ['interact', 'start'];
 
 /**
  * A scripted conversation over the HUD: two portraits, one each side, the speaker's lit and
@@ -30,7 +31,7 @@ export class Dialogue {
 
   constructor(
     private readonly names: Record<Side, string>,
-    focus: Focus,
+    focus: Focus<Control>,
   ) {
     this.root = el('div', 'dialogue', document.body);
     this.frames = { left: this.frame('left'), right: this.frame('right') };

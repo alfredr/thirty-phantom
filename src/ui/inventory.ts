@@ -1,5 +1,6 @@
-import { type Action, type Focus, keyName } from '../core/input';
-import { el } from './dom';
+import type { Focus } from '../engine/input/input';
+import { el } from '../engine/ui/dom';
+import { type Control, keyName } from '../game/controls';
 
 /** Something Cody carries, as the HUD shows it. */
 export interface InvItem {
@@ -15,7 +16,7 @@ export interface InvItem {
 }
 
 /** While the menu is open these run the item's first and second action; Enter runs the first too. */
-const ACTION_KEYS: readonly Action[] = ['interact', 'pay'];
+const ACTION_KEYS: readonly Control[] = ['interact', 'pay'];
 
 
 /**
@@ -34,7 +35,7 @@ export class InventoryStrip {
   constructor(
     parent: HTMLElement,
     private readonly onAction: (kind: string, actionId: string) => void,
-    focus: Focus,
+    focus: Focus<Control>,
   ) {
     this.root = el('div', 'hud-inv', parent);
     this.root.addEventListener('click', (e) => this.click(e));
@@ -61,14 +62,14 @@ export class InventoryStrip {
   }
 
   /** The keys the item strip takes right now: I to open it, and the menu keys while it's open. */
-  private controls(): readonly Action[] {
+  private controls(): readonly Control[] {
     // Hidden on the title screen.
     if (this.root.offsetParent === null) return [];
     if (this.sel < 0) return this.usable.length ? ['inventory'] : [];
     return ['inventory', 'menuDown', 'menuUp', 'cancel', 'confirm', ...ACTION_KEYS];
   }
 
-  private press(control: Action, repeat: boolean): void {
+  private press(control: Control, repeat: boolean): void {
     if (control === 'cancel') return this.select(-1);
     if (repeat) return;
     if (control === 'inventory') this.step(1, true);

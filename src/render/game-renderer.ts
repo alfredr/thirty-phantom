@@ -5,7 +5,7 @@ import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { TUNING } from '../config';
-import { urlChoice } from '../core/url-flags';
+import { urlChoice } from '../engine/core/url-flags';
 import type { ChaseCamera } from './chase-camera';
 import { CURVE_ON, curveCull, curveFrame, curvePoint, curveSweep, curveTop } from './curvature';
 import { type IsoCamera, ISO_ELEVATION } from './iso-camera';

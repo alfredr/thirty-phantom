@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { Vector3 } from 'three';
 import { loadModules } from './modules.mjs';
 
-const [{ Crowd }, { Rng }] = await loadModules('/src/game/town/crowd.ts', '/src/core/rng.ts');
+const [{ Crowd }, { Rng }] = await loadModules('/src/game/town/crowd.ts', '/src/engine/core/rng.ts');
 
 /** One person standing by their parked car, on a level with nowhere to run to. */
 function onePerson() {

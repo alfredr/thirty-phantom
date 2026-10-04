@@ -1,7 +1,7 @@
 import { Color, type Group, Matrix4, Vector3 } from 'three';
 import { baked, type Instanced, instanced, type Model } from '../actors/models/part';
+import { CollisionWorld } from '../engine/physics/collision';
 import type { EmissiveChannel, MaterialLibrary } from '../render/materials';
-import { CollisionWorld } from './collision';
 import { DECOR, type DecorHit, type DecorKind, hitOf, type LocalBox, worldBox } from './decor-models';
 import type { DecorDef } from './level-data';
 import type { PropKind, PropSpec } from './props';

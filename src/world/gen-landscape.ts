@@ -1,4 +1,4 @@
-import { Rng } from '../core/rng';
+import { Rng } from '../engine/core/rng';
 import { subtractRects } from '../render/geometry';
 import type { MatKey } from '../render/materials';
 import { BENCH, DECOR, type DecorKind, FOUNTAIN, GAZEBO, hitOf, type LocalBox, SHELTER, worldBox } from './decor-models';

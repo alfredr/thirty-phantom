@@ -11,7 +11,7 @@ Object.defineProperty(globalThis, 'document', {
 });
 const [{ stageOn }, { generateLevel }, { emptyLevel }, { Vehicle }, { CollisionWorld }] = await loadModules(
   '/src/game/story/tutorial.ts', '/src/world/generate-level.ts', '/src/world/level-data.ts',
-  '/src/actors/vehicle.ts', '/src/world/collision.ts',
+  '/src/actors/vehicle.ts', '/src/engine/physics/collision.ts',
 ).finally(() => {
   if (originalDocument) Object.defineProperty(globalThis, 'document', originalDocument);
   else delete globalThis.document;

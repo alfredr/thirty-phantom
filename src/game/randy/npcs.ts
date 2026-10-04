@@ -2,10 +2,10 @@ import { type Object3D, Quaternion, type Scene, Vector3 } from 'three';
 import { buildJunk } from '../../actors/models/junk';
 import { buildRandy, type RandyRig, ROAST_LIFT } from '../../actors/models/randy';
 import { buildTrashFire, CAN_TOP } from '../../actors/models/trash-fire';
+import { clamp, damp, dampAngle, wrapAngle } from '../../engine/core/math';
+import { type EventOf, Mind } from '../../engine/sim/mind';
 import { ArcPath } from '../../fx/arc-path';
 import { Highlight } from '../../fx/highlight';
-import { clamp, damp, dampAngle, wrapAngle } from '../../core/math';
-import { type EventOf, Mind } from '../../engine/sim/mind';
 import type { NpcDef } from '../../world/level-data';
 import { type Pitch, RANDY_PITCH, RANDY_WORK, type RandyEvents, type Work } from './randy-mind';
 

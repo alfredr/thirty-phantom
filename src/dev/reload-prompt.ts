@@ -1,8 +1,8 @@
+import { keyName } from '../game/controls';
 // Dev only: tools/vite-reload-prompt.ts injects this so the toast works even if the game
 // fails to boot. Shows pending code changes and reloads on click or reloadIfPending(),
 // instead of Vite reloading on every save.
 
-import { keyName } from '../core/input';
 
 const files = new Set<string>();
 

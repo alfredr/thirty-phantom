@@ -1,4 +1,4 @@
-import { Rng } from '../core/rng';
+import { Rng } from '../engine/core/rng';
 import { subtractRects } from '../render/geometry';
 import { LIFT, shaftParts } from './elevator-shaft';
 import { bayCount, FACADE, type Facade, frontWindow, storeyWindow } from './facade-layout';

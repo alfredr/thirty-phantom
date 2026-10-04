@@ -1,5 +1,5 @@
 import { Box3, Color, DynamicDrawUsage, Group, InstancedMesh, type Material, type Object3D, Sphere, Vector3 } from 'three';
-import { Rng } from '../core/rng';
+import { Rng } from '../engine/core/rng';
 import { CHUNK, GeometryBatch, NO_TINT } from '../render/geometry';
 import { PALETTE } from '../render/palette';
 import { BULB, type DripSpec, type FilmSpec } from './drips';

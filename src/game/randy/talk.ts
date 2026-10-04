@@ -1,5 +1,6 @@
 import type { Vector3 } from 'three';
-import type { Focus } from '../../core/input';
+import type { Focus } from '../../engine/input/input';
+import type { Control } from '../controls';
 import { type Choice, Conversation } from '../story/conversation';
 import { NPC_NAMES, type Npc, type Npcs } from './npcs';
 
@@ -27,7 +28,7 @@ export class RandyTalk extends Conversation<Npc, 'give'> {
   enabled = true;
 
   constructor(
-    focus: Focus,
+    focus: Focus<Control>,
     private readonly npcs: Npcs,
     private readonly hooks: RandyTalkHooks,
   ) {

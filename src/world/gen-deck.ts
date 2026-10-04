@@ -1,4 +1,4 @@
-import { Rng } from '../core/rng';
+import { Rng } from '../engine/core/rng';
 import { LIFT, writeElevator } from './elevator-shaft';
 import type { ElevatorStop, Facing, RailDef, V3 } from './level-data';
 import type { LevelWriter } from './level-writer';

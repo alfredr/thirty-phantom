@@ -1,6 +1,6 @@
 import type { CanvasTexture } from 'three';
-import { TAU } from '../core/math';
-import { Rng } from '../core/rng';
+import { TAU } from '../engine/core/math';
+import { Rng } from '../engine/core/rng';
 import { PALETTE } from './palette';
 import { drawSkull, drawSlimeTop, FONT, fitFont } from './signs';
 import { addNoise, makeCanvas, toTexture, type Ctx } from './textures';

@@ -3,7 +3,7 @@ import '@fontsource/bangers';
 import '@fontsource/creepster';
 import { AssetRegistry } from './assets/asset-registry';
 import { SOUND_ON } from './audio/flags';
-import { urlFlag, urlParam } from './core/url-flags';
+import { urlFlag, urlParam } from './engine/core/url-flags';
 import { Game } from './game/game';
 import { SaveGame } from './game/save';
 import { Tutorial } from './game/story/tutorial';

@@ -1,5 +1,5 @@
 import { Group, PointLight, type Vector3 } from 'three';
-import { clamp } from '../core/math';
+import { clamp } from '../engine/core/math';
 import type { LightEmitter } from '../world/build-world';
 
 /** How far each kind of lamp's light reaches (m). */

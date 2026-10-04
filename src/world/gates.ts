@@ -1,6 +1,7 @@
 import { BoxGeometry, Color, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
-import { bodyHalf, TUNING } from '../config';
-import { clamp, damp } from '../core/math';
+import { TUNING } from '../config';
+import { clamp, damp } from '../engine/core/math';
+import { bodyHalf } from '../engine/physics/vehicle-params';
 import { whiteColors } from '../render/geometry';
 import { withCutaway, type MaterialLibrary } from '../render/materials';
 import { facingYaw, type GateDef } from './level-data';

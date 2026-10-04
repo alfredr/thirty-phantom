@@ -1,5 +1,5 @@
 import { TUNING } from '../config';
-import { urlParam } from '../core/url-flags';
+import { urlParam } from '../engine/core/url-flags';
 
 const flag = urlParam('sound');
 

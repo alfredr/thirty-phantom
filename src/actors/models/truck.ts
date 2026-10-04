@@ -1,7 +1,6 @@
 import { AdditiveBlending, Mesh, MeshBasicMaterial, PlaneGeometry } from 'three';
-import { TAU } from '../../core/math';
-import { Rng } from '../../core/rng';
-import type { V3 } from '../../render/geometry';
+import { TAU, type V3 } from '../../engine/core/math';
+import { Rng } from '../../engine/core/rng';
 import { truckLivery } from '../../render/livery';
 import { withCutaway } from '../../render/materials';
 import { PALETTE } from '../../render/palette';

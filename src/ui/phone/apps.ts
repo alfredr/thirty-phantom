@@ -1,6 +1,6 @@
 import { Bindings } from '../../engine/ui/binding';
+import { el } from '../../engine/ui/dom';
 import type { ObjectiveKind } from '../../game/story/objectives';
-import { el } from '../dom';
 import { keyText } from '../hud';
 import { ICONS } from './icons';
 import type { PhoneApp } from './phone';

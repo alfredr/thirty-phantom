@@ -1,5 +1,5 @@
 import { BoxGeometry, Color, DynamicDrawUsage, InstancedMesh, type Material, Matrix4, Quaternion, Vector3 } from 'three';
-import { TAU } from '../core/math';
+import { TAU } from '../engine/core/math';
 
 interface P {
   pos: Vector3;

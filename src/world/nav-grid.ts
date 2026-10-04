@@ -1,13 +1,14 @@
 import { Vector3 } from 'three';
-import { bodyOffsets, TUNING, type VehicleParams } from '../config';
-import { wrapAngle } from '../core/math';
-import type { Rng } from '../core/rng';
-import type { CollisionWorld, Solid } from './collision';
-import { type DriveGoal, type DriveGoals, type DriveGround, type DrivePose, DriveSearch } from './drive-search';
+import { TUNING } from '../config';
+import { wrapAngle } from '../engine/core/math';
+import type { Rng } from '../engine/core/rng';
+import { type DriveGoal, type DriveGoals, type DriveGround, type DrivePose, DriveSearch } from '../engine/nav/drive-search';
+import { Polyline } from '../engine/nav/polyline';
+import type { CollisionWorld, Solid } from '../engine/physics/collision';
+import { bodyOffsets, type VehicleParams } from '../engine/physics/vehicle-params';
 import { landingPoint } from './elevator-shaft';
 import type { Elevators } from './elevators';
 import type { ElevatorDef, LevelData, V3, ZoneDef } from './level-data';
-import { Polyline } from './polyline';
 
 /** Who is moving: how much room they need and what ground they like. */
 export interface NavProfile {

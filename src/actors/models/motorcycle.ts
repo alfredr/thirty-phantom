@@ -1,5 +1,5 @@
 import { Color } from 'three';
-import type { V3 } from '../../render/geometry';
+import type { V3 } from '../../engine/core/math';
 import { box, build, cylinder, group, model, NO_CAST, type Part, SIDES, solid } from './part';
 import { BIKE_WHEELS, vehicleRig, type VehicleRig } from './rig';
 
