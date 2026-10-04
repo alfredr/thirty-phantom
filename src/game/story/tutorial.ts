@@ -346,6 +346,8 @@ export class Tutorial {
     this.stage = stageOn(this.level, g.garage, (x, z) => g.world.collision.groundAt(x, z, 2, 0));
     if (!this.wanted || !this.randy || !this.stage) return;
     this.active = true;
+    // its own scenes with Randy, till it's done
+    g.randyTalk.enabled = false;
     const r = this.randy;
     const st = this.stage;
     const { randy, cody } = g.portraits;
@@ -488,6 +490,7 @@ export class Tutorial {
     } else if (this.step === 'done' && this.t > DONE_WAIT) {
       this.burner.close();
       this.active = false;
+      this.game.randyTalk.enabled = true;
     }
   }
 

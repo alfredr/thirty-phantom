@@ -48,7 +48,7 @@ import { NAV, NavGrid, NavPlanner, type NavProfile, type NavQuery } from '../wor
 import { BloodSim } from '../world/blood';
 import { Casualties } from './town/casualties';
 import { CameraController, type CamMode } from './camera-controller';
-import { CallElevator, type CodyAction, type CodyCandidate, Eat, GetOut, GiveTires, InteractWithVehicle, PickFloor, type Play, RANK, RockOver, Summon, TalkToValet } from './cody/cody-actions';
+import { CallElevator, type CodyAction, type CodyCandidate, Eat, GetOut, GiveTires, InteractWithVehicle, PickFloor, type Play, RANK, RockOver, Summon, TalkToRandy, TalkToValet } from './cody/cody-actions';
 import { CodyState, FRIGHTENING } from './cody/cody-state';
 import { CLAIMS, type ClaimKind } from './rules/claim-kinds';
 import { Doing, resolveFully } from '../engine/sim/action';
@@ -74,6 +74,7 @@ import { NPC_NAMES, Npcs } from './randy/npcs';
 import { makePortraits, type Portraits } from './story/portraits';
 import { RouteGuide } from './route-guide';
 import { Shop } from './randy/shop';
+import { RandyTalk } from './randy/talk';
 import { TireTrade } from './randy/tire-trade';
 import { Wares } from './randy/wares';
 import { Objectives } from './story/objectives';
@@ -316,6 +317,8 @@ export class Game {
   /** Randy takes tires for his fire and pays in brisket (the tutorial can run it, or switch it off). */
   readonly tires: TireTrade;
   private readonly shop: Shop;
+  /** Talking to Randy at his fire (off while the tutorial runs). */
+  readonly randyTalk: RandyTalk;
   /** Randy Rolsen and anyone else hanging about to be talked to (the tutorial finds them here). */
   readonly npcs: Npcs;
   /** The elevators' cabs and doors (the deck's, beside the stair tower). */
@@ -618,14 +621,18 @@ export class Game {
     this.play = this.makePlay();
     this.talk = new ValetTalk(this.hud, this.garage, this.valet, this.rng, this.input.focus, {
       me: () => (this.driving ?? this.player).pos,
+      onShift: () => this.conditions.valetsOnShift(),
       carToTake: () => this.carForValet(),
       handOff: (car) => {
         if (this.driving === car) this.exit();
         if (this.lastCar === car) this.lastCar = null;
       },
-      toScreen: (p) => this.toScreen(p),
       cash: () => this.money.cash,
       pay: (amount) => this.money.spend(amount),
+    });
+    this.randyTalk = new RandyTalk(this.input.focus, this.npcs, {
+      tires: () => this.inventory.count('tire'),
+      give: (to) => 'done' in this.doing.do(this.play, new GiveTires({ to, name: NPC_NAMES[to.def.id] })),
     });
     this.valetFrame = {
       day: true,
@@ -903,7 +910,11 @@ export class Game {
     if (this.conditions.daylight() && this.skeletons.count) this.skeletons.crumbleAll();
     this.skeletons.update(dt, this.driving ? this.driving.pos : this.player.pos, this.vehicles);
     this.collectMoney(dt);
-    this.talk.update(dt, this.conditions.valetsOnShift());
+    // what whoever Cody's talking to says, over their head
+    const me = (this.driving ?? this.player).pos;
+    const said = this.talk.update(dt, me) ?? this.randyTalk.update(dt, me);
+    const head = said && this.toScreen(said.at);
+    this.hud.setBubble(said && head ? { ...head, who: said.who, line: said.line, choices: said.choices } : null);
     this.fleet.update(dt, this.dayNight.nightness);
     this.fleet.maintain(dt, this.view.target, this.conditions.daylight());
 
@@ -1095,7 +1106,7 @@ export class Game {
 
   /** Everything Cody might do with a key right now, before resolving. Nearest vehicles come first. */
   private codyCandidates(): CodyCandidate[] {
-    if (this.mode !== 'play' || this.talk.active || this.cutscene || this.transform) return [];
+    if (this.mode !== 'play' || this.talk.active || this.randyTalk.active || this.cutscene || this.transform) return [];
     const out: CodyCandidate[] = [];
     const v = this.driving;
     if (v) {
@@ -1113,6 +1124,8 @@ export class Game {
     }
     const valet = this.valet.talkable(p, TUNING.valet.talkReach.foot, this.conditions.valetsOnShift());
     if (valet) out.push({ control: 'interact', rank: RANK.valet, action: new TalkToValet({ valet }) });
+    const randy = this.randyTalk.talkable(p);
+    if (randy) out.push({ control: 'interact', rank: RANK.randy, action: new TalkToRandy({ randy }) });
     const cab = this.elevators.cabAt(p);
     const landing = cab ? null : this.elevators.landingAt(p, TUNING.elevator.callReach);
     if (cab) {
@@ -1161,6 +1174,7 @@ export class Game {
         return !!spot && this.garage.isFree(spot, car);
       },
       talkToValet: (valet) => this.talk.start(valet),
+      talkToRandy: (randy) => this.randyTalk.start(randy),
       summon: () => this.summon(),
       canEat: () => this.canEat,
       eat: () => this.eat(),

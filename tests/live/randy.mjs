@@ -61,5 +61,46 @@ export function aSceneDirectsHim() {
   return { ok: quiet && flashed && back.ok, quietWhileHeld: quiet, flashedOnCue: flashed, pitchingAgainAfter: back.seconds };
 }
 
+/** Cody walks up to Randy carrying tires and presses F: they talk, F again gives him the tires (paid there and then), and when the talk's over Randy's back to his routine. */
+export function talkToGiveHimTires() {
+  const g = window.__game;
+  const sim = window.__sim;
+  const r = sim.standBy(1.5);
+  if (!r) return { ok: false, why: 'no Randy' };
+  g.inventory.add('tire', 2);
+  const brisket = g.inventory.count('brisket');
+  sim.run(2);
+  g.input.press('KeyF');
+  sim.run(2);
+  const talking = g.randyTalk.active && r.held;
+  const bubble = document.querySelector('.hud-bubble')?.textContent ?? '';
+  g.input.press('KeyF');
+  sim.run(2);
+  const gave = g.inventory.count('tire') === 0 && g.inventory.count('brisket') === brisket + 2;
+  const over = sim.until(() => !g.randyTalk.active, 6, []);
+  return {
+    ok: talking && /GIVE 2 TIRES/.test(bubble) && gave && over.ok && !r.held,
+    talking,
+    offered: /GIVE 2 TIRES/.test(bubble),
+    gave,
+    talkOverAfter: over.seconds,
+    released: !r.held,
+  };
+}
+
+/** While the tutorial runs, F by Randy doesn't start a talk of its own. */
+export function noTalkDuringTheTutorial() {
+  const g = window.__game;
+  const sim = window.__sim;
+  const r = sim.standBy(1.5);
+  if (!r) return { ok: false, why: 'no Randy' };
+  g.inventory.add('tire', 1);
+  g.randyTalk.enabled = false;
+  sim.run(2);
+  g.input.press('KeyF');
+  sim.run(2);
+  return { ok: !g.randyTalk.active && !r.held && g.inventory.count('tire') === 1, talking: g.randyTalk.active };
+}
+
 /** Steps shared by this set's cases, installed on window.__sim before each one. */
 export const steps = { standBy };

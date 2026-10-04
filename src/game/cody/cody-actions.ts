@@ -26,6 +26,7 @@ export interface Play {
   /** Whether Cody's car stands in a free deck spot, where getting out parks it. */
   inFreeSpot(car: Vehicle): boolean;
   talkToValet(valet: Valet): void;
+  talkToRandy(randy: Npc): void;
   summon(): number;
   canEat(): boolean;
   eat(): boolean;
@@ -39,7 +40,7 @@ export type CodyAction = Action<Play, Play>;
 export type CodyCandidate = Candidate<Control, Play, Play>;
 
 /** How strongly an offer claims its key when several are possible. Higher wins. */
-export const RANK = { script: 40, valet: 30, elevator: 20, vehicle: 10, getOut: 10 } as const;
+export const RANK = { script: 40, valet: 30, randy: 30, elevator: 20, vehicle: 10, getOut: 10 } as const;
 
 /** Getting into a vehicle: possessing it, stealing it, or simply getting in. */
 abstract class Board extends Action<Play, Play> {
@@ -98,6 +99,19 @@ export class TalkToValet extends Action<Play, Play> {
   }
   perform(w: Play): Result<CodyAction> {
     w.talkToValet(this.p.valet);
+    return done;
+  }
+}
+
+export class TalkToRandy extends Action<Play, Play> {
+  constructor(readonly p: { randy: Npc }) {
+    super();
+  }
+  label(): string {
+    return 'TALK TO RANDY';
+  }
+  perform(w: Play): Result<CodyAction> {
+    w.talkToRandy(this.p.randy);
     return done;
   }
 }
