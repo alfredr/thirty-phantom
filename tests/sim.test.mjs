@@ -225,12 +225,12 @@ test('a mind decides in think, moves on what its state lists, and holds its own 
   assert.equal(m.state.at, 'atStand', 'thinking changes nothing');
   m.go(decision.go);
   assert.equal(m.in('fetching')?.car, 'red', 'the state holds its own data');
-  assert.equal(m.hear({ type: 'handed', car: 'blue' }), false, 'busy fetching: an event it does not list leaves it as it is');
+  assert.equal(m.send({ type: 'handed', car: 'blue' }), false, 'busy fetching: an event it does not list leaves it as it is');
   assert.equal(m.state.car, 'red');
   assert.equal(m.tick(0.5), false);
   assert.equal(m.tick(0.5), true, 'tick returned the next state');
   assert.equal(m.state.at, 'returning');
-  assert.equal(m.hear({ type: 'handed', car: 'blue' }), true, 'on the way back, a hand-over turns it round');
+  assert.equal(m.send({ type: 'handed', car: 'blue' }), true, 'on the way back, a hand-over turns it round');
   assert.equal(m.in('fetching')?.car, 'blue');
   assert.deepEqual(log, [['enter', 'red'], ['exit', 'red'], ['enter', 'blue']]);
 });

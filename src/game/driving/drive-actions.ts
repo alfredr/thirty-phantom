@@ -303,7 +303,7 @@ export class Rejoin extends Action<DriveWorld, DriveWorld> {
  * A job an AI driver does at the wheel of one car: drive somewhere, park, sit a while. It holds the
  * driver's seat while it runs, so whoever takes the car (Cody, say) ends it, and the car carries
  * `role` meanwhile: anything else changing that (a knock) ends it too. Each frame the driver sees
- * phantom Cody, sees() says where, and drive() hears it. A crash ends it by default, the driver
+ * phantom Cody, sees() says where, and drive() gets it. A crash ends it by default, the driver
  * getting out once the car comes to rest.
  */
 export abstract class DriverJob extends Action<DriveWorld, DriveWorld> {

@@ -47,7 +47,7 @@ export function mind<Self, M extends StateMap, E extends EventMap, S = unknown, 
  * transitions are plain functions of the state and the event. Each frame tick() does what the
  * state does and may return the next state the same way. think() reads the world and returns a
  * decision; the frame applies it in the act phase with go(). An actor can have several minds side
- * by side (what it's doing, and whether it's paying attention to someone), each hearing the same
+ * by side (what it's doing, and whether it's paying attention to someone), each sent the same
  * events and moving on its own.
  */
 export class Mind<Self, M extends StateMap, E extends EventMap, S = unknown, A = never> {
@@ -91,7 +91,7 @@ export class Mind<Self, M extends StateMap, E extends EventMap, S = unknown, A =
   }
 
   /** Offers `event` to the current state. True if it moved. */
-  hear(event: EventOf<E>): boolean {
+  send(event: EventOf<E>): boolean {
     const next = this.handle(this.current, event);
     if (!next) return false;
     this.go(next);

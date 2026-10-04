@@ -29,7 +29,7 @@ export type Work = {
   feeding: { left: number; of: number; t: number; from: Vector3 };
 };
 
-/** What can happen to Randy. Both his minds hear all of these and move only on the ones their state lists. */
+/** What can happen to Randy. Either of his minds can be sent any of these; each moves only on the ones its state lists. */
 export type RandyEvents = {
   /** A scene takes him, to face `face` (or Cody). */
   held: { face: Vector3 | null };

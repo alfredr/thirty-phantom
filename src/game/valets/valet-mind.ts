@@ -35,7 +35,7 @@ export type Attention = {
   facing: { who: () => Vector3 };
 };
 
-/** What can happen to a valet. Each of his minds hears all of these and moves only on the ones its state lists. */
+/** What can happen to a valet. Either of his minds can be sent any of these; each moves only on the ones its state lists. */
 export type ValetEvents = {
   /** Someone's handed him keys to park `car` in `spot`. */
   handedCar: { car: Vehicle; spot: SpotRuntime };

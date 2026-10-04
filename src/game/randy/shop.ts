@@ -8,7 +8,7 @@ const SHOP_LEVEL = 2;
 /**
  * Randy's shop: an encounter between Cody and Randy, open from when Cody's on
  * foot by him while he's pitching (his coat open on his wares) until Cody
- * walks off or a scene takes Randy. Randy hears browse and browseEnded, and
+ * walks off or a scene takes Randy. Randy is sent browse and browseEnded, and
  * keeps his coat open while it lasts; the game shows the wares menu, whose
  * keys buy.
  */
@@ -23,13 +23,13 @@ export class Shop {
     const at = this.at;
     if (at && !(cody && within(at, cody) && at.pitch.in('browsing'))) {
       // he's walked off: Randy can shut his coat (a scene that took Randy has seen to that already)
-      at.hear({ type: 'browseEnded' });
+      at.send({ type: 'browseEnded' });
       this.at = null;
     }
     if (!this.at && cody) {
       for (const n of this.npcs.list) {
         if (!n.fire || !n.pitch.in('pitching') || !within(n, cody)) continue;
-        n.hear({ type: 'browse' });
+        n.send({ type: 'browse' });
         this.at = n;
         break;
       }

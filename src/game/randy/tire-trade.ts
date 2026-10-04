@@ -48,7 +48,7 @@ export class TireTrade {
     if (k === 0) return 0;
     this.hooks.gave(k, n);
     this.hooks.paid(k);
-    n.hear({ type: 'given', n: k, from: new Vector3(cody.x, cody.y + HANDS, cody.z) });
+    n.send({ type: 'given', n: k, from: new Vector3(cody.x, cody.y + HANDS, cody.z) });
     return k;
   }
 }

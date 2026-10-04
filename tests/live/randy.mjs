@@ -50,13 +50,13 @@ export function aSceneDirectsHim() {
   const sim = window.__sim;
   const r = sim.standBy(2);
   if (!r) return { ok: false, why: 'no Randy' };
-  r.hear({ type: 'held', face: null });
+  r.send({ type: 'held', face: null });
   sim.run(30 * 6);
   const quiet = !r.pitching;
-  r.hear({ type: 'flash', open: true });
+  r.send({ type: 'flash', open: true });
   sim.run(5);
   const flashed = r.pitching;
-  r.hear({ type: 'released' });
+  r.send({ type: 'released' });
   const back = sim.until(() => r.pitching, 10, []);
   return { ok: quiet && flashed && back.ok, quietWhileHeld: quiet, flashedOnCue: flashed, pitchingAgainAfter: back.seconds };
 }

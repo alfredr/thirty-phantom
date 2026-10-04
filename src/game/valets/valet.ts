@@ -69,10 +69,10 @@ export class Valet {
     return s.at === 'toCar' || s.at === 'boarding' || s.at === 'driving' ? s.car : null;
   }
 
-  /** Both his minds hear `event`. True if either moved. */
-  hear(event: EventOf<ValetEvents>): boolean {
-    const job = this.job.hear(event);
-    const attention = this.attention.hear(event);
+  /** Sends `event` to both his minds. True if either moved. */
+  send(event: EventOf<ValetEvents>): boolean {
+    const job = this.job.send(event);
+    const attention = this.attention.send(event);
     return job || attention;
   }
 
@@ -228,7 +228,7 @@ export class ValetService {
 
   /** Hand `car` to `valet` to park in `spot`. False if he's busy with another. */
   take(valet: Valet, car: Vehicle, spot: SpotRuntime): boolean {
-    if (!valet.hear({ type: 'handedCar', car, spot })) return false;
+    if (!valet.send({ type: 'handedCar', car, spot })) return false;
     this.garage.occupy(spot, car);
     car.role = 'valet';
     car.vel.set(0, 0, 0);
@@ -242,7 +242,7 @@ export class ValetService {
     const v = this.driverOf(car);
     if (!v) return null;
     this.garage.release(car);
-    v.hear({ type: 'carjacked' });
+    v.send({ type: 'carjacked' });
     return v;
   }
 
@@ -278,7 +278,7 @@ export class ValetService {
     return this.drivers.running(drive);
   }
 
-  /** `v` parked `car` in `spot`: it's a parked car in the deck, and the game hears of it. */
+  /** `v` parked `car` in `spot`: it's a parked car in the deck, and the game is told. */
   parked(v: Valet, car: Vehicle, spot: SpotRuntime): void {
     car.role = 'parked';
     car.insideDeck = true;

@@ -110,7 +110,7 @@ interface Feed {
 /**
  * Randy: his body and fire, and his two minds (randy-mind.ts), the pitch
  * (his coat, and a scene holding him) and his work at the fire. Tell him
- * things with hear(): a scene holds and releases him and flashes his coat,
+ * things with send(): a scene holds and releases him and flashes his coat,
  * the shop has Cody browsing, and Cody hands him tires.
  */
 export class Npc {
@@ -159,10 +159,10 @@ export class Npc {
     return s.at === 'pitching' || s.at === 'browsing' || (s.at === 'directed' && s.open);
   }
 
-  /** Both his minds hear `event`. True if either moved. */
-  hear(event: EventOf<RandyEvents>): boolean {
-    const pitch = this.pitch.hear(event);
-    const work = this.work.hear(event);
+  /** Sends `event` to both his minds. True if either moved. */
+  send(event: EventOf<RandyEvents>): boolean {
+    const pitch = this.pitch.send(event);
+    const work = this.work.send(event);
     return pitch || work;
   }
 }
