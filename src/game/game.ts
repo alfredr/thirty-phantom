@@ -542,7 +542,7 @@ export class Game {
     };
     // they park in the lots, never in the deck
     const keepOut = [{ min: level.deck.min, max: level.deck.max }];
-    this.visitors = new Visitors(level.bays, this.planner, this.nav, this.world.collision, this.fleet, this.traffic, this.rng, keepOut, (car) => this.crowd.arrive(car));
+    this.visitors = new Visitors(level.bays, this.planner, this.fleet, this.traffic, this.drivers, this.rng, keepOut, (car) => this.crowd.arrive(car));
     // frightened drivers run for the deck through its entry gate (or, in a level without one, its middle)
     const gate = level.gates.find((g) => g.kind === 'entry');
     const entry = gate ? new Vector3((gate.min[0] + gate.max[0]) / 2, gate.min[1], (gate.min[2] + gate.max[2]) / 2) : this.deckCenter.clone();
@@ -1584,9 +1584,7 @@ export class Game {
       this.crowd.obstacles(obstacles);
       this.valetFrame.day = this.conditions.valetsOnShift();
       this.valet.update(dt, this.valetFrame);
-      this.visitors.update(dt, obstacles, this.view.target);
-      // a visitor's car crashed on the way: its driver gets out and runs once it stops
-      for (const v of this.visitors.stranded.splice(0)) this.shaken.set(v, v.pos.clone());
+      this.visitors.update(dt, this.view.target);
       this.drivers.update(dt);
       this.detours.update(dt, obstacles);
       // a car crashed pulling round: its driver gets out and runs once it stops
