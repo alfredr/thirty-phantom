@@ -917,7 +917,9 @@ export class Game {
     const one = this.wares.slots.find((s) => s.id === slot);
     if (!one) return;
     const price = this.wares.price(one.kind);
-    const got = this.wares.take(slot, n, Math.floor(this.money.cash / price));
+    // Free items such as the burner are always affordable. Dividing by a zero price would make cash NaN.
+    const afford = price > 0 ? Math.floor(this.money.cash / price) : n;
+    const got = this.wares.take(slot, n, afford);
     if (!got || !this.money.spend(got.cost)) return;
     this.gain(got.kind, got.n);
     this.hud.toast(`+${got.n} ${ITEM_NAMES[got.kind]}`, `-$${got.cost}`, '', MONEY_TOAST);

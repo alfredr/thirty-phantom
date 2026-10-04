@@ -110,7 +110,7 @@ const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object
 
 /** A save from storage, if it's one this version can read. */
 function parse(x: unknown): SaveData | null {
-  if (!isObj(x) || x.v !== VERSION || !isNum(x.day) || !isNum(x.cash) || !Array.isArray(x.items) || !Array.isArray(x.phantoms)) return null;
+  if (!isObj(x) || x.v !== VERSION || !isNum(x.day) || !Array.isArray(x.items) || !Array.isArray(x.phantoms)) return null;
   const items: [ItemKind, number][] = [];
   const rawItems: unknown[] = x.items;
   for (const e of rawItems) {
@@ -124,7 +124,8 @@ function parse(x: unknown): SaveData | null {
     const rec = phantom(p);
     if (rec) phantoms.push(rec);
   }
-  return { v: VERSION, day: Math.max(1, Math.round(x.day)), cash: Math.max(0, x.cash), items, phantoms };
+  // Keep the rest of the save when the cash value is unreadable.
+  return { v: VERSION, day: Math.max(1, Math.round(x.day)), cash: isNum(x.cash) ? Math.max(0, x.cash) : 0, items, phantoms };
 }
 
 function phantom(x: unknown): PhantomRecord | null {
