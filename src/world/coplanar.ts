@@ -1,5 +1,6 @@
+import { intersectRects, type Rect } from '@/engine/core/geometry';
 import type { V3 } from '@/engine/core/math';
-import { BOX_FACES, type BoxFace, faceRect, type FaceRect, intersectRects } from '@/render/geometry';
+import { BOX_FACES, type BoxFace, faceRect } from '@/render/geometry';
 
 export interface FaceSource {
   min: V3;
@@ -13,7 +14,7 @@ export interface FaceSource {
 interface Face {
   box: number;
   face: BoxFace;
-  rect: FaceRect;
+  rect: Rect;
   area: number;
   yields: boolean;
 }
@@ -27,7 +28,7 @@ const PLANE_EPS = 1e-4;
  * larger face, breaking equal-area ties by box index. This prevents z-fighting without exposing holes when breakable
  * boxes are removed.
  */
-export function coplanarHoles(boxes: readonly FaceSource[]): Map<number, FaceRect[]> {
+export function coplanarHoles(boxes: readonly FaceSource[]): Map<number, Rect[]> {
   const planes = new Map<string, Face[]>();
   boxes.forEach((b, box) => {
     for (const face of b.faces) {
@@ -44,7 +45,7 @@ export function coplanarHoles(boxes: readonly FaceSource[]): Map<number, FaceRec
     }
   });
 
-  const holes = new Map<number, FaceRect[]>();
+  const holes = new Map<number, Rect[]>();
   for (const list of planes.values()) {
     if (list.length < 2) {
       continue;

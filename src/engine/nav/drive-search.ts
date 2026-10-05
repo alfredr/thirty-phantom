@@ -1,4 +1,5 @@
-import { wrapAngle } from '@/engine/core/math';
+import { clamp, mod, TAU, wrapAngle } from '@/engine/core/math';
+import { MinHeap } from '@/engine/core/min-heap';
 import { bodyOffsets, type VehicleParams } from '@/engine/physics/vehicle-params';
 
 import { dubins, sampleDubins } from './dubins';
@@ -142,8 +143,9 @@ export function turnTable(v: VehicleParams): Float32Array {
   const xs: number[] = [0];
   const zs: number[] = [0];
   const yaws: number[] = [0];
-  const heapI: number[] = [0];
-  const heapF: number[] = [0];
+  const open = new MinHeap<number>();
+  open.push(0, 0);
+
   const idx = (x: number, z: number, yaw: number): number => {
     const i = Math.floor((x + TABLE_HALF) / TABLE_CELL);
     const j = Math.floor((z + TABLE_HALF) / TABLE_CELL);
@@ -151,14 +153,14 @@ export function turnTable(v: VehicleParams): Float32Array {
       return -1;
     }
 
-    const b = ((Math.round((yaw / (Math.PI * 2)) * TABLE_YAWS) % TABLE_YAWS) + TABLE_YAWS) % TABLE_YAWS;
+    const b = mod(Math.round((yaw / TAU) * TABLE_YAWS), TABLE_YAWS);
     return (j * TABLE_N + i) * TABLE_YAWS + b;
   };
 
   best[idx(0, 0, 0)] = 0;
 
-  while (heapI.length) {
-    const k = heapPop(heapI, heapF);
+  while (open.size) {
+    const k = open.pop();
     const x0 = xs[k] as number;
     const z0 = zs[k] as number;
     const yaw0 = yaws[k] as number;
@@ -197,7 +199,7 @@ export function turnTable(v: VehicleParams): Float32Array {
         xs.push(x);
         zs.push(z);
         yaws.push(yaw);
-        heapPush(heapI, heapF, xs.length - 1, g);
+        open.push(xs.length - 1, g);
       }
     }
   }
@@ -223,7 +225,7 @@ export class DriveSearch {
   private readonly turn: number[];
   private readonly body: number[];
   private readonly table: Float32Array;
-  private readonly open: Node[] = [];
+  private readonly open = new MinHeap<Node>();
   private readonly best = new Map<number, number>();
   private readonly closed = new Set<number>();
   /** Cost of the cheapest finish queued so far. */
@@ -268,13 +270,13 @@ export class DriveSearch {
       }
 
       const best = this.found;
-      if (best && (this.expanded >= best.at + POLISH || !this.open.length)) {
+      if (best && (this.expanded >= best.at + POLISH || !this.open.size)) {
         this.reached = best.goal;
         this.finish(best.node);
         break;
       }
 
-      if (!this.open.length || this.expanded >= MAX_EXPAND) {
+      if (!this.open.size || this.expanded >= MAX_EXPAND) {
         if (best) {
           this.reached = best.goal;
           this.finish(best.node);
@@ -285,7 +287,7 @@ export class DriveSearch {
         break;
       }
 
-      const n = this.pop();
+      const n = this.open.pop();
       const at = n.tail ? (n.goal as number) : this.atGoal(n);
       if (at >= 0) {
         // Weighted A* does not guarantee the cheapest first result; retain it while polishing.
@@ -401,8 +403,7 @@ export class DriveSearch {
       return Math.hypot(dx, dz);
     }
 
-    const b =
-      ((Math.round((wrapAngle(yaw - q.yaw) / (Math.PI * 2)) * TABLE_YAWS) % TABLE_YAWS) + TABLE_YAWS) % TABLE_YAWS;
+    const b = mod(Math.round((wrapAngle(yaw - q.yaw) / TAU) * TABLE_YAWS), TABLE_YAWS);
     const v = this.table[(j * TABLE_N + i) * TABLE_YAWS + b] as number;
     return v === Infinity ? Math.hypot(dx, dz) : v;
   }
@@ -427,8 +428,8 @@ export class DriveSearch {
   private key(n: Node): number {
     const ix = Math.floor(n.x / KEY_CELL) & 0xfff;
     const iz = Math.floor(n.z / KEY_CELL) & 0xfff;
-    const yb = ((Math.round((n.yaw / (Math.PI * 2)) * YAW_BINS) % YAW_BINS) + YAW_BINS) % YAW_BINS;
-    const lb = ((Math.round(n.y / LEVEL_BUCKET) % LEVEL_KEYS) + LEVEL_KEYS) % LEVEL_KEYS;
+    const yb = mod(Math.round((n.yaw / TAU) * YAW_BINS), YAW_BINS);
+    const lb = mod(Math.round(n.y / LEVEL_BUCKET), LEVEL_KEYS);
     return ((ix * 0x1000 + iz) * YAW_BINS + yb) * LEVEL_KEYS + lb;
   }
 
@@ -587,7 +588,7 @@ export class DriveSearch {
         return 0;
       }
 
-      const ang = Math.acos(Math.max(-1, Math.min(1, (ax * bx + az * bz) / (la * lb))));
+      const ang = Math.acos(clamp((ax * bx + az * bz) / (la * lb), -1, 1));
       return Math.max(0, ang / la - kMax);
     };
 
@@ -650,98 +651,6 @@ export class DriveSearch {
   }
 
   private push(n: Node): void {
-    const open = this.open;
-    let k = open.length;
-    open.push(n);
-
-    while (k > 0) {
-      const up = (k - 1) >> 1;
-      if ((open[up] as Node).f <= n.f) {
-        break;
-      }
-
-      open[k] = open[up] as Node;
-      k = up;
-    }
-
-    open[k] = n;
+    this.open.push(n, n.f);
   }
-
-  private pop(): Node {
-    const open = this.open;
-    const top = open[0] as Node;
-    const last = open.pop() as Node;
-    if (open.length) {
-      let k = 0;
-      for (;;) {
-        const l = k * 2 + 1;
-        if (l >= open.length) {
-          break;
-        }
-
-        const r = l + 1;
-        const c = r < open.length && (open[r] as Node).f < (open[l] as Node).f ? r : l;
-        if ((open[c] as Node).f >= last.f) {
-          break;
-        }
-
-        open[k] = open[c] as Node;
-        k = c;
-      }
-
-      open[k] = last;
-    }
-
-    return top;
-  }
-}
-
-function heapPush(ids: number[], fs: number[], id: number, f: number): void {
-  let k = ids.length;
-  ids.push(id);
-  fs.push(f);
-
-  while (k > 0) {
-    const up = (k - 1) >> 1;
-    if ((fs[up] as number) <= f) {
-      break;
-    }
-
-    ids[k] = ids[up] as number;
-    fs[k] = fs[up] as number;
-    k = up;
-  }
-
-  ids[k] = id;
-  fs[k] = f;
-}
-
-function heapPop(ids: number[], fs: number[]): number {
-  const top = ids[0] as number;
-  const id = ids.pop() as number;
-  const f = fs.pop() as number;
-  if (ids.length) {
-    let k = 0;
-    for (;;) {
-      const l = k * 2 + 1;
-      if (l >= ids.length) {
-        break;
-      }
-
-      const r = l + 1;
-      const c = r < ids.length && (fs[r] as number) < (fs[l] as number) ? r : l;
-      if ((fs[c] as number) >= f) {
-        break;
-      }
-
-      ids[k] = ids[c] as number;
-      fs[k] = fs[c] as number;
-      k = c;
-    }
-
-    ids[k] = id;
-    fs[k] = f;
-  }
-
-  return top;
 }

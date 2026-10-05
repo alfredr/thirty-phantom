@@ -11,7 +11,7 @@ export function makeCanvas(w: number, h: number): { c: HTMLCanvasElement; ctx: C
   const c = document.createElement('canvas');
   c.width = w;
   c.height = h;
-  const ctx = c.getContext('2d', { willReadFrequently: false });
+  const ctx = c.getContext('2d', { willReadFrequently: true });
   if (!ctx) {
     throw new Error('2D canvas unavailable');
   }

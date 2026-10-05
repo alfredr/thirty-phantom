@@ -1,3 +1,4 @@
+import { clamp } from '@/engine/core/math';
 import { el, polar, svg } from '@/engine/ui/dom';
 
 /** Degrees either side of 12 o'clock the needle swings, E to F. */
@@ -48,7 +49,7 @@ export class GhastDial {
 
   /** Clamp tank level to [0, 1] and update fill, needle, refill animation, and boost state. */
   set(fill: number, burning: boolean): void {
-    const f = Math.min(1, Math.max(0, fill));
+    const f = clamp(fill, 0, 1);
     const r = this.root.classList;
     if (this.last >= 0 && f - this.last >= GULP && !r.contains('gulp')) {
       r.add('gulp');

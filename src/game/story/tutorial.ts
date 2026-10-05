@@ -2,6 +2,7 @@ import { Vector3 } from 'three';
 
 import type { Vehicle } from '@/actors/vehicles/vehicle';
 import { TUNING } from '@/config';
+import { clamp } from '@/engine/core/math';
 import { el } from '@/engine/ui/dom';
 import type { VehicleAccess } from '@/game/cody/cody-ride';
 import { spotLabel } from '@/game/deck/garage';
@@ -283,7 +284,7 @@ export class Tutorial {
 
     sights.push(...action.map((p) => p.clone().setY(st.randy.y + 1)), fire.clone().setY(fire.y + FLARE_TOP));
     const azimuth = stagedView(g.world.root, sights, st.yaw);
-    const zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, reach * ZOOM_PER_METER + ZOOM_PAD));
+    const zoom = clamp(reach * ZOOM_PER_METER + ZOOM_PAD, ZOOM_MIN, ZOOM_MAX);
     focus.x -= Math.sin(azimuth) * zoom * LIFT;
     focus.z -= Math.cos(azimuth) * zoom * LIFT;
     this.camera.zoom = zoom;

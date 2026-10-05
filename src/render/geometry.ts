@@ -1,5 +1,6 @@
 import { BufferGeometry, Color, Float32BufferAttribute, Uint32BufferAttribute } from 'three';
 
+import { type Rect, subtractRects } from '@/engine/core/geometry';
 import { lerp, type V3 } from '@/engine/core/math';
 
 import { CURVE_TILE } from './curvature';
@@ -38,21 +39,13 @@ export function boxFaces(min: V3): readonly BoxFace[] {
   return Math.abs(min[1]) > 0.001 ? ALL_FACES : NO_BOTTOM;
 }
 
-/** Rectangle in a box face's plane. For a face on axis k, u runs along axis (k+1)%3 and v along (k+2)%3. */
-export interface FaceRect {
-  u0: number;
-  u1: number;
-  v0: number;
-  v1: number;
-}
-
 export interface BoxOptions {
   /** Faces to emit (default: boxFaces(min)). */
   faces?: readonly BoxFace[];
   /** AO floor for vertical faces (default: by box height). */
   lo?: number;
   /** Rectangles to leave out of a face. */
-  holes?: (face: BoxFace) => readonly FaceRect[] | undefined;
+  holes?: (face: BoxFace) => readonly Rect[] | undefined;
   /** A face's own UV mapping and data (FaceMap), in place of world-space UVs. */
   map?: (face: BoxFace) => FaceMap | undefined;
 }
@@ -74,55 +67,15 @@ export interface FaceMap {
 
 export type Axis = 0 | 1 | 2;
 
-/** The axes a face on `axis` spans: u, then v (see FaceRect). */
+/** Map a box face's u and v coordinates to the next two axes in cyclic order. */
 export function faceAxes(axis: Axis): [Axis, Axis] {
   return [((axis + 1) % 3) as Axis, ((axis + 2) % 3) as Axis];
 }
 
 /** The whole of a box's face on `axis`, as a rectangle in that face's plane. */
-export function faceRect(min: V3, max: V3, axis: Axis): FaceRect {
+export function faceRect(min: V3, max: V3, axis: Axis): Rect {
   const [ua, va] = faceAxes(axis);
   return { u0: min[ua], u1: max[ua], v0: min[va], v1: max[va] };
-}
-
-/** Where `a` and `b` overlap; empty (u1 <= u0 or v1 <= v0) when they don't. */
-export function intersectRects(a: FaceRect, b: FaceRect): FaceRect {
-  return { u0: Math.max(a.u0, b.u0), u1: Math.min(a.u1, b.u1), v0: Math.max(a.v0, b.v0), v1: Math.min(a.v1, b.v1) };
-}
-
-/** `r` minus every hole, as a set of non-overlapping rectangles. */
-export function subtractRects(r: FaceRect, holes: readonly FaceRect[]): FaceRect[] {
-  let out = [r];
-  for (const h of holes) {
-    const next: FaceRect[] = [];
-    for (const p of out) {
-      const { u0, u1, v0, v1 } = intersectRects(p, h);
-      if (u1 <= u0 || v1 <= v0) {
-        next.push(p);
-        continue;
-      }
-
-      if (p.u0 < u0) {
-        next.push({ ...p, u1: u0 });
-      }
-
-      if (u1 < p.u1) {
-        next.push({ ...p, u0: u1 });
-      }
-
-      if (p.v0 < v0) {
-        next.push({ u0, u1, v0: p.v0, v1: v0 });
-      }
-
-      if (v1 < p.v1) {
-        next.push({ u0, u1, v0: v1, v1: p.v1 });
-      }
-    }
-
-    out = next;
-  }
-
-  return out;
 }
 
 const NO_DATA = [0, 0, 0, 0] as const;

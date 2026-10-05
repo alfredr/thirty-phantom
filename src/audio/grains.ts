@@ -1,4 +1,6 @@
-import type { Controls, Kit, Voice } from './synth';
+import { clamp } from '@/engine/core/math';
+
+import { type Controls, type Kit, rand, type Voice } from './synth/nodes';
 
 /**
  * Synthesize engine audio from recorded cycles selected by RPM and load. Schedule grains on the requested firing
@@ -36,9 +38,6 @@ const HANN = Float32Array.from({ length: 32 }, (_, i) => Math.sin((Math.PI * i) 
 const NUDGE = 0.06;
 /** Scheduling lead time in seconds, allowing grains to begin before their central firing pulse. */
 const LEAD = 0.07;
-
-const rand = (a: number, b: number): number => a + (b - a) * Math.random();
-const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
 
 /** Index recorded cycles by firing rate and calculate gain corrections relative to the median level. */
 class Table {

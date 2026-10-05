@@ -1,7 +1,8 @@
 import { Vector3 } from 'three';
 
 import { TUNING } from '@/config';
-import { wrapAngle } from '@/engine/core/math';
+import { clamp, TAU, wrapAngle } from '@/engine/core/math';
+import { MinHeap } from '@/engine/core/min-heap';
 import type { Rng } from '@/engine/core/rng';
 import {
   type DriveGoal,
@@ -672,7 +673,7 @@ export class NavGrid {
           Math.max(a[0], b[0]) + LANE_REACH,
           Math.max(a[2], b[2]) + LANE_REACH,
           (c, cx, cz) => {
-            const t = Math.max(0, Math.min(len, (cx - a[0]) * ux + (cz - a[2]) * uz));
+            const t = clamp((cx - a[0]) * ux + (cz - a[2]) * uz, 0, len);
             const d = Math.hypot(cx - (a[0] + ux * t), cz - (a[2] + uz * t));
             if (d > LANE_REACH || conflict[c]) {
               return;
@@ -766,7 +767,7 @@ export class NavGrid {
     sidewalk: boolean,
   ): Vector3 | null {
     for (let t = 0; t < SPOT_TRIES; t++) {
-      const a = rng.range(0, Math.PI * 2);
+      const a = rng.range(0, TAU);
       const r = rng.range(rMin, rMax);
       const c = this.cellOf(x + Math.sin(a) * r, z + Math.cos(a) * r);
       if (c === NONE || (sidewalk && (this.cellFlags[c] ?? 0) & (Cell.Deck | Cell.Indoors))) {
@@ -1115,6 +1116,8 @@ export class NavGrid {
     const gp = this.nodePos(goal, new Vector3());
     const margin = SEARCH_MARGIN + sp.distanceTo(gp) * SEARCH_MARGIN_PER_M;
     const hScale = (p.lanes ? LANE_WITH : 1) * GREED;
+    const open = new MinHeap<number>();
+    open.push(start, sp.distanceTo(gp) * hScale);
     job.search = {
       sid: this.sid,
       start,
@@ -1129,8 +1132,7 @@ export class NavGrid {
         Math.max(sp.x, gp.x) + margin,
         Math.max(sp.z, gp.z) + margin,
       ],
-      heapN: [start],
-      heapF: [sp.distanceTo(gp) * hScale],
+      open,
       pieces: null,
       ground: null,
       lifts: !!job.query.elevators && !p.vehicle && this.liftAt.size > 0,
@@ -1165,13 +1167,13 @@ export class NavGrid {
   /** Expand weighted A* nodes until the goal is reached, the queue is exhausted or a periodic deadline check expires. */
   private advanceGrid(job: NavJob, S: NavSearch, deadline: number): void {
     const p = job.profile;
-    const { sid, goal, sp, gp, relax, hScale, heapN, heapF } = S;
+    const { sid, goal, sp, gp, relax, hScale, open } = S;
     const [bx0, bz0, bx1, bz1] = S.box;
     const r2 = relax * relax;
-    const open = sid * Mark.Per + Mark.Open;
+    const openMark = sid * Mark.Per + Mark.Open;
     const closed = sid * Mark.Per + Mark.Closed;
     let budget = 0;
-    while (heapN.length) {
+    while (open.size) {
       if (++budget >= TIME_CHECK_EVERY) {
         budget = 0;
 
@@ -1180,7 +1182,7 @@ export class NavGrid {
         }
       }
 
-      const n = this.heapPop(heapN, heapF);
+      const n = open.pop();
       if (this.mark[n] === closed) {
         continue;
       }
@@ -1224,15 +1226,15 @@ export class NavGrid {
           }
 
           const g = gn + (di && dj ? Math.SQRT2 : 1) * CELL * this.costK(m, Math.floor(m / LAYERS), di, dj, p);
-          if (this.mark[m] === open && g >= (this.g[m] ?? Infinity)) {
+          if (this.mark[m] === openMark && g >= (this.g[m] ?? Infinity)) {
             continue;
           }
 
           this.g[m] = g;
           this.parent[m] = n;
-          this.mark[m] = open;
+          this.mark[m] = openMark;
           const gy = (this.h[m] ?? 0) - gp.y;
-          this.heapPush(heapN, heapF, m, g + Math.sqrt(gx * gx + gz * gz + gy * gy) * hScale);
+          open.push(m, g + Math.sqrt(gx * gx + gz * gz + gy * gy) * hScale);
         }
       }
 
@@ -1273,7 +1275,7 @@ export class NavGrid {
         this.parent[m] = n;
         this.mark[m] = open;
         this.nodePos(m, _f);
-        this.heapPush(S.heapN, S.heapF, m, g + _f.distanceTo(S.gp) * S.hScale);
+        S.open.push(m, g + _f.distanceTo(S.gp) * S.hScale);
       }
     }
   }
@@ -1742,8 +1744,7 @@ export class NavGrid {
       return near && this.clear(m, bodyOf(p));
     };
 
-    const heapN: number[] = [];
-    const heapF: number[] = [];
+    const open = new MinHeap<number>();
     for (const q of w.goals) {
       const goal = this.nodeNear(q.x, q.y, q.z, p);
       const lg = goal === NONE ? NONE : local(goal);
@@ -1752,11 +1753,11 @@ export class NavGrid {
       }
 
       dist[lg] = q.rest;
-      this.heapPush(heapN, heapF, goal, q.rest);
+      open.push(goal, q.rest);
     }
 
-    while (heapN.length) {
-      const n = this.heapPop(heapN, heapF);
+    while (open.size) {
+      const n = open.pop();
       const ln = local(n);
       if (done[ln]) {
         continue;
@@ -1786,7 +1787,7 @@ export class NavGrid {
           }
 
           dist[lm] = g;
-          this.heapPush(heapN, heapF, m, g);
+          open.push(m, g);
         }
       }
     }
@@ -1839,56 +1840,6 @@ export class NavGrid {
         return n === NONE ? 0 : this.wallDist(n, p);
       },
     };
-  }
-
-  private heapPush(heapN: number[], heapF: number[], n: number, f: number): void {
-    let k = heapN.length;
-    heapN.push(n);
-    heapF.push(f);
-
-    while (k > 0) {
-      const up = (k - 1) >> 1;
-      if ((heapF[up] as number) <= f) {
-        break;
-      }
-
-      heapN[k] = heapN[up] as number;
-      heapF[k] = heapF[up] as number;
-      k = up;
-    }
-
-    heapN[k] = n;
-    heapF[k] = f;
-  }
-
-  private heapPop(heapN: number[], heapF: number[]): number {
-    const top = heapN[0] as number;
-    const n = heapN.pop() as number;
-    const f = heapF.pop() as number;
-    if (heapN.length) {
-      let k = 0;
-      for (;;) {
-        const l = k * 2 + 1;
-        if (l >= heapN.length) {
-          break;
-        }
-
-        const r = l + 1;
-        const c = r < heapN.length && (heapF[r] as number) < (heapF[l] as number) ? r : l;
-        if ((heapF[c] as number) >= f) {
-          break;
-        }
-
-        heapN[k] = heapN[c] as number;
-        heapF[k] = heapF[c] as number;
-        k = c;
-      }
-
-      heapN[k] = n;
-      heapF[k] = f;
-    }
-
-    return top;
   }
 
   // ---------------------------------------------------------------- shaping
@@ -2080,7 +2031,7 @@ export class NavGrid {
         u2z: (c.z - b.z) / l2,
         turn: 0,
       };
-      cr.turn = Math.acos(Math.max(-1, Math.min(1, cr.u1x * cr.u2x + cr.u1z * cr.u2z)));
+      cr.turn = Math.acos(clamp(cr.u1x * cr.u2x + cr.u1z * cr.u2z, -1, 1));
 
       if (cr.turn < MIN_TURN) {
         out.push({ p: b, reverse: false });
@@ -2237,8 +2188,7 @@ interface NavSearch {
   hScale: number;
   /** Search bounds in world coordinates: x0, z0, x1, z1. */
   box: [number, number, number, number];
-  heapN: number[];
-  heapF: number[];
+  open: MinHeap<number>;
   /** Vehicle route sections and pose-search windows, populated after the grid path is found. */
   pieces: DrivePiece[] | null;
   ground: DriveGround | null;

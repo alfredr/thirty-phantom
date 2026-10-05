@@ -1,3 +1,4 @@
+import { clipBox, clipInterval, type Interval } from '@/engine/core/geometry';
 import { clamp, lerp, type V3 } from '@/engine/core/math';
 
 /** Skip slabs below this height in raycast() and in segmentBlocked() unless slabs are requested. */
@@ -5,25 +6,13 @@ const THIN_SLAB = 0.3;
 /** Segment direction scratch for raycast() and segmentBlocked(). */
 const _d: V3 = [0, 0, 0];
 const _c: V3 = [0, 0, 0];
-const _span: [number, number] = [0, 0];
+const _span: Interval = [0, 0];
 
 function segment(a: V3, b: V3): V3 {
   _d[0] = b[0] - a[0];
   _d[1] = b[1] - a[1];
   _d[2] = b[2] - a[2];
   return _d;
-}
-
-function clip(o: number, d: number, lo: number, hi: number, span: [number, number]): boolean {
-  if (Math.abs(d) < 1e-9) {
-    return o >= lo && o <= hi;
-  }
-
-  const ta = (lo - o) / d;
-  const tb = (hi - o) / d;
-  span[0] = Math.max(span[0], Math.min(ta, tb));
-  span[1] = Math.min(span[1], Math.max(ta, tb));
-  return span[0] <= span[1];
 }
 
 /** Filled in by groundAt: the solid whose top it found, or null for the ground plane. */
@@ -227,7 +216,7 @@ export class CollisionWorld {
       _span[0] = -half;
       _span[1] = half;
 
-      if (!clip(x, dx, s.min[0], s.max[0], _span) || !clip(z, dz, s.min[2], s.max[2], _span)) {
+      if (!clipInterval(x, dx, s.min[0], s.max[0], _span) || !clipInterval(z, dz, s.min[2], s.max[2], _span)) {
         continue;
       }
 
@@ -393,51 +382,21 @@ export class CollisionWorld {
         continue;
       }
 
-      let t0 = 0;
-      let t1 = best;
-      let inside = true;
-      let miss = false;
-      for (let i = 0; i < 3; i++) {
-        const o = a[i] as number;
-        const di = d[i] as number;
-        const lo = (s.min[i] as number) - pad;
-        const hi = (s.max[i] as number) + pad;
-        if (o <= lo || o >= hi) {
-          inside = false;
-        }
+      _span[0] = 0;
+      _span[1] = best;
 
-        if (Math.abs(di) < 1e-9) {
-          if (o < lo || o > hi) {
-            miss = true;
-            break;
-          }
-
-          continue;
-        }
-
-        let ta = (lo - o) / di;
-        let tb = (hi - o) / di;
-        if (ta > tb) {
-          [ta, tb] = [tb, ta];
-        }
-
-        if (ta > t0) {
-          t0 = ta;
-        }
-
-        if (tb < t1) {
-          t1 = tb;
-        }
-
-        if (t0 > t1) {
-          miss = true;
-          break;
-        }
-      }
-
-      if (miss) {
+      if (!clipBox(a, d, s.min, s.max, _span, pad)) {
         continue;
       }
+
+      const [t0, t1] = _span;
+      const inside =
+        a[0] > s.min[0] - pad &&
+        a[0] < s.max[0] + pad &&
+        a[1] > s.min[1] - pad &&
+        a[1] < s.max[1] + pad &&
+        a[2] > s.min[2] - pad &&
+        a[2] < s.max[2] + pad;
 
       if (!s.ramp) {
         if (!inside) {
@@ -482,37 +441,10 @@ export class CollisionWorld {
         continue;
       }
 
-      let t0 = 0;
-      let t1 = 1;
-      let hit = true;
-      for (let i = 0; i < 3; i++) {
-        const o = a[i] as number;
-        const di = d[i] as number;
-        const lo = s.min[i] as number;
-        const hi = s.max[i] as number;
-        if (Math.abs(di) < 1e-9) {
-          if (o < lo || o > hi) {
-            hit = false;
-            break;
-          }
-        } else {
-          let ta = (lo - o) / di;
-          let tb = (hi - o) / di;
-          if (ta > tb) {
-            [ta, tb] = [tb, ta];
-          }
+      _span[0] = 0;
+      _span[1] = 1;
 
-          t0 = Math.max(t0, ta);
-          t1 = Math.min(t1, tb);
-
-          if (t0 > t1) {
-            hit = false;
-            break;
-          }
-        }
-      }
-
-      if (hit) {
+      if (clipBox(a, d, s.min, s.max, _span)) {
         return true;
       }
     }

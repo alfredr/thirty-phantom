@@ -1,6 +1,7 @@
 import { Vector3 } from 'three';
 
 import type { Vehicle } from '@/actors/vehicles/vehicle';
+import { TAU } from '@/engine/core/math';
 import { NAV, type NavGrid, type NavProfile } from '@/world/nav-grid';
 
 export interface Pose {
@@ -91,12 +92,12 @@ export function openPose(car: Vehicle, nav: NavGrid, others: readonly Vehicle[])
   let most = -Infinity;
 
   for (let r = 0; r <= REACH; r += RING) {
-    const n = r === 0 ? 1 : Math.ceil((2 * Math.PI * r) / RING);
+    const n = r === 0 ? 1 : Math.ceil((TAU * r) / RING);
     let best: Pose | null = null;
     let score = -Infinity;
 
     for (let i = 0; i < n; i++) {
-      const a = (i / n) * Math.PI * 2;
+      const a = (i / n) * TAU;
       const x = cx + Math.sin(a) * r;
       const z = cz + Math.cos(a) * r;
       if (crowded(car, x, z, others)) {
@@ -110,7 +111,7 @@ export function openPose(car: Vehicle, nav: NavGrid, others: readonly Vehicle[])
         }
 
         for (let k = 0; k < HEADINGS; k++) {
-          const yaw = car.yaw + (k / HEADINGS) * Math.PI * 2;
+          const yaw = car.yaw + (k / HEADINGS) * TAU;
           if (!fits(car, nav, p, x, y, z, yaw)) {
             continue;
           }

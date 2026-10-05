@@ -1,3 +1,4 @@
+import { clamp } from '@/engine/core/math';
 import { el } from '@/engine/ui/dom';
 import type { Control } from '@/game/controls';
 
@@ -86,7 +87,7 @@ export class Calls implements PhoneApp {
     }
 
     if (control === 'menuUp' || control === 'menuDown') {
-      this.select(Math.min(n - 1, Math.max(0, this.pick + (control === 'menuUp' ? -1 : 1))));
+      this.select(clamp(this.pick + (control === 'menuUp' ? -1 : 1), 0, n - 1));
       return true;
     }
 

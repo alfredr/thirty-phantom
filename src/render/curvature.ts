@@ -16,6 +16,7 @@ import {
 } from 'three';
 
 import { TUNING } from '@/config';
+import { smoothstep } from '@/engine/core/math';
 import { urlChoice } from '@/engine/core/url-flags';
 
 /**
@@ -185,7 +186,7 @@ export function curvePoint(p: Vector3): Vector3 {
   _o.set(p.x - c.x, p.z - c.z);
   const d = _o.length();
   let phi = d / R;
-  const sink = 0.9 * smooth(PHI_MAX - SINK, PHI_MAX, phi);
+  const sink = 0.9 * smoothstep(PHI_MAX - SINK, PHI_MAX, phi);
   phi = Math.min(phi, PHI_MAX);
   const k = Math.sin(phi) / Math.max(d, 1e-5);
   _n.set(_o.x * k, Math.cos(phi), _o.y * k);
@@ -209,11 +210,6 @@ export function curveTop(halfH: number, elevation: number): number {
   // A surface point at angle phi projects R * (cos(phi - elevation) - cos(elevation)) above the focus.
   const phi = elevation - Math.acos(Math.min(1, Math.cos(elevation) + halfH / R));
   return R * phi * Math.sin(elevation);
-}
-
-function smooth(a: number, b: number, x: number): number {
-  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
-  return t * t * (3 - 2 * t);
 }
 
 // ---------------------------------------------------------------- culling

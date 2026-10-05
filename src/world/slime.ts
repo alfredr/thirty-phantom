@@ -10,6 +10,7 @@ import {
   Vector3,
 } from 'three';
 
+import { clamp } from '@/engine/core/math';
 import { Rng } from '@/engine/core/rng';
 import { CHUNK, GeometryBatch, NO_TINT } from '@/render/geometry';
 import { PALETTE } from '@/render/palette';
@@ -375,7 +376,7 @@ export class SlimeSim {
    * hides all slime.
    */
   setPresence(f: number): void {
-    this.presence = Math.min(1, Math.max(0, f));
+    this.presence = clamp(f, 0, 1);
     this.emerging = 0;
     this.applyPresence();
   }

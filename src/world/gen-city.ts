@@ -1,6 +1,6 @@
+import { subtractRects } from '@/engine/core/geometry';
 import { mod, TAU } from '@/engine/core/math';
 import { Rng } from '@/engine/core/rng';
-import { subtractRects } from '@/render/geometry';
 import type { MatKey } from '@/render/materials';
 
 import { buildingLook, dressBuilding, roofAt, walkIn } from './gen-building';

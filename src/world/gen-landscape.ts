@@ -1,5 +1,6 @@
+import { subtractRects } from '@/engine/core/geometry';
+import { clamp, TAU } from '@/engine/core/math';
 import { Rng } from '@/engine/core/rng';
-import { subtractRects } from '@/render/geometry';
 import type { MatKey } from '@/render/materials';
 
 import {
@@ -178,7 +179,7 @@ function segDist(px: number, pz: number, ax: number, az: number, bx: number, bz:
   const dx = bx - ax;
   const dz = bz - az;
   const l2 = dx * dx + dz * dz;
-  const t = l2 > 0 ? Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / l2)) : 0;
+  const t = l2 > 0 ? clamp(((px - ax) * dx + (pz - az) * dz) / l2, 0, 1) : 0;
   return Math.hypot(px - ax - dx * t, pz - az - dz * t);
 }
 
@@ -471,7 +472,7 @@ class Planter {
 
   /** Return a uniformly random yaw in radians for visually varied placement. */
   spin(): number {
-    return this.rng.range(0, Math.PI * 2);
+    return this.rng.range(0, TAU);
   }
 }
 
@@ -576,7 +577,7 @@ function gazeboSpot(p: Planter, lawns: readonly Rect[], cx: number, cz: number, 
     for (;;) {
       const next = r + STEP;
       for (let k = 0; k < ROUND; k++) {
-        const a = (k / ROUND) * Math.PI * 2;
+        const a = (k / ROUND) * TAU;
         if (!onLawn(x + Math.sin(a) * next, z + Math.cos(a) * next)) {
           return r;
         }

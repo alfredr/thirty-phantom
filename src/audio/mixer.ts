@@ -6,7 +6,8 @@ import { clamp, smoothstep } from '@/engine/core/math';
 import { type Bus, type Cue, CUES, type CueName, type SoundOf, type Source } from './cues';
 import { soundLog } from './flags';
 import { engine, type Mark } from './grains';
-import { type Controls, type Kit, makeKit, synthesize, type Voice } from './synth';
+import { synthesize } from './synth';
+import { type Controls, type Kit, makeKit, type Voice } from './synth/nodes';
 
 /** Cached fetch state. Failed requests are not retried. */
 type Fetched<T> =

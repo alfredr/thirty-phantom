@@ -1,4 +1,5 @@
 import { TUNING } from '@/config';
+import { mod, smoothstep } from '@/engine/core/math';
 
 export type Phase = 'day' | 'night';
 
@@ -13,9 +14,8 @@ const EASE = 45;
 const NEAREST = 1 / 3600;
 const EPS = 1e-9;
 
-const ahead = (from: number, to: number): number => (((to - from) % 24) + 24) % 24;
-const wrap = (h: number): number => ((h % 24) + 24) % 24;
-const smooth = (t: number): number => t * t * (3 - 2 * t);
+const ahead = (from: number, to: number): number => mod(to - from, 24);
+const wrap = (h: number): number => mod(h, 24);
 
 /** Track game hours and emit day/night transitions at the configured phase boundaries. */
 export class GameClock {
@@ -78,7 +78,7 @@ export class GameClock {
     if (lapse) {
       lapse.t += dt;
       const p = Math.min(1, lapse.t / lapse.seconds);
-      const moved = lapse.span * smooth(p);
+      const moved = lapse.span * smoothstep(0, 1, p);
       this.advance(Math.max(0, moved - lapse.moved));
       lapse.moved = moved;
 
