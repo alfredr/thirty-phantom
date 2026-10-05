@@ -9,6 +9,7 @@ import type { Ignition } from '@/actors/vehicles/ignition';
 import type { Vehicle } from '@/actors/vehicles/vehicle';
 import { Walker } from '@/actors/walker';
 import { TUNING } from '@/config';
+import { cross2 } from '@/engine/core/math';
 import type { Rng } from '@/engine/core/rng';
 import { Polyline } from '@/engine/nav/polyline';
 import { bodyOffsets } from '@/engine/physics/vehicle-params';
@@ -368,7 +369,7 @@ export class Crowd implements Prey, Town {
     const dx = w.pos.x - v.pos.x;
     const dz = w.pos.z - v.pos.z;
     const along = dx * fx + dz * fz;
-    if (along > 0 && along < C.carReach && Math.abs(dx * fz - dz * fx) < IN_THE_WAY) {
+    if (along > 0 && along < C.carReach && Math.abs(cross2(dx, dz, fx, fz)) < IN_THE_WAY) {
       p.mind.send({ type: 'frightened', from: v.pos });
     }
   }

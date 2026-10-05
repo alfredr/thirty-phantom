@@ -10,6 +10,7 @@ const _x = new Vector3();
 const _y = new Vector3();
 const _z = new Vector3();
 const _c = new Vector3();
+const _offset = new Vector3();
 
 /** Sky fill plus the shadow-casting sun, whose shadow box follows the view. */
 export class SunLight {
@@ -72,8 +73,9 @@ export class SunLight {
     _c.divideScalar(points.length || 1);
 
     for (const p of points) {
-      const u = (p.x - _c.x) * _x.x + (p.y - _c.y) * _x.y + (p.z - _c.z) * _x.z;
-      const v = (p.x - _c.x) * _y.x + (p.y - _c.y) * _y.y + (p.z - _c.z) * _y.z;
+      _offset.subVectors(p, _c);
+      const u = _offset.dot(_x);
+      const v = _offset.dot(_y);
       x0 = Math.min(x0, u);
       x1 = Math.max(x1, u);
       y0 = Math.min(y0, v);

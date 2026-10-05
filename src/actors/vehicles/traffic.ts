@@ -1,7 +1,7 @@
 import { Vector3 } from 'three';
 
 import { TUNING } from '@/config';
-import { damp, invLerp, lerp } from '@/engine/core/math';
+import { cross2, damp, invLerp, lerp } from '@/engine/core/math';
 import type { Rng } from '@/engine/core/rng';
 import { Polyline } from '@/engine/nav/polyline';
 import type { PathDef } from '@/world/level-data';
@@ -52,7 +52,7 @@ function ahead(
     return Infinity;
   }
 
-  if (Math.abs(dx * fz - dz * fx) > LANE_HALF) {
+  if (Math.abs(cross2(dx, dz, fx, fz)) > LANE_HALF) {
     return Infinity;
   }
 

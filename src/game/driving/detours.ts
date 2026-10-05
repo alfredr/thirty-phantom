@@ -5,7 +5,7 @@ import { Autopilot, type Obstacle } from '@/actors/vehicles/autopilot';
 import type { Jam, Traffic } from '@/actors/vehicles/traffic';
 import type { DriveEvents, DriveInput, Vehicle } from '@/actors/vehicles/vehicle';
 import { TUNING } from '@/config';
-import { lerp, mod } from '@/engine/core/math';
+import { cross2, lerp, mod } from '@/engine/core/math';
 import type { Polyline } from '@/engine/nav/polyline';
 import type { CollisionWorld } from '@/engine/physics/collision';
 import type { Claims } from '@/engine/sim/claims';
@@ -397,7 +397,7 @@ export class Detours {
       const dx = o.pos.x - car.pos.x;
       const dz = o.pos.z - car.pos.z;
       const along = dx * fx + dz * fz;
-      if (along < 0 || along > gap || Math.abs(dx * fz - dz * fx) > ONCOMING_SIDE) {
+      if (along < 0 || along > gap || Math.abs(cross2(dx, dz, fx, fz)) > ONCOMING_SIDE) {
         continue;
       }
 

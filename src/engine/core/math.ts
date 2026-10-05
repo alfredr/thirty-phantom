@@ -3,6 +3,9 @@ export type V3 = [number, number, number];
 
 export const TAU = Math.PI * 2;
 
+/** Signed 2D cross product. For x/z inputs, this is the negative of the 3D cross product's y component. */
+export const cross2 = (ax: number, ay: number, bx: number, by: number): number => ax * by - ay * bx;
+
 export const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
 export const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 export const invLerp = (a: number, b: number, v: number): number => clamp((v - a) / (b - a), 0, 1);

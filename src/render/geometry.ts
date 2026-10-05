@@ -1,4 +1,4 @@
-import { BufferGeometry, Color, Float32BufferAttribute, Uint32BufferAttribute } from 'three';
+import { BufferGeometry, Color, Float32BufferAttribute, Uint32BufferAttribute, Vector3 } from 'three';
 
 import { type Rect, subtractRects } from '@/engine/core/geometry';
 import { lerp, type V3 } from '@/engine/core/math';
@@ -6,19 +6,9 @@ import { lerp, type V3 } from '@/engine/core/math';
 import { CURVE_TILE } from './curvature';
 
 const _a = [0, 0, 0];
-
-function sub(a: V3, b: V3): V3 {
-  return [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
-}
-
-function cross(a: V3, b: V3): V3 {
-  return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
-}
-
-function norm(a: V3): V3 {
-  const l = Math.hypot(a[0], a[1], a[2]) || 1;
-  return [a[0] / l, a[1] / l, a[2] / l];
-}
+const _normal = new Vector3();
+const _diagonal = new Vector3();
+const _outward = new Vector3();
 
 /** Box faces, in the order box() emits them: +X, -X, +Z, -Z, +Y, -Y. */
 export type BoxFace = 0 | 1 | 2 | 3 | 4 | 5;
@@ -170,20 +160,23 @@ export class GeometryBatch {
     shade: [number, number, number, number] = [1, 1, 1, 1],
     map?: FaceMap,
   ): void {
-    let n = norm(cross(sub(c, a), sub(d, b)));
+    const n = _normal.fromArray(c).sub(_diagonal.fromArray(a));
+    _diagonal.fromArray(d).sub(_outward.fromArray(b));
+    n.cross(_diagonal).normalize();
     let pts: V3[] = [a, b, c, d];
     let sh = shade;
     if (center) {
-      const mid: V3 = [(a[0] + c[0]) / 2, (a[1] + c[1]) / 2, (a[2] + c[2]) / 2];
-      const out = sub(mid, center);
-      if (n[0] * out[0] + n[1] * out[1] + n[2] * out[2] < 0) {
+      _outward.fromArray(a).add(_diagonal.fromArray(c)).multiplyScalar(0.5);
+      _outward.sub(_diagonal.fromArray(center));
+
+      if (n.dot(_outward) < 0) {
         pts = [a, d, c, b];
         sh = [shade[0], shade[3], shade[2], shade[1]];
-        n = [-n[0], -n[1], -n[2]];
+        n.negate();
       }
     }
 
-    if (!Number.isFinite(n[0])) {
+    if (!Number.isFinite(n.x)) {
       return;
     }
 
@@ -219,7 +212,7 @@ export class GeometryBatch {
   /** Append one quad with its normal, UVs, colors, optional face data, and triangle indices. */
   private emit(
     pts: readonly [V3, V3, V3, V3],
-    n: V3,
+    n: Vector3,
     sh: readonly number[],
     color: Color,
     uvScale: number,
@@ -230,23 +223,23 @@ export class GeometryBatch {
       this.data ??= new Array<number>(base * 4).fill(0);
     }
 
-    const ax = Math.abs(n[0]);
-    const ay = Math.abs(n[1]);
-    const az = Math.abs(n[2]);
+    const ax = Math.abs(n.x);
+    const ay = Math.abs(n.y);
+    const az = Math.abs(n.z);
     for (let i = 0; i < 4; i++) {
       const p = pts[i] as V3;
       this.pos.push(p[0], p[1], p[2]);
-      this.nor.push(n[0], n[1], n[2]);
+      this.nor.push(n.x, n.y, n.z);
       let u: number;
       let v: number;
       if (ay >= ax && ay >= az) {
         u = p[0];
-        v = n[1] > 0 ? -p[2] : p[2];
+        v = n.y > 0 ? -p[2] : p[2];
       } else if (ax >= az) {
-        u = n[0] > 0 ? -p[2] : p[2];
+        u = n.x > 0 ? -p[2] : p[2];
         v = p[1];
       } else {
-        u = n[2] > 0 ? p[0] : -p[0];
+        u = n.z > 0 ? p[0] : -p[0];
         v = p[1];
       }
 

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { Group } from 'three';
+import { Group, Vector3 } from 'three';
 
 import { loadModules } from './modules.mjs';
 
@@ -37,6 +37,20 @@ test('a vehicle that took its step this frame says so until the next frame start
   assert.equal(v.steppedThisFrame, true, 'a wreck pass this frame leaves it alone');
   Vehicle.advance(1 / 60);
   assert.equal(v.steppedThisFrame, false);
+});
+
+test('point velocity includes world-space spin only while crash physics is active', () => {
+  const v = truck();
+  v.vel.set(2, 3, 4);
+  const out = new Vector3();
+  assert.deepEqual(v.pointVelocity(14, 25, 36, out).toArray(), [2, 3, 4]);
+  v.hit(0, 0, 0, 0, 0, 0, true);
+  v.crash.com.set(10, 20, 30);
+  v.crash.spin.set(1, 2, 3);
+  assert.equal(v.pointVelocity(14, 25, 36, out), out);
+  assert.deepEqual(out.toArray(), [-1, 9, 1]);
+  assert.deepEqual(v.vel.toArray(), [2, 3, 4]);
+  assert.deepEqual(v.pointVelocity(10, 20, 30, out).toArray(), [2, 3, 4]);
 });
 
 test('a truck wedged between two walls closer than its length holds still instead of alternating', () => {

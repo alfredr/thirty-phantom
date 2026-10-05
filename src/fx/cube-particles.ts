@@ -15,7 +15,7 @@ interface P {
   pos: Vector3;
   vel: Vector3;
   spin: Vector3;
-  rot: Vector3;
+  rot: Quaternion;
   size: number;
   life: number;
   max: number;
@@ -48,7 +48,7 @@ export class CubeParticles {
         pos: new Vector3(),
         vel: new Vector3(),
         spin: new Vector3(),
-        rot: new Vector3(),
+        rot: new Quaternion(),
         size: 0,
         life: 0,
         max: 1,
@@ -73,7 +73,9 @@ export class CubeParticles {
     p.pos.copy(pos);
     p.vel.copy(vel);
     p.spin.set((Math.random() - 0.5) * 14, (Math.random() - 0.5) * 14, (Math.random() - 0.5) * 14);
-    p.rot.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
+    _e.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
+    const angle = _e.length();
+    p.rot.setFromAxisAngle(_e.normalize(), angle);
     p.size = size;
     p.life = life;
     p.max = life;
@@ -118,10 +120,14 @@ export class CubeParticles {
         p.spin.multiplyScalar(0.5);
       }
 
-      p.rot.addScaledVector(p.spin, dt);
+      const speed = p.spin.length();
+      if (speed > 0) {
+        _q.setFromAxisAngle(_e.copy(p.spin).divideScalar(speed), speed * dt);
+        p.rot.premultiply(_q).normalize();
+      }
+
       const k = p.life <= 0 ? 0 : Math.min(1, p.life / (p.max * 0.35)) * p.size;
-      _q.setFromAxisAngle(_e.set(p.rot.x, p.rot.y, p.rot.z).normalize(), p.rot.length());
-      _m.compose(p.pos, _q, _s.setScalar(k));
+      _m.compose(p.pos, p.rot, _s.setScalar(k));
       this.mesh.setMatrixAt(i, _m);
     }
 

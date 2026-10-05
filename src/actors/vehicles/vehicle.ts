@@ -233,11 +233,8 @@ export class Vehicle {
       return out;
     }
 
-    const rx = px - c.com.x;
-    const ry = py - c.com.y;
-    const rz = pz - c.com.z;
-    const w = c.spin;
-    return out.set(out.x + w.y * rz - w.z * ry, out.y + w.z * rx - w.x * rz, out.z + w.x * ry - w.y * rx);
+    _f.set(px - c.com.x, py - c.com.y, pz - c.com.z);
+    return out.add(_f.crossVectors(c.spin, _f));
   }
 
   /** Return whether crash physics is inactive or settled, regardless of orientation. */

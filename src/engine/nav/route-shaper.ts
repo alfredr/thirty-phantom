@@ -1,6 +1,6 @@
 import { Vector3 } from 'three';
 
-import { clamp } from '@/engine/core/math';
+import { clamp, cross2 } from '@/engine/core/math';
 
 import { Polyline } from './polyline';
 
@@ -115,8 +115,8 @@ export class RouteShaper {
           continue;
         }
 
-        const t1 = (b.x - a.x) * (c.z - b.z) - (b.z - a.z) * (c.x - b.x);
-        const t2 = (c.x - b.x) * (d.z - c.z) - (c.z - b.z) * (d.x - c.x);
+        const t1 = cross2(b.x - a.x, b.z - a.z, c.x - b.x, c.z - b.z);
+        const t2 = cross2(c.x - b.x, c.z - b.z, d.x - c.x, d.z - c.z);
         if (t1 * t2 <= 0) {
           continue;
         }
@@ -126,12 +126,12 @@ export class RouteShaper {
         const uz = b.z - a.z;
         const vx = d.x - c.x;
         const vz = d.z - c.z;
-        const den = ux * vz - uz * vx;
+        const den = cross2(ux, uz, vx, vz);
         if (Math.abs(den) < ROUTE_EPS) {
           continue;
         }
 
-        const s1 = ((c.x - a.x) * vz - (c.z - a.z) * vx) / den;
+        const s1 = cross2(c.x - a.x, c.z - a.z, vx, vz) / den;
         if (s1 < 1) {
           continue;
         }
@@ -225,7 +225,7 @@ export class RouteShaper {
     const p1 = new Vector3(b.x - u1x * t, b.y + (a.y - b.y) * (t / l1), b.z - u1z * t);
     const p2 = new Vector3(b.x + u2x * t, b.y + (c.y - b.y) * (t / l2), b.z + u2z * t);
     // Offset the arc center toward the inside of the turn.
-    const side = u1x * u2z - u1z * u2x > 0 ? 1 : -1;
+    const side = cross2(u1x, u1z, u2x, u2z) > 0 ? 1 : -1;
     const cx = p1.x - u1z * rr * side;
     const cz = p1.z + u1x * rr * side;
     const a0 = Math.atan2(p1.z - cz, p1.x - cx);

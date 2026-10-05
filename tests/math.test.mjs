@@ -1,11 +1,29 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { Vector3 } from 'three';
+
 import { loadModules } from './modules.mjs';
 
-const [{ clamp, lerp, invLerp, mod, TAU, wrapAngle, damp, dampAngle, smoothstep }] =
+const [{ clamp, cross2, lerp, invLerp, mod, TAU, wrapAngle, damp, dampAngle, smoothstep }] =
   await loadModules('/src/engine/core/math.ts');
 const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-10, `${a} != ${b}`);
+
+test('planar cross products preserve turn direction and the x/z sign convention', () => {
+  assert.equal(cross2(1, 0, 0, 1), 1);
+  assert.equal(cross2(0, 1, 1, 0), -1);
+  assert.equal(cross2(2, 3, 4, 6), 0);
+
+  for (const [ax, az, bx, bz] of [
+    [3, -2, -5, 7],
+    [-4, 2, 1, -3],
+    [0, 0, 2, 3],
+  ]) {
+    const cross = new Vector3(ax, 0, az).cross(new Vector3(bx, 0, bz));
+    close(cross2(ax, az, bx, bz), -cross.y);
+    close(cross2(ax, az, bx, bz), -cross2(bx, bz, ax, az));
+  }
+});
 
 test('clamping includes both limits and interpolation preserves endpoints', () => {
   assert.deepEqual(

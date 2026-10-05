@@ -1,7 +1,7 @@
 import { BoxGeometry, Color, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
 
 import { TUNING } from '@/config';
-import { clamp, damp, type V3 } from '@/engine/core/math';
+import { clamp, cross2, damp, type V3 } from '@/engine/core/math';
 import { bodyHalf } from '@/engine/physics/vehicle-params';
 import { whiteColors } from '@/render/geometry';
 import { withCutaway, type MaterialLibrary } from '@/render/materials';
@@ -222,10 +222,10 @@ export class Gates {
     const ux = p[0] - h[0];
     const uz = p[2] - h[2];
     const t = ux * dx + uz * dz;
-    const n = ux * dz - uz * dx;
+    const n = cross2(ux, uz, dx, dz);
     const fx = from.x - h[0];
     const fz = from.z - h[2];
-    const fn = fx * dz - fz * dx;
+    const fn = cross2(fx, fz, dx, dz);
     const ft = fx * dx + fz * dz;
     const put = (s: number, side: number): void => {
       p[0] = h[0] + dx * s + dz * side;

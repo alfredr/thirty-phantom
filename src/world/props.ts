@@ -2,7 +2,7 @@ import { type BufferAttribute, Color, Group, Matrix4, Vector3 } from 'three';
 
 import type { Instanced } from '@/actors/models/part';
 import { TUNING } from '@/config';
-import { clamp, TAU, type V3 } from '@/engine/core/math';
+import { clamp, cross2, TAU, type V3 } from '@/engine/core/math';
 import { Rng } from '@/engine/core/rng';
 import type { CollisionWorld, Solid } from '@/engine/physics/collision';
 import { bodyHalf } from '@/engine/physics/vehicle-params';
@@ -727,7 +727,7 @@ export class Props {
           continue;
         }
 
-        const arm = pz * mx - px * mz;
+        const arm = -cross2(px, pz, mx, mz);
         const j = ((1 + RESTITUTION) * vn) / (1 + invI * arm * arm);
         this.vx[i] = (this.vx[i] as number) + mx * j;
         this.vz[i] = (this.vz[i] as number) + mz * j;
