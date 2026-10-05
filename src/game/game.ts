@@ -7,7 +7,7 @@ import { Skeletons } from '@/actors/skeletons/skeletons';
 import type { Obstacle } from '@/actors/vehicles/autopilot';
 import { type CarKind, VEHICLE_BREEDS } from '@/actors/vehicles/breeds';
 import { Traffic } from '@/actors/vehicles/traffic';
-import { type DriveEvents, type DriveInput, Vehicle } from '@/actors/vehicles/vehicle';
+import { type DriveInput, Vehicle } from '@/actors/vehicles/vehicle';
 import type { AssetRegistry } from '@/assets/asset-registry';
 import { TUNING } from '@/config';
 import { reloadIfPending } from '@/dev/reload-prompt';
@@ -16,7 +16,6 @@ import { clamp } from '@/engine/core/math';
 import { Rng } from '@/engine/core/rng';
 import { urlChoice, urlFlag, urlParam } from '@/engine/core/url-flags';
 import { Input } from '@/engine/input/input';
-import type { Solid } from '@/engine/physics/collision';
 import { Claims } from '@/engine/sim/claims';
 import { Space } from '@/engine/sim/space';
 import { Bats } from '@/fx/bats';
@@ -51,7 +50,6 @@ import { type BreakablePiece, buildWorld, type BuiltWorld } from '@/world/build-
 import { Elevators } from '@/world/elevators';
 import type { LevelData, ZoneDef } from '@/world/level-data';
 import { NAV, NavGrid, NavPlanner, type NavProfile, type NavQuery } from '@/world/nav-grid';
-import type { PropKind } from '@/world/props';
 
 import { CameraController, type CamMode } from './camera-controller';
 import type { CodyAction, Play } from './cody/cody-actions';
@@ -63,11 +61,11 @@ import { KEYS, STICK } from './controls';
 import { createGameDebug } from './debug';
 import { type Crossing, Garage, inSpot, spotLabel, type SpotRuntime } from './deck/garage';
 import { TransformSequence, type FxKit } from './deck/transform-sequence';
-import { carContacts } from './driving/collisions';
 import { Detours } from './driving/detours';
 import type { DriveWorld } from './driving/drive-actions';
 import { Drivers } from './driving/drivers';
 import { Fleet } from './driving/fleet';
+import { type ImpactEvents, VehicleImpacts } from './driving/impacts';
 import { Refuge } from './driving/refuge';
 import { openPose, type Pose, StuckWatch } from './driving/reset';
 import { Visitors } from './driving/visitors';
@@ -119,8 +117,6 @@ const _prev = new Vector3();
 /** Previous AI vehicle position used for gate-crossing detection. */
 const _drivePrev = new Vector3();
 const _at = new Vector3();
-/** Midpoint of the strongest impact dealt to another car during a contact pass. */
-const _met = new Vector3();
 const NONE: readonly Vector3[] = [];
 
 /**
@@ -147,72 +143,55 @@ const FIRE_ROOM = 0.45;
 
 type Mode = 'title' | 'play';
 /** Events shared by gameplay, tutorial, audio, and visual effects. */
-export type GameEvents = RideEvents & {
-  keysFound: { plate: string };
-  start: null;
-  /** The play update completed; payload is elapsed seconds. Shared simulation and rendering follow afterward. */
-  frame: number;
-  /** Report a new traffic-driver fright response to phantom Cody or the truck. */
-  spooked: { car: Vehicle };
-  /** Report an inventory deed. Use game.triggers for accumulated item milestones. */
-  item: ItemDeed;
-  /** Report a player-selected camera mode. */
-  camera: CamMode;
-  /** Report collected ghosts, the resulting normalized GhASt fill, and the world-space intake position. */
-  swallowed: { n: number; tank: number; at: Vector3 };
-  /** Report the start of GhASt burning. */
-  boosted: null;
-  /** Emitted after a successful summon, with the number of skeletons raised. */
-  summoned: { n: number };
-  /**
-   * Report a new phantom imprint after an unlogged exit, including placement, optional home spot, total count, and game
-   * time.
-   */
-  phantom: { at: Vector3; yaw: number; spot: SpotRuntime | null; n: number; hours: number; day: number };
-  /** Report a horn event with a copied car position and normalized impatience for audio and visual intensity. */
-  honk: { car: Vehicle; at: Vector3; anger: number };
-  /**
-   * Report a vehicle impact for effects. `dv` is the velocity change or landing speed in m/s; for car contacts it is
-   * the larger of the changes received and dealt. `took` measures the reporting vehicle’s change. Continuing contacts
-   * may emit each frame.
-   */
-  impact: { v: Vehicle; at: Vector3; dv: number; took: number; against: 'car' | 'wall' | 'ground' };
-  /**
-   * Report prop knockdown, shattering, or lamp landing. Shattering includes debris bounds; lamp landing includes its
-   * light color.
-   */
-  prop:
-    | { how: 'knocked'; kind: PropKind; at: Vector3; by: Vehicle | null }
-    | { how: 'shattered'; kind: PropKind; at: Vector3; by: Vehicle | null; min: Vector3; max: Vector3 }
-    | { how: 'landed'; kind: PropKind; at: Vector3; light: Color };
-  /** Report a broken parapet at its center and the responsible truck. */
-  smashed: { at: Vector3; by: Vehicle };
-  /** Report a crushed car and the responsible truck. */
-  crushed: { car: Vehicle; by: Vehicle };
-  /** Report a tire entering Randy’s fire. */
-  stoked: { at: Vector3 };
-  sfx: { name: ScriptSound; at: Vector3 };
-  /** Request smoke at a character’s ground position through game.puff. */
-  puff: { at: Vector3 };
-  /** Report collected cash, wallet contents, or glovebox money in dollars. */
-  money: { kind: 'cash' | 'wallet' | 'glovebox'; amount: number };
-  /** Report the start of Cody’s form-change effect with the target phase and position. */
-  outfit: { form: Phase; at: Vector3 };
-  /** Report a new pedestrian fright response, including a driver leaving a vehicle. */
-  fright: { at: Vector3 };
-  /** Phone notification events for ringing, hangup, and incoming text. */
-  phone: 'ring' | 'hangup' | 'text';
-  crossing: Crossing;
-  nightfall: null;
-  sunrise: null;
-  /** Report a quest transition; the tutorial uses the tutorial quest ID. */
-  step: { quest: string; step: string };
-  /** Report a performed Cody action to interested systems. */
-  performed: { action: CodyAction };
-  /** Report an action failure and its reason. */
-  failed: { action: CodyAction; reason: string };
-  reset: { v: Vehicle };
-};
+export type GameEvents = RideEvents &
+  ImpactEvents & {
+    keysFound: { plate: string };
+    start: null;
+    /** The play update completed; payload is elapsed seconds. Shared simulation and rendering follow afterward. */
+    frame: number;
+    /** Report a new traffic-driver fright response to phantom Cody or the truck. */
+    spooked: { car: Vehicle };
+    /** Report an inventory deed. Use game.triggers for accumulated item milestones. */
+    item: ItemDeed;
+    /** Report a player-selected camera mode. */
+    camera: CamMode;
+    /** Report collected ghosts, the resulting normalized GhASt fill, and the world-space intake position. */
+    swallowed: { n: number; tank: number; at: Vector3 };
+    /** Report the start of GhASt burning. */
+    boosted: null;
+    /** Emitted after a successful summon, with the number of skeletons raised. */
+    summoned: { n: number };
+    /**
+     * Report a new phantom imprint after an unlogged exit, including placement, optional home spot, total count, and
+     * game time.
+     */
+    phantom: { at: Vector3; yaw: number; spot: SpotRuntime | null; n: number; hours: number; day: number };
+    /** Report a horn event with a copied car position and normalized impatience for audio and visual intensity. */
+    honk: { car: Vehicle; at: Vector3; anger: number };
+    /** Report a tire entering Randy’s fire. */
+    stoked: { at: Vector3 };
+    sfx: { name: ScriptSound; at: Vector3 };
+    /** Request smoke at a character’s ground position through game.puff. */
+    puff: { at: Vector3 };
+    /** Report collected cash, wallet contents, or glovebox money in dollars. */
+    money: { kind: 'cash' | 'wallet' | 'glovebox'; amount: number };
+    /** Report the start of Cody’s form-change effect with the target phase and position. */
+    outfit: { form: Phase; at: Vector3 };
+    /** Report a new pedestrian fright response, including a driver leaving a vehicle. */
+    fright: { at: Vector3 };
+    /** Phone notification events for ringing, hangup, and incoming text. */
+    phone: 'ring' | 'hangup' | 'text';
+    crossing: Crossing;
+    nightfall: null;
+    sunrise: null;
+    /** Report a quest transition; the tutorial uses the tutorial quest ID. */
+    step: { quest: string; step: string };
+    /** Report a performed Cody action to interested systems. */
+    performed: { action: CodyAction };
+    /** Report an action failure and its reason. */
+    failed: { action: CodyAction; reason: string };
+    reset: { v: Vehicle };
+  };
 
 export type ScriptSound = 'keys-clink' | 'gas-glug' | 'fire-flare' | 'engine-cough' | 'engine-roar';
 
@@ -271,8 +250,7 @@ export class Game {
   private readonly casualties: Casualties;
   /** Summoned skeleton population and hunting behavior. */
   private readonly skeletons: Skeletons;
-  /** Cars awaiting a driver escape after their crash settles, with the threat position. */
-  private readonly shaken = new Map<Vehicle, Vector3>();
+  private readonly impacts: VehicleImpacts;
   readonly money: Money;
   /** Cody’s carried item counts. */
   readonly inventory = new Inventory();
@@ -479,13 +457,13 @@ export class Game {
       rejoin: (car, from) => this.traffic.rejoin(car, from),
       steer: (car, input, dt) => {
         const prev = _drivePrev.copy(car.pos);
-        this.drove(car, car.drive(dt, input, this.world.collision), NUDGE_LOOSEN);
+        this.impacts.afterDrive(car, car.drive(dt, input, this.world.collision), NUDGE_LOOSEN);
         return this.garage.track(car, prev)?.kind === 'logged-in';
       },
       place: (car, at, yaw, dt) => car.place(at.x, at.y, at.z, yaw, 0, dt, this.world.collision),
       alive: (car) => this.fleet.vehicles.includes(car),
       bail: (car, from) => this.crowd.bail(car, from),
-      wrecked: (car, from) => this.shaken.set(car, from.clone()),
+      wrecked: (car, from) => this.impacts.deferBail(car, from),
       parked: (_car, s) => this.hud.toast('SPOOKED INTO THE DECK', spotLabel(s), 'purple', 1.6),
     };
     this.drivers = new Drivers(this.driveWorld);
@@ -590,7 +568,7 @@ export class Game {
       this.world.collision,
       this.fleet,
       this.traffic,
-      (car, ev) => this.drove(car, ev, NUDGE_LOOSEN),
+      (car, ev) => this.impacts.afterDrive(car, ev, NUDGE_LOOSEN),
       this.claims,
     );
     this.ghosts = new Ghosts(level.ghostZones, TUNING.ghosts.ambient);
@@ -630,6 +608,14 @@ export class Game {
       onFoot: (dt) => this.updateOnFoot(dt),
       drive: (car, dt) => this.updateDriving(car, dt),
     });
+    this.impacts = new VehicleImpacts(this.world, this.fleet, this.garage, this.junk, this.events, {
+      bail: (car, from) => this.crowd.bail(car, from),
+      fell: (car) => {
+        if (car === this.driving) {
+          this.codyRide.exit();
+        }
+      },
+    });
     const drips = this.world.slime;
     drips.onSplat = () => {
       _splatSize[0] = drips.splatSize * 0.25;
@@ -648,35 +634,6 @@ export class Game {
 
     this.world.gates.onSnapped = (g, kind) =>
       this.events.emit('prop', { kind, at: g.center.clone(), how: 'knocked', by: null });
-    const props = this.world.props;
-    props.onLanded = () => {
-      if (props.landedKind) {
-        this.events.emit('prop', {
-          kind: props.landedKind,
-          at: props.landed.clone(),
-          how: 'landed',
-          light: props.landedColor.clone(),
-        });
-      }
-    };
-
-    // Copy shatter bounds because the prop system reuses its event data.
-    props.onBroken = () => {
-      const lo = props.brokenMin;
-      const hi = props.brokenMax;
-      const by = this.vehicles.find((v) => v === props.brokenBy) ?? null;
-      if (props.brokenKind) {
-        this.events.emit('prop', {
-          kind: props.brokenKind,
-          at: new Vector3().lerpVectors(lo, hi, 0.5),
-          how: 'shattered',
-          by,
-          min: lo.clone(),
-          max: hi.clone(),
-        });
-      }
-    };
-
     playEffects(this.events, {
       ride: () => this.driving,
       shake: (t) => this.shake(t),
@@ -1488,7 +1445,7 @@ export class Game {
       this.slime.burst(v.pos, 10, 4, [0.12, 0.25], [0.6, 1], SLIME, 0.6, v.pos.y);
     }
 
-    this.drove(v, ev);
+    this.impacts.afterDrive(v, ev);
 
     const c = this.garage.track(v, prev);
     if (c) {
@@ -1535,122 +1492,6 @@ export class Game {
 
     const r = this.gfx.renderer.domElement.getBoundingClientRect();
     return { x: r.left + ((_v.x + 1) / 2) * r.width, y: r.top + ((1 - _v.y) / 2) * r.height };
-  }
-
-  /**
-   * Resolve vehicle contacts through collisions.ts, emit an impact event, and request debris. Dislodge visitor drivers
-   * only at or above `loosen`, in m/s; displaced traffic drivers always lose lane control.
-   */
-  private vehicleContacts(v: Vehicle, loosen = 0): void {
-    let dealt = 0;
-    const dv = carContacts(
-      v,
-      this.vehicles,
-      (o) => v.breed.crush?.hit(v, o, this.crushed) ?? false,
-      (o, odv) => {
-        // Displaced traffic cars have entered physical motion regardless of the visitor threshold.
-        if (o.role === 'traffic' || odv >= loosen) {
-          this.knocked(o, v);
-        }
-
-        // Request debris from both vehicles at their approximate contact midpoint.
-        _at.lerpVectors(v.pos, o.pos, 0.5);
-        this.junk.hit(o, _at, odv);
-        this.junk.hit(v, _at, odv);
-
-        if (odv > dealt) {
-          dealt = odv;
-          _met.copy(_at);
-        }
-      },
-    );
-    // Emit one impact event using the strongest received or dealt velocity change.
-    if (dv > 0 || dealt > 0) {
-      this.events.emit('impact', {
-        v,
-        at: dealt > 0 ? _met.clone() : v.pos.clone(),
-        dv: Math.max(dv, dealt),
-        took: dv,
-        against: 'car',
-      });
-    }
-  }
-
-  /** Abandon a traffic or visitor car and schedule its driver to flee after settling. */
-  private knocked(o: Vehicle, by: Vehicle): void {
-    if (o.role !== 'traffic' && o.role !== 'visitor') {
-      return;
-    }
-
-    o.role = 'parked';
-    this.fleet.abandon(o);
-    this.shaken.set(o, by.pos.clone());
-  }
-
-  /** Step unhandled non-player crashes and release waiting drivers once their cars settle. */
-  private updateWrecks(dt: number): void {
-    for (const v of this.vehicles) {
-      if (!v.crashing || v.role === 'player' || v.gone || v.steppedThisFrame) {
-        continue;
-      }
-
-      this.drove(v, v.drive(dt, null, this.world.collision));
-      // Update physical deck presence without adding a badge-log crossing for a tumbling wreck.
-      v.insideDeck = this.garage.inFootprint(v.pos);
-    }
-
-    for (const [o, from] of this.shaken) {
-      if (!o.resting) {
-        continue;
-      }
-
-      this.shaken.delete(o);
-
-      if (this.mode === 'play' && this.fleet.vehicles.includes(o)) {
-        this.crowd.bail(o, from);
-      }
-    }
-  }
-
-  /**
-   * Process a vehicle step’s broken props, parapets, impacts, and car contacts. `loosen` controls visitor-driver
-   * displacement. Resting crashes do not push other vehicles.
-   */
-  private drove(v: Vehicle, ev: DriveEvents, loosen = 0): void {
-    for (const s of ev.smashed) {
-      if (s.knockdown) {
-        this.knockProp(s, v);
-      } else {
-        this.smash(s.id, v);
-      }
-    }
-
-    if (ev.impact > 0) {
-      this.events.emit('impact', { v, at: v.pos.clone(), dv: ev.impact, took: ev.impact, against: 'wall' });
-    }
-
-    if (ev.landed > 0) {
-      this.events.emit('impact', { v, at: v.pos.clone(), dv: ev.landed, took: ev.landed, against: 'ground' });
-    }
-
-    if (!(v.crashing && v.resting)) {
-      this.vehicleContacts(v, loosen);
-    }
-
-    if (ev.landed > (v.breed.landingTolerance ?? Infinity) && !v.gone) {
-      this.fell(v);
-    }
-  }
-
-  private fell(v: Vehicle): void {
-    v.setStatus('crushed');
-    this.crushed(v, v);
-
-    if (v === this.driving) {
-      this.codyRide.exit();
-    }
-
-    v.role = 'parked';
   }
 
   private onCrossing(c: Crossing): void {
@@ -1707,57 +1548,10 @@ export class Game {
     }
   }
 
-  private smash(solidId: number, v: Vehicle): void {
-    const piece = this.world.breakables.find((b) => b.solid.id === solidId);
-    if (!piece || piece.broken) {
-      return;
-    }
-
-    piece.broken = true;
-    piece.group.visible = false;
-    this.events.emit('smashed', { at: piece.center.clone(), by: v });
-  }
-
-  /**
-   * Apply prop knockdown with a lateral impulse away from the vehicle and reduce vehicle velocity. Shattering props
-   * report through props.onBroken; other knockdowns emit a prop event here.
-   */
-  private knockProp(s: Solid, v: Vehicle): void {
-    const fx = Math.sin(v.yaw);
-    const fz = Math.cos(v.yaw);
-    const side = ((s.min[0] + s.max[0]) / 2 - v.pos.x) * -fz + ((s.min[2] + s.max[2]) / 2 - v.pos.z) * fx;
-    const kick = (side === 0 ? (Math.random() < 0.5 ? -1 : 1) : Math.sign(side)) * Math.hypot(v.vel.x, v.vel.z) * 0.8;
-    const kind = this.world.props.knock(s.id, v.vel.x - fz * kick, v.vel.z + fx * kick, v);
-    if (!kind) {
-      return;
-    }
-
-    const k = kind.keep ?? v.breed.knockKeep;
-    v.vel.x *= k;
-    v.vel.z *= k;
-
-    // Shattering already emitted its event through props.onBroken.
-    if (kind.shatter) {
-      return;
-    }
-
-    this.events.emit('prop', {
-      kind,
-      at: new Vector3((s.min[0] + s.max[0]) / 2, v.pos.y + 1, (s.min[2] + s.max[2]) / 2),
-      how: 'knocked',
-      by: v,
-    });
-  }
-
   private deathGhost(at: Vector3): void {
     this.sprites.spray(_at.copy(at).setY(at.y + 0.6), 3, 2, [1.6, 2.6], WHITE, 1.2, 2.4, 1.4, 'ghost', 0.8);
     this.ghosts.rise(at);
   }
-
-  private readonly crushed = (car: Vehicle, by: Vehicle): void => {
-    this.events.emit('crushed', { car, by });
-    this.junk.crushed(car);
-  };
 
   private onNightfall(): void {
     this.hud.toast('THE MOON IS UP', this.cody.holdForm ? 'THE DECK WAKES UP' : 'PHANTOM CODY RISES', '', 3.2);
@@ -1782,13 +1576,7 @@ export class Game {
       this.codyFx = 0;
     }
 
-    for (const b of this.world.breakables) {
-      b.broken = false;
-      b.solid.enabled = true;
-      b.group.visible = true;
-    }
-
-    this.world.props.repair();
+    this.impacts.repair();
     this.skeletons.crumbleAll();
 
     // Start civilian-form transformations for trucks without an active status.
@@ -1875,7 +1663,7 @@ export class Game {
 
       // Defer driver escape from detour crashes until the car settles.
       for (const v of this.detours.stranded.splice(0)) {
-        this.shaken.set(v, v.pos.clone());
+        this.impacts.deferBail(v, v.pos);
       }
     }
 
@@ -1893,7 +1681,7 @@ export class Game {
     this.garage.update(dt, !!this.driving && this.driving.form === 'car' && this.conditions.parking(), nightness);
     const focus = this.view.target;
     this.dayNight.apply(this.clock.hours, (focus.x - focus.z) * 0.002 + this.iso.azimuth * 0.3);
-    this.updateWrecks(dt);
+    this.impacts.update(dt, this.mode === 'play');
     this.casualties.update(dt, this.vehicles);
     this.blood.update(dt);
     this.world.slime.update(dt, focus);
