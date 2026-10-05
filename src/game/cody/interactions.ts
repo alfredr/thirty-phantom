@@ -113,7 +113,7 @@ export class Interactions {
     return items.concat(
       [...inventory.keys.held].map((keys) => ({
         kind: `keys-${keys.car.id}`,
-        name: `KEYS FOR ${keys.car.plate}`,
+        name: keys.heat === 'cool' ? `KEYS FOR ${keys.car.plate}` : 'MELTED KEYS',
         icon: ITEM_BREEDS.keys.icon,
         count: 1,
         actions: [],

@@ -106,6 +106,9 @@ export interface RandyRig extends CharacterRig {
   skewer: Object3D;
   /** Badge node in Randy’s left hand, initially hidden until he receives it. */
   badge: Object3D;
+  palmPhone: Object3D;
+  leftHand: Object3D;
+  rightHand: Object3D;
 }
 
 /** A coat panel facing out at angle `a` (0 = straight ahead, +x at a quarter turn), lined on the inside. */
@@ -145,6 +148,14 @@ function skewer(hand: Box): Part<Mat> {
   return group({ name: 'skewer' }, [
     solid(along(STICK / 2).sized(0.025, 0.025, STICK), 'stick', { rot: [STICK_DROP, 0, 0], cast: false }),
     solid(along(STICK - 0.07).sized(0.12, 0.09, 0.14), 'bark', { rot: [STICK_DROP, 0, 0], cast: false }),
+  ]);
+}
+
+function palmPhone(hand: Box): Part<Mat> {
+  const body = box(0.07, 0.025, 0.13).at(hand.center[0], hand.bottom - 0.01, hand.center[2] + 0.07);
+  return group({ name: 'palmPhone' }, [
+    solid(body, 'phone', NO_CAST),
+    solid(body.sized(0.05, 0.01, 0.07).move(0, 0.013, 0.02), 'screen', NO_CAST),
   ]);
 }
 
@@ -273,7 +284,11 @@ export function randy() {
           const hand = arm.sized(0.14, 0.14, 0.16).under(arm.bottom + 0.01);
           return limb<Mat>(s < 0 ? 'armL' : 'armR', arm, 'coat', [
             solid(hand, 'skin'),
-            ...(s > 0 ? [skewer(hand)] : [badge(hand)]),
+            group<Mat>(
+              { name: s < 0 ? 'leftHand' : 'rightHand', at: [hand.center[0], hand.bottom, hand.center[2]] },
+              [],
+            ),
+            ...(s > 0 ? [skewer(hand)] : [badge(hand), palmPhone(hand)]),
           ]);
         }),
         pivot('head', [0, torsoTop + 0.02, 0], headParts),
@@ -282,7 +297,7 @@ export function randy() {
   );
 }
 
-function hideBadge(b: Object3D): Object3D {
+function hidden(b: Object3D): Object3D {
   b.visible = false;
   return b;
 }
@@ -297,6 +312,9 @@ export function buildRandy(): RandyRig {
     phone: built.node('phone'),
     pocket: built.node('pocket'),
     skewer: built.node('skewer'),
-    badge: hideBadge(built.node('badge')),
+    badge: hidden(built.node('badge')),
+    palmPhone: hidden(built.node('palmPhone')),
+    leftHand: built.node('leftHand'),
+    rightHand: built.node('rightHand'),
   };
 }

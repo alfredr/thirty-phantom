@@ -5,7 +5,7 @@ import { Vector3 } from 'three';
 
 import { loadModules } from './modules.mjs';
 
-const [{ Ghosts }] = await loadModules('/src/fx/ghosts.ts');
+const [{ Ghosts, shareOut }] = await loadModules('/src/fx/ghosts.ts');
 
 // Provide the canvas API needed to construct ghost textures for movement tests.
 function withCanvas(make) {
@@ -59,4 +59,60 @@ test('an intake pulls a ghost only while it is within reach', () => {
   const was = sprite.position.clone();
   assert.equal(ghosts.suck(sprite.position.clone().add(new Vector3(20, 0, 0)), 6, 0.1), 0);
   assert.deepEqual(sprite.position.toArray(), was.toArray());
+});
+
+const inZone = (p, z) =>
+  p.x >= z.min[0] && p.x <= z.max[0] && p.y >= z.min[1] && p.y <= z.max[1] && p.z >= z.min[2] && p.z <= z.max[2];
+
+test('ambient ghosts are shared out by zone weight', () => {
+  assert.deepEqual(
+    shareOut([{ weight: 2 }, {}], 42).map((s) => s.n),
+    [28, 14],
+  );
+  assert.deepEqual(
+    shareOut([{}, {}, {}], 10).map((s) => s.n),
+    [4, 3, 3],
+  );
+  assert.deepEqual(shareOut([], 10), []);
+
+  const yard = { min: [0, 1, 0], max: [40, 9, 40], weight: 2 };
+  const deck = { min: [100, 1, 100], max: [140, 9, 140] };
+  const ghosts = withCanvas(() => new Ghosts([deck, yard], 42));
+  const at = ghosts.root.children.map((s) => s.position);
+  assert.equal(at.filter((p) => inZone(p, yard)).length, 28);
+  assert.equal(at.filter((p) => inZone(p, deck)).length, 14);
+});
+
+test("a collected ghost returns after its zone's respawn time, or the default", () => {
+  for (const [zone, seconds] of [
+    [{ min: [-10, 1, -10], max: [10, 3, 10], respawn: 8 }, 8],
+    [{ min: [-10, 1, -10], max: [10, 3, 10] }, 25],
+  ]) {
+    const ghosts = withCanvas(() => new Ghosts([zone], 1));
+    ghosts.update(1 / 60, 1);
+    const [sprite] = ghosts.root.children;
+    assert.equal(ghosts.suck(sprite.position.clone(), 6, 0.1), 1);
+    assert.equal(ghosts.active().length, 0);
+    const steps = Math.round(seconds * 10);
+    for (let i = 0; i < steps - 2; i++) {
+      ghosts.update(0.1, 1);
+    }
+
+    assert.equal(sprite.visible, false, `still gone just before ${seconds} s`);
+    ghosts.update(0.1, 1);
+    ghosts.update(0.1, 1);
+    ghosts.update(0.1, 1);
+    assert.equal(sprite.visible, true, `back after ${seconds} s`);
+    assert.equal(ghosts.active().length, 1);
+  }
+});
+
+test('active() lists collectable ghosts only while the ghosts show', () => {
+  const ghosts = withCanvas(() => new Ghosts([{ min: [-10, 1, -10], max: [10, 3, 10] }], 3));
+  ghosts.update(1 / 60, 1);
+  assert.equal(ghosts.active().length, 3);
+  ghosts.rise(new Vector3(30, 0, 30));
+  assert.equal(ghosts.active().length, 4);
+  ghosts.update(1 / 60, 0);
+  assert.equal(ghosts.active().length, 0);
 });

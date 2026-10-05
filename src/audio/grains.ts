@@ -135,6 +135,7 @@ export function engine(k: Kit, out: AudioNode, t: number, buf: AudioBuffer, mark
   const beat = Array.from({ length: p.cyl ?? 8 }, () => Math.random());
   let rpm = 0;
   let load = 0;
+  let miss = 0;
   let next = t + LEAD;
   let cycle = 0;
   let coasting = Infinity;
@@ -166,7 +167,7 @@ export function engine(k: Kit, out: AudioNode, t: number, buf: AudioBuffer, mark
       const c = marks[i];
       const a = marks[i - n];
       const b = marks[i + n];
-      if (c && a && b) {
+      if (c && a && b && Math.random() >= miss) {
         const r = clamp(hz / c[1], 1 - NUDGE, 1 + NUDGE);
         const src = ctx.createBufferSource();
         src.buffer = buf;
@@ -223,6 +224,7 @@ export function engine(k: Kit, out: AudioNode, t: number, buf: AudioBuffer, mark
     set: (c: Controls, at: number) => {
       rpm = clamp(c.rpm ?? 0, 0, 1);
       load = clamp(c.load ?? 0, 0, 1);
+      miss = clamp(c.miss ?? 0, 0, 1);
       tone.frequency.setTargetAtTime(p.tone[0] + (p.tone[1] - p.tone[0]) * (0.3 * rpm + 0.7 * load), at, 0.04);
       band.frequency.setTargetAtTime(p.breath.band[0] + (p.breath.band[1] - p.breath.band[0]) * rpm, at, 0.04);
       breath.gain.setTargetAtTime(p.breath.vol * load * (0.3 + 0.7 * rpm), at, 0.05);

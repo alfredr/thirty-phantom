@@ -5,12 +5,14 @@ import { Vector3 } from 'three';
 
 import { loadModules } from './modules.mjs';
 
-const [{ Crowd }, { Rng }, { NavJob, NAV }, { Polyline }, { Ignition }] = await loadModules(
+const [{ Crowd }, { Rng }, { NavJob, NAV }, { Polyline }, { Ignition }, { Casualties }, { TUNING }] = await loadModules(
   '/src/game/town/crowd.ts',
   '/src/engine/core/rng.ts',
   '/src/world/nav-grid.ts',
   '/src/engine/nav/polyline.ts',
   '/src/actors/vehicles/ignition.ts',
+  '/src/game/town/casualties.ts',
+  '/src/config.ts',
 );
 
 /** Create one pedestrian with a parked car and overridable navigation services. */
@@ -146,3 +148,74 @@ for (const route of ['pending', 'ready', 'following']) {
     assert.ok(walker.pos.distanceTo(afterShove) > 0, 'they keep moving after the shove');
   });
 }
+
+function killings(seed, kills, how) {
+  const casualties = new Casualties({ groundAt: () => 0 }, { spray() {}, drip() {} });
+  const nav = { spotNear: () => null, standable: () => 0, heightAt: () => 0 };
+  const crowd = new Crowd({ add() {} }, { request: () => null }, nav, new Rng(seed), () => {}, casualties);
+  const raised = [];
+  let dead = 0;
+  let kill = 0;
+  crowd.onGhost = () => raised.push(kill);
+  casualties.onDeath = ((onDeath) => (c, cause) => {
+    dead++;
+    onDeath(c, cause);
+  })(casualties.onDeath);
+
+  for (kill = 0; kill < kills; kill++) {
+    const parked = { pos: new Vector3(), yaw: 0, params: { radius: 1 } };
+    parked.ignition = new Ignition(parked, 'ignition');
+    crowd.arrive(parked);
+    const [p] = crowd.living();
+    const at = p.walker.pos;
+    if (how === 'claws') {
+      crowd.maul(p, at.clone().add(new Vector3(-1, 0, 0)), 100);
+      continue;
+    }
+
+    const { mass, speed } = how;
+    const vehicle = {
+      pos: at.clone().add(new Vector3(-1.5, 0, 0)),
+      vel: new Vector3(speed, 0, 0),
+      yaw: Math.PI / 2,
+      params: { radius: 1, length: 4 },
+      mass,
+      gone: false,
+    };
+    crowd.update(1 / 30, {
+      near: at,
+      day: true,
+      vehicles: [vehicle],
+      driving: null,
+      avoid: null,
+      visitors: { incoming: Infinity, waiting: () => true },
+    });
+  }
+
+  return { raised, dead };
+}
+
+const CAR = { mass: 1300, speed: 20 };
+const TRUCK = { mass: 4000, speed: 12 };
+
+for (const [name, how] of [
+  ['car', CAR],
+  ['monster truck', TRUCK],
+]) {
+  test(`about one in five pedestrians a ${name} kills leaves a ghost, the same ones for the same seed`, () => {
+    const kills = 300;
+    const first = killings(7, kills, how);
+    assert.equal(first.dead, kills, 'every hit is fatal');
+    const rate = first.raised.length / kills;
+    const chance = TUNING.ghosts.carKillChance;
+    assert.ok(Math.abs(rate - chance) < 0.06, `rate ${rate} is near ${chance}`);
+    assert.deepEqual(killings(7, kills, how).raised, first.raised);
+    assert.notDeepEqual(killings(8, kills, how).raised, first.raised);
+  });
+}
+
+test('pedestrians killed by claws leave no run-over ghost', () => {
+  const { raised, dead } = killings(7, 40, 'claws');
+  assert.equal(dead, 40);
+  assert.deepEqual(raised, []);
+});

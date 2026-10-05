@@ -22,9 +22,10 @@ export class GhostFuel {
     dt: number,
     ghosts: Pick<Ghosts, 'suck'>,
     events: Pick<Emitter<FuelEvents>, 'emit'>,
+    feed = true,
   ): number {
     const { intake, boost: burner } = car.breed;
-    if (intake) {
+    if (intake && feed) {
       car.rig.body.localToWorld(this.at.set(...intake.at));
       const n = ghosts.suck(this.at, intake.reach, dt);
       if (n > 0) {

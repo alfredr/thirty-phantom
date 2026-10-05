@@ -33,6 +33,7 @@ function setup() {
     canEnter: () => true,
     canHotwire: () => false,
     escaping: () => false,
+    locked: () => null,
     inFreeSpot: () => false,
     enter: (v) => log.push(['enter', v.name]),
     exit: () => log.push(['exit']),

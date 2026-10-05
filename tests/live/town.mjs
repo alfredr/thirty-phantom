@@ -53,21 +53,31 @@ export function atMostThreeSkeletonsOnOnePerson() {
   g.debug.night();
   sim.until(() => g.player.form === 'night', 20, []);
   const me = g.player.pos;
-  const [victim, ...rest] = g.crowd.living();
+  const [victim] = g.crowd.living();
   if (!victim) {
     return { ok: false, why: 'nobody about' };
   }
 
-  // Move the other pedestrians away to isolate one nearby target.
-  for (const p of rest) {
-    p.walker.place(me.clone().add({ x: 400, y: 0, z: 400 }), 0);
-  }
+  // Keep the other pedestrians, including new arrivals, away to isolate one nearby target.
+  const away = me.clone().add({ x: 400, y: 0, z: 400 });
+  const isolate = () => {
+    for (const p of g.crowd.living()) {
+      if (p !== victim) {
+        p.walker.place(away, 0);
+      }
+    }
+  };
 
+  isolate();
   victim.walker.place(me.clone().add({ x: 5, y: 0, z: 0 }), 0);
   let raised = 0;
   for (let k = 0; k < 3; k++) {
     raised += g.summon();
-    sim.run(130);
+
+    for (let f = 0; f < 130; f++) {
+      isolate();
+      sim.run(1);
+    }
   }
 
   const hunters = g.skeletons.list.filter((s) => s.hunting?.target === victim).length;

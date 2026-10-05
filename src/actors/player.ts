@@ -28,6 +28,12 @@ export interface MoveFrame {
   screenRight(out: Vector3): Vector3;
 }
 
+export interface FootBarrier {
+  keepOut(from: Vector3, p: V3, r: number, height: number): boolean;
+}
+
+const _from = new Vector3();
+
 /** Camera distance thresholds in meters and minimum opacity used to fade Cody when the camera approaches. */
 const FADE = { near: 0.4, far: 1.6, min: 0.15 };
 
@@ -211,6 +217,14 @@ export class Player {
     this.model.setForm(f);
   }
 
+  offer(amount: number): void {
+    this.model.offer(amount);
+  }
+
+  get palm(): Object3D {
+    return this.model.palm;
+  }
+
   /** Attach Cody to the saddle, reset his local transform, and show the riding pose. */
   mount(saddle: Object3D): void {
     saddle.add(this.root);
@@ -242,6 +256,7 @@ export class Player {
     frame: MoveFrame,
     world: CollisionWorld,
     blockers: { pos: Vector3; r: number }[],
+    barrier: FootBarrier | null = null,
   ): void {
     const P = TUNING.player;
     let mx = 0;
@@ -270,6 +285,7 @@ export class Player {
     this.vel.x = damp(this.vel.x, mx * speed, accel, dt);
     this.vel.z = damp(this.vel.z, mz * speed, accel, dt);
     const oldY = this.pos.y;
+    _from.copy(this.pos);
     this.pos.x += this.vel.x * dt;
     this.pos.z += this.vel.z * dt;
     const p: V3 = [this.pos.x, this.pos.y, this.pos.z];
@@ -286,6 +302,7 @@ export class Player {
       }
     }
 
+    barrier?.keepOut(_from, p, P.radius, P.height);
     this.pos.x = p[0];
     this.pos.z = p[2];
 

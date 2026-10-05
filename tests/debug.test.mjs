@@ -24,7 +24,15 @@ function fixture() {
     iso: { snapTo() {} },
     chase: { yaw: 1, snapBehind() {} },
     vehicles: [],
-    garage: { inFootprint: (pos) => pos.x >= 0, actual: () => 1, logged: 3, phantoms: 2 },
+    garage: {
+      inFootprint: (pos) => pos.x >= 0,
+      resync(v) {
+        v.insideDeck = this.inFootprint(v.pos);
+      },
+      actual: () => 1,
+      logged: 3,
+      phantoms: 2,
+    },
     board: (car) => {
       boarded = car;
     },

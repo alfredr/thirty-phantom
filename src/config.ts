@@ -276,6 +276,7 @@ export const TUNING = {
    * fraction.
    */
   ghast: { reach: 7, perGhost: 0.2, burn: 0.3, push: 1.6, top: 0.45 },
+  ghosts: { ambient: 42, carKillChance: 0.2 },
   /** Collectible parts released by vehicle impacts. */
   junk: {
     /**
@@ -303,8 +304,11 @@ export const TUNING = {
     reach: 1.2,
   },
   garage: { spots: 30 },
-  /** Minimum vehicle speed in m/s for knocking down a street lamp. */
-  knockdown: { speed: 7 },
+  /**
+   * Minimum vehicle speed in m/s for knocking down a street lamp, and the momentum in kg m/s per unit of scale that a
+   * boosting vehicle needs to fell a big tree.
+   */
+  knockdown: { speed: 7, boosted: 150000 },
   /** Valet movement, conversation, payment, and recovery settings. */
   valet: {
     /** Spacing between valets at the podium, in meters. */

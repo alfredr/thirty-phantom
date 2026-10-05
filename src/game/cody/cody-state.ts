@@ -5,15 +5,15 @@ import type { Player } from '@/actors/player';
 import type { Vehicle } from '@/actors/vehicles/vehicle';
 
 /** Abilities available to Cody based on his current form. */
-export type CodyAbility = 'steal' | 'possess' | 'truck' | 'summon';
+export type CodyAbility = 'steal' | 'possess' | 'truck' | 'summon' | 'intake';
 
 /**
- * Daytime Cody can steal cars. Phantom Cody can possess cars, drive the monster truck, and summon skeletons.
- * CodyRide.possessable restricts possession to cars inside the deck at night.
+ * Daytime Cody can steal cars. Phantom Cody can possess cars, drive the monster truck, collect ghosts with its intake,
+ * and summon skeletons. CodyRide.possessable restricts possession to cars inside the deck at night.
  */
 const ABILITIES: Readonly<Record<CodyForm, readonly CodyAbility[]>> = {
   day: ['steal'],
-  night: ['possess', 'truck', 'summon'],
+  night: ['possess', 'truck', 'summon', 'intake'],
 };
 
 /** How NPCs perceive Cody: his form on foot, or the phantom truck while he drives it. */
@@ -49,6 +49,14 @@ export class CodyState {
   /** Hold Cody's current form and grant extra abilities until release() is called. */
   hold(...abilities: CodyAbility[]): void {
     this.holdForm = true;
+
+    for (const a of abilities) {
+      this.granted.add(a);
+    }
+  }
+
+  grant(abilities: readonly CodyAbility[]): void {
+    this.granted.clear();
 
     for (const a of abilities) {
       this.granted.add(a);

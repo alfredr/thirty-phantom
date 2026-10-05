@@ -6,12 +6,16 @@ import type { Control } from '@/game/controls';
 import '@/ui/burner.css';
 import { keyText } from '@/ui/hud';
 
+import type { CallLine, Calls } from './calls';
 import type { Messages } from './messages';
+import { type CallOptions, type Outreach, OutreachQueue, type TextOptions } from './outreach';
+import { type GameTime, type Stamp, stampAt } from './stamp';
 
 import './phone.css';
 
-/** Wall-clock delay in milliseconds before an automatic notification retracts to the screen edge. */
-const HOLD = 9000;
+export type { CallLine } from './calls';
+export type { CallOptions, Outreach, TextOptions } from './outreach';
+
 /** Vertical scroll distance per menu control press, in CSS pixels. */
 const SCROLL = 48;
 /** The keys that open apps from the home screen, in order. */
@@ -31,6 +35,7 @@ export interface PhoneApp {
   update?(): void;
   /** Unread count shown in the app’s home-screen badge. */
   unseen?(): number;
+  press?(control: Control): boolean;
 }
 
 /** What the phone reads from the game. */
@@ -39,16 +44,24 @@ export interface PhoneStatus {
   time(): string;
   /** The current task, or null. */
   goal(): string | null;
+  how(): string | null;
+  now(): GameTime;
 }
 
 /**
- * Manage the burner phone’s applications, notifications, and call screen. Manual opening holds the phone onscreen and
- * reserves navigation controls. Automatic notifications retract to an edge tab after HOLD; calls remain raised until
- * ended. The current task appears separately beneath the HUD clock.
+ * Manage the burner phone’s applications, text pop-ups, and call screen. Manual opening holds the phone onscreen and
+ * reserves navigation controls. Texts and calls take turns through one queue; calls remain raised until ended. The
+ * current task appears separately beneath the HUD clock.
  */
 export class Phone {
   /** Notify the game when ringing starts, ringing stops, or a text arrives. */
   onBuzz: ((what: 'ring' | 'hangup' | 'text') => void) | null = null;
+  quiet: () => boolean = () => false;
+  private readonly queue: OutreachQueue;
+  private readonly pop: HTMLDivElement;
+  private readonly popMsg: HTMLElement;
+  private readonly popFoot: HTMLElement;
+  private ringAt: Stamp | null = null;
   private readonly frame: HTMLDivElement;
   private readonly badges = new Map<PhoneApp, HTMLElement>();
   private readonly bodies = new Map<PhoneApp, HTMLElement>();
@@ -63,18 +76,18 @@ export class Phone {
   /** Whether manually opened; held phones reserve controls and do not retract automatically. */
   private held = false;
   private unfocus: (() => void) | null = null;
-  private lower = 0;
   /** Applications in home-screen order, with messages first. */
   readonly apps: readonly PhoneApp[];
 
   constructor(
     hud: HTMLElement,
     private readonly focus: Focus<Control>,
-    status: PhoneStatus,
+    private readonly status: PhoneStatus,
     readonly messages: Messages,
+    readonly calls: Calls,
     others: readonly PhoneApp[],
   ) {
-    const apps = [messages, ...others];
+    const apps = [messages, calls, ...others];
     this.apps = apps;
     messages.landed = () => this.buzz();
     this.frame = el('div', 'burner', hud);
@@ -116,11 +129,42 @@ export class Phone {
     el('div', 'state', call, 'INCOMING CALL');
     el('div', 'buttons', call, '<i class="no"></i><i class="ok"></i>');
     const goal = el('div', 'burner-goal', hud);
+    const how = el('div', 'burner-how', hud);
     this.views.add({
       read: () => status.goal(),
       draw: (task) => {
         goal.classList.toggle('on', !!task);
         goal.innerHTML = task ? keyText(task) : '';
+      },
+    });
+    this.views.add({
+      read: () => (status.goal() ? status.how() : null),
+      draw: (line) => {
+        how.classList.toggle('on', !!line);
+        how.innerHTML = line ? keyText(line) : '';
+      },
+    });
+    this.pop = el('div', 'text-pop', hud);
+    const card = el('div', 'text-pop-card', this.pop);
+    const head = el('div', 'text-pop-head', card);
+    el('div', 'burner-avatar', head);
+    el('div', 'text-pop-who', head, '<span class="name">RANDY</span><span class="sub">NEW TEXT</span>');
+    this.popMsg = el('div', 'text-pop-msg', card);
+    this.popFoot = el('div', 'text-pop-foot', card);
+    card.addEventListener('click', () => this.queue.acknowledge());
+    this.queue = new OutreachQueue({
+      show: (msg, opts) => this.showPop(msg, opts),
+      hide: () => this.pop.classList.remove('on'),
+      fly: () => this.flyPop(),
+      land: (msg) => this.messages.post(msg, stampAt(this.status.now())),
+      ring: () => this.ring(),
+    });
+    focus.add({
+      controls: () => (this.queue.awaitingKey ? ['interact'] : []),
+      press: (_control, { repeat }) => {
+        if (!repeat) {
+          this.queue.acknowledge();
+        }
       },
     });
     // Tapping the retracted tab manually opens the previously selected app.
@@ -144,7 +188,7 @@ export class Phone {
   /** Raise and hold the phone on app `id`, or home when the ID is absent or unknown. Reserve phone controls. */
   open(id?: string): void {
     this.held = true;
-    this.raise(false);
+    this.raise();
     this.go(this.apps.find((a) => a.id === id) ?? null);
     this.unfocus ??= this.focus.add({
       controls: () => this.controls(),
@@ -157,44 +201,59 @@ export class Phone {
     this.held = false;
     this.unfocus?.();
     this.unfocus = null;
-    window.clearTimeout(this.lower);
     this.frame.classList.remove('up', 'peek');
   }
 
-  /** Show a notification app temporarily unless the phone is manually held. */
-  notify(id: string): void {
-    if (this.held) {
-      return;
-    }
-
-    this.go(this.apps.find((a) => a.id === id) ?? null);
-    this.raise();
+  text(msg: string, opts?: TextOptions): void {
+    this.queue.text(msg, opts);
   }
 
-  /** End any call, optionally raise Messages, and queue HTML text with `{action}` key-cap placeholders. */
-  text(msg: string): void {
-    this.hangUp();
-    this.notify('messages');
-    this.messages.text(msg);
+  queueCall(start: () => void, opts?: CallOptions): void {
+    this.queue.queueCall(start, opts);
   }
 
-  /** Randy's face (a data URL), for his contact and the call screen. */
+  drop(key: string): void {
+    this.queue.drop(key);
+  }
+
+  get popupVisible(): boolean {
+    return this.queue.visible;
+  }
+
+  get pending(): number {
+    return this.queue.pending;
+  }
+
+  get calling(): boolean {
+    return this.queue.calling;
+  }
+
+  get outreaches(): readonly Outreach[] {
+    return this.queue.history;
+  }
+
+  get elapsed(): number {
+    return this.queue.elapsed;
+  }
+
+  /** Randy's face (a data URL), for his contact, the call screen and text pop-ups. */
   setAvatar(url: string): void {
-    for (const a of this.frame.querySelectorAll<HTMLElement>('.burner-avatar')) {
+    for (const a of [this.frame, this.pop].flatMap((root) => [
+      ...root.querySelectorAll<HTMLElement>('.burner-avatar'),
+    ])) {
       a.style.backgroundImage = `url(${url})`;
     }
   }
 
-  /** Raise the incoming-call screen and start ringing without automatic retraction. */
-  call(): void {
-    this.frame.classList.add('calling');
-    this.onBuzz?.('ring');
-    this.raise(false);
-  }
-
-  /** End ringing and restore the previous screen. Retract to the edge unless the phone is manually held. */
-  endCall(): void {
+  endCall(lines?: readonly CallLine[]): void {
+    const at = this.ringAt;
+    this.ringAt = null;
     this.hangUp();
+    this.queue.endCall();
+
+    if (at) {
+      this.calls.log('RANDY', at, lines ?? []);
+    }
 
     if (!this.held) {
       this.peek();
@@ -212,11 +271,13 @@ export class Phone {
   /** End the call and put the phone away when the tutorial finishes. */
   close(): void {
     this.hangUp();
+    this.queue.endCall();
     this.putAway();
   }
 
-  /** Refresh status bindings and unread badges, then update the selected app if the phone is raised. */
-  update(): void {
+  /** Run the text and call queue, refresh status bindings and unread badges, then update the selected app if raised. */
+  update(dt: number): void {
+    this.queue.update(dt, this.quiet());
     this.views.update();
 
     for (const [app, badge] of this.badges) {
@@ -245,7 +306,9 @@ export class Phone {
 
   private controls(): readonly Control[] {
     if (this.app) {
-      return ['phone', 'cancel', 'menuUp', 'menuDown'];
+      return this.app.press
+        ? ['phone', 'cancel', 'menuUp', 'menuDown', 'confirm']
+        : ['phone', 'cancel', 'menuUp', 'menuDown'];
     }
 
     return ['phone', 'cancel', 'menuUp', 'menuDown', 'confirm', ...APP_KEYS.slice(0, this.apps.length)];
@@ -260,6 +323,8 @@ export class Phone {
       } else {
         this.putAway();
       }
+    } else if (this.app?.press?.(control)) {
+      return;
     } else if (this.app) {
       const body = this.bodies.get(this.app);
       if (body) {
@@ -292,8 +357,8 @@ export class Phone {
       this.pick = Math.max(0, this.apps.indexOf(app));
     }
 
-    app?.shown?.(true);
     this.showScreen();
+    app?.shown?.(true);
   }
 
   private showScreen(): void {
@@ -307,6 +372,63 @@ export class Phone {
     this.icons.forEach((icon, i) => icon.classList.toggle('picked', i === this.pick));
   }
 
+  private ring(): void {
+    this.ringAt = stampAt(this.status.now());
+    this.frame.classList.add('calling');
+    this.onBuzz?.('ring');
+    this.raise();
+  }
+
+  private showPop(msg: string, opts: TextOptions): void {
+    this.popMsg.innerHTML = keyText(msg);
+    const pop = this.pop;
+
+    if (pop.classList.contains('fly')) {
+      pop.style.transition = 'none';
+      pop.classList.remove('fly');
+      void pop.offsetWidth;
+      pop.style.transition = '';
+    }
+
+    pop.classList.remove('brief', 'until', 'key');
+
+    if (opts.until) {
+      pop.classList.add('until');
+      this.popFoot.innerHTML = '';
+    } else if (opts.brief !== undefined) {
+      pop.classList.add('brief');
+      pop.style.setProperty('--brief', `${opts.brief}s`);
+      this.popFoot.innerHTML = '<i class="text-pop-timer"></i>';
+    } else {
+      pop.classList.add('key');
+      this.popFoot.innerHTML = keyText('{interact} OK');
+    }
+
+    void pop.offsetWidth;
+    pop.classList.add('on');
+
+    if (!this.held && !this.frame.classList.contains('up')) {
+      this.frame.classList.add('peek');
+    }
+  }
+
+  private flyPop(): void {
+    const pop = this.pop;
+    const card = pop.firstElementChild;
+    if (!card) {
+      return;
+    }
+
+    const from = card.getBoundingClientRect();
+    const to = this.frame.getBoundingClientRect();
+    const tx = Math.max(to.left, 0) + (Math.min(to.right, window.innerWidth) - Math.max(to.left, 0)) / 2;
+    const ty = to.top + to.height * 0.35;
+    pop.style.setProperty('--fx', `${tx - (from.left + from.width / 2)}px`);
+    pop.style.setProperty('--fy', `${ty - (from.top + from.height / 2)}px`);
+    pop.classList.add('fly');
+    pop.classList.remove('on');
+  }
+
   private hangUp(): void {
     if (!this.frame.classList.contains('calling')) {
       return;
@@ -316,20 +438,12 @@ export class Phone {
     this.onBuzz?.('hangup');
   }
 
-  /** Raise the phone and optionally schedule edge retraction after HOLD milliseconds. */
-  private raise(lower = true): void {
+  private raise(): void {
     this.frame.classList.remove('peek');
     this.frame.classList.add('up');
-    window.clearTimeout(this.lower);
-
-    if (lower) {
-      this.lower = window.setTimeout(() => this.peek(), HOLD);
-    }
   }
 
   private peek(): void {
-    window.clearTimeout(this.lower);
-
     if (this.held) {
       return;
     }

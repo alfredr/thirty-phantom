@@ -13,6 +13,7 @@
   --slime-hot: #d2ff6a;
   --slime-deep: #3a9a00;
   --warm: #ffcf73;
+  --alarm: #ff3b3b;
   --drip: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 26' preserveAspectRatio='none'%3E%3Cpath d='M0,0 H200 V7 Q196,7 195,12 Q194,20 191,20 Q188,20 188,12 Q187,7 180,7 H150 Q146,7 146,15 Q145,24 141,24 Q137,24 137,15 Q136,7 132,7 H95 Q92,7 92,11 Q91,16 89,16 Q87,16 87,11 Q86,7 82,7 H40 Q36,7 36,14 Q35,21 32,21 Q29,21 29,14 Q28,7 24,7 H0 Z' fill='%238dff1f' stroke='%230d0716' stroke-width='1.5'/%3E%3C/svg%3E");
 }
 
@@ -930,6 +931,13 @@ body.dialogue-open .hud-wares {
 .ware-slot.on {
   box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.8), inset 0 0 0 2px var(--slime), 0 0 10px rgba(141, 255, 31, 0.4);
 }
+.ware-slot.no {
+  cursor: not-allowed;
+}
+.ware-slot.no:hover,
+.ware-slot.no.on {
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.8), inset 0 0 0 2px var(--alarm), 0 0 10px rgba(255, 59, 59, 0.45);
+}
 .ware-slot.empty {
   cursor: default;
   background: rgba(13, 7, 22, 0.45);
@@ -948,6 +956,10 @@ body.dialogue-open .hud-wares {
 .ware-slot .item-icon.icon-burner {
   width: 24px;
   height: 33px;
+}
+.ware-slot .item-icon.icon-molten {
+  width: 40px;
+  height: 36px;
 }
 .inv-item .item-icon {
   flex: none;
@@ -992,6 +1004,147 @@ body.dialogue-open .hud-wares {
   stroke: var(--lilac);
   stroke-width: 2.6;
   stroke-linecap: round;
+}
+.item-icon.icon-keys .fob {
+  fill: #2a2533;
+  stroke: var(--ink);
+  stroke-width: 1.6;
+}
+.item-icon.icon-keys .lock {
+  fill: var(--slime);
+}
+.item-icon.icon-keys .open {
+  fill: var(--lilac);
+}
+.item-icon.icon-keys .metal {
+  fill: #ded6b9;
+  stroke: var(--ink);
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+}
+.item-icon.icon-keys .hole {
+  fill: var(--ink);
+}
+.item-icon.icon-keys .ring {
+  fill: none;
+  stroke: #ded6b9;
+  stroke-width: 2.4;
+}
+.item-icon.icon-molten {
+  --heat: drop-shadow(0 0 1.5px rgba(255, 196, 80, 0.85)) drop-shadow(0 0 6px rgba(255, 84, 20, 0.75));
+  overflow: visible;
+  filter: var(--heat);
+}
+.ware-slot.off .item-icon.icon-molten {
+  opacity: 1;
+  filter: var(--heat);
+}
+.inv-item .item-icon.icon-molten {
+  --heat: drop-shadow(0 0 1px rgba(255, 140, 40, 0.95));
+}
+.inv-item .item-icon.icon-molten .wave,
+.inv-item .item-icon.icon-molten .embers {
+  display: none;
+}
+.item-icon.icon-molten .fob {
+  fill: #221417;
+  stroke: #a8220a;
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+}
+.item-icon.icon-molten .halo {
+  fill: none;
+  stroke: #ff5a14;
+  stroke-width: 4.4;
+  stroke-linejoin: round;
+  opacity: 0.4;
+  animation: molten-pulse 1.4s ease-in-out infinite alternate;
+}
+.item-icon.icon-molten .metal {
+  fill: #ffb02e;
+  stroke: #c42a0c;
+}
+.item-icon.icon-molten .core {
+  fill: #ffe680;
+}
+.item-icon.icon-molten .hotspot {
+  fill: none;
+  stroke: #fff8e2;
+  stroke-width: 1.1;
+  stroke-linecap: round;
+}
+.item-icon.icon-molten .hole {
+  fill: #2a0a08;
+}
+.item-icon.icon-molten .melt-rim {
+  fill: none;
+  stroke: #c42a0c;
+  stroke-width: 2.8;
+  stroke-linejoin: round;
+}
+.item-icon.icon-molten .melt {
+  fill: #ffb02e;
+}
+.item-icon.icon-molten .bead {
+  fill: #ffe680;
+  stroke: #c42a0c;
+  stroke-width: 0.8;
+}
+.item-icon.icon-molten .rim {
+  fill: none;
+  stroke: #c42a0c;
+  stroke-width: 3.8;
+}
+.item-icon.icon-molten .ring {
+  stroke: #ffb02e;
+}
+.item-icon.icon-molten .ring-core {
+  fill: none;
+  stroke: #ffe680;
+  stroke-width: 1;
+}
+.item-icon.icon-molten .wave {
+  fill: none;
+  stroke: #ff9a3a;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  opacity: 0.75;
+  animation: molten-shimmer 0.8s ease-in-out infinite alternate;
+}
+.item-icon.icon-molten .embers circle {
+  fill: #ffd23f;
+  animation: molten-ember 2.1s ease-out infinite;
+}
+.item-icon.icon-molten .embers circle:nth-child(2) {
+  fill: #ff8a1f;
+  animation-delay: -0.7s;
+}
+.item-icon.icon-molten .embers circle:nth-child(3) {
+  animation-delay: -1.4s;
+}
+@keyframes molten-pulse {
+  to {
+    opacity: 0.7;
+  }
+}
+@keyframes molten-shimmer {
+  to {
+    opacity: 0.4;
+    transform: translate(0.4px, -0.8px);
+  }
+}
+@keyframes molten-ember {
+  0% {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
 }
 .ware-initial {
   font-size: 22px;
@@ -1059,6 +1212,9 @@ body.dialogue-open .hud-wares {
 .wares-what span {
   margin-left: 4px;
   color: var(--slime);
+}
+.wares-what span.no {
+  color: var(--alarm);
 }
 .wares-how {
   display: flex;
@@ -1293,6 +1449,12 @@ body:not(.touch) #hud[data-mode='foot'] .hud-cam {
   -webkit-text-stroke: 3px var(--purple-ink);
   text-shadow: 0 0 16px rgba(141, 255, 31, 0.55), 4px 4px 0 var(--purple);
 }
+.toast .small .item-icon {
+  width: 30px;
+  height: 27px;
+  margin-right: 8px;
+  vertical-align: middle;
+}
 /* Maintain toast subtitle contrast with a dark backing. */
 .toast .small {
   margin-top: 4px;
@@ -1424,6 +1586,9 @@ body:not(.touch) #hud[data-mode='foot'] .hud-cam {
   .hud-wares.open,
   .ware-slot.pop,
   .ware-slot.nope,
+  .item-icon.icon-molten .halo,
+  .item-icon.icon-molten .wave,
+  .item-icon.icon-molten .embers circle,
   .mark-arrow {
     animation: none !important;
   }
@@ -1498,4 +1663,16 @@ body:not(.touch) #hud[data-mode='foot'] .hud-cam {
 }
 .hud-bubble .choice.off {
   opacity: 0.4;
+}
+
+.hud-reset {
+  top: calc(50% + 120px);
+}
+#hud[data-mode='drive'] .hud-reset {
+  top: calc(50% + 132px);
+}
+#hud[data-cam='chase'] .hud-reset,
+#hud[data-cam='chase'][data-mode='drive'] .hud-reset {
+  top: auto;
+  bottom: 246px;
 }

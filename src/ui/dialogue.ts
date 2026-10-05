@@ -1,16 +1,19 @@
 import type { Focus } from '@/engine/input/input';
 import { el } from '@/engine/ui/dom';
 import type { Control } from '@/game/controls';
+import { keyText } from '@/ui/hud';
 
 import './dialogue.css';
 
 export type Side = 'left' | 'right';
 
 export interface DialogueLine {
-  who: Side | 'narrator';
+  who: Side;
   say: string;
   /** Run when this line is displayed to synchronize scene actions with dialogue. */
   cue?: () => void;
+  until?: () => boolean;
+  look?: string;
 }
 
 /** Reserve interaction and start controls to advance the conversation. */
@@ -61,6 +64,10 @@ export class Dialogue {
     this.frames[side].classList.add('has-img');
   }
 
+  addLook(side: Side, name: string, html: string): void {
+    el('div', 'portrait-look', this.frames[side], html).dataset.look = name;
+  }
+
   /** Play `lines` from the first; `onDone` runs after the last one is dismissed. */
   play(lines: readonly DialogueLine[], onDone: () => void): void {
     this.lines = lines;
@@ -77,6 +84,10 @@ export class Dialogue {
     this.lines = [];
     this.root.classList.remove('on');
     document.body.classList.remove('dialogue-open');
+
+    for (const look of this.root.querySelectorAll('.portrait-look.on')) {
+      look.classList.remove('on');
+    }
   }
 
   private frame(side: Side): HTMLDivElement {
@@ -95,13 +106,18 @@ export class Dialogue {
     this.frames.left.classList.toggle('talking', line.who === 'left');
     this.frames.right.classList.toggle('talking', line.who === 'right');
     this.root.dataset.who = line.who;
-    this.name.textContent = line.who === 'narrator' ? '' : this.names[line.who];
-    this.text.textContent = line.say;
+
+    for (const look of this.frames[line.who].querySelectorAll<HTMLElement>('.portrait-look')) {
+      look.classList.toggle('on', look.dataset.look === line.look);
+    }
+
+    this.name.textContent = this.names[line.who];
+    this.text.innerHTML = keyText(line.say);
     line.cue?.();
   }
 
   private next(): void {
-    if (!this.open) {
+    if (!this.open || this.lines[this.i]?.until?.() === false) {
       return;
     }
 

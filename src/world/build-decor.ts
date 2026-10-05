@@ -121,8 +121,10 @@ export function buildDecor(defs: readonly DecorDef[], mats: MaterialLibrary, col
 
     const slot = slots.get(d.kind) ?? 0;
     slots.set(d.kind, slot + 1);
+    const scale = d.scale ?? 1;
+    const boost = hit.boost && scale > hit.boost.above ? hit.boost.momentum * scale : undefined;
     const [solid, ...parts] = placed(spec.solids, d).map(([min, max]) =>
-      collision.add(min, max, { knockdown: true, heavy: hit.by === 'truck' }),
+      collision.add(min, max, { knockdown: true, heavy: hit.by === 'truck', boost }),
     );
     if (!solid) {
       throw new Error(`decor ${d.kind} breaks but has no solids`);

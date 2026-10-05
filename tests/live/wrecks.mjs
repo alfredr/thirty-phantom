@@ -115,3 +115,169 @@ export function truckCrushesACar() {
   const removed = !g.vehicles.includes(victim);
   return { ok: crushed === 1 && flat && removed, crushed, flat, removed };
 }
+
+/** Find a roof kicker, its run-up start 12 m before the low end, and its launch heading. */
+const roofKicker = () => {
+  const g = window.__game;
+  const kickers = g.world.collision.solids.filter((s) => s.ramp && s.max[1] - s.ramp.low < 2.5);
+  const top = Math.max(...kickers.map((s) => s.ramp.low));
+  const box = kickers.find((s) => Math.abs(s.ramp.low - top) < 0.1);
+  if (!box) {
+    return null;
+  }
+
+  const r = box.ramp;
+  const ax = r.axis === 'x' ? 0 : 2;
+  const across = ax === 0 ? 2 : 0;
+  const P = g.player.pos.constructor;
+  const start = new P();
+  start.setComponent(ax, (r.dir > 0 ? box.min[ax] : box.max[ax]) - r.dir * 12);
+  start.setComponent(across, (box.min[across] + box.max[across]) / 2);
+  start.y = r.low;
+  const launch = new P(ax === 0 ? r.dir : 0, 0, ax === 0 ? 0 : r.dir);
+  return { start, launch, yaw: Math.atan2(launch.x, launch.z) };
+};
+
+/** Hold the heading and line of a kicker run-up at full throttle. */
+const runUp = (k) => (v) => {
+  const side = (v.pos.x - k.start.x) * -k.launch.z + (v.pos.z - k.start.z) * k.launch.x;
+  const heading = Math.atan2(Math.sin(v.yaw - k.yaw), Math.cos(v.yaw - k.yaw));
+  return { throttle: 1, steer: Math.max(-1, Math.min(1, 2.5 * heading - 0.35 * side)), hop: false, drift: false };
+};
+
+/** Record the hardest ground landing of `v`. */
+const landings = (v) => {
+  const seen = { hardest: 0 };
+  window.__game.events.on('impact', (e) => {
+    if (e.v === v && e.against === 'ground') {
+      seen.hardest = Math.max(seen.hardest, e.took);
+    }
+  });
+  return seen;
+};
+
+/** Steal a badged car on the roof, jump it off the kicker, and leave Cody on foot beside the wreck with no phantom. */
+export function aCarJumpedOffTheRoofIsWrecked() {
+  const g = window.__game;
+  const sim = window.__sim;
+  g.start();
+  sim.run(30);
+  const k = sim.roofKicker();
+  if (!k) {
+    return { ok: false, why: 'no roof kicker' };
+  }
+
+  const roof = g.garage.spots.filter((s) => Math.abs(s.center.y - k.start.y) < 1 && g.garage.isFree(s));
+  const spot = roof[0];
+  if (!spot) {
+    return { ok: false, why: 'no free roof spot' };
+  }
+
+  const car = g.fleet.spawnCar('parked', spot.center, spot.def.yaw, 'sedan');
+  g.garage.checkIn(spot, car);
+  const before = g.garage.phantoms;
+  const ledger = () => {
+    const actual = g.garage.actual(g.vehicles);
+    return { logged: g.garage.logged, actual, phantom: g.garage.logged - actual };
+  };
+
+  const was = ledger();
+  let phantoms = 0;
+  g.events.on('phantom', () => phantoms++);
+  g.board(car);
+  g.resetVehicle(car, { pos: k.start, yaw: k.yaw });
+  const hit = sim.landings(car);
+  g.autopilot = sim.runUp(k);
+  const wrecked = sim.until(() => car.status === 'crushed', 12, [car]);
+  g.autopilot = null;
+  sim.run(10);
+  const now = ledger();
+  const near = g.player.pos.distanceTo(car.pos);
+  const toast = [...document.querySelectorAll('.toast')].some((t) => /PHANTOM CODY/.test(t.textContent ?? ''));
+  const result = {
+    wrecked: wrecked.ok,
+    landed: Math.round(hit.hardest * 10) / 10,
+    tolerance: car.breed.landingTolerance,
+    phantoms,
+    toast,
+    onFoot: g.codyRide.onFoot && g.player.visible,
+    near: Math.round(near * 10) / 10,
+    canDrive: !car.status,
+    ledger: { was, now },
+  };
+  return {
+    ok:
+      wrecked.ok &&
+      phantoms === 0 &&
+      g.garage.phantoms === before &&
+      !toast &&
+      result.onFoot &&
+      near < 4 &&
+      !result.canDrive &&
+      now.phantom === was.phantom &&
+      now.logged === was.logged - 1,
+    ...result,
+  };
+}
+
+/** Drop a stolen car from one floor's height onto the street: it lands hard but still drives. */
+export function aCarSurvivesAOneFloorDrop() {
+  const g = window.__game;
+  const sim = window.__sim;
+  g.start();
+  sim.run(30);
+  const car = g.vehicles.find((v) => v.role === 'parked' && !v.insideDeck && v.form === 'car');
+  if (!car) {
+    return { ok: false, why: 'no parked car outside the deck' };
+  }
+
+  g.board(car);
+  const hit = sim.landings(car);
+  const drop = 5 + (car.params.hop * car.params.hop) / (2 * 32);
+  car.place(car.pos.x, car.pos.y + drop, car.pos.z, car.yaw, 0, 0, null);
+  sim.until(() => hit.hardest > 0, 4, [car]);
+  sim.run(10);
+  return {
+    ok: hit.hardest > 15 && !car.status && g.driving === car,
+    landed: Math.round(hit.hardest * 10) / 10,
+    drop: Math.round(drop * 10) / 10,
+    status: car.status,
+  };
+}
+
+/** The phantom truck jumping off the roof is a phantom and comes down whole. */
+export function theTruckJumpedOffTheRoofIsAPhantom() {
+  const g = window.__game;
+  const sim = window.__sim;
+  g.start();
+  sim.run(30);
+  g.debug.night();
+  sim.until(() => g.player.form === 'night', 20, []);
+  const k = sim.roofKicker();
+  const car = g.vehicles.find((v) => v.role === 'parked' && v.insideDeck && v.form === 'car');
+  if (!k || !car) {
+    return { ok: false, why: 'no kicker or deck car' };
+  }
+
+  g.board(car);
+  sim.until(() => g.codyRide.driving !== null, 10, []);
+  const truck = g.driving;
+  if (!truck || truck.form !== 'truck') {
+    return { ok: false, why: 'no truck' };
+  }
+
+  const before = g.garage.phantoms;
+  g.resetVehicle(truck, { pos: k.start, yaw: k.yaw });
+  const hit = sim.landings(truck);
+  g.autopilot = sim.runUp(k);
+  const landed = sim.until(() => truck.grounded && truck.pos.y < 3 && hit.hardest > 0, 12, [truck]);
+  g.autopilot = null;
+  return {
+    ok: landed.ok && g.garage.phantoms === before + 1 && truck.status !== 'crushed',
+    landed: Math.round(hit.hardest * 10) / 10,
+    phantoms: g.garage.phantoms - before,
+    status: truck.status,
+  };
+}
+
+export const steps = { roofKicker, runUp, landings };

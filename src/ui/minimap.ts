@@ -12,7 +12,7 @@ export interface MapView {
   upX: number;
   upZ: number;
   driving: boolean;
-  marks: readonly { x: number; z: number; kind: ObjectiveKind }[];
+  marks: readonly { x: number; z: number; kind: ObjectiveKind; color?: string }[];
 }
 
 /** Resolution of the static city image, in pixels per meter. */
@@ -30,7 +30,9 @@ const COLORS = {
   optional: '#c46bff',
   me: '#efe6ff',
   compass: '#2a1d3f',
+  pin: '#e8fff0',
 };
+const PIN = 2.5;
 /** Compass radius in CSS pixels; placement includes additional room for the north pointer. */
 const COMPASS = 13;
 
@@ -151,7 +153,18 @@ export class Minimap {
     }
 
     // Draw primary objectives last so they remain visible over optional markers.
+    for (const m of v.marks) {
+      const p = toMap(m.x, m.z);
+      if (m.kind === 'pin' && !p.out) {
+        dot(ctx, p.x, p.y, PIN, COLORS.edge, m.color ?? COLORS.pin);
+      }
+    }
+
     for (const m of [...v.marks].sort((a, b) => (a.kind === b.kind ? 0 : a.kind === 'optional' ? -1 : 1))) {
+      if (m.kind === 'pin') {
+        continue;
+      }
+
       const p = toMap(m.x, m.z);
       const primary = m.kind === 'primary';
       const color = primary ? COLORS.slime : COLORS.optional;

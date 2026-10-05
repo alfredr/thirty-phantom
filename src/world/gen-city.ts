@@ -1,4 +1,4 @@
-import { mod } from '@/engine/core/math';
+import { mod, TAU } from '@/engine/core/math';
 import { Rng } from '@/engine/core/rng';
 import { subtractRects } from '@/render/geometry';
 import type { MatKey } from '@/render/materials';
@@ -6,6 +6,7 @@ import type { MatKey } from '@/render/materials';
 import { buildingLook, dressBuilding, roofAt, walkIn } from './gen-building';
 import { elevatorShaft, stairShaft } from './gen-deck';
 import type { Facing, V3 } from './level-data';
+import type { DecorKind } from './level-kinds';
 import type { LevelWriter } from './level-writer';
 
 /** City-grid dimensions in meters, with road centrelines separated by `pitch`. */
@@ -19,6 +20,10 @@ export const CITY = {
 };
 
 export type BlockKind = 'deck' | 'graveyard' | 'plaza' | 'shops' | 'towers' | 'midrise' | 'lot' | 'hotel';
+
+export const GRAVES: readonly DecorKind[] = ['headstone', 'cross', 'obelisk', 'tomb'];
+const DEAD_TREES = { count: 5, inset: 5, scale: [0.85, 1.2] as const };
+const GRAVEYARD_GHOSTS = { reach: 4, floor: 1, ceiling: 9, weight: 2, respawn: 8 };
 
 export const BLOCK_LAYOUT: BlockKind[][] = [
   // [bx][bz]
@@ -234,30 +239,6 @@ function lots(rng: Rng, x0: number, z0: number, x1: number, z1: number): [number
     [x0, mz + g / 2, mx - g / 2, z1],
     [mx + g / 2, mz + g / 2, x1, z1],
   ];
-}
-
-function deadTree(w: LevelWriter, rng: Rng, x: number, y: number, z: number): void {
-  const h = rng.range(5, 7.5);
-  w.block(x, y, z, 0.7, h, 0.7, 'wood');
-  const dirs: [number, number][] = [
-    [1, 0],
-    [-1, 0],
-    [0, 1],
-    [0, -1],
-  ];
-  const nb = rng.int(3, 5);
-  for (let i = 0; i < nb; i++) {
-    const [dx, dz] = rng.pick(dirs);
-    const by = y + rng.range(h * 0.45, h * 0.9);
-    const len = rng.range(1.2, 2.6);
-    const th = rng.range(0.25, 0.4);
-    const cx = x + dx * (0.35 + len / 2);
-    const cz = z + dz * (0.35 + len / 2);
-    w.block(cx, by, cz, dx ? len : th, th, dz ? len : th, 'wood', { solid: false });
-    const ex = x + dx * (0.35 + len);
-    const ez = z + dz * (0.35 + len);
-    w.block(ex - dx * th * 0.5, by, ez - dz * th * 0.5, th, rng.range(0.6, 1.6), th, 'wood', { solid: false });
-  }
 }
 
 function roundedLoop(x0: number, z0: number, x1: number, z1: number, r: number, reverse: boolean): V3[] {
@@ -530,21 +511,7 @@ export function generateCity(w: LevelWriter, seed: number): void {
                 continue;
               }
 
-              const style = rng.int(0, 3);
-              if (style === 0) {
-                w.block(tx, G, tz, 1, 1.3, 0.3, 'stone');
-                w.block(tx, G + 1.3, tz, 0.7, 0.2, 0.3, 'stone', { solid: false });
-              } else if (style === 1) {
-                w.block(tx, G, tz, 0.28, 1.8, 0.28, 'stone');
-                w.block(tx, G + 1.15, tz, 1, 0.28, 0.28, 'stone', { solid: false });
-              } else if (style === 2) {
-                w.block(tx, G, tz, 0.9, 0.3, 0.9, 'stone');
-                w.block(tx, G + 0.3, tz, 0.5, 2.2, 0.5, 'stone');
-                w.block(tx, G + 2.5, tz, 0.3, 0.4, 0.3, 'stone', { solid: false });
-              } else {
-                w.block(tx, G, tz, 1.4, 0.5, 2.2, 'stone');
-                w.block(tx, G + 0.5, tz - 0.9, 1, 1, 0.3, 'stone');
-              }
+              w.decor(rng.pick(GRAVES), [tx, G, tz]);
 
               if (rng.chance(0.25)) {
                 w.puddle([tx + rng.range(-1, 1), G + 0.02, tz + 1.2], rng.range(0.5, 1));
@@ -552,8 +519,10 @@ export function generateCity(w: LevelWriter, seed: number): void {
             }
           }
 
-          for (let i = 0; i < 5; i++) {
-            deadTree(w, rng, rng.range(x0 + 5, x1 - 5), G, rng.range(z0 + 5, z1 - 5));
+          for (let i = 0; i < DEAD_TREES.count; i++) {
+            const { inset, scale } = DEAD_TREES;
+            const at: V3 = [rng.range(x0 + inset, x1 - inset), G, rng.range(z0 + inset, z1 - inset)];
+            w.decor('deadTree', at, rng.range(0, TAU), { scale: rng.range(...scale) });
           }
 
           // slime pond
@@ -561,7 +530,13 @@ export function generateCity(w: LevelWriter, seed: number): void {
           const pz = z1 - 10;
           w.frame(px - 6, pz - 4.5, px + 6, pz + 4.5, 0.5, G, G + 0.4, 'stone');
           w.box([px - 5.5, G, pz - 4], [px + 5.5, G + 0.12, pz + 4], 'slimePool', { solid: false });
-          w.data.ghostZones.push({ min: [x0 + 2, 1, z0 + 2], max: [x1 - 2, 9, z1 - 2] });
+          const { reach, floor, ceiling, weight, respawn } = GRAVEYARD_GHOSTS;
+          w.data.ghostZones.push({
+            min: [x0 - reach, floor, z0 - reach],
+            max: [x1 + reach, ceiling, z1 + reach],
+            weight,
+            respawn,
+          });
           break;
         }
 

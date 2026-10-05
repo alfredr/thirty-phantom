@@ -8,9 +8,13 @@ export class Keyring {
 /** Away means the owner is outside the simulated crowd. Destroyed keys cannot return. */
 type KeyOwner = Keyring | 'ignition' | 'away' | 'ground' | 'destroyed';
 
+export type KeyHeat = 'cool' | 'molten' | 'melted';
+
 /** One physical set of keys and an independent hotwire bypass for a vehicle. */
 export class Ignition {
   hotwired = false;
+  stalled = false;
+  heat: KeyHeat = 'cool';
 
   constructor(
     readonly car: Vehicle,
@@ -44,9 +48,9 @@ export class Ignition {
     return true;
   }
 
-  /** Insert matching keys. A hotwire bypass does not count as having the keys. */
+  /** Insert matching keys unless heat has ruined them. A hotwire bypass does not count as having the keys. */
   insert(keys: Keyring): boolean {
-    return this.transfer(keys, 'ignition');
+    return this.heat === 'cool' && this.transfer(keys, 'ignition');
   }
 
   take(keys: Keyring): void {

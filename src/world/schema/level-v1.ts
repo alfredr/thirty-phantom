@@ -115,6 +115,11 @@ export const ParkedCarDefSchema = strictObject(placed);
 export const BayDefSchema = strictObject(placed);
 export const PuddleDefSchema = strictObject({ pos: V3Schema, r: positive });
 export const ZoneDefSchema = strictObject(bounds);
+export const GhostZoneDefSchema = strictObject({
+  ...bounds,
+  weight: Type.Optional(positive),
+  respawn: Type.Optional(positive),
+});
 export const GateDefSchema = strictObject({
   ...bounds,
   kind: Type.Enum(['entry', 'exit']),
@@ -168,7 +173,7 @@ export const LevelV1Schema = Type.Object(
     parked: collection(ParkedCarDefSchema),
     bays: collection(BayDefSchema),
     puddles: collection(PuddleDefSchema),
-    ghostZones: collection(ZoneDefSchema),
+    ghostZones: collection(GhostZoneDefSchema),
     gates: collection(GateDefSchema),
     clocks: collection(ClockDefSchema),
     valets: collection(ValetDefSchema),
@@ -207,6 +212,7 @@ export type ParkedCarDef = Type.Static<typeof ParkedCarDefSchema>;
 export type BayDef = Type.Static<typeof BayDefSchema>;
 export type PuddleDef = Type.Static<typeof PuddleDefSchema>;
 export type ZoneDef = Type.Static<typeof ZoneDefSchema>;
+export type GhostZoneDef = Type.Static<typeof GhostZoneDefSchema>;
 export type GateDef = Type.Static<typeof GateDefSchema>;
 export type ValetDef = Type.Static<typeof ValetDefSchema>;
 export type FenceDef = Type.Static<typeof FenceDefSchema>;

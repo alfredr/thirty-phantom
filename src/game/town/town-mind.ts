@@ -11,7 +11,7 @@ import { type EventOf, Mind, mind, type MindEvent, type State, type StateOf } fr
 import type { Visitors } from '@/game/driving/visitors';
 import type { NavGrid, NavJob } from '@/world/nav-grid';
 
-import type { Casualties, Casualty, Harm } from './casualties';
+import type { Casualties, Casualty, Cause, Harm } from './casualties';
 
 const C = TUNING.crowd;
 
@@ -36,7 +36,7 @@ export type Doing =
   /** Walk back to an associated car to depart. */
   | State<'leave'>
   /** Retain impact velocity and injury while a casualty ragdoll controls the character. */
-  | State<'down', { from: Vector3; vx: number; vz: number; harm: Harm; hurt: Casualty | null }>
+  | State<'down', { from: Vector3; vx: number; vz: number; harm: Harm; cause: Cause; hurt: Casualty | null }>
   /** End pedestrian simulation after departure or removal. */
   | State<'gone'>;
 
@@ -45,7 +45,7 @@ export type TownEvent =
   /** Report a frightening source position. */
   | MindEvent<'frightened', { from: Vector3 }>
   /** Knock the pedestrian down with the supplied impact and injury. */
-  | MindEvent<'felled', { from: Vector3; vx: number; vz: number; harm: Harm }>;
+  | MindEvent<'felled', { from: Vector3; vx: number; vz: number; harm: Harm; cause: Cause }>;
 
 /** Navigation, injury, visitor, and event services available to pedestrian behavior. */
 export interface Town {
@@ -118,8 +118,8 @@ const flee = (from: Vector3, fresh: boolean): StateOf<Doing, 'flee'> => ({
 const fall = (
   _p: Townsperson,
   _s: Doing,
-  { from, vx, vz, harm }: EventOf<TownEvent, 'felled'>,
-): StateOf<Doing, 'down'> => ({ at: 'down', from: from.clone(), vx, vz, harm, hurt: null });
+  { from, vx, vz, harm, cause }: EventOf<TownEvent, 'felled'>,
+): StateOf<Doing, 'down'> => ({ at: 'down', from: from.clone(), vx, vz, harm, cause, hurt: null });
 const frighten = (_p: Townsperson, _s: Doing, { from }: EventOf<TownEvent, 'frightened'>): StateOf<Doing, 'flee'> =>
   flee(from, true);
 
@@ -291,7 +291,7 @@ export const TOWN_MIND = mind<Townsperson, Doing, TownEvent>({
         p.town.dropMoney(w.pos, s.from);
       }
 
-      s.hurt = p.town.casualties?.strike(w.rig, s.vx, s.vz, s.harm) ?? null;
+      s.hurt = p.town.casualties?.strike(w.rig, s.vx, s.vz, s.harm, s.cause) ?? null;
 
       if (s.harm === 'dead') {
         p.town.dropKeys(p, w.pos);

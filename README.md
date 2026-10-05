@@ -81,7 +81,9 @@ to your Chromium executable if it is not installed at
 | `Q` / `E` | Rotate the view |
 | Mouse / wheel | Look around in chase view / zoom |
 | `C` | Cycle top-down, chase, and auto cameras |
-| `M` / `H` | Mute sound / show help |
+| `M` | Open the map |
+| `K` / `H` | Mute sound / show help |
+| `R` | Reset a stuck car when prompted |
 | Hold `T` / `N` | Fast-forward time / advance to the next day or night |
 
 At an elevator, press `F` to call the cab. Inside, `F` selects the next floor up and `G`

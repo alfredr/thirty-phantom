@@ -16,6 +16,7 @@ const ARM = { moving: 0.15, still: 0.05 };
 const STAY = 0.7;
 /** Minimum and maximum delay between nighttime moans, in seconds. */
 const MOANS: readonly [number, number] = [20, 45];
+const STALL = { load: 0.15, miss: 0.3 };
 
 /** Return the night ambience weight, from 0 to 1, with smooth transitions around sunrise and nightfall. */
 export function nightness(hours: number): number {
@@ -51,6 +52,7 @@ interface Running {
 class Engines {
   private readonly on = new Map<Vehicle, Running>();
   private readonly near: Vehicle[] = [];
+  private readonly held = new Map<Vehicle, number>();
 
   constructor(private readonly mixer: Mixer) {}
 
@@ -58,13 +60,25 @@ class Engines {
    * Update audible engines. The player vehicle uses the supplied throttle and boost; traffic throttle is estimated from
    * acceleration.
    */
+  hold(v: Vehicle, seconds: number): void {
+    this.held.set(v, seconds);
+  }
+
   update(dt: number, cars: readonly Vehicle[], ride: Vehicle | null, throttle: number, boost: boolean): void {
+    for (const [v, left] of this.held) {
+      if (left - dt <= 0) {
+        this.held.delete(v);
+      } else {
+        this.held.set(v, left - dt);
+      }
+    }
+
     const ear = this.mixer.ear;
     const near = this.near;
     near.length = 0;
 
     for (const v of cars) {
-      if (v === ride || !v.engineOn) {
+      if (v === ride || !v.engineOn || this.held.has(v)) {
         continue;
       }
 
@@ -79,7 +93,7 @@ class Engines {
 
     // Release unused engines before starting new ones so they do not consume the cue limit.
     for (const [v, r] of this.on) {
-      if ((v === ride && v.engineOn) || near.includes(v)) {
+      if ((v === ride && v.engineOn && !this.held.has(v)) || near.includes(v)) {
         continue;
       }
 
@@ -87,7 +101,7 @@ class Engines {
       this.on.delete(v);
     }
 
-    if (ride?.engineOn) {
+    if (ride?.engineOn && !this.held.has(ride)) {
       this.run(ride, dt, throttle, boost, true);
     }
 
@@ -120,9 +134,14 @@ class Engines {
     // Estimate traffic throttle from acceleration because AI vehicles expose no pedal input.
     r.accel += ((speed - r.speed) / Math.max(dt, 1e-3) - r.accel) * (1 - Math.exp(-dt / 0.2));
     r.speed = speed;
-    const pedal = mine ? (boost ? 1 : throttle) : r.accel > 0.3 ? clamp(r.accel / 4, 0.25, 1) : 0;
+    const stalled = v.ignition.stalled;
+    const pedal = stalled ? 0 : mine ? (boost ? 1 : throttle) : r.accel > 0.3 ? clamp(r.accel / 4, 0.25, 1) : 0;
     r.state.update(dt, speed / v.params.maxSpeed, pedal, !v.grounded || v.crashing);
-    r.loop.set({ rpm: r.state.rpm, load: r.state.load });
+    r.loop.set(
+      stalled
+        ? { rpm: r.state.rpm, load: STALL.load, miss: STALL.miss }
+        : { rpm: r.state.rpm, load: r.state.load, miss: 0 },
+    );
   }
 }
 
@@ -141,6 +160,10 @@ export class Loops {
 
   constructor(private readonly mixer: Mixer) {
     this.engines = new Engines(mixer);
+  }
+
+  holdEngine(v: Vehicle, seconds: number): void {
+    this.engines.hold(v, seconds);
   }
 
   update(

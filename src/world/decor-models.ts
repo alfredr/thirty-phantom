@@ -11,6 +11,7 @@ import {
   sphere,
   torus,
 } from '@/actors/models/part';
+import { TUNING } from '@/config';
 import type { V3 } from '@/engine/core/math';
 import { BARK, FOLIAGE, METAL, NEEDLES, PETALS } from '@/render/materials';
 import { PALETTE } from '@/render/palette';
@@ -410,6 +411,76 @@ export function bench(p = BENCH): Model<'iron' | 'timber'> {
   return model({ iron: METAL, timber: TIMBER }, parts);
 }
 
+export const DEAD_TREE = {
+  trunk: { r0: 0.34, r1: 0.1, h: 6, seg: 6 },
+  branches: [
+    [0.3, 3.0, 2.4, 1.0, 0.13],
+    [2.2, 3.8, 1.9, 0.85, 0.11],
+    [4.0, 2.6, 1.6, 1.15, 0.12],
+    [5.2, 4.6, 1.5, 0.7, 0.09],
+    [1.3, 5.0, 1.1, 0.55, 0.07],
+  ] as const,
+  seg: 5,
+  taper: 0.25,
+};
+
+export function deadTree(p = DEAD_TREE): Model<'bark'> {
+  const t = p.trunk;
+  return model({ bark: BARK }, [
+    cone(t.r0, t.r1, t.h, t.seg, 'bark', { at: [0, t.h / 2, 0] }),
+    ...p.branches.map(([turn, y, len, tilt, r]) => {
+      const out = (Math.sin(tilt) * len) / 2;
+      return cone(r, r * p.taper, len, p.seg, 'bark', {
+        at: [Math.cos(turn) * out, y + (Math.cos(tilt) * len) / 2, -Math.sin(turn) * out],
+        rot: [0, turn, -tilt],
+      });
+    }),
+  ]);
+}
+
+export const HEADSTONE = { w: 1, h: 1.05, d: 0.3, seg: 12 };
+
+export function headstone(p = HEADSTONE): Model<'stone'> {
+  return model({ stone: STONE }, [
+    slab([-p.w / 2, 0, -p.d / 2], [p.w / 2, p.h, p.d / 2], 'stone'),
+    cylinder(p.w / 2, p.d, p.seg, 'stone', { at: [0, p.h, 0], rot: [Math.PI / 2, 0, 0] }),
+  ]);
+}
+
+export const CROSS = { post: 0.28, h: 1.8, arm: { w: 1, y: 1.15 } };
+
+export function cross(p = CROSS): Model<'stone'> {
+  const t = p.post / 2;
+  return model({ stone: STONE }, [
+    slab([-t, 0, -t], [t, p.h, t], 'stone'),
+    slab([-p.arm.w / 2, p.arm.y, -t], [p.arm.w / 2, p.arm.y + p.post, t], 'stone'),
+  ]);
+}
+
+export const OBELISK = { base: { w: 0.9, h: 0.3 }, shaft: { w: 0.5, h: 2.2 }, tip: { r: 0.22, h: 0.4 } };
+
+export function obelisk(p = OBELISK): Model<'stone'> {
+  const b = p.base.w / 2;
+  const s = p.shaft.w / 2;
+  const top = p.base.h + p.shaft.h;
+  return model({ stone: STONE }, [
+    slab([-b, 0, -b], [b, p.base.h, b], 'stone'),
+    slab([-s, p.base.h, -s], [s, top, s], 'stone'),
+    cone(p.tip.r, 0, p.tip.h, 4, 'stone', { at: [0, top + p.tip.h / 2, 0], rot: [0, Math.PI / 4, 0] }),
+  ]);
+}
+
+export const TOMB = { slab: { w: 1.4, h: 0.5, d: 2.2 }, stone: { w: 1, h: 1, d: 0.3, z: -0.9 } };
+
+export function tomb(p = TOMB): Model<'stone'> {
+  const { w, h, d } = p.slab;
+  const s = p.stone;
+  return model({ stone: STONE }, [
+    slab([-w / 2, 0, -d / 2], [w / 2, h, d / 2], 'stone'),
+    slab([-s.w / 2, h, s.z - s.d / 2], [s.w / 2, h + s.h, s.z + s.d / 2], 'stone'),
+  ]);
+}
+
 /** A box in a piece's own frame (before its yaw and scale): min and max corners. */
 export type LocalBox = [V3, V3];
 
@@ -454,6 +525,7 @@ export type DecorHit = {
   debris: readonly string[];
   /** Fraction of vehicle speed retained after impact; undefined uses the vehicle default. */
   keep?: number;
+  boost?: { above: number; momentum: number };
 } & (
   | { as: 'shatter' }
   /** Toppling (PropKind): its height, half its lying width across its old up axis, the tilt it comes to rest at. */
@@ -641,13 +713,41 @@ const CYPRESS_BODY = {
 };
 const BUSH_REACH = reach(BUSH.blobs);
 const FLOWER_TOP = FLOWERS.y[1] + FLOWERS.head;
+const DEAD_REACH = {
+  out: Math.max(...DEAD_TREE.branches.map(([, , len, tilt]) => Math.sin(tilt) * len)),
+  y0: Math.min(...DEAD_TREE.branches.map(([, y]) => y)),
+};
+const HEADSTONE_TOP = HEADSTONE.h + HEADSTONE.w / 2;
+const CROSS_ARM: LocalBox = [
+  [-CROSS.arm.w / 2, CROSS.arm.y, -CROSS.post / 2],
+  [CROSS.arm.w / 2, CROSS.arm.y + CROSS.post, CROSS.post / 2],
+];
+const OBELISK_TOP = OBELISK.base.h + OBELISK.shaft.h + OBELISK.tip.h;
+const OBELISK_BOXES = [
+  around(OBELISK.base.w / 2, 0, OBELISK.base.h),
+  around(OBELISK.shaft.w / 2, OBELISK.base.h, OBELISK_TOP),
+];
+const TOMB_BOXES: LocalBox[] = [
+  around(TOMB.slab.w / 2, 0, TOMB.slab.h, TOMB.slab.d / 2),
+  [
+    [-TOMB.stone.w / 2, TOMB.slab.h, TOMB.stone.z - TOMB.stone.d / 2],
+    [TOMB.stone.w / 2, TOMB.slab.h + TOMB.stone.h, TOMB.stone.z + TOMB.stone.d / 2],
+  ],
+];
 
 /** Debris colors are lighter than source surfaces to remain visible against the ground. */
-const DEBRIS = { leaf: '#4f7a52', bark: '#5a4048', glass: '#b8b0dc', iron: '#5a5266', timber: '#7a5566' };
+const DEBRIS = {
+  leaf: '#4f7a52',
+  bark: '#5a4048',
+  glass: '#b8b0dc',
+  iron: '#5a5266',
+  timber: '#7a5566',
+  stone: '#9a93ab',
+};
 
 /**
  * Model, placement reservations, collision, and break behavior by decor kind. Benches topple for any vehicle. Trucks
- * can topple street-sized broadleaf trees and shatter hedges and shelters; other solid decor remains static.
+ * can topple trees and grave markers and shatter hedges, tombs, and shelters; other solid decor remains static.
  */
 export const DECOR: Readonly<Record<DecorKind, DecorSpec>> = {
   tree: {
@@ -660,7 +760,7 @@ export const DECOR: Readonly<Record<DecorKind, DecorSpec>> = {
     hit: {
       as: 'topple',
       by: 'truck',
-      maxScale: 1,
+      boost: { above: 1, momentum: TUNING.knockdown.boosted },
       height: CROWN.y1,
       wide: CROWN.out,
       down: restTilt(TREE.crown[0][3], TREE.crown[0][1]),
@@ -678,6 +778,15 @@ export const DECOR: Readonly<Record<DecorKind, DecorSpec>> = {
     solids: [around(PINE.trunk.r0 + MARGIN.trunk, 0, PINE.tiers[1][0])],
     sight: [around(PINE_TIERS.out * SIGHT, PINE_TIERS.y0, PINE_TIERS.y1)],
     round: true,
+    hit: {
+      as: 'topple',
+      by: 'truck',
+      height: PINE_TIERS.y1,
+      wide: PINE_TIERS.out,
+      down: restTilt(PINE.tiers[2][1], PINE.tiers[2][0]),
+      debris: [DEBRIS.leaf, DEBRIS.leaf, DEBRIS.bark],
+      keep: 0.7,
+    },
   },
   cypress: {
     model: () => cypress(),
@@ -686,6 +795,15 @@ export const DECOR: Readonly<Record<DecorKind, DecorSpec>> = {
     solids: [around(CYPRESS_BODY.out * SIGHT, 0, CYPRESS.body.y)],
     sight: [around(CYPRESS_BODY.out * SIGHT, CYPRESS_BODY.y0, CYPRESS_BODY.y1)],
     round: true,
+    hit: {
+      as: 'topple',
+      by: 'truck',
+      height: CYPRESS_BODY.y1,
+      wide: CYPRESS_BODY.out,
+      down: restTilt(CYPRESS.body.r[0], CYPRESS.body.y),
+      debris: [DEBRIS.leaf, DEBRIS.bark],
+      keep: 0.75,
+    },
   },
   bush: { model: () => bush(), space: [around(BUSH_REACH.out, 0, BUSH_REACH.y1)], solids: [], round: true },
   hedge: {
@@ -745,6 +863,72 @@ export const DECOR: Readonly<Record<DecorKind, DecorSpec>> = {
       down: restTilt(BENCH.depth / 2, BENCH.back),
       debris: [DEBRIS.timber],
     },
+  },
+  deadTree: {
+    model: () => deadTree(),
+    space: [
+      around(DEAD_TREE.trunk.r0 + MARGIN.trunk, 0, DEAD_REACH.y0),
+      around(DEAD_REACH.out, DEAD_REACH.y0, DEAD_TREE.trunk.h + MARGIN.piece),
+    ],
+    solids: [around(DEAD_TREE.trunk.r0, 0, DEAD_TREE.trunk.h / 2)],
+    round: true,
+    hit: {
+      as: 'topple',
+      by: 'truck',
+      height: DEAD_TREE.trunk.h,
+      wide: DEAD_REACH.out,
+      down: restTilt(DEAD_REACH.out / 2, DEAD_TREE.trunk.h / 2),
+      debris: [DEBRIS.bark, DEBRIS.bark],
+      keep: 0.75,
+    },
+  },
+  headstone: {
+    model: () => headstone(),
+    space: [around(HEADSTONE.w / 2, 0, HEADSTONE_TOP, HEADSTONE.d / 2)],
+    solids: [around(HEADSTONE.w / 2, 0, HEADSTONE_TOP, HEADSTONE.d / 2)],
+    hit: {
+      as: 'topple',
+      by: 'truck',
+      height: HEADSTONE_TOP,
+      wide: HEADSTONE.w / 2,
+      down: restTilt(HEADSTONE.d / 2, HEADSTONE_TOP),
+      debris: [DEBRIS.stone],
+      keep: 0.85,
+    },
+  },
+  cross: {
+    model: () => cross(),
+    space: [around(CROSS.post / 2, 0, CROSS.h), CROSS_ARM],
+    solids: [around(CROSS.post / 2, 0, CROSS.h)],
+    hit: {
+      as: 'topple',
+      by: 'truck',
+      height: CROSS.h,
+      wide: CROSS.arm.w / 2,
+      down: restTilt(CROSS.post / 2, CROSS.h),
+      debris: [DEBRIS.stone],
+      keep: 0.85,
+    },
+  },
+  obelisk: {
+    model: () => obelisk(),
+    space: OBELISK_BOXES,
+    solids: OBELISK_BOXES,
+    hit: {
+      as: 'topple',
+      by: 'truck',
+      height: OBELISK_TOP,
+      wide: OBELISK.base.w / 2,
+      down: restTilt(OBELISK.shaft.w / 2, OBELISK_TOP),
+      debris: [DEBRIS.stone],
+      keep: 0.8,
+    },
+  },
+  tomb: {
+    model: () => tomb(),
+    space: TOMB_BOXES,
+    solids: TOMB_BOXES,
+    hit: { as: 'shatter', by: 'truck', debris: [DEBRIS.stone, DEBRIS.stone, DEBRIS.iron], keep: 0.8 },
   },
 };
 

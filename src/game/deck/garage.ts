@@ -74,6 +74,8 @@ export class Garage {
   phantoms = 0;
   private readonly ghostMat: MeshStandardMaterial;
   private readonly phantomRigs: { g: Group; base: number; phase: number }[] = [];
+  private readonly edges = new WeakMap<Vehicle, [Vector3, Vector3]>();
+  private readonly badged = new WeakSet<Vehicle>();
   private t = 0;
 
   constructor(
@@ -216,24 +218,52 @@ export class Garage {
     return best;
   }
 
+  private edgeDistance(p: Vector3): number {
+    const { min, max } = this.nav;
+    if (p.y >= max[1]) {
+      return Infinity;
+    }
+
+    const dx = Math.max(min[0] - p.x, p.x - max[0]);
+    const dz = Math.max(min[2] - p.z, p.z - max[2]);
+    return dx <= 0 && dz <= 0 ? Math.max(dx, dz) : Math.hypot(Math.max(dx, 0), Math.max(dz, 0));
+  }
+
+  resync(v: Vehicle): void {
+    this.edges.delete(v);
+    v.insideDeck = this.inFootprint(v.pos);
+  }
+
   /** Detect footprint crossings and classify them against the badge gates. */
   track(v: Vehicle, prev: Vector3): Crossing | null {
-    const inside = this.inFootprint(v.pos);
+    if (this.inFootprint(prev) !== this.inFootprint(v.pos)) {
+      const edge = this.edges.get(v) ?? [new Vector3(), new Vector3()];
+      edge[0].copy(prev);
+      edge[1].copy(v.pos);
+      this.edges.set(v, edge);
+    }
+
+    const d = this.edgeDistance(v.pos);
+    const r = v.params.radius;
+    const inside = v.insideDeck ? d < r : d <= -r;
     if (inside === v.insideDeck) {
       return null;
     }
 
     v.insideDeck = inside;
-    const gate = this.gates.inZone(v.pos) ?? this.gates.inZone(prev);
+    const [from, to] = this.edges.get(v) ?? [prev, v.pos];
+    const gate = this.gates.inZone(to) ?? this.gates.inZone(from);
     if (gate) {
       gate.flash = 1.2;
 
       if (inside) {
         this.logged++;
+        this.badged.add(v);
         return { vehicle: v, kind: 'logged-in' };
       }
 
       this.logged--;
+      this.badged.delete(v);
       return { vehicle: v, kind: 'logged-out' };
     }
 
@@ -250,6 +280,24 @@ export class Garage {
   checkIn(s: SpotRuntime, v: Vehicle): void {
     this.occupy(s, v);
     this.logged++;
+    this.badged.add(v);
+  }
+
+  escape(v: Vehicle): { imprint: Group; home: SpotRuntime | null } | null {
+    const spot = v.homeSpot !== null ? (this.spots[v.homeSpot] ?? null) : null;
+    v.homeSpot = null;
+    this.release(v);
+
+    if (!v.breed.phantom) {
+      if (this.badged.delete(v)) {
+        this.logged--;
+      }
+
+      return null;
+    }
+
+    const home = spot && this.isFree(spot) ? spot : null;
+    return { imprint: this.addPhantom(v.restPos, v.restYaw, home), home };
   }
 
   release(v: Vehicle): void {

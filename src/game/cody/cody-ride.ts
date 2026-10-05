@@ -219,7 +219,7 @@ export class CodyRide {
 
     car.markRest();
     const side = car.params.radius + DOOR_GAP;
-    const pos: V3 = [car.pos.x - Math.cos(car.yaw) * side, car.pos.y, car.pos.z + Math.sin(car.yaw) * side];
+    const pos: V3 = [car.pos.x + Math.cos(car.yaw) * side, car.pos.y, car.pos.z - Math.sin(car.yaw) * side];
     collision.resolveCircle(pos, TUNING.player.radius, TUNING.player.height, TUNING.player.stepUp);
     _door.set(pos[0], collision.groundAt(pos[0], pos[2], car.pos.y + 0.5, 1), pos[2]);
     player.dismount(scene);
@@ -246,7 +246,7 @@ export class CodyRide {
 
   escaped(): void {
     const drive = this.mind.in('driving');
-    const delay = drive?.v.breed.vanishAfterEscape;
+    const delay = drive?.v.breed.phantom?.vanishAfter;
     if (drive && delay !== undefined) {
       drive.escape = delay;
     }

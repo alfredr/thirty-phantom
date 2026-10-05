@@ -16,6 +16,7 @@ import {
   type FuelBoost,
   type GhostIntake,
   type PartDrops,
+  type PhantomEscape,
   type VehicleExhaust,
 } from './capabilities';
 
@@ -56,8 +57,13 @@ export interface VehicleBreed {
   readonly boost?: FuelBoost;
   readonly exhaust?: VehicleExhaust;
   readonly drops?: PartDrops;
-  /** Minimum seconds after an unlogged exit before disappearing on the ground. Omit to keep the vehicle. */
-  readonly vanishAfterEscape?: number;
+  /**
+   * An unlogged exit makes a phantom: the garage keeps its imprint, and the vehicle disappears on the ground this many
+   * seconds later. Omit for vehicles whose unlogged exit only frees their spot.
+   */
+  readonly phantom?: PhantomEscape;
+  /** Downward landing speed in m/s above which the vehicle is wrecked. Omit for vehicles that survive any fall. */
+  readonly landingTolerance?: number;
   /** Builds its model in `color`. */
   model(assets: AssetRegistry, color: string): VehicleRig;
 }
@@ -69,6 +75,7 @@ const CIVILIAN = {
   enterReach: 3.4,
   knockKeep: 0.75,
   crushable: true,
+  landingTolerance: 22,
   exhaust: { kind: 'smoke', smoke: TUNING.vehicle.exhaust },
   drops: { ...TUNING.junk, parts: PART_KINDS.filter((kind) => kind !== 'tire') },
 } as const;
@@ -112,7 +119,7 @@ export const VEHICLE_BREEDS: Readonly<Record<VehicleBuild, VehicleBreed>> = {
     model: (_, color) => buildMotorcycleRig(color),
   },
   truck: {
-    vanishAfterEscape: 2.5,
+    phantom: { vanishAfter: 2.5 },
     crushable: false,
     crush: crushCars({
       minimumSpeed: 4,

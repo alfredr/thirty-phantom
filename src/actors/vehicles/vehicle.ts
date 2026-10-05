@@ -11,6 +11,7 @@ import { steerScale, type VehicleParams } from '@/engine/physics/vehicle-params'
 
 import { type CarKind, VEHICLE_BREEDS, type VehicleBreed, type VehicleBuild } from './breeds';
 import { Ignition } from './ignition';
+import { issuePlate } from './plates';
 
 export type VehicleForm = 'car' | 'truck';
 /**
@@ -84,7 +85,7 @@ export class Vehicle {
   form: VehicleForm;
   role: VehicleRole;
   readonly ignition: Ignition;
-  plate = `PCD-${this.id.toString().padStart(4, '0')}`;
+  plate = issuePlate(this.id);
   rig: VehicleRig;
   readonly color: string;
 
@@ -285,7 +286,7 @@ export class Vehicle {
 
   drive(dt: number, input: DriveInput | null, world: CollisionWorld): DriveEvents {
     const P = this.params;
-    const inp = this.form === 'car' && !this.ignition.ready ? NO_INPUT : (input ?? NO_INPUT);
+    const inp = this.form === 'car' && (!this.ignition.ready || this.ignition.stalled) ? NO_INPUT : (input ?? NO_INPUT);
     const ev: DriveEvents = { impact: 0, landed: 0, smashed: [], hopped: false };
     this.steppedAt = frame;
 
@@ -360,31 +361,15 @@ export class Vehicle {
     this.pos.z += this.vel.z * dt;
 
     // Remove breakable obstacles before resolving solid body contacts.
-    const offs = this.breed.body;
-    this.smash(ev, world, Math.abs(fwd), fx, fz);
-    let dx = 0;
-    let dz = 0;
+    this.smash(ev, world, Math.abs(fwd), fx, fz, !!this.breed.boost && (inp.boost ?? 0) > 0);
     _hits.length = 0;
     // Update clearance height before collision checks when climbing a slope.
-    const yNow = this.grounded ? Math.max(oldY, world.groundAt(this.pos.x, this.pos.z, oldY, P.stepUp)) : oldY;
-    for (const o of offs) {
-      const ox = this.pos.x + fx * o;
-      const oz = this.pos.z + fz * o;
-      // Use each circle’s ground height so the front circle can clear the slab at a ramp’s upper end.
-      _c[0] = ox;
-      _c[1] = Math.max(yNow, world.groundAt(ox, oz, yNow, P.stepUp));
-      _c[2] = oz;
-      world.resolveCircle(_c, P.radius, P.height, P.stepUp, _hits);
-      const ddx = _c[0] - ox;
-      const ddz = _c[2] - oz;
-      if (ddx * ddx + ddz * ddz > dx * dx + dz * dz) {
-        dx = ddx;
-        dz = ddz;
-      }
-    }
-
-    this.pos.x += dx;
-    this.pos.z += dz;
+    _c[0] = this.pos.x;
+    _c[1] = this.grounded ? Math.max(oldY, world.groundAt(this.pos.x, this.pos.z, oldY, P.stepUp)) : oldY;
+    _c[2] = this.pos.z;
+    world.resolveBody(_c, fx, fz, this.breed.body, P.radius, P.height, P.stepUp, _hits);
+    this.pos.x = _c[0];
+    this.pos.z = _c[2];
     // Preserve pre-contact velocity for a possible transfer to crash physics.
     const vx0 = this.vel.x;
     const vz0 = this.vel.z;
@@ -416,11 +401,13 @@ export class Vehicle {
 
     // Preserve uphill velocity when the vehicle leaves a ledge.
     const g = world.groundAt(this.pos.x, this.pos.z, oldY, P.stepUp);
+    const ledge = !this.grounded || g < oldY - STEP_DOWN;
+    const floor = ledge ? Math.max(g, world.groundAlong(this.pos.x, this.pos.z, fx, fz, P.length / 2, oldY)) : g;
     if (this.grounded) {
-      if (g >= oldY - STEP_DOWN) {
-        const vy = (g - oldY) / Math.max(dt, 1e-4);
+      if (!ledge || (this.groundVy <= 0 && floor >= oldY - STEP_DOWN)) {
+        const vy = (floor - oldY) / Math.max(dt, 1e-4);
         this.groundVy = damp(this.groundVy, vy, 18, dt);
-        this.pos.y = g;
+        this.pos.y = floor;
         this.vel.y = 0;
       } else {
         this.grounded = false;
@@ -440,10 +427,10 @@ export class Vehicle {
         }
       }
 
-      // Horizontal position is unchanged, so the previous ground query remains valid.
-      if (this.pos.y <= g) {
+      // Horizontal position is unchanged, so the previous ground queries remain valid.
+      if (this.pos.y <= floor) {
         ev.landed = -this.vel.y;
-        this.pos.y = g;
+        this.pos.y = floor;
         this.vel.y = 0;
         this.grounded = true;
         this.groundVy = 0;
@@ -458,11 +445,19 @@ export class Vehicle {
   }
 
   /** Collect destructible solids overlapping the body at this speed, append them to ev.smashed, and disable them. */
-  private smash(ev: DriveEvents, world: CollisionWorld, speed: number, fx: number, fz: number): void {
+  private smash(
+    ev: DriveEvents,
+    world: CollisionWorld,
+    speed: number,
+    fx: number,
+    fz: number,
+    boosting: boolean,
+  ): void {
     const P = this.params;
     const knocks = speed >= TUNING.knockdown.speed;
     const smashes = speed >= P.smashSpeed;
-    if (!smashes && !knocks) {
+    const momentum = boosting ? this.mass * speed : 0;
+    if (!smashes && !knocks && momentum === 0) {
       return;
     }
 
@@ -471,7 +466,8 @@ export class Vehicle {
       const cz = this.pos.z + fz * o;
       const r = P.radius + SMASH_REACH;
       for (const s of world.query(cx - r, cz - r, cx + r, cz + r)) {
-        if (!(s.knockdown ? (s.heavy ? smashes : knocks) : s.breakable && smashes)) {
+        const yields = s.knockdown ? (s.heavy ? smashes : knocks) : s.breakable && smashes;
+        if (s.boost !== undefined ? momentum < s.boost : !yields) {
           continue;
         }
 
@@ -561,7 +557,7 @@ export class Vehicle {
     const fz = Math.cos(this.yaw);
     this.speed = this.vel.x * fx + this.vel.z * fz;
     this.steer = damp(this.steer, 0, 4, dt);
-    this.smash(ev, world, Math.sqrt(this.vel.x * this.vel.x + this.vel.z * this.vel.z), fx, fz);
+    this.smash(ev, world, Math.sqrt(this.vel.x * this.vel.x + this.vel.z * this.vel.z), fx, fz, false);
     this.wheelSpin += (this.speed / (this.rig.wheels[0]?.radius ?? 0.5)) * dt;
 
     if (c.settled && c.upright) {
@@ -584,7 +580,12 @@ export class Vehicle {
     this.roll = 0;
     this.rollV = 0;
     this.yawRate = 0;
-    this.pos.y = world.groundAt(this.pos.x, this.pos.z, this.pos.y + 0.5, this.params.stepUp);
+    const P = this.params;
+    const y = this.pos.y + 0.5;
+    this.pos.y = Math.max(
+      world.groundAt(this.pos.x, this.pos.z, y, P.stepUp),
+      world.groundAlong(this.pos.x, this.pos.z, Math.sin(this.yaw), Math.cos(this.yaw), P.length / 2, y),
+    );
     this.vel.y = 0;
     this.grounded = true;
     this.groundVy = 0;

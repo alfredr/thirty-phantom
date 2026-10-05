@@ -1,7 +1,10 @@
 import type { Vector3 } from 'three';
 
-/** Primary objectives use the large arrow; optional objectives use smaller arrows and an optional label. */
-export type ObjectiveKind = 'primary' | 'optional';
+/**
+ * Primary objectives use the large arrow; optional objectives use smaller arrows and an optional label. Pins appear
+ * only on the minimap.
+ */
+export type ObjectiveKind = 'primary' | 'optional' | 'pin';
 
 /** A marker target whose position reference is kept current by its owner. */
 export interface Objective {
@@ -10,6 +13,7 @@ export interface Objective {
   label: string;
   kind: ObjectiveKind;
   at: Vector3;
+  color?: string;
 }
 
 /**
@@ -19,11 +23,17 @@ export interface Objective {
 export class Objectives {
   /** The current task, shared by the HUD and the phone's task list. */
   goal: string | null = null;
+  how: string | null = null;
   private readonly sources = new Map<object, readonly Objective[]>();
   private items: Objective[] = [];
+  private pinned: Objective[] = [];
 
   get list(): readonly Objective[] {
     return this.items;
+  }
+
+  get pins(): readonly Objective[] {
+    return this.pinned;
   }
 
   /** Replace this source's markers. An empty list clears only that source. The first primary wins. */
@@ -35,7 +45,13 @@ export class Objectives {
     }
 
     let primary = false;
-    this.items = [...this.sources.values()].flat().filter((o) => {
+    const all = [...this.sources.values()].flat();
+    this.pinned = all.filter((o) => o.kind === 'pin');
+    this.items = all.filter((o) => {
+      if (o.kind === 'pin') {
+        return false;
+      }
+
       if (o.kind !== 'primary') {
         return true;
       }

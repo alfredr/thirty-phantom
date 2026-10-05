@@ -40,6 +40,8 @@ export const NPC_BREEDS: Readonly<Record<NpcDef['id'], NpcBreed>> = {
         ...coatSeller(rig, ROAST_LIFT),
         smokeOrigin: rig.pocket,
         props: { burner: rig.phone, badge: rig.badge },
+        palm: { burner: rig.palmPhone },
+        hands: { leftHand: rig.leftHand, rightHand: rig.rightHand },
       };
     },
     smoke: {
@@ -53,7 +55,7 @@ export const NPC_BREEDS: Readonly<Record<NpcDef['id'], NpcBreed>> = {
       active: (n) => !!n.stock?.slotOf('moltenKeys'),
     },
     fire: { model: buildTrashFire, rim: CAN_TOP },
-    throwing: { windup: 0.75, flight: 0.8, speed: 14, arc: 0.8, arcPerMeter: 0.15 },
+    throwing: { windup: 0.45, flight: 0.8, speed: 14, arc: 0.8, arcPerMeter: 0.15 },
     attention: { reach: 5, level: 2 },
     pitch: proximityPitch({ rest: 4, hold: 3.5 }),
     work: feedItems({

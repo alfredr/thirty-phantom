@@ -71,10 +71,12 @@ export class Walker {
   private stalled = 0;
   /** Seconds remaining with stationary obstacles excluded from avoidance. */
   private blind = 0;
-  private readonly gait = new Gait();
   private nav: NavGrid | null = null;
 
-  constructor(readonly rig: CharacterRig) {}
+  constructor(
+    readonly rig: CharacterRig,
+    private readonly gait: Gait | null = new Gait(),
+  ) {}
 
   get walking(): boolean {
     return this.cursor !== null;
@@ -280,6 +282,6 @@ export class Walker {
   private sync(dt: number): void {
     this.rig.root.position.copy(this.pos);
     this.rig.root.rotation.y = this.yaw;
-    this.gait.update(this.rig, dt, this.speed);
+    this.gait?.update(this.rig, dt, this.speed);
   }
 }

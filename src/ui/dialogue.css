@@ -121,6 +121,103 @@
   }
 }
 
+.portrait-look {
+  display: none;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.portrait-look.on {
+  display: block;
+}
+.portrait-look .glow {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 46% 34% at 24% 100%, rgba(255, 196, 90, 0.95), rgba(255, 120, 30, 0.6) 50%, transparent 100%),
+    radial-gradient(ellipse 95% 75% at 26% 100%, rgba(255, 96, 24, 0.55), transparent 80%);
+  mix-blend-mode: screen;
+  animation: portrait-glow 1.7s ease-in-out infinite alternate;
+}
+@keyframes portrait-glow {
+  0% {
+    opacity: 0.75;
+  }
+  45% {
+    opacity: 1;
+  }
+  60% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+.portrait-look .held {
+  position: absolute;
+  left: 8%;
+  bottom: 6%;
+  width: 42%;
+  transform: rotate(-12deg);
+}
+.portrait-look .held svg {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  filter: drop-shadow(0 0 4px rgba(255, 150, 40, 0.95)) drop-shadow(0 0 14px rgba(255, 84, 20, 0.8));
+}
+.portrait-look .wisp {
+  position: absolute;
+  bottom: 26%;
+  width: 34%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(226, 220, 232, 0.9), rgba(196, 188, 204, 0) 68%);
+  filter: blur(1.5px);
+  opacity: 0;
+  animation: portrait-wisp 2.4s ease-out infinite;
+}
+.portrait-look .wisp:nth-of-type(1) {
+  left: 18%;
+  animation-delay: 0.8s;
+}
+.portrait-look .wisp:nth-of-type(2) {
+  left: 4%;
+  animation-delay: 1.6s;
+}
+.portrait-look .wisp:nth-of-type(3) {
+  left: 28%;
+  animation-delay: 0.4s;
+}
+@keyframes portrait-wisp {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.5);
+  }
+  25% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(18%, -230%) scale(1.6);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .portrait-look .wisp {
+    animation: none;
+    opacity: 0.6;
+  }
+  .portrait-look .glow {
+    animation: none;
+  }
+  .portrait-look .wisp:nth-of-type(2) {
+    transform: translate(10%, -120%) scale(1.2);
+  }
+  .portrait-look .wisp:nth-of-type(3) {
+    transform: translate(16%, -200%) scale(1.5);
+  }
+}
+
 /* Reduce portraits and typography for short viewports. */
 @media (max-height: 540px) {
   .dialogue {

@@ -3,21 +3,18 @@ import { keyText } from '@/ui/hud';
 
 import { ICONS } from './icons';
 import type { PhoneApp } from './phone';
+import { DayGroups, type Stamp, stampText } from './stamp';
 
-/** Wall-clock typing delay before displaying a message, in milliseconds. */
-const TYPING = 900;
-
-/** Maintain Randy’s message history with typing indicators, unread counts, and newest-message scrolling. */
+/** Maintain Randy’s message history with timestamps, day separators, unread counts, and newest-message scrolling. */
 export class Messages implements PhoneApp {
   readonly id = 'messages';
   readonly name = 'MESSAGES';
   readonly icon = ICONS.messages;
-  /** Callback invoked after a message replaces its typing indicator. */
+  /** Callback invoked after a message lands in the thread. */
   landed: () => void = () => {};
   private thread: HTMLElement | null = null;
   private body: HTMLElement | null = null;
-  private typing: HTMLElement | null = null;
-  private pending = 0;
+  private days: DayGroups | null = null;
   /** Messages received while this app was not selected. */
   private fresh = 0;
   private showing = false;
@@ -30,6 +27,7 @@ export class Messages implements PhoneApp {
     el('div', 'name', who, 'RANDY');
     el('div', 'sub', who, 'BURNER');
     this.thread = el('div', 'burner-thread', root);
+    this.days = new DayGroups(this.thread);
   }
 
   shown(on: boolean): void {
@@ -47,44 +45,19 @@ export class Messages implements PhoneApp {
     return this.fresh;
   }
 
-  /** Queue HTML message content after a typing delay, expanding `{action}` placeholders into key caps. */
-  text(msg: string): void {
+  post(msg: string, at: Stamp): void {
     const thread = this.thread;
     if (!thread) {
       return;
     }
 
-    window.clearTimeout(this.pending);
-
-    // Complete any pending message immediately before starting the next typing delay.
-    if (this.typing) {
-      this.land(this.typing.dataset.msg ?? '');
+    for (const m of thread.querySelectorAll('.burner-msg')) {
+      m.classList.add('old');
     }
 
-    this.typing = el('div', 'burner-msg typing', thread, '<i></i><i></i><i></i>');
-    this.typing.dataset.msg = msg;
-    this.toBottom();
-    this.pending = window.setTimeout(() => this.typing && this.land(msg), TYPING);
-  }
-
-  /** Replace the typing indicator, dim older messages, update the unread count, and notify the phone. */
-  private land(msg: string): void {
-    const bubble = this.typing;
-    this.typing = null;
-
-    if (!bubble) {
-      return;
-    }
-
-    bubble.className = 'burner-msg';
-    bubble.innerHTML = keyText(msg);
-    delete bubble.dataset.msg;
-
-    for (const m of this.thread?.children ?? []) {
-      if (m !== bubble) {
-        m.classList.add('old');
-      }
-    }
+    this.days?.mark(at);
+    const bubble = el('div', 'burner-msg', thread, keyText(msg));
+    el('div', 'burner-stamp', bubble, stampText(at));
 
     if (!this.showing) {
       this.fresh++;

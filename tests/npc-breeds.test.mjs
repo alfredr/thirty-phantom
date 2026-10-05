@@ -13,7 +13,16 @@ const [{ Npc, Npcs }, { NPC_BREEDS }, { proximityPitch, feedItems }, { Shop }, {
   '/src/game/items/inventory.ts',
 );
 
-const hooks = { landed() {}, ground: () => 0, burned() {}, fed() {}, sprites: { emit() {} } };
+const hooks = {
+  landed() {},
+  ground: () => 0,
+  burned() {},
+  fed() {},
+  sprites: { emit() {} },
+  nav: { standable: () => 0, heightAt: () => 0 },
+  planner: { request: () => ({ settled: false, cancel() {} }) },
+  walkBlocks: () => [],
+};
 const placed = (x) => ({ id: 'randy', pos: [x, 0, 0], yaw: 0, fire: [x, 0, 1] });
 
 test('pocket smoke follows the coat and stops when that NPC no longer carries molten keys', () => {
@@ -72,7 +81,8 @@ test('NPCs share breed definitions while keeping their models, stock, and behavi
 
 test('an NPC can omit merchant, pitch, fire, and work capabilities', () => {
   let posed = 0;
-  const breed = { name: 'BYSTANDER', model: () => ({ root: new Group(), pose: () => posed++ }), trades: [] };
+  const root = new Group();
+  const breed = { name: 'BYSTANDER', model: () => ({ root, rig: { root }, pose: () => posed++ }), trades: [] };
   const npcs = new Npcs([], new Scene(), hooks);
   const npc = new Npc(placed(0), breed, { scene: new Scene(), ...hooks });
   npcs.list.push(npc);

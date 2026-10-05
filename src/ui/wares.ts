@@ -174,6 +174,7 @@ export class WaresPanel {
         'ware-slot',
         empty ? 'empty' : '',
         !s.can && !empty ? 'off' : '',
+        s.unavailable && !empty ? 'no' : '',
         s.id === this.focus ? 'on' : '',
         this.flash?.id === s.id ? this.flash.cls : '',
       ];
@@ -198,7 +199,7 @@ export class WaresPanel {
         'div',
         'wares-what',
         info,
-        `${f.name} <b>x${f.count}</b> <span>${f.unavailable ?? (f.price > 0 ? `$${f.price} EACH` : 'FREE')}</span>`,
+        `${f.name} <b>x${f.count}</b> <span${f.unavailable ? ' class="no"' : ''}>${f.unavailable ?? (f.price > 0 ? `$${f.price} EACH` : 'FREE')}</span>`,
       );
     }
 

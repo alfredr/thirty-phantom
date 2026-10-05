@@ -13,8 +13,8 @@ import {
   SHELTER,
   worldBox,
 } from './decor-models';
-import { BLOCK_LAYOUT, type BlockKind, blockRect, CITY } from './gen-city';
-import type { BoxDef, LevelData, V3 } from './level-data';
+import { BLOCK_LAYOUT, type BlockKind, blockRect, CITY, GRAVES } from './gen-city';
+import type { BoxDef, DecorDef, LevelData, V3 } from './level-data';
 import type { LevelWriter } from './level-writer';
 import { guardrailHeight, lampHeight, railingHeight } from './prop-models';
 
@@ -106,7 +106,7 @@ const LAND = {
   },
   /**
    * Graveyard placement limits: perimeter inset and spacing, maximum cypress and flower counts, gate clearance,
-   * grave-flower offset, maximum grave width, and plant scales.
+   * grave-flower offset, and plant scales.
    */
   graveyard: {
     inset: 2.4,
@@ -115,7 +115,6 @@ const LAND = {
     flowers: 12,
     gate: 6,
     grave: 0.7,
-    wide: 2.5,
     sizes: [0.85, 1.1] as [number, number],
     posy: 0.8,
   },
@@ -136,6 +135,19 @@ const width = (r: Rect): number => r[2] - r[0];
 const depth = (r: Rect): number => r[3] - r[1];
 const boxRect = (b: { min: V3; max: V3 }): Rect => [b.min[0], b.min[2], b.max[0], b.max[2]];
 const inside = (r: Rect, x: number, z: number): boolean => x >= r[0] && x <= r[2] && z >= r[1] && z <= r[3];
+
+function spaceOf(d: DecorDef): LocalBox[] {
+  const turn = DECOR[d.kind].round ? 0 : d.yaw;
+  return DECOR[d.kind].space.map((b) => worldBox(b, d.pos, turn, d.scale ?? 1, d.stretch ?? 1));
+}
+
+function footprint(d: DecorDef): Rect {
+  return spaceOf(d).reduce<Rect>(
+    (r, [min, max]) => [Math.min(r[0], min[0]), Math.min(r[1], min[2]), Math.max(r[2], max[0]), Math.max(r[3], max[2])],
+    [Infinity, Infinity, -Infinity, -Infinity],
+  );
+}
+
 /** A shuffled copy of `a`. */
 function shuffled<T>(rng: Rng, a: readonly T[]): T[] {
   const out = [...a];
@@ -309,6 +321,12 @@ class Site {
 
     const [sx, , sz] = level.playerSpawn;
     this.take(grow([sx, sz, sx, sz], LAND.spawn), -ALL, ALL);
+
+    for (const d of level.decor) {
+      for (const [min, max] of spaceOf(d)) {
+        this.take([min[0], min[2], max[0], max[2]], min[1], max[1]);
+      }
+    }
 
     for (const s of level.signs) {
       const [x, y, z] = s.pos;
@@ -976,7 +994,7 @@ function deckFront(p: Planter, block: Rect): void {
 /** The graveyard: dark cypresses inside its fence, and purple flowers left on some of the graves. */
 function graveyardPlanting(p: Planter, block: Rect): void {
   const G = CITY.graveyard;
-  const { inset, step, cypresses, flowers, gate, grave, wide, sizes, posy } = LAND.graveyard;
+  const { inset, step, cypresses, flowers, gate, grave, sizes, posy } = LAND.graveyard;
   const ring: [number, number][] = [];
   const r = grow(block, -inset);
   for (let x = r[0]; x <= r[2]; x += step) {
@@ -1004,19 +1022,17 @@ function graveyardPlanting(p: Planter, block: Rect): void {
     }
   }
 
-  // graves: small stone boxes standing on the graveyard's ground
-  const graves = boxesIn(
-    p.w.data,
-    block,
-    (b) => b.mat === 'stone' && Math.abs(b.min[1] - G) < EPS && b.max[0] - b.min[0] < wide,
-  );
+  const graves = p.w.data.decor
+    .filter((d) => GRAVES.includes(d.kind))
+    .map(footprint)
+    .filter((r) => overlaps(r, block));
   let k = 0;
-  for (const b of shuffled(p.rng, graves)) {
+  for (const r of shuffled(p.rng, graves)) {
     if (k >= flowers) {
       break;
     }
 
-    if (p.tryPut('flowersPurple', [(b.min[0] + b.max[0]) / 2, G, b.max[2] + grave], p.spin(), posy)) {
+    if (p.tryPut('flowersPurple', [(r[0] + r[2]) / 2, G, r[3] + grave], p.spin(), posy)) {
       k++;
     }
   }

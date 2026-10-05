@@ -1,12 +1,13 @@
 import { BoxGeometry, Color, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
 
 import { TUNING } from '@/config';
-import { clamp, damp } from '@/engine/core/math';
+import { clamp, damp, type V3 } from '@/engine/core/math';
 import { bodyHalf } from '@/engine/physics/vehicle-params';
 import { whiteColors } from '@/render/geometry';
 import { withCutaway, type MaterialLibrary } from '@/render/materials';
 
 import { facingYaw, type GateDef } from './level-data';
+import { GATE_ARM } from './prop-models';
 import type { PropKind, Props } from './props';
 
 /** Vehicle state required to detect impacts against gate arms. */
@@ -23,14 +24,14 @@ export interface GateCrasher {
 const SHUT = new Color('#ff2a4a');
 const NEAR = new Color('#ffd23d');
 const SCANNED = new Color('#3dff6a');
-/** Horizontal opening distance in meters and maximum eligible vehicle height in world coordinates. */
+/** Horizontal opening distance in meters. */
 const OPEN_REACH = 10;
-const OPEN_BELOW = 3.5;
 /** Maximum horizontal speed in meters per second at which a vehicle can trigger opening. */
 const OPEN_SPEED = 8;
 /** How fast the arm swings (damp rate) and how far up it goes (radians). */
 const OPEN_RATE = 5;
 const LIFT = 1.35;
+const BAR_HALF = GATE_ARM.bar / 2;
 
 export interface GateRuntime {
   def: GateDef;
@@ -39,6 +40,26 @@ export interface GateRuntime {
   open: number;
   /** Seconds the scanner flash stays lit after a badge event. */
   flash: number;
+}
+
+function level(g: GateRuntime, y: number): boolean {
+  return y >= g.def.min[1] && y <= g.def.max[1];
+}
+
+function blockedSpan(
+  hinge: number,
+  rise: number,
+  reach: number,
+  feet: number,
+  height: number,
+): [number, number] | null {
+  if (rise < 1e-6) {
+    return hinge - BAR_HALF < feet + height && hinge + BAR_HALF > feet ? [0, reach] : null;
+  }
+
+  const lo = Math.max(0, (feet - BAR_HALF - hinge) / rise);
+  const hi = Math.min(reach, (feet + height + BAR_HALF - hinge) / rise);
+  return lo < hi ? [lo, hi] : null;
 }
 
 /**
@@ -98,13 +119,13 @@ export class Gates {
 
           const dx = v.pos.x - g.center.x;
           const dz = v.pos.z - g.center.z;
-          if (v.pos.y < OPEN_BELOW && dx * dx + dz * dz < OPEN_REACH * OPEN_REACH) {
+          if (level(g, v.pos.y) && dx * dx + dz * dz < OPEN_REACH * OPEN_REACH) {
             want = 1;
           }
         }
       } else {
         for (const p of movers) {
-          if (p.y < OPEN_BELOW && Math.hypot(p.x - g.center.x, p.z - g.center.z) < OPEN_REACH) {
+          if (level(g, p.y) && Math.hypot(p.x - g.center.x, p.z - g.center.z) < OPEN_REACH) {
             want = 1;
           }
         }
@@ -172,10 +193,75 @@ export class Gates {
     }
   }
 
+  keepOut(from: Vector3, p: V3, r: number, height: number): boolean {
+    let moved = false;
+    for (let k = 0; k < this.list.length; k++) {
+      const g = this.list[k];
+      const arm = this.arms[k];
+      if (g && arm !== undefined && this.props?.standing(arm) && this.fence(g, from, p, r, height)) {
+        moved = true;
+      }
+    }
+
+    return moved;
+  }
+
+  private fence(g: GateRuntime, from: Vector3, p: V3, r: number, height: number): boolean {
+    const a = g.open * LIFT;
+    const h = g.def.hinge;
+    const span = blockedSpan(h[1], Math.tan(a), g.def.armLength * Math.cos(a), p[1], height);
+    if (!span) {
+      return false;
+    }
+
+    const [lo, hi] = span;
+    const yaw = facingYaw(g.def.armDir);
+    const dx = Math.sin(yaw);
+    const dz = Math.cos(yaw);
+    const reach = r + BAR_HALF;
+    const ux = p[0] - h[0];
+    const uz = p[2] - h[2];
+    const t = ux * dx + uz * dz;
+    const n = ux * dz - uz * dx;
+    const fx = from.x - h[0];
+    const fz = from.z - h[2];
+    const fn = fx * dz - fz * dx;
+    const ft = fx * dx + fz * dz;
+    const put = (s: number, side: number): void => {
+      p[0] = h[0] + dx * s + dz * side;
+      p[2] = h[2] + dz * s - dx * side;
+    };
+
+    if (fn * n < 0) {
+      const across = ft + ((t - ft) * fn) / (fn - n);
+      if (across >= lo && across <= hi) {
+        put(t, Math.sign(fn) * reach);
+        return true;
+      }
+    }
+
+    const s = clamp(t, lo, hi);
+    const ox = ux - dx * s;
+    const oz = uz - dz * s;
+    const d = Math.hypot(ox, oz);
+    if (d >= reach) {
+      return false;
+    }
+
+    if (d > 1e-6) {
+      p[0] = h[0] + dx * s + (ox / d) * reach;
+      p[2] = h[2] + dz * s + (oz / d) * reach;
+    } else {
+      put(s, (Math.sign(fn) || 1) * reach);
+    }
+
+    return true;
+  }
+
   inZone(p: Vector3): GateRuntime | null {
     for (const g of this.list) {
       const { min, max } = g.def;
-      if (p.x >= min[0] && p.x <= max[0] && p.z >= min[2] && p.z <= max[2] && p.y <= max[1]) {
+      if (p.x >= min[0] && p.x <= max[0] && p.z >= min[2] && p.z <= max[2] && level(g, p.y)) {
         return g;
       }
     }

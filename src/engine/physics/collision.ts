@@ -4,12 +4,26 @@ import { clamp, lerp, type V3 } from '@/engine/core/math';
 const THIN_SLAB = 0.3;
 /** Segment direction scratch for raycast() and segmentBlocked(). */
 const _d: V3 = [0, 0, 0];
+const _c: V3 = [0, 0, 0];
+const _span: [number, number] = [0, 0];
 
 function segment(a: V3, b: V3): V3 {
   _d[0] = b[0] - a[0];
   _d[1] = b[1] - a[1];
   _d[2] = b[2] - a[2];
   return _d;
+}
+
+function clip(o: number, d: number, lo: number, hi: number, span: [number, number]): boolean {
+  if (Math.abs(d) < 1e-9) {
+    return o >= lo && o <= hi;
+  }
+
+  const ta = (lo - o) / d;
+  const tb = (hi - o) / d;
+  span[0] = Math.max(span[0], Math.min(ta, tb));
+  span[1] = Math.min(span[1], Math.max(ta, tb));
+  return span[0] <= span[1];
 }
 
 /** Filled in by groundAt: the solid whose top it found, or null for the ground plane. */
@@ -34,6 +48,7 @@ export interface Solid {
   knockdown?: boolean;
   /** Require the vehicle’s smashSpeed for knockdown, leaving heavy props solid to ordinary vehicles. */
   heavy?: boolean;
+  boost?: number;
   enabled: boolean;
   /** Stamp used to deduplicate solids spanning multiple query cells. */
   stamp: number;
@@ -83,7 +98,7 @@ export class CollisionWorld {
   add(
     min: V3,
     max: V3,
-    extra: { ramp?: RampShape; breakable?: boolean; knockdown?: boolean; heavy?: boolean } = {},
+    extra: { ramp?: RampShape; breakable?: boolean; knockdown?: boolean; heavy?: boolean; boost?: number } = {},
   ): Solid {
     const s: Solid = {
       id: this.solids.length,
@@ -93,6 +108,7 @@ export class CollisionWorld {
       breakable: extra.breakable,
       knockdown: extra.knockdown,
       heavy: extra.heavy,
+      boost: extra.boost,
       enabled: true,
       stamp: 0,
     };
@@ -203,6 +219,28 @@ export class CollisionWorld {
     return g;
   }
 
+  groundAlong(x: number, z: number, dx: number, dz: number, half: number, y: number): number {
+    let g = this.groundPlane(x, z);
+    const ex = Math.abs(dx) * half;
+    const ez = Math.abs(dz) * half;
+    for (const s of this.query(x - ex, z - ez, x + ex, z + ez)) {
+      _span[0] = -half;
+      _span[1] = half;
+
+      if (!clip(x, dx, s.min[0], s.max[0], _span) || !clip(z, dz, s.min[2], s.max[2], _span)) {
+        continue;
+      }
+
+      const t = clamp(0, _span[0], _span[1]);
+      const top = this.topAt(s, x + dx * t, z + dz * t);
+      if (top <= y && top > g) {
+        g = top;
+      }
+    }
+
+    return g;
+  }
+
   /** Return the lowest non-ramp underside at or above `fromY` intersecting the square footprint, or Infinity. */
   ceilingAt(x: number, z: number, r: number, fromY: number): number {
     let c = Infinity;
@@ -275,6 +313,42 @@ export class CollisionWorld {
         hits?.push({ solid: s, nx: dx, nz: dz });
         moved = true;
         any = true;
+      }
+
+      if (!moved) {
+        break;
+      }
+    }
+
+    return any;
+  }
+
+  resolveBody(
+    p: V3,
+    fx: number,
+    fz: number,
+    offsets: readonly number[],
+    r: number,
+    height: number,
+    stepUp: number,
+    hits?: CircleHit[],
+  ): boolean {
+    let any = false;
+    for (let pass = 0; pass < 3; pass++) {
+      let moved = false;
+      for (const o of offsets) {
+        const x = p[0] + fx * o;
+        const z = p[2] + fz * o;
+        _c[0] = x;
+        _c[1] = Math.max(p[1], this.groundAt(x, z, p[1], stepUp));
+        _c[2] = z;
+
+        if (this.resolveCircle(_c, r, height, stepUp, hits)) {
+          p[0] += _c[0] - x;
+          p[2] += _c[2] - z;
+          moved = true;
+          any = true;
+        }
       }
 
       if (!moved) {

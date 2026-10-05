@@ -54,6 +54,7 @@ export const helpRows = (): [keys: string, what: string][] => [
   [kbd('pay'), 'hotwire / tip the valet'],
   [kbd('inventory'), 'items: eat, use'],
   [kbd('phone'), 'phone: texts, tasks, map'],
+  [kbd('map'), 'phone map'],
   [`${kbd('interact')} ${kbd('pay')}`, 'elevator: call, floor up / down'],
   [kbd('summon'), 'summon skeletons (night, on foot)'],
   [kbd('boost'), 'burn GhASt (monster truck)'],
@@ -65,6 +66,7 @@ export const helpRows = (): [keys: string, what: string][] => [
   ['<kbd>WHEEL</kbd>', 'zoom'],
   [kbd('fastForward'), 'hold to fast-forward'],
   [kbd('nextPhase'), 'skip to next phase'],
+  [kbd('reset'), 'reset a stuck car'],
   // Omit the mute shortcut when audio is disabled by ?sound=0.
   ...(SOUND_ON ? [[kbd('mute'), 'sound on / off'] satisfies [string, string]] : []),
   [kbd('help'), 'this list'],
@@ -136,6 +138,7 @@ export interface HudStatus {
   dash(): DashState | null;
   /** GhASt level in [0, 1] and boost state while driving the truck; null otherwise. */
   ghast(): { fill: number; burning: boolean } | null;
+  reset(): boolean;
 }
 
 /** Visual toast variants for ordinary, deck-related, and warning messages. */
@@ -163,6 +166,7 @@ export class Hud {
   private readonly wares: WaresPanel;
   private readonly sign: OccupancySign;
   private readonly prompt: HTMLElement;
+  private readonly reset: HTMLElement;
   private readonly bubble: HTMLElement;
   private readonly dash: HTMLElement;
   private readonly dashUnit: HTMLElement;
@@ -218,6 +222,8 @@ export class Hud {
     this.wares = new WaresPanel(root, (id, n) => this.onBuy?.(id, n), focus);
 
     this.prompt = el('div', 'hud-prompt plate', root);
+    this.reset = el('div', 'hud-prompt hud-reset plate', root, keyText('{reset} RESET'));
+    this.reset.dataset.action = 'reset';
     this.bubble = el('div', 'hud-bubble plate', root);
 
     // Keep the map between the speedometer and GhASt gauge in one dashboard unit.
@@ -299,6 +305,7 @@ export class Hud {
           a.airborne === b.airborne),
       draw: (d) => d && this.drawDash(d),
     });
+    v.add({ read: () => s.reset(), draw: (on) => this.reset.classList.toggle('show', on) });
     v.add({
       read: () => s.ghast(),
       same: (a, b) => a === b || (!!a && !!b && a.fill === b.fill && a.burning === b.burning),

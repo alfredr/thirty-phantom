@@ -366,6 +366,15 @@ export const CUES = {
           thump: { from: 100, to: 50, len: 0.12, vol: 0.7 },
         },
       },
+      'prop-stone': {
+        synth: 'foley',
+        p: {
+          thump: { from: 70, to: 35, len: 0.14, vol: 1 },
+          crunch: { f: 1100, q: 0.8, len: 0.3, vol: 0.85 },
+          rattle: { n: 9, f: 950, len: 0.55, vol: 0.45, at: 0.05 },
+        },
+        vol: 0.8,
+      },
     },
   },
   /** Continuous fire crackle, intensified when Randy adds tires. */
@@ -380,6 +389,49 @@ export const CUES = {
         synth: 'fire',
         p: { rate: [9, 40], body: [450, 1600], vol: 1, lap: 0.13, hiss: 0.25, wander: 1, clusters: 0.1, shifts: 0.025 },
       },
+    },
+  },
+  scene: {
+    bus: 'sfx',
+    vol: 0.6,
+    range: 45,
+    max: 3,
+    sounds: {
+      'keys-clink': {
+        synth: 'chime',
+        p: { notes: [2900, 3700, 3300], step: 0.05, decay: 0.12, wave: 'triangle', bell: 2.7, vol: 0.5 },
+      },
+      'gas-glug': {
+        synth: 'foley',
+        p: { thump: { from: 190, to: 95, len: 0.16, vol: 0.6 }, rattle: { n: 3, f: 320, q: 3, len: 0.35, vol: 0.5 } },
+      },
+      'fire-flare': { synth: 'whoosh', p: { f: [110, 760, 180], q: 0.6, len: 2.6, peak: 0.12, vol: 1.6, boom: 38 } },
+    },
+  },
+  start: {
+    bus: 'sfx',
+    vol: 0.6,
+    range: 45,
+    max: 4,
+    sounds: {
+      'wire-sparks': { synth: 'spark', p: { n: 7, len: 0.35, f: [2500, 6000], vol: 0.5 } },
+      'starter-crank': {
+        synth: 'crank',
+        p: { len: 0.55, rate: [10, 12], f: [150, 190], misfires: 0, caught: 0.8, vol: 0.55 },
+      },
+      'starter-strain': {
+        synth: 'crank',
+        p: { len: 1.4, rate: [7, 3.5], f: [170, 105], misfires: 2, caught: 1, vol: 0.6 },
+      },
+      'engine-cough': {
+        synth: 'foley',
+        p: {
+          thump: { from: 70, to: 38, len: 0.18, vol: 0.9 },
+          body: { f: 420, len: 0.3, vol: 0.6, at: 0.04 },
+          rattle: { n: 4, f: 260, q: 2, len: 0.4, vol: 0.45, at: 0.08 },
+        },
+      },
+      'engine-roar': { synth: 'whoosh', p: { f: [60, 340, 120], q: 1.2, len: 1.8, peak: 0.25, vol: 1.4, boom: 45 } },
     },
   },
   /** Fire burst when a tire is added. */

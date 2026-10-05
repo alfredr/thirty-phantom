@@ -15,6 +15,7 @@ function play({
   abilities = phantom ? ['possess', 'truck', 'summon'] : ['steal'],
   possessable = () => false,
   escaping = false,
+  locked = null,
   parking = true,
   freeSpot = false,
   summoned = 3,
@@ -28,6 +29,7 @@ function play({
     canEnter: () => true,
     canHotwire: () => false,
     escaping: () => escaping,
+    locked: () => locked,
     inFreeSpot: () => freeSpot,
     enter: (car) => log.push(['enter', car.name]),
     exit: () => log.push(['exit']),
@@ -89,6 +91,7 @@ test('getting out waits for the ground and for an escaped truck, and says PARK H
     'a car on its roof can still be left',
   );
   assert.equal(label(play({ escaping: true }), new GetOut({ car: inSpot })), 'fail:');
+  assert.equal(label(play({ locked: 'SHUT' }), new GetOut({ car: inSpot })), 'fail:SHUT');
 });
 
 test('offers pick the best action per key, nearest first, and keep the reason when nothing can be done', () => {

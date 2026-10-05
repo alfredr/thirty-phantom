@@ -4,6 +4,7 @@ const svg = (body: string): string =>
 
 export const ICONS = {
   messages: svg('<path d="M4 5h16v11H9l-5 4z"/>'),
+  calls: svg('<path d="M6.5 3.5l3 3.5-2 2.5a11 11 0 0 0 7 7l2.5-2 3.5 3-2 3c-7.5.5-15-7-14.5-14.5z"/>'),
   tasks: svg('<path d="M4 6l2 2 3-3M4 13l2 2 3-3M12 7h8M12 14h8M4 19h16"/>'),
   phantoms: svg(
     '<path d="M6 21V10a6 6 0 0 1 12 0v11l-3-2-3 2-3-2z"/><circle cx="9.5" cy="10" r="1"/><circle cx="14.5" cy="10" r="1"/>',

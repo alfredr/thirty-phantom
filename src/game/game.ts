@@ -42,6 +42,7 @@ import { PALETTE } from '@/render/palette';
 import { SunLight } from '@/render/sun-light';
 import { helpRows, Hud } from '@/ui/hud';
 import { Help, MapApp, type PhantomReport, Phantoms, Photos, Tasks } from '@/ui/phone/apps';
+import { Calls } from '@/ui/phone/calls';
 import { Messages } from '@/ui/phone/messages';
 import { Phone } from '@/ui/phone/phone';
 import { wantsTouch } from '@/ui/touch-controls';
@@ -68,6 +69,7 @@ import type { DriveWorld } from './driving/drive-actions';
 import { Drivers } from './driving/drivers';
 import { Fleet } from './driving/fleet';
 import { Refuge } from './driving/refuge';
+import { openPose, type Pose, StuckWatch } from './driving/reset';
 import { Visitors } from './driving/visitors';
 import { playEffects } from './effects';
 import { GameClock, type Phase } from './game-clock';
@@ -84,6 +86,7 @@ import { CLAIMS, type ClaimKind } from './rules/claim-kinds';
 import { LEVEL } from './rules/reach';
 import { EYE_HEIGHT, gameReactions, type Perception, react, type Reaction, type Thing } from './rules/reactions';
 import { WorldConditions } from './rules/world-conditions';
+import type { Said } from './story/conversation';
 import { Objectives } from './story/objectives';
 import { makePortraits, type Portraits } from './story/portraits';
 import { Haunting, Quests, tireMarks } from './story/quests';
@@ -132,6 +135,7 @@ const STANDING = 0.5;
  * restore exposure.
  */
 const PHASE_SKIP = { down: 1.4, hold: 0.6, up: 1.6, dim: 0.04, toast: 3 };
+const SCRIPT_FADE = { down: 0.45, hold: 0.25, up: 0.6, dim: 0.02 };
 /** Pickup and extended trade notification durations, in seconds. */
 const MONEY_TOAST = 1.1;
 const TRADE_TOAST = 2.6;
@@ -187,6 +191,7 @@ export type GameEvents = RideEvents & {
   crushed: { car: Vehicle; by: Vehicle };
   /** Report a tire entering Randy’s fire. */
   stoked: { at: Vector3 };
+  sfx: { name: ScriptSound; at: Vector3 };
   /** Request smoke at a character’s ground position through game.puff. */
   puff: { at: Vector3 };
   /** Report collected cash, wallet contents, or glovebox money in dollars. */
@@ -206,7 +211,10 @@ export type GameEvents = RideEvents & {
   performed: { action: CodyAction };
   /** Report an action failure and its reason. */
   failed: { action: CodyAction; reason: string };
+  reset: { v: Vehicle };
 };
+
+export type ScriptSound = 'keys-clink' | 'gas-glug' | 'fire-flare' | 'engine-cough' | 'engine-roar';
 
 /** Override the isometric camera target and zoom while muting player controls. */
 export interface Cutscene {
@@ -274,6 +282,7 @@ export class Game {
   readonly objectives = new Objectives();
   /** Temporary debris and persistent world pickups. */
   private readonly junk: Junk;
+  private readonly stuck = new StuckWatch();
   /** Enable a time skip after eating brisket. Tutorial story steps temporarily disable it. */
   skipAfterEating = true;
   private readonly phaseFade = new Fade(PHASE_SKIP, () => this.clock.skipToNextPhase());
@@ -330,6 +339,11 @@ export class Game {
   };
   /** Keep an escaped vehicle under player control instead of starting its disappearance sequence. */
   keepEscaped = false;
+  doorLock: string | null = null;
+  bubble: Said | null = null;
+  autopilot: ((v: Vehicle, dt: number) => DriveInput) | null = null;
+  private readonly scriptFade = new Fade(SCRIPT_FADE, () => this.whileDark?.());
+  private whileDark: (() => void) | null = null;
   /** Vehicles already counted as phantoms, preventing repeat escapes from scoring again. */
   private readonly counted = new WeakSet<Vehicle>();
   private readonly ghosts: Ghosts;
@@ -484,6 +498,9 @@ export class Game {
     // Register thrown props as persistent collectibles.
     this.npcs = new Npcs(level.npcs, this.scene, {
       sprites: this.sprites,
+      nav: this.nav,
+      planner: this.planner,
+      walkBlocks: () => parkedBlocks(this.vehicles),
       landed: (kind, item, floor) => this.junk.lay(kind, item, floor),
       ground: (x, z, below) => this.world.collision.groundAt(x, z, below, 0),
       burned: (at) => {
@@ -542,10 +559,8 @@ export class Game {
       this.debris.burst(_at.copy(at).setY(at.y + 0.9), 18, 4, [0.08, 0.22], [1.5, 2.5], BONE, 0.5, at.y);
     };
 
-    this.skeletons.onKill = (at) => {
-      this.sprites.spray(_at.copy(at).setY(at.y + 0.6), 3, 2, [1.6, 2.6], WHITE, 1.2, 2.4, 1.4, 'ghost', 0.8);
-      this.ghosts.rise(at);
-    };
+    this.skeletons.onKill = (at) => this.deathGhost(at);
+    this.crowd.onGhost = (at) => this.deathGhost(at);
 
     // Exclude the deck from ordinary visitor parking routes.
     const keepOut = [{ min: level.deck.min, max: level.deck.max }];
@@ -578,7 +593,7 @@ export class Game {
       (car, ev) => this.drove(car, ev, NUDGE_LOOSEN),
       this.claims,
     );
-    this.ghosts = new Ghosts(level.ghostZones, 28);
+    this.ghosts = new Ghosts(level.ghostZones, TUNING.ghosts.ambient);
     this.bats = new Bats(new Vector3(this.deckCenter.x, 0, this.deckCenter.z), 16);
     this.scene.add(
       this.slime.mesh,
@@ -665,6 +680,7 @@ export class Game {
     playEffects(this.events, {
       ride: () => this.driving,
       shake: (t) => this.shake(t),
+      flash: (a, color) => this.doFlash(a, color),
       toast: (title, sub, tone, seconds) => this.hud.toast(title, sub, tone, seconds),
       slime: this.slime,
       debris: this.debris,
@@ -716,16 +732,24 @@ export class Game {
       },
       // Show GhASt controls when the current ride can burn fuel.
       ghast: () => (this.driving?.breed.boost ? { fill: this.ghast, burning: this.fuel.burning } : null),
+      reset: () => this.resetOffered,
     });
     // Build the shared phone and connect its notifications to game events.
     this.phone = new Phone(
       this.hud.root,
       this.input.focus,
-      { time: () => GameClock.format(this.clock.hours), goal: () => this.objectives.goal },
+      {
+        time: () => GameClock.format(this.clock.hours),
+        goal: () => this.objectives.goal,
+        how: () => this.objectives.how,
+        now: () => ({ hours: this.clock.hours, day: this.clock.day }),
+      },
       new Messages(),
+      new Calls(),
       [
         new Tasks({
           goal: () => this.objectives.goal,
+          how: () => this.objectives.how,
           aim: () => `FILL ALL ${TUNING.garage.spots} SPOTS WITH PHANTOMS.`,
           marks: () => this.objectives.list,
         }),
@@ -766,6 +790,7 @@ export class Game {
     });
     this.events.on('exited', ({ spot, quiet }) => {
       this.fuel.burning = false;
+      this.stuck.clear();
       this.iso.zoomTarget = Math.min(this.iso.zoomTarget, TUNING.camera.zoom);
       this.hud.setPrompt(null);
 
@@ -774,6 +799,7 @@ export class Game {
       }
     });
     this.phone.onBuzz = (what) => this.events.emit('phone', what);
+    this.phone.quiet = () => this.hushed();
     this.hud.initMap(level);
     this.hud.onStart(() => this.start());
     this.hud.onItemAction = (kind, id) => this.interactions.useItem(kind, id);
@@ -961,7 +987,7 @@ export class Game {
 
     this.updateShared(dt);
     this.hud.update();
-    this.phone.update();
+    this.phone.update(dt);
     this.gfx.chaseView = this.chaseActive;
 
     if (this.rendering) {
@@ -1152,11 +1178,15 @@ export class Game {
       this.phone.toggle();
     }
 
+    if (inp.wasPressed('map')) {
+      this.phone.toggle('map');
+    }
+
     if (inp.wasPressed('help')) {
       this.phone.toggle('help');
     }
 
-    if (inp.wasPressed('reload')) {
+    if (inp.wasPressed('reload') && !this.resetOffered) {
       reloadIfPending();
     }
 
@@ -1233,7 +1263,7 @@ export class Game {
     this.shop.update(this.onFoot && this.mode === 'play' && !this.cutscene ? this.player.pos : null);
     // Project the active conversation bubble above its speaker.
     const me = (this.driving ?? this.player).pos;
-    const said = this.talk.update(dt, me) ?? this.randyTalk.update(dt, me);
+    const said = this.talk.update(dt, me) ?? this.randyTalk.update(dt, me) ?? this.bubble;
     const head = said && this.toScreen(said.at);
     this.hud.setBubble(said && head ? { ...head, who: said.who, line: said.line, choices: said.choices } : null);
     this.fleet.update(dt, this.dayNight.nightness);
@@ -1378,7 +1408,7 @@ export class Game {
     }
 
     blockers.length = n;
-    this.player.update(dt, this.input, this.view, this.world.collision, blockers);
+    this.player.update(dt, this.input, this.view, this.world.collision, blockers, this.world.gates);
     this.interactions.update();
   }
 
@@ -1400,6 +1430,7 @@ export class Game {
       enter: (car) => this.codyRide.enter(car),
       exit: () => this.codyRide.exit(),
       escaping: () => this.escaping,
+      locked: () => this.doorLock,
       inFreeSpot: (car) => {
         const spot = this.garage.spotAt(car.pos);
         return !!spot && this.garage.isFree(spot, car);
@@ -1440,7 +1471,7 @@ export class Game {
     }
 
     const inp = this.input;
-    const di: DriveInput = {
+    const di: DriveInput = this.autopilot?.(v, dt) ?? {
       throttle: inp.axis('back', 'forward'),
       steer: inp.axis('left', 'right'),
       hop: inp.wasPressed('hop'),
@@ -1450,7 +1481,7 @@ export class Game {
       di.throttle = Math.max(di.throttle, 0);
     }
 
-    di.boost = this.fuel.update(v, this.input.isDown('boost'), dt, this.ghosts, this.events);
+    di.boost = this.fuel.update(v, this.input.isDown('boost'), dt, this.ghosts, this.events, this.cody.can('intake'));
     const prev = _prev.copy(v.pos);
     const ev = v.drive(dt, di, this.world.collision);
     if (ev.hopped) {
@@ -1465,8 +1496,32 @@ export class Game {
     }
 
     this.exhaust.drive(dt, v, di.throttle, this.fuel.burning);
+    this.stuck.update(dt, v, !this.cutscene && !this.escaping && inp.axis('back', 'forward') !== 0);
+
+    if (this.resetOffered && inp.wasPressed('reset')) {
+      this.resetVehicle(v);
+    }
 
     this.interactions.update();
+  }
+
+  private get resetOffered(): boolean {
+    return this.mode === 'play' && !!this.driving && !this.cutscene && this.stuck.on;
+  }
+
+  resetVehicle(v: Vehicle, pose?: Pose): void {
+    const at = pose ?? openPose(v, this.nav, this.vehicles);
+    const { x, z } = at?.pos ?? v.pos;
+    const y = at?.pos.y ?? this.world.collision.groundAt(x, z, v.pos.y + 0.5, v.params.stepUp);
+    v.place(x, y, z, at?.yaw ?? v.yaw, 0, 0, this.world.collision);
+    this.garage.resync(v);
+    this.stuck.clear();
+
+    if (v === this.ride) {
+      this.chase.snapBehind(v.yaw);
+    }
+
+    this.events.emit('reset', { v });
   }
 
   /** Project a world point into CSS pixels, returning null when its projected depth is at or beyond one. */
@@ -1581,6 +1636,21 @@ export class Game {
     if (!(v.crashing && v.resting)) {
       this.vehicleContacts(v, loosen);
     }
+
+    if (ev.landed > (v.breed.landingTolerance ?? Infinity) && !v.gone) {
+      this.fell(v);
+    }
+  }
+
+  private fell(v: Vehicle): void {
+    v.setStatus('crushed');
+    this.crushed(v, v);
+
+    if (v === this.driving) {
+      this.codyRide.exit();
+    }
+
+    v.role = 'parked';
   }
 
   private onCrossing(c: Crossing): void {
@@ -1609,11 +1679,13 @@ export class Game {
           break;
         }
 
+        const phantom = this.garage.escape(v);
+        if (!phantom) {
+          break;
+        }
+
         this.counted.add(v);
-        const spot = v.homeSpot !== null ? (this.garage.spots[v.homeSpot] ?? null) : null;
-        this.garage.release(v);
-        const home = spot && this.garage.isFree(spot) ? spot : null;
-        const imprint = this.garage.addPhantom(v.restPos, v.restYaw, home);
+        const { imprint, home } = phantom;
         this.events.emit('phantom', {
           at: imprint.position.clone(),
           yaw: imprint.rotation.y,
@@ -1622,7 +1694,6 @@ export class Game {
           hours: this.clock.hours,
           day: this.clock.day,
         });
-        v.homeSpot = null;
         this.hud.toast(`PHANTOM CODY #${this.garage.phantoms}`, 'OOPS! YOU FORGOT TO BADGE OUT!', '', 2.8);
         this.doFlash(0.35, '#9dff3a');
         this.shake(0.3);
@@ -1676,6 +1747,11 @@ export class Game {
       how: 'knocked',
       by: v,
     });
+  }
+
+  private deathGhost(at: Vector3): void {
+    this.sprites.spray(_at.copy(at).setY(at.y + 0.6), 3, 2, [1.6, 2.6], WHITE, 1.2, 2.4, 1.4, 'ghost', 0.8);
+    this.ghosts.rise(at);
   }
 
   private readonly crushed = (car: Vehicle, by: Vehicle): void => {
@@ -1876,7 +1952,7 @@ export class Game {
         upX: up.x,
         upZ: up.z,
         driving: this.ride !== null,
-        marks: list.map((o) => ({ x: o.at.x, z: o.at.z, kind: o.kind })),
+        marks: [...list, ...this.objectives.pins].map((o) => ({ x: o.at.x, z: o.at.z, kind: o.kind, color: o.color })),
       },
       this.phone.showing('map') ? this.phone.body('map') : null,
     );
@@ -1961,6 +2037,36 @@ export class Game {
     this.fleet.flash(car);
   }
 
+  private hushed(): boolean {
+    const ride = this.ride;
+    return (
+      this.mode !== 'play' ||
+      !!this.cutscene ||
+      this.phone.calling ||
+      this.talk.active ||
+      this.randyTalk.active ||
+      document.body.classList.contains('dialogue-open') ||
+      !!this.hud.root.querySelector('.signpost.on') ||
+      (!!ride && !ride.grounded)
+    );
+  }
+
+  nearestGhost(at: Vector3, out: Vector3): boolean {
+    return this.ghosts.nearest(at, out);
+  }
+
+  activeGhosts(): readonly Readonly<Vector3>[] {
+    return this.ghosts.active();
+  }
+
+  raiseGhost(at: Vector3): void {
+    this.ghosts.rise(at);
+  }
+
+  looseItems(kind: ItemKind): readonly Vector3[] {
+    return this.junk.where(kind);
+  }
+
   /** Emit a smoke request using a copied ground position. */
   puff(at: Vector3): void {
     this.events.emit('puff', { at: at.clone() });
@@ -1978,10 +2084,23 @@ export class Game {
     }
   }
 
-  /** Apply the transition fade after normal day/night grading. */
+  /** Apply the phase-skip and scripted fades after normal day/night grading. */
   private fadePhaseSkip(dt: number): void {
     const exposure = this.gfx.grade.uniforms.exposure as { value: number };
-    exposure.value *= this.phaseFade.update(dt);
+    exposure.value *= this.phaseFade.update(dt) * this.scriptFade.update(dt);
+  }
+
+  fadeThrough(whileDark: () => void): boolean {
+    if (!this.scriptFade.start()) {
+      return false;
+    }
+
+    this.whileDark = whileDark;
+    return true;
+  }
+
+  get fading(): boolean {
+    return this.scriptFade.active;
   }
 
   private doFlash(a: number, color = '#9dff3a'): void {

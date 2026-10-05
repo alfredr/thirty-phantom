@@ -170,6 +170,20 @@ export class Ragdoll {
     return out.set(this.p[CHEST * 3] as number, this.p[CHEST * 3 + 1] as number, this.p[CHEST * 3 + 2] as number);
   }
 
+  head(out: Vector3): Vector3 {
+    return out.set(this.p[HEAD * 3] as number, this.p[HEAD * 3 + 1] as number, this.p[HEAD * 3 + 2] as number);
+  }
+
+  feet(out: Vector3): Vector3 {
+    const l = FOOT_L * 3;
+    const r = FOOT_R * 3;
+    return out.set(
+      ((this.p[l] as number) + (this.p[r] as number)) / 2,
+      ((this.p[l + 1] as number) + (this.p[r + 1] as number)) / 2,
+      ((this.p[l + 2] as number) + (this.p[r + 2] as number)) / 2,
+    );
+  }
+
   /** Torso heading in radians, used when the character stands back up. */
   get yaw(): number {
     const fx = (this.p[CHEST * 3] as number) - (this.p[PELVIS * 3] as number);

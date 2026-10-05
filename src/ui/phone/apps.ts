@@ -9,6 +9,7 @@ import type { PhoneApp } from './phone';
 /** State readers for the current task, overall objective, and world markers. */
 export interface TaskList {
   goal(): string | null;
+  how(): string | null;
   aim(): string;
   marks(): readonly { label: string; kind: ObjectiveKind }[];
 }
@@ -28,8 +29,12 @@ export class Tasks implements PhoneApp {
     const aim = el('section', 'phone-section', root);
     const { list } = this;
     this.views.add({
-      read: () => list.goal(),
-      draw: (g) => (now.innerHTML = `<h4>RIGHT NOW</h4><p>${g ? keyText(g) : 'NOTHING IN PARTICULAR.'}</p>`),
+      read: () => {
+        const g = list.goal();
+        const how = g ? list.how() : null;
+        return `<h4>RIGHT NOW</h4><p>${g ? keyText(g) : 'NOTHING IN PARTICULAR.'}</p>${how ? `<p class="how">${keyText(how)}</p>` : ''}`;
+      },
+      draw: (html) => (now.innerHTML = html),
     });
     this.views.add({
       read: () =>

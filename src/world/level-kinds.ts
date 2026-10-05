@@ -56,5 +56,10 @@ export const DECOR_KINDS = [
   'gazebo',
   'shelter',
   'bench',
+  'deadTree',
+  'headstone',
+  'cross',
+  'obelisk',
+  'tomb',
 ] as const;
 export type DecorKind = (typeof DECOR_KINDS)[number];

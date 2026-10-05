@@ -23,10 +23,18 @@ const PROPS: Readonly<Record<string, SoundOf<'prop'>>> = {
   'gate-arm': 'prop-gate-arm',
   bench: 'prop-bench',
   tree: 'prop-tree',
+  pine: 'prop-tree',
+  cypress: 'prop-tree',
+  deadTree: 'prop-tree',
   hedge: 'prop-hedge',
   shelter: 'prop-shelter',
+  headstone: 'prop-stone',
+  cross: 'prop-stone',
+  obelisk: 'prop-stone',
+  tomb: 'prop-stone',
 };
 const MUTED_KEY = '30pc.muted';
+const START = { sparks: 0.35, crank: 0.55, strain: 1.4 };
 
 /** Read the saved mute preference; default to unmuted if storage is unavailable. */
 function savedMuted(): boolean {
@@ -66,6 +74,7 @@ export class Sound {
   private time = 0;
   /** Keep the ringtone active between phone ring and hangup events. */
   private calling = false;
+  private cranking: { v: Vehicle; t: number } | null = null;
 
   constructor(private readonly game: Game) {
     this.listen();
@@ -79,6 +88,14 @@ export class Sound {
     ev.on('smashed', ({ at }) => this.mixer.play('smash', 'smash-parapet', { at }));
     ev.on('crushed', ({ car }) => this.mixer.play('crush', 'crush-car', { at: car.pos }));
     ev.on('stoked', ({ at }) => this.mixer.play('stoke', 'fire-whoomph', { at }));
+    ev.on('sfx', ({ name, at }) => {
+      if (name === 'engine-cough' || name === 'engine-roar') {
+        this.mixer.play('start', name, { at });
+      } else {
+        this.mixer.play('scene', name, { at });
+      }
+    });
+    ev.on('hotwired', ({ v }) => this.hotwire(v));
     ev.on('puff', ({ at }) => this.mixer.play('puff', 'puff-smoke', { at }));
     ev.on('swallowed', ({ n, tank }) =>
       this.mixer.play('swallow', 'ghast-slurp', {
@@ -163,8 +180,27 @@ export class Sound {
     });
   }
 
+  private hotwire(v: Vehicle): void {
+    this.mixer.play('start', 'wire-sparks', { at: v.pos });
+    this.loops.holdEngine(v, START.sparks + START.strain);
+    this.cranking = { v, t: START.sparks };
+  }
+
+  private crank(dt: number): void {
+    const c = this.cranking;
+    if (!c || (c.t -= dt) > 0) {
+      return;
+    }
+
+    this.cranking = null;
+    const strained = c.v.ignition.stalled;
+    this.mixer.play('start', strained ? 'starter-strain' : 'starter-crank', { at: c.v.pos });
+    this.loops.holdEngine(c.v, strained ? START.strain : START.crank);
+  }
+
   private frame(dt: number): void {
     this.time += dt;
+    this.crank(dt);
     const g = this.game;
     const ride = g.vehicles.find((v) => v.role === 'player' && !v.status) ?? null;
     // Listen from the cutscene focus or Cody's position; pan sounds using the active camera.

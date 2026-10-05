@@ -18,6 +18,7 @@ export interface Kit {
 export interface Controls {
   rpm?: number;
   load?: number;
+  miss?: number;
   roar?: number;
   speed?: number;
 }
@@ -755,6 +756,94 @@ function morph(k: Kit, out: AudioNode, t: number, p: MorphP): Voice {
   return { end, stop: s.stop };
 }
 
+export interface SparkP {
+  n: number;
+  len: number;
+  f: readonly [number, number];
+  vol: number;
+}
+
+function spark(k: Kit, out: AudioNode, t: number, p: SparkP): Voice {
+  const s = new Sources();
+  let end = t;
+  const step = p.len / p.n;
+  for (let i = 0; i < p.n; i++) {
+    const at = t + i * step + rand(0, step * 0.6);
+    const len = rand(0.012, 0.05);
+    const vol = p.vol * rand(0.5, 1);
+    chain(
+      noise(k, s, at, at + len + 0.02),
+      filter(k, 'bandpass', rand(p.f[0], p.f[1]), 3),
+      shape(k, k.hard),
+      strike(k, at, vol, 0.001, len),
+      out,
+    );
+    chain(
+      osc(k, s, 'square', rand(90, 140), at, at + len + 0.02),
+      filter(k, 'highpass', 1200),
+      strike(k, at, vol * 0.4, 0.001, len),
+      out,
+    );
+    end = Math.max(end, at + len + 0.05);
+  }
+
+  return { end, stop: s.stop };
+}
+
+export interface CrankP {
+  len: number;
+  rate: readonly [number, number];
+  f: readonly [number, number];
+  misfires: number;
+  caught: number;
+  vol: number;
+}
+
+function crank(k: Kit, out: AudioNode, t: number, p: CrankP): Voice {
+  const s = new Sources();
+  const end = t + p.len;
+  const whine = osc(k, s, 'sawtooth', p.f[0], t, end + 0.1);
+  whine.frequency.linearRampToValueAtTime(p.f[1], end);
+  const chug = amp(k, 0);
+  chain(whine, shape(k, k.soft), filter(k, 'bandpass', 420, 1.1), chug, out);
+  let at = t;
+  while (at < end) {
+    const rate = mix(p.rate[0], p.rate[1], (at - t) / p.len);
+    const period = 1 / rate;
+    chug.gain.setValueAtTime(p.vol * 0.2, at);
+    chug.gain.linearRampToValueAtTime(p.vol, at + period * 0.3);
+    chug.gain.linearRampToValueAtTime(p.vol * 0.2, at + period * 0.95);
+    chain(noise(k, s, at, at + 0.07), filter(k, 'bandpass', 900, 1.2), strike(k, at, p.vol * 0.4, 0.002, 0.05), out);
+    at += period;
+  }
+
+  chug.gain.setValueAtTime(p.vol * 0.2, end);
+  chug.gain.linearRampToValueAtTime(0, end + 0.08);
+
+  const pop = (when: number, vol: number, len: number): void => {
+    chain(
+      noise(k, s, when, when + len + 0.05),
+      filter(k, 'lowpass', 700),
+      shape(k, k.hard),
+      strike(k, when, vol, 0.002, len),
+      out,
+    );
+    const thump = osc(k, s, 'sine', 80, when, when + len + 0.05);
+    thump.frequency.exponentialRampToValueAtTime(38, when + len);
+    chain(thump, strike(k, when, vol * 1.2, 0.002, len), out);
+  };
+
+  for (let i = 0; i < p.misfires; i++) {
+    pop(t + p.len * rand(0.35, 0.9), p.vol * rand(0.7, 1.1), rand(0.08, 0.16));
+  }
+
+  if (p.caught > 0) {
+    pop(end, p.vol * p.caught, 0.25);
+  }
+
+  return { end: end + 0.35, stop: s.stop };
+}
+
 // ---------------------------------------------------------------- moments
 
 export interface StingerP {
@@ -886,6 +975,8 @@ function night(k: Kit, out: AudioNode, t: number, p: NightP): Voice {
 // ---------------------------------------------------------------- recipe dispatch
 
 interface Params {
+  spark: SparkP;
+  crank: CrankP;
   horn: HornP;
   foley: FoleyP;
   whoosh: WhooshP;
@@ -904,6 +995,8 @@ interface Params {
 type Recipe<P> = (k: Kit, out: AudioNode, t: number, p: P) => Voice;
 
 const RECIPES: { [R in keyof Params]: Recipe<Params[R]> } = {
+  spark,
+  crank,
   horn,
   foley,
   whoosh,

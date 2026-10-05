@@ -132,7 +132,7 @@ export class ValetTalk extends Conversation<Valet, Deal> {
     const free = this.garage.freeSpots();
     const spot = deal === 'anywhere' ? (free.length ? this.rng.pick(free) : null) : this.garage.topFree();
     if (!car) {
-      this.lastLine('NO CAR, NO SERVICE.');
+      this.lastLine('NO KEYS, NO SERVICE.');
     } else if (!spot) {
       this.lastLine(DECK_FULL);
     } else if (

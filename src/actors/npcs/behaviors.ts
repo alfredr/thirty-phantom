@@ -5,6 +5,8 @@ import type { ItemAmount } from '@/game/items/trades';
 
 import type { Npc } from './npcs';
 
+export type Facing = Vector3 | number | null;
+
 /** Coat presentation states for proximity, browsing, and scripted scenes. */
 export type Pitch =
   /** Wait with the coat closed; `t` tracks the rest timer in seconds. */
@@ -13,8 +15,8 @@ export type Pitch =
   | State<'pitching', { t: number }>
   /** Keep the coat open until browsing ends. */
   | State<'browsing'>
-  /** Let a scene control coat opening and facing; null `face` uses Cody’s position. */
-  | State<'directed', { open: boolean; face: Vector3 | null }>;
+  /** Let a scene control coat opening and facing: a point, a yaw in radians, or null for Cody’s position. */
+  | State<'directed', { open: boolean; face: Facing }>;
 
 /** Fire-feeding states, independent of the coat presentation. */
 export type Work =
@@ -26,7 +28,7 @@ export type Work =
 /** Events accepted by the pitch and work state machines; each state handles only its declared events. */
 export type NpcEvent =
   /** Give a scene control of facing and coat presentation. */
-  | MindEvent<'held', { face: Vector3 | null }>
+  | MindEvent<'held', { face: Facing }>
   /** Set the coat opening requested by the scene. */
   | MindEvent<'flash', { open: boolean }>
   /** Release scene control. */

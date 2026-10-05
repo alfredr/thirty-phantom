@@ -24,12 +24,14 @@ export const KEYS = {
   rotateRight: ['KeyE'],
   camera: ['KeyC'],
   help: ['KeyH'],
+  map: ['KeyM'],
   /** Toggle sound; src/audio/ reads this binding directly. */
-  mute: ['KeyM'],
+  mute: ['KeyK'],
   fastForward: ['KeyT'],
   nextPhase: ['KeyN'],
   start: ['Enter', 'Space'],
-  // Reload a pending development update.
+  reset: ['KeyR'],
+  // Reload a pending development update. R resets a stuck vehicle instead while the reset prompt shows.
   reload: ['KeyR'],
   // Focus layers reserve these controls for open menus and panels.
   menuUp: ['ArrowUp'],

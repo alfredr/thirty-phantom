@@ -76,6 +76,7 @@ export class Crowd implements Prey, Town {
   /** Notify the game when a pedestrian begins a fresh fright response. */
   onFright: ((at: Vector3) => void) | null = null;
   onKeysDropped: ((keys: Ignition, at: Vector3) => void) | null = null;
+  onGhost: ((at: Vector3) => void) | null = null;
   /** Vehicles from the current frame, used to block walking routes. */
   private vehicles: readonly Vehicle[] = [];
   avoid: Avoidance | null = null;
@@ -90,7 +91,15 @@ export class Crowd implements Prey, Town {
     private readonly drop: (at: Vector3, kind: LootKind, from: Vector3) => void,
     /** Optional ragdoll and injury simulation; without it, vehicle contacts only shove pedestrians. */
     readonly casualties: Casualties | null = null,
-  ) {}
+  ) {
+    if (casualties) {
+      casualties.onDeath = (c, cause) => {
+        if (cause === 'vehicle' && this.rng.chance(TUNING.ghosts.carKillChance)) {
+          this.onGhost?.(c.at);
+        }
+      };
+    }
+  }
 
   get count(): number {
     return this.people.length;
@@ -173,7 +182,7 @@ export class Crowd implements Prey, Town {
       _b.set(CLAW_FLING, 0, 0);
     }
 
-    p.mind.send({ type: 'felled', from, vx: _b.x, vz: _b.z, harm: p.hp <= 0 ? 'dead' : 'injured' });
+    p.mind.send({ type: 'felled', from, vx: _b.x, vz: _b.z, harm: p.hp <= 0 ? 'dead' : 'injured', cause: 'claws' });
     return p.hp <= 0 ? 'killed' : 'downed';
   }
 
@@ -213,6 +222,8 @@ export class Crowd implements Prey, Town {
       const hurt = p.hurt;
       if (hurt) {
         bodies.add({ kind: 'down', pos: hurt.at, r: LYING });
+        bodies.add({ kind: 'down', pos: hurt.head, r: PERSON_RADIUS });
+        bodies.add({ kind: 'down', pos: hurt.feet, r: PERSON_RADIUS });
       } else {
         bodies.add({
           kind: 'person',
@@ -289,10 +300,11 @@ export class Crowd implements Prey, Town {
     }
 
     const pts = [at.clone()];
+    const blocks = parkedBlocks(this.vehicles);
     let y = at.y;
     for (let d = DASH_STEP; d <= DASH; d += DASH_STEP) {
       const g = this.nav.standable(at.x + ux * d, y, at.z + uz * d, NAV.person);
-      if (g === null) {
+      if (g === null || inZones(_a.set(at.x + ux * d, g, at.z + uz * d), blocks)) {
         break;
       }
 
@@ -391,7 +403,7 @@ export class Crowd implements Prey, Town {
           d > 1e-3 ? (v.vel.x * (w.pos.x - _a.x) + v.vel.z * (w.pos.z - _a.z)) / d : Math.hypot(v.vel.x, v.vel.z);
         const harm = this.casualties ? Casualties.harmFor(impact, v.mass) : null;
         if (harm) {
-          p.mind.send({ type: 'felled', from: v.pos, vx: v.vel.x, vz: v.vel.z, harm });
+          p.mind.send({ type: 'felled', from: v.pos, vx: v.vel.x, vz: v.vel.z, harm, cause: 'vehicle' });
           return true;
         }
 

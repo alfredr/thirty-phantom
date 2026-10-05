@@ -27,6 +27,7 @@ export interface Play {
   exit(): void;
   /** Whether the escape sequence currently prevents leaving the truck. */
   escaping(): boolean;
+  locked(): string | null;
   /** Test whether exiting would park the car in an available deck spot. */
   inFreeSpot(car: Vehicle): boolean;
   talkToValet(valet: Valet): void;
@@ -199,7 +200,8 @@ export class GetOut extends Action<Play, Play> {
       return fail('');
     }
 
-    return this;
+    const locked = w.locked();
+    return locked ? fail(locked) : this;
   }
   perform(w: Play): Result<CodyAction> {
     w.exit();

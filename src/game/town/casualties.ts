@@ -7,6 +7,7 @@ import type { BloodSim } from '@/world/blood';
 
 /** Injury severity in ascending order. Survivors can recover; dead casualties remain down. */
 export type Harm = 'stunned' | 'injured' | 'unconscious' | 'dead';
+export type Cause = 'vehicle' | 'claws';
 const ORDER: readonly Harm[] = ['stunned', 'injured', 'unconscious', 'dead'];
 
 /** Impact thresholds after mass scaling, in m/s. Lower impacts do not cause casualties. */
@@ -49,6 +50,8 @@ export interface Casualty {
   owed: number;
   /** Current pelvis position for obstacle queries. */
   readonly at: Vector3;
+  readonly head: Vector3;
+  readonly feet: Vector3;
   /** Remaining cooldown before another vehicle impact can worsen the injury, in seconds. */
   cool: number;
 }
@@ -59,6 +62,7 @@ export interface Casualty {
  */
 export class Casualties {
   readonly list: Casualty[] = [];
+  onDeath: ((c: Casualty, cause: Cause) => void) | null = null;
 
   constructor(
     private readonly world: CollisionWorld,
@@ -79,29 +83,31 @@ export class Casualties {
   }
 
   /** Launch a ragdoll from the current rig pose using impact velocity (vx, vz) in m/s and the supplied injury. */
-  strike(rig: CharacterRig, vx: number, vz: number, harm: Harm): Casualty {
+  strike(rig: CharacterRig, vx: number, vz: number, harm: Harm, cause: Cause): Casualty {
     const ragdoll = new Ragdoll(rig);
     const speed = Math.hypot(vx, vz);
     ragdoll.launch(vx * CARRY, 1.5 + speed * LIFT, vz * CARRY, TUMBLE);
     const c: Casualty = {
       rig,
       ragdoll,
-      harm,
+      harm: 'stunned',
       down: 0,
       bleed: 0,
       owed: 0,
       at: ragdoll.pelvis(new Vector3()),
+      head: ragdoll.head(new Vector3()),
+      feet: ragdoll.feet(new Vector3()),
       cool: REHIT,
     };
     this.list.push(c);
-    this.worsen(c, harm, vx, vz);
+    this.worsen(c, harm, vx, vz, cause);
     return c;
   }
 
   /** Escalate a casualty by one severity level and emit blood away from the attack. Return the resulting severity. */
   maul(c: Casualty, from: Vector3): Harm {
     c.ragdoll.chest(_c);
-    this.worsen(c, this.next(c.harm), (_c.x - from.x) * 2, (_c.z - from.z) * 2);
+    this.worsen(c, this.next(c.harm), (_c.x - from.x) * 2, (_c.z - from.z) * 2, 'claws');
     c.cool = REHIT;
     return c.harm;
   }
@@ -147,11 +153,13 @@ export class Casualties {
       rd.step(dt, this.world, pushers);
       rd.pose();
       rd.pelvis(c.at);
+      rd.head(c.head);
+      rd.feet(c.feet);
       // Rate-limit injury escalation from repeated vehicle contact.
       c.cool -= dt;
       const again = rd.hardest > 0 && c.cool <= 0 ? Casualties.harmFor(rd.hardest, REF_MASS) : null;
       if (again && ORDER.indexOf(again) >= ORDER.indexOf(c.harm) - 1) {
-        this.worsen(c, this.next(c.harm), 0, 0);
+        this.worsen(c, this.next(c.harm), 0, 0, 'vehicle');
         c.cool = REHIT;
       }
 
@@ -170,8 +178,11 @@ export class Casualties {
     return ORDER[Math.min(ORDER.length - 1, ORDER.indexOf(h) + 1)] as Harm;
   }
 
-  /** Raise injury severity without reducing it, refresh recovery and bleeding, and emit impact blood. */
-  private worsen(c: Casualty, harm: Harm, vx: number, vz: number): void {
+  /**
+   * Raise injury severity without reducing it, refresh recovery and bleeding, and emit impact blood. Report a death to
+   * onDeath with its cause.
+   */
+  private worsen(c: Casualty, harm: Harm, vx: number, vz: number, cause: Cause): void {
     const was = ORDER.indexOf(c.harm);
     const now = Math.max(was, ORDER.indexOf(harm));
     c.harm = ORDER[now] as Harm;
@@ -182,6 +193,10 @@ export class Casualties {
     if (n > 0) {
       c.ragdoll.chest(_c);
       this.blood.spray(_c.x, _c.y, _c.z, vx * 0.3, vz * 0.3, n, 3, DROP * 2);
+    }
+
+    if (c.harm === 'dead' && was !== now) {
+      this.onDeath?.(c, cause);
     }
   }
 

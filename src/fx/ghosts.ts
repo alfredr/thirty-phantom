@@ -4,7 +4,7 @@ import { Rng } from '@/engine/core/rng';
 import { withCurve } from '@/render/curvature';
 import { FX_LAYER } from '@/render/layers';
 import { ghostTexture } from '@/render/textures';
-import type { ZoneDef } from '@/world/level-data';
+import type { GhostZoneDef } from '@/world/level-data';
 
 const _to = new Vector3();
 /** Maximum active ghosts spawned from casualties. Reuse the oldest when the limit is reached. */
@@ -14,7 +14,7 @@ const RISE_IN = 1.5;
 const HAUNT = 4;
 /**
  * Intake motion uses an initial speed in m/s and acceleration in m/s². Collect ghosts within SWALLOW meters of the
- * intake; ambient ghosts return after RESPAWN visible simulation seconds.
+ * intake; ambient ghosts return after their zone's respawn time, or RESPAWN visible simulation seconds by default.
  */
 const SUCK_SPEED = 3;
 const SUCK_ACCEL = 14;
@@ -25,7 +25,7 @@ const RELAX = 2;
 
 interface Ghost {
   s: Sprite;
-  zone: ZoneDef;
+  zone: GhostZoneDef;
   target: Vector3;
   vel: Vector3;
   phase: number;
@@ -41,6 +41,28 @@ interface Ghost {
   gone: number;
 }
 
+export function shareOut<Z extends { readonly weight?: number }>(
+  zones: readonly Z[],
+  count: number,
+): { zone: Z; n: number }[] {
+  const total = zones.reduce((sum, z) => sum + (z.weight ?? 1), 0);
+  const parts = zones.map((zone) => {
+    const exact = (count * (zone.weight ?? 1)) / total;
+    return { zone, n: Math.floor(exact), rest: exact - Math.floor(exact) };
+  });
+  let left = count - parts.reduce((sum, p) => sum + p.n, 0);
+  for (const p of [...parts].sort((a, b) => b.rest - a.rest)) {
+    if (left <= 0) {
+      break;
+    }
+
+    p.n++;
+    left--;
+  }
+
+  return parts;
+}
+
 /** Animate ambient and casualty ghosts, with visibility controlled by night intensity and fade(). */
 export class Ghosts {
   readonly root = new Group();
@@ -54,43 +76,48 @@ export class Ghosts {
   private readonly tex = [ghostTexture(1), ghostTexture(2), ghostTexture(3)];
   /** Active casualty ghosts in spawn order. */
   private readonly risen: Ghost[] = [];
+  private readonly shown: Vector3[] = [];
 
-  constructor(zones: ZoneDef[], count = 26) {
-    const rng = this.rng;
-    const tex = this.tex;
-    for (let i = 0; i < count && zones.length; i++) {
-      const zone = zones[i % zones.length] as ZoneDef;
-      const s = new Sprite(
-        withCurve(
-          new SpriteMaterial({
-            map: rng.pick(tex),
-            transparent: true,
-            depthWrite: false,
-            opacity: 0,
-            toneMapped: false,
-          }),
-        ),
-      );
-      s.layers.set(FX_LAYER);
-      s.renderOrder = 4;
-      const g: Ghost = {
-        s,
-        zone,
-        target: new Vector3(),
-        vel: new Vector3(),
-        phase: rng.range(0, 10),
-        size: rng.range(1.8, 3.2),
-        flip: 1,
-        pulled: 0,
-        held: false,
-        gone: 0,
-      };
-      this.pick(g);
-      s.position.copy(g.target);
-      this.pick(g);
-      this.list.push(g);
-      this.root.add(s);
+  constructor(zones: readonly GhostZoneDef[], count = 26) {
+    for (const { zone, n } of shareOut(zones, count)) {
+      for (let i = 0; i < n; i++) {
+        this.haunt(zone);
+      }
     }
+  }
+
+  private haunt(zone: GhostZoneDef): void {
+    const rng = this.rng;
+    const s = new Sprite(
+      withCurve(
+        new SpriteMaterial({
+          map: rng.pick(this.tex),
+          transparent: true,
+          depthWrite: false,
+          opacity: 0,
+          toneMapped: false,
+        }),
+      ),
+    );
+    s.layers.set(FX_LAYER);
+    s.renderOrder = 4;
+    const g: Ghost = {
+      s,
+      zone,
+      target: new Vector3(),
+      vel: new Vector3(),
+      phase: rng.range(0, 10),
+      size: rng.range(1.8, 3.2),
+      flip: 1,
+      pulled: 0,
+      held: false,
+      gone: 0,
+    };
+    this.pick(g);
+    s.position.copy(g.target);
+    this.pick(g);
+    this.list.push(g);
+    this.root.add(s);
   }
 
   /** Choose a random target inside the ghost's roaming zone. */
@@ -189,6 +216,36 @@ export class Ghosts {
     return swallowed;
   }
 
+  nearest(at: Vector3, out: Vector3): boolean {
+    let best = Infinity;
+    for (const g of this.list) {
+      const d = g.gone > 0 ? Infinity : g.s.position.distanceToSquared(at);
+      if (d < best) {
+        best = d;
+        out.copy(g.s.position);
+      }
+    }
+
+    return best < Infinity;
+  }
+
+  active(): readonly Readonly<Vector3>[] {
+    const out = this.shown;
+    out.length = 0;
+
+    if (!this.root.visible) {
+      return out;
+    }
+
+    for (const g of this.list) {
+      if (g.gone <= 0) {
+        out.push(g.s.position);
+      }
+    }
+
+    return out;
+  }
+
   /** Hide a collected ghost. Ambient ghosts respawn later; casualty ghosts remain inactive. */
   private swallow(g: Ghost): void {
     g.pulled = 0;
@@ -198,7 +255,7 @@ export class Ghosts {
       this.risen.splice(r, 1);
       g.gone = Infinity;
     } else {
-      g.gone = RESPAWN;
+      g.gone = g.zone.respawn ?? RESPAWN;
     }
   }
 

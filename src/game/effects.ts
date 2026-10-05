@@ -15,6 +15,7 @@ export interface Stage {
   /** Return Cody’s current vehicle to identify impacts that should shake the camera. */
   ride(): Vehicle | null;
   shake(trauma: number): void;
+  flash(amount: number, color: string): void;
   toast(title: string, sub: string, tone: ToastTone, seconds: number): void;
   readonly slime: CubeParticles;
   readonly debris: CubeParticles;
@@ -42,7 +43,20 @@ const PUFF = {
 /** Money notification duration in seconds. */
 const MONEY_TOAST = 1.1;
 /** Camera trauma added by each effect. */
-const SHAKE = { smash: 0.45, knock: 0.2, shatter: 0.35, crush: 0.35, puff: 0.05, swallow: 0.08 } as const;
+const SHAKE = {
+  smash: 0.45,
+  knock: 0.2,
+  shatter: 0.35,
+  crush: 0.35,
+  puff: 0.05,
+  swallow: 0.08,
+  flare: 0.5,
+  cough: 0.06,
+  roar: 0.25,
+} as const;
+const FLAME = new Color(3.2, 1.4, 0.35);
+const FLARE_FLASH = 0.75;
+const SOOT = new Color('#2a2026');
 
 const _at = new Vector3();
 const _v = new Vector3();
@@ -184,6 +198,31 @@ export const EFFECTS: Rows = {
   swallowed: ({ n, at }, s) => {
     s.sprites.spray(at, 4 * n, 1.2, [0.5, 1.5], WHITE, 1, 0.2, 0.5, 'ghost', 0.8);
     s.shake(SHAKE.swallow * n);
+  },
+  sfx: ({ name, at }, s) => {
+    if (name === 'engine-cough') {
+      s.sprites.spray(at, 5, 0.35, [0.4, 1], SOOT, 0.4, 1.2, [0.6, 1.1], 'puff', 0.8);
+      s.shake(SHAKE.cough);
+      return;
+    }
+
+    if (name === 'engine-roar') {
+      s.sprites.spray(at, 10, 0.6, [0.6, 1.6], SOOT, 0.6, 1.8, [0.8, 1.4], 'puff', 0.85);
+      s.shake(SHAKE.roar);
+      return;
+    }
+
+    if (name !== 'fire-flare') {
+      return;
+    }
+
+    _at.copy(at).setY(at.y + 1.2);
+    s.sprites.spray(_at, 24, 1.4, [4, 9], FLAME, 1.6, 4.2, [0.6, 1.3], 'puff', 1);
+    s.sprites.spray(_at.setY(at.y + 4), 16, 2.2, [1, 3], FLAME, 2.4, 5, [0.5, 1], 'puff', 1);
+    s.sprites.spray(_at.setY(at.y + 2), 18, 2, [2, 5], SOOT, 2, 4.6, [2.4, 4], 'puff', 0.85);
+    s.debris.burst(_at.setY(at.y + 1.2), 40, 7, [0.03, 0.09], [1, 2.2], FLAME, 2.4, at.y);
+    s.flash(FLARE_FLASH, '#ffb347');
+    s.shake(SHAKE.flare);
   },
   puff: ({ at }, s) => {
     _at.copy(at).setY(at.y + 0.9);

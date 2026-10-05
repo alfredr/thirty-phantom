@@ -40,7 +40,7 @@ export function createGameDebug(game: DebugGame, controls: DebugControls) {
       if (target) {
         target.pos.set(x, y, z);
         target.vel.set(0, 0, 0);
-        target.insideDeck = game.garage.inFootprint(target.pos);
+        game.garage.resync(target);
       } else {
         game.player.place(new Vector3(x, y, z), game.player.yaw);
       }

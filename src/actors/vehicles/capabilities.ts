@@ -31,6 +31,10 @@ export function crushCars(p: {
   };
 }
 
+export interface PhantomEscape {
+  readonly vanishAfter: number;
+}
+
 export interface GhostIntake {
   /** Intake position in body-local meters, collection radius, and normalized fuel per ghost. */
   readonly at: V3;

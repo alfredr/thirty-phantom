@@ -257,6 +257,10 @@ export class Junk {
     r.set(0, r.y, 0);
   }
 
+  where(kind: ItemKind): Vector3[] {
+    return this.parts.filter((p) => p.kind === kind && p.landed).map((p) => p.pos);
+  }
+
   private remove(i: number): void {
     const p = this.parts[i] as Part;
     this.scene.remove(p.root);
