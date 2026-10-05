@@ -7,12 +7,13 @@ import type { DriveInput, Vehicle, VehicleRole } from '@/actors/vehicles/vehicle
 import { TUNING } from '@/config';
 import { smoothstep, wrapAngle } from '@/engine/core/math';
 import { Polyline, type RouteCursor } from '@/engine/nav/polyline';
+import type { RouteLeg } from '@/engine/nav/route-shaper';
 import { Action, done, type Fail, fail, type Result, running } from '@/engine/sim/action';
 import type { Claims } from '@/engine/sim/claims';
 import { type Garage, type SpotRuntime, spotZone } from '@/game/deck/garage';
 import type { ClaimKind } from '@/game/rules/claim-kinds';
 import type { ZoneDef } from '@/world/level-data';
-import type { NavGrid, NavJob, NavPlanner, RouteLeg } from '@/world/nav-grid';
+import type { NavGrid, NavJob, NavPlanner } from '@/world/nav-grid';
 
 import type { Fleet } from './fleet';
 

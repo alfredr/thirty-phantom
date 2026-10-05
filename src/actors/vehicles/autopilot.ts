@@ -3,8 +3,9 @@ import { Vector3 } from 'three';
 import { TUNING } from '@/config';
 import { clamp, wrapAngle } from '@/engine/core/math';
 import { RouteCursor } from '@/engine/nav/polyline';
+import type { RouteLeg } from '@/engine/nav/route-shaper';
 import { bodyOffsets, steerScale, type VehicleParams } from '@/engine/physics/vehicle-params';
-import { bodyOf, type NavGrid, type NavProfile, type RouteLeg } from '@/world/nav-grid';
+import { bodyOf, type NavGrid, type NavProfile } from '@/world/nav-grid';
 
 import type { DriveInput, Vehicle } from './vehicle';
 

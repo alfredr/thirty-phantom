@@ -7,9 +7,10 @@ import type { Vehicle } from '@/actors/vehicles/vehicle';
 import { TUNING } from '@/config';
 import type { Rng } from '@/engine/core/rng';
 import type { Polyline } from '@/engine/nav/polyline';
+import type { RouteLeg } from '@/engine/nav/route-shaper';
 import { done, type Result, running } from '@/engine/sim/action';
 import type { BayDef, ZoneDef } from '@/world/level-data';
-import { NAV, type NavJob, type NavPlanner, type RouteLeg } from '@/world/nav-grid';
+import { NAV, type NavJob, type NavPlanner } from '@/world/nav-grid';
 
 import {
   type Berth,

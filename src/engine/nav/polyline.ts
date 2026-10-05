@@ -19,19 +19,21 @@ export class Polyline {
   readonly points: Vector3[];
   readonly closed: boolean;
   /** Cumulative arc lengths, including the closing segment for a closed path. */
-  private readonly cum: number[] = [0];
+  readonly distances: readonly number[];
   readonly total: number;
 
   constructor(points: readonly (Vector3 | V3)[], closed = false) {
     this.points = points.map((p) => (Array.isArray(p) ? new Vector3(p[0], p[1], p[2]) : p.clone()));
     this.closed = closed;
     const n = this.segments;
+    const distances: number[] = [0];
     let acc = 0;
     for (let i = 0; i < n; i++) {
       acc += this.at(i).distanceTo(this.at(i + 1));
-      this.cum.push(acc);
+      distances.push(acc);
     }
 
+    this.distances = distances;
     this.total = acc;
   }
 
@@ -57,7 +59,7 @@ export class Polyline {
     s = this.wrap(s);
     const rest = [this.sample(s, new Vector3())];
     this.points.forEach((p, i) => {
-      if ((this.cum[i] ?? 0) > s) {
+      if ((this.distances[i] ?? 0) > s) {
         rest.push(p);
       }
     });
@@ -76,7 +78,7 @@ export class Polyline {
     let hi = this.segments - 1;
     while (lo < hi) {
       const mid = (lo + hi + 1) >> 1;
-      if ((this.cum[mid] ?? 0) <= s) {
+      if ((this.distances[mid] ?? 0) <= s) {
         lo = mid;
       } else {
         hi = mid - 1;
@@ -85,8 +87,8 @@ export class Polyline {
 
     const a = this.at(lo);
     const b = this.at(lo + 1);
-    const segLen = (this.cum[lo + 1] ?? this.total) - (this.cum[lo] ?? 0);
-    const t = segLen > 0 ? (s - (this.cum[lo] ?? 0)) / segLen : 0;
+    const segLen = (this.distances[lo + 1] ?? this.total) - (this.distances[lo] ?? 0);
+    const t = segLen > 0 ? (s - (this.distances[lo] ?? 0)) / segLen : 0;
     if (dir) {
       dir.subVectors(b, a).normalize();
     }
@@ -104,8 +106,8 @@ export class Polyline {
     let bd = Infinity;
     const n = this.segments;
     for (let i = 0; i < n; i++) {
-      const s0 = this.cum[i] ?? 0;
-      const s1 = this.cum[i + 1] ?? this.total;
+      const s0 = this.distances[i] ?? 0;
+      const s1 = this.distances[i + 1] ?? this.total;
       if (!this.closed && (s1 < from || s0 > from + window)) {
         continue;
       }
