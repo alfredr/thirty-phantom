@@ -1,10 +1,11 @@
 import { Vector3 } from 'three';
 
 import type { Vehicle } from '@/actors/vehicles/vehicle';
+import type { MindEvent } from '@/engine/sim/mind';
 import type { Game } from '@/game/game';
 import { NAV } from '@/world/nav-grid';
 
-import { act, type BeatBehaviorFactory } from './behaviors';
+import { act, type BeatBehavior } from './behaviors';
 
 const TRAIL = [15, 23, 31, 39];
 const TRAIL_TURNS = [0, 0.4, -0.4, 0.8, -0.8, 1.3, -1.3, 2, -2, Math.PI];
@@ -13,6 +14,7 @@ const NEAR = 40;
 const EMPTY = 0.05;
 
 type GhostServices = { readonly game: Game };
+type GhostBehavior<C> = BeatBehavior<C & GhostServices, MindEvent<string>, string>;
 
 export function spawnTrail(g: Game, from: Vehicle): void {
   for (const turn of TRAIL_TURNS) {
@@ -40,24 +42,32 @@ export function spawnTrail(g: Game, from: Vehicle): void {
   }
 }
 
-export const ghostTrail: BeatBehaviorFactory<Vehicle, GhostServices> = (selectVehicle) =>
-  act((c) => spawnTrail(c.game, selectVehicle(c)));
+export function ghostTrail<C>(selectVehicle: (context: C) => Vehicle): GhostBehavior<C> {
+  return act((context) => spawnTrail(context.game, selectVehicle(context)));
+}
 
-export const ghostSupply: BeatBehaviorFactory<Vehicle, GhostServices> = (selectVehicle) => (s, c) => {
-  let last = -Infinity;
-  return {
-    tick: () => {
-      const g = c.game;
-      const v = selectVehicle(c);
-      if (g.ghast > EMPTY || s.t - last < RESUPPLY || g.activeGhosts().some((p) => p.distanceTo(v.pos) < NEAR)) {
-        return;
-      }
+export function ghostSupply<C>(selectVehicle: (context: C) => Vehicle): GhostBehavior<C> {
+  return function start(scope, context) {
+    let lastSpawnAt = -Infinity;
+    return {
+      tick() {
+        const game = context.game;
+        const vehicle = selectVehicle(context);
+        if (game.ghast > EMPTY || scope.t - lastSpawnAt < RESUPPLY) {
+          return;
+        }
 
-      last = s.t;
-      spawnTrail(g, v);
-    },
+        const ghostsNearby = game.activeGhosts().some((ghost) => ghost.distanceTo(vehicle.pos) < NEAR);
+        if (ghostsNearby) {
+          return;
+        }
+
+        lastSpawnAt = scope.t;
+        spawnTrail(game, vehicle);
+      },
+    };
   };
-};
+}
 
 export function nearestGhost(g: Game, from: Vector3): Vector3 | null {
   const at = new Vector3();

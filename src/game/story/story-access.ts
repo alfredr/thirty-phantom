@@ -105,29 +105,38 @@ export class Access {
 
 type AccessBehavior = BeatBehavior<{ readonly access: Access }, MindEvent<string>, string>;
 
-export const entry = (e: Entry): AccessBehavior => hold((c) => c.access.enter(e));
-export const doors = (why: string): AccessBehavior => hold((c) => c.access.lock(why));
-export const dayLook = (...grants: CodyAbility[]): AccessBehavior => hold((c) => c.access.hold(grants));
-export const barriers: AccessBehavior = hold((c) => c.access.wall());
-export const noTrades: AccessBehavior = hold((c) => c.access.noTrades());
-export const keepEscapes: AccessBehavior = hold((c) => c.access.keepEscapes());
+export function entry(e: Entry): AccessBehavior {
+  return hold((context) => context.access.enter(e));
+}
+
+export function doors(why: string): AccessBehavior {
+  return hold((context) => context.access.lock(why));
+}
+
+export function dayLook(...grants: CodyAbility[]): AccessBehavior {
+  return hold((context) => context.access.hold(grants));
+}
+
+export const barriers: AccessBehavior = hold((context) => context.access.wall());
+export const noTrades: AccessBehavior = hold((context) => context.access.noTrades());
+export const keepEscapes: AccessBehavior = hold((context) => context.access.keepEscapes());
 
 export function stall<C>(
-  vehicle: (c: C) => Vehicle,
-  opts: { releaseOn?: string; released?: (c: C) => void } = {},
+  vehicle: (context: C) => Vehicle,
+  opts: { releaseOn?: string; released?: (context: C) => void } = {},
 ): BeatBehavior<C & { readonly access: Access }, MindEvent<string>, string> {
-  return (_s, c) => {
-    let release: Release | null = c.access.stall(vehicle(c));
-    const free = (): void => {
+  return function start(_scope, context) {
+    let release: Release | null = context.access.stall(vehicle(context));
+    function free(): void {
       release?.();
       release = null;
-    };
+    }
 
     return {
-      on: (e) => {
+      on(e) {
         if (release && e.type === opts.releaseOn) {
           free();
-          opts.released?.(c);
+          opts.released?.(context);
         }
       },
       stop: free,

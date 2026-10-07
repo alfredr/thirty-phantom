@@ -3,7 +3,7 @@ import { Leases } from '@/engine/sim/leases';
 import type { MindEvent } from '@/engine/sim/mind';
 import type { GameClock } from '@/game/game-clock';
 
-import { hold as holdResources, type BeatBehavior, type BeatBehaviorFactory } from './behaviors';
+import { hold as holdResources, type BeatBehavior } from './behaviors';
 
 export type ClockRule =
   | { readonly kind: 'pause' }
@@ -43,22 +43,31 @@ export class StoryClock {
 }
 
 type ClockServices = { readonly clock: StoryClock };
-type ClockBehavior = BeatBehavior<ClockServices, MindEvent<string>, string>;
+type ClockBehavior<C = unknown> = BeatBehavior<C & ClockServices, MindEvent<string>, string>;
 
 export const pause: ClockBehavior = holdResources((c) => c.clock.take({ kind: 'pause' }));
 export const free: ClockBehavior = holdResources((c) => c.clock.take({ kind: 'free' }));
-export const hold = (limit: number): ClockBehavior => holdResources((c) => c.clock.take({ kind: 'hold', limit }));
-export const sweep = (to: number, seconds: number, limit: number | null): ClockBehavior =>
-  holdResources((c) => c.clock.take({ kind: 'sweep', to, seconds, limit }));
 
-export const pauseWhen: BeatBehaviorFactory<boolean, ClockServices> = (cond) => (_s, c) => {
-  let release: Release | null = null;
-  return {
-    tick: () => {
-      if (!release && cond(c)) {
-        release = c.clock.take({ kind: 'pause' });
-      }
-    },
-    stop: () => release?.(),
+export function hold(limit: number): ClockBehavior {
+  return holdResources((c) => c.clock.take({ kind: 'hold', limit }));
+}
+
+export function sweep(to: number, seconds: number, limit: number | null): ClockBehavior {
+  return holdResources((c) => c.clock.take({ kind: 'sweep', to, seconds, limit }));
+}
+
+export function pauseWhen<C>(condition: (context: C) => boolean): ClockBehavior<C> {
+  return function start(_scope, context) {
+    let release: Release | null = null;
+    return {
+      tick() {
+        if (!release && condition(context)) {
+          release = context.clock.take({ kind: 'pause' });
+        }
+      },
+      stop() {
+        release?.();
+      },
+    };
   };
-};
+}

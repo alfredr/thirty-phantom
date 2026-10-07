@@ -58,23 +58,23 @@ export interface RegionSpec<C> {
 }
 
 export function region<C>(spec: RegionSpec<C>): BeatBehavior<C & RecoveryServices, MindEvent<string>, string> {
-  return (s, c) => {
+  return function start(scope, context) {
     let state: 'in' | 'out' | 'carrying' = 'in';
-    const say = (): void => {
+    function say(): void {
       if (spec.line) {
-        c.outreach.later([spec.line]);
+        context.outreach.later([spec.line]);
       }
-    };
+    }
 
     return {
-      tick: () => {
-        const g = c.game;
+      tick() {
+        const g = context.game;
         const p = g.player;
-        if (state === 'in' && p.visible && !spec.inside(c)) {
+        if (state === 'in' && p.visible && !spec.inside(context)) {
           state = 'out';
-        } else if (state === 'out' && p.grounded && !g.fading && c.recovery.carry(spec.home(c), say)) {
+        } else if (state === 'out' && p.grounded && !g.fading && context.recovery.carry(spec.home(context), say)) {
           state = 'carrying';
-          s.struggle();
+          scope.struggle();
         } else if (state === 'carrying' && !g.fading) {
           state = 'in';
         }

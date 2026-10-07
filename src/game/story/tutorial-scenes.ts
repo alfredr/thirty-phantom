@@ -17,7 +17,7 @@ import { ISO_ELEVATION } from '@/render/iso-camera';
 import { ITEM_ICONS } from '@/ui/item-icons';
 import type { GateDef, LevelData, RampDef } from '@/world/level-data';
 
-import { act, hold, type BeatBehavior } from './behaviors';
+import { act, hold, type BeatBehavior, type RunningBehavior, type Scope } from './behaviors';
 import { inView, npcScenes, player, type NpcSceneBindings } from './npc-scene';
 import type { StoryCamera } from './story-camera';
 import type { RoofStage, TutorialContext, TutorialEvent } from './tutorial-context';
@@ -67,12 +67,13 @@ export function tossBadge(npc: Npc, to: Vector3, camera: Pick<StoryCamera, 'trac
       kind: 'badge',
       to,
       showPath: true,
-      thrown: (seconds) =>
-        shots.use(
+      thrown(seconds) {
+        return shots.use(
           camera.track(seconds + lingerSeconds, () =>
             npc.throwing?.active ? npc.prop('badge').getWorldPosition(flying) : flying.copy(to),
           ),
-        ),
+        );
+      },
     });
     if ('fail' in result) {
       return result;
@@ -118,17 +119,19 @@ export const roofScene: SceneBehavior = hold(
     }),
 );
 
-export const ledgerOnJump: SceneBehavior = (_s, c) => ({
-  tick: () => {
-    const v = c.pickup;
-    if (!v.grounded && v.pos.y > c.stage.roof + AIR_ABOVE) {
-      c.game.hud.showLedger(true);
-    }
-  },
-});
+export function ledgerOnJump(_scope: Scope<string>, context: TutorialContext): RunningBehavior<TutorialEvent> {
+  return {
+    tick() {
+      const v = context.pickup;
+      if (!v.grounded && v.pos.y > context.stage.roof + AIR_ABOVE) {
+        context.game.hud.showLedger(true);
+      }
+    },
+  };
+}
 
-export const imprintSign = (c: TutorialContext): Sequence<TutorialContext, TutorialContext> =>
-  new Sequence(function* () {
+export function imprintSign(c: TutorialContext): Sequence<TutorialContext, TutorialContext> {
+  return new Sequence(function* () {
     const im = c.progress.firstPhantom;
     if (!im) {
       return done;
@@ -149,11 +152,14 @@ export const imprintSign = (c: TutorialContext): Sequence<TutorialContext, Tutor
     c.sign.place(null);
     yield new WaitUntil<TutorialContext, TutorialContext>(() => !c.sign.open, {
       timeoutSeconds: 15,
-      update: () => c.sign.place(g.toScreen(sign)),
+      update() {
+        c.sign.place(g.toScreen(sign));
+      },
     });
     c.sign.dismiss();
     return done;
   });
+}
 
 export const seatAtFire: SceneBehavior = hold(
   (c) => {
@@ -174,31 +180,30 @@ export const seatAtFire: SceneBehavior = hold(
 
 export const faceCody: SceneBehavior = hold((c) => c.randy.attention.take({ face: null }));
 
-export const watchViews: SceneBehavior = (s, c) => {
-  c.progress.viewsSeen.clear();
+export function watchViews(scope: Scope<string>, context: TutorialContext): RunningBehavior<TutorialEvent> {
+  context.progress.viewsSeen.clear();
   return {
-    tick: () => {
-      if (c.pickup.role !== 'player') {
+    tick() {
+      if (context.pickup.role !== 'player') {
         return;
       }
 
-      const view: CamView = c.game.cameraMode === 'iso' ? 'iso' : 'chase';
-      if (!c.progress.viewsSeen.has(view)) {
-        c.progress.viewsSeen.add(view);
-        s.progress();
+      const view: CamView = context.game.cameraMode === 'iso' ? 'iso' : 'chase';
+      if (!context.progress.viewsSeen.has(view)) {
+        context.progress.viewsSeen.add(view);
+        scope.progress();
       }
     },
   };
-};
+}
 
-export const getIn =
-  (mode: 'refuse' | 'board'): SceneBehavior =>
-  (s, c) => {
-    const g = c.game;
+export function getIn(mode: 'refuse' | 'board'): SceneBehavior {
+  return function start(scope, context) {
+    const g = context.game;
     return {
       stop: g.addOffer(() => {
         const p = g.player.pos;
-        const v = c.pickup;
+        const v = context.pickup;
         if (
           !g.player.visible ||
           v.status ||
@@ -210,42 +215,44 @@ export const getIn =
 
         return new ScriptedOffer({
           label: 'GET IN',
-          start: () => {
+          start() {
             if (mode === 'board') {
-              s.progress();
+              scope.progress();
               g.board(v, true);
-            } else if (c.outreach.free) {
-              c.outreach.speak([{ who: 'right', say: 'NO KEYS.', solo: true }], () => undefined);
+            } else if (context.outreach.free) {
+              context.outreach.speak([{ who: 'right', say: 'NO KEYS.', solo: true }], () => undefined);
             }
           },
         });
       }),
     };
   };
+}
 
-export const talkToRandy: SceneBehavior = (_s, c) => {
-  const g = c.game;
+export function talkToRandy(_scope: Scope<string>, context: TutorialContext): RunningBehavior<TutorialEvent> {
+  const g = context.game;
   return {
     stop: g.addOffer(() => {
-      if (!g.player.visible || !c.outreach.free || g.npcs.talkable(g.player.pos, TALK_REACH) !== c.randy) {
+      if (!g.player.visible || !context.outreach.free || g.npcs.talkable(g.player.pos, TALK_REACH) !== context.randy) {
         return null;
       }
 
       return new ScriptedOffer({
         label: 'TALK TO RANDY',
-        start: () => c.send({ type: 'talk', tires: g.inventory.count('tire') }),
+        start() {
+          context.send({ type: 'talk', tires: g.inventory.count('tire') });
+        },
       });
     }),
   };
-};
+}
 
-export const directRandy =
-  (build: (c: TutorialContext) => NpcAction): SceneBehavior =>
-  (s, c) => {
-    const run = c.randy.direct([build(c)]);
+export function directRandy(build: (context: TutorialContext) => NpcAction): SceneBehavior {
+  return function start(scope, context) {
+    const run = context.randy.direct([build(context)]);
     let finished = false;
     return {
-      tick: () => {
+      tick() {
         if (finished || run.running) {
           return;
         }
@@ -253,17 +260,18 @@ export const directRandy =
         finished = true;
 
         if (run.status === 'done') {
-          s.done();
+          scope.done();
         } else {
-          s.struggle();
+          scope.struggle();
         }
       },
-      stop: () => {
+      stop() {
         finished = true;
-        c.randy.stopDirecting(run);
+        context.randy.stopDirecting(run);
       },
     };
   };
+}
 
 const handoff = npcScenes<'randy', never, 'roof'>();
 const departure = npcScenes<'randy', 'roofExit', never>();
@@ -296,8 +304,12 @@ function sceneBindings(
     shots: { roof: camera.shot },
     camera,
     items: {
-      has: (item) => game.inventory.count(item) > 0,
-      give: (from, item) => void game.handOver(from, item),
+      has(item) {
+        return game.inventory.count(item) > 0;
+      },
+      give(from, item) {
+        game.handOver(from, item);
+      },
     },
   };
 }
@@ -310,68 +322,80 @@ export function handPhone(
   return handoff.play(PHONE_HANDOFF, sceneBindings(game, randy, camera));
 }
 
-export const leaveRoof: SceneBehavior = (s, c) => {
-  const r = c.randy;
+export function leaveRoof(scope: Scope<string>, context: TutorialContext): RunningBehavior<TutorialEvent> {
+  const r = context.randy;
   const run = r.direct([
     departure.play(ROOF_DEPARTURE, {
       actors: { randy: r },
-      points: { roofExit: roofExit(c.level, r.pos) },
+      points: { roofExit: roofExit(context.level, r.pos) },
       shots: {},
       actions: {},
-      visible: (actor) => inView(c.game, actor.pos),
+      visible(actor) {
+        return inView(context.game, actor.pos);
+      },
     }),
   ]);
   return {
-    tick: () => {
+    tick() {
       if (run.running) {
         return;
       }
 
-      c.game.puff(r.pos);
+      context.game.puff(r.pos);
 
       if (r.fire) {
-        c.game.puff(r.fire.root.position);
+        context.game.puff(r.fire.root.position);
       }
 
       r.place(new Vector3(...r.def.pos), r.def.yaw);
-      s.done();
+      scope.done();
     },
-    stop: () => r.stopDirecting(run),
+    stop() {
+      r.stopDirecting(run);
+    },
   };
-};
+}
 
 export const facing: SceneBehavior = act((c) => c.randy.lookAt(null));
 
-export const coughing =
-  (after = 0): SceneBehavior =>
-  (s, c) => {
+export function coughing(after = 0): SceneBehavior {
+  return function start(scope, context) {
     let wait = 0;
     return {
-      tick: (dt) => {
-        const v = c.pickup;
+      tick(dt) {
+        const v = context.pickup;
         wait = Math.max(0, wait - dt);
 
-        if (s.t < after || !v.ignition.stalled || v.role !== 'player' || !c.game.input.isDown('forward') || wait > 0) {
+        if (
+          scope.t < after ||
+          !v.ignition.stalled ||
+          v.role !== 'player' ||
+          !context.game.input.isDown('forward') ||
+          wait > 0
+        ) {
           return;
         }
 
         wait = COUGH_EVERY;
-        c.game.events.emit('sfx', { name: 'engine-cough', at: tailpipe(v) });
+        context.game.events.emit('sfx', { name: 'engine-cough', at: tailpipe(v) });
 
-        if (!c.progress.noticedSmell) {
-          c.progress.noticedSmell = true;
-          c.outreach.later([{ who: 'right', say: '...WHY DOES IT SMELL LIKE BARBECUE?', solo: true }]);
+        if (!context.progress.noticedSmell) {
+          context.progress.noticedSmell = true;
+          context.outreach.later([{ who: 'right', say: '...WHY DOES IT SMELL LIKE BARBECUE?', solo: true }]);
         }
       },
     };
   };
+}
 
 export function tailpipe(v: Vehicle): Vector3 {
   const back = v.params.length / 2;
   return new Vector3(v.pos.x - Math.sin(v.yaw) * back, v.pos.y + TAILPIPE, v.pos.z - Math.cos(v.yaw) * back);
 }
 
-export const settled = (v: Vehicle): boolean => v.grounded && Math.hypot(v.vel.x, v.vel.z) < IDLE_SPEED;
+export function settled(v: Vehicle): boolean {
+  return v.grounded && Math.hypot(v.vel.x, v.vel.z) < IDLE_SPEED;
+}
 
 export function nearestCar(vehicles: readonly Vehicle[], at: Vector3, test: (v: Vehicle) => boolean): Vehicle | null {
   let best: Vehicle | null = null;

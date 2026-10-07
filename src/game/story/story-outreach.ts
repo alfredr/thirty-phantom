@@ -348,8 +348,9 @@ export class Outreach {
   }
 }
 
-const plain = (say: string): string =>
-  say.replace(/\{(\w+)\}/g, (m, name: string) => (isControl(name) ? keyName(name) : m));
+function plain(say: string): string {
+  return say.replace(/\{(\w+)\}/g, (m, name: string) => (isControl(name) ? keyName(name) : m));
+}
 
 export interface Nudging {
   n: number;
@@ -359,30 +360,45 @@ export interface Nudging {
 type OutreachServices = { readonly outreach: Outreach };
 type OutreachBehavior<C> = BeatBehavior<C & OutreachServices, MindEvent<string>, string>;
 
-const linesOf = <C>(lines: Lines<C>, c: C): readonly Line[] => (typeof lines === 'function' ? lines(c) : lines);
-const wordsOf = <C>(w: Words<C>, c: C): string => (typeof w === 'function' ? w(c) : w);
-const dropAll = (s: Scope<string>, c: OutreachServices) => (): void => c.outreach.drop(`${s.key}:`);
+function linesOf<C>(lines: Lines<C>, context: C): readonly Line[] {
+  return typeof lines === 'function' ? lines(context) : lines;
+}
+
+function wordsOf<C>(w: Words<C>, context: C): string {
+  return typeof w === 'function' ? w(context) : w;
+}
+
+function dropAll(scope: Scope<string>, context: OutreachServices): () => void {
+  return function drop() {
+    context.outreach.drop(`${scope.key}:`);
+  };
+}
 
 export function say<C>(lines: Lines<C>, opts: { wait?: number } = {}): OutreachBehavior<C> {
-  return (s, c) => {
+  return function start(scope, context) {
     let stop: (() => void) | null = null;
-    const start = (): void => {
-      if (stop || s.t < (opts.wait ?? 0) || !c.outreach.free || c.outreach.phone.calling) {
+    function speakWhenReady(): void {
+      if (stop || scope.t < (opts.wait ?? 0) || !context.outreach.free || context.outreach.phone.calling) {
         return;
       }
 
-      stop = c.outreach.speak(linesOf(lines, c), () => s.done());
-    };
+      stop = context.outreach.speak(linesOf(lines, context), () => scope.done());
+    }
 
-    start();
-    return { tick: start, stop: () => stop?.() };
+    speakWhenReady();
+    return {
+      tick: speakWhenReady,
+      stop() {
+        stop?.();
+      },
+    };
   };
 }
 
 export interface TextSpec<C> {
-  readonly until?: (c: C, s: Scope<string>) => boolean;
+  readonly until?: (context: C, scope: Scope<string>) => boolean;
   readonly doing?: boolean;
-  readonly only?: (c: C) => boolean;
+  readonly only?: (context: C) => boolean;
   readonly repeat?: boolean;
   readonly brief?: number;
   readonly after?: number;
@@ -392,52 +408,54 @@ export interface TextSpec<C> {
 }
 
 export function text<C>(msg: Words<C>, spec: TextSpec<C> = {}): OutreachBehavior<C> {
-  return (s, c) => {
+  return function start(scope, context) {
     let queued = false;
-    const send = (): void => {
+    function send(): void {
       queued = true;
-      const words = wordsOf(msg, c);
-      if (spec.only && !spec.only(c)) {
+      const words = wordsOf(msg, context);
+      if (spec.only && !spec.only(context)) {
         return;
       }
 
-      if (!spec.repeat && !c.outreach.once(`${s.id}:${words}`)) {
+      if (!spec.repeat && !context.outreach.once(`${scope.id}:${words}`)) {
         if (spec.done) {
-          s.done();
+          scope.done();
         }
 
         return;
       }
 
-      c.outreach.text(spec.key ?? `${s.key}:text`, words, {
-        until: spec.until ? () => spec.until?.(c, s) === true : spec.doing ? () => false : undefined,
+      context.outreach.text(spec.key ?? `${scope.key}:text`, words, {
+        until: spec.until ? () => spec.until?.(context, scope) === true : spec.doing ? () => false : undefined,
         brief: spec.brief,
         reply: spec.reply,
-        landed: spec.done ? () => s.done() : undefined,
+        landed: spec.done ? () => scope.done() : undefined,
       });
-    };
+    }
 
     if (!spec.after) {
       send();
     }
 
     return {
-      tick: () => {
-        if (!queued && s.t >= (spec.after ?? 0)) {
+      tick() {
+        if (!queued && scope.t >= (spec.after ?? 0)) {
           send();
         }
       },
-      stop: dropAll(s, c),
+      stop: dropAll(scope, context),
     };
   };
 }
 
 export function call<C>(lines: Lines<C>, opts: { keep?: boolean } = {}): OutreachBehavior<C> {
-  return (s, c) => {
-    const abandon = c.outreach.call(`${s.key}:call`, linesOf(lines, c), opts.keep ?? false, () => s.done());
-    const drop = dropAll(s, c);
+  return function start(scope, context) {
+    const abandon = context.outreach.call(`${scope.key}:call`, linesOf(lines, context), opts.keep ?? false, () =>
+      scope.done(),
+    );
+    const drop = dropAll(scope, context);
     return {
-      stop: () => {
+      stop() {
         abandon();
         drop();
       },
@@ -446,12 +464,16 @@ export function call<C>(lines: Lines<C>, opts: { keep?: boolean } = {}): Outreac
 }
 
 export function nudge<C>(action: Words<C>, lines: NudgeLines = {}): OutreachBehavior<C> {
-  return (s, c) => {
+  return function start(scope, context) {
     const stage: Nudging = { n: 0, nag: 0 };
     return {
-      tick: (dt) => c.outreach.nudge(s.key, wordsOf(action, c), s.idle, stage, dt, lines),
-      progressed: () => c.outreach.drop(`${s.key}:nudge`),
-      stop: dropAll(s, c),
+      tick(dt) {
+        context.outreach.nudge(scope.key, wordsOf(action, context), scope.idle, stage, dt, lines);
+      },
+      progressed() {
+        context.outreach.drop(`${scope.key}:nudge`);
+      },
+      stop: dropAll(scope, context),
     };
   };
 }

@@ -39,7 +39,9 @@ export function launchOf(k: RampDef): Vector3 {
 }
 
 export function rampRun<C>(config: RampConfig<C>): BeatBehavior<C & RampServices, MindEvent<string>, string> {
-  return (s, c) => new RampRun(s, c, config);
+  return function start(scope, context) {
+    return new RampRun(scope, context, config);
+  };
 }
 
 class RampRun<C> implements RunningBehavior<MindEvent<string>> {

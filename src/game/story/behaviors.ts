@@ -27,23 +27,22 @@ export type BeatBehavior<C, Ev extends MindEvent<string>, Id extends string> = (
   context: C,
 ) => RunningBehavior<Ev>;
 
-export type BeatBehaviorFactory<T, Needs> = <C>(
-  select: (context: C) => T,
-) => BeatBehavior<C & Needs, MindEvent<string>, string>;
+function is<Ev extends MindEvent<string>, T extends Ev['type']>(e: Ev, type: T): e is EventOf<Ev, T> {
+  return e.type === type;
+}
 
-const is = <Ev extends MindEvent<string>, T extends Ev['type']>(e: Ev, type: T): e is EventOf<Ev, T> => e.type === type;
-
-export const run =
-  <C, Ev extends MindEvent<string>, Id extends string>(build: (c: C) => Action<C, C>): BeatBehavior<C, Ev, Id> =>
-  (s, c) => {
-    const action = new Sequence([build(c)]);
+export function run<C, Ev extends MindEvent<string>, Id extends string>(
+  build: (context: C) => Action<C, C>,
+): BeatBehavior<C, Ev, Id> {
+  return function start(scope, context) {
+    const action = new Sequence([build(context)]);
     let finished = false;
-    const tick = (dt: number): void => {
+    function tick(dt: number): void {
       if (finished) {
         return;
       }
 
-      const result = action.perform(c, dt);
+      const result = action.perform(context, dt);
       if ('running' in result) {
         return;
       }
@@ -51,153 +50,172 @@ export const run =
       finished = true;
 
       if ('fail' in result) {
-        s.struggle();
+        scope.struggle();
       } else {
-        s.done();
+        scope.done();
       }
-    };
+    }
 
     tick(0);
     return {
       tick,
-      stop: () => {
+      stop() {
         finished = true;
         action.stop();
       },
     };
   };
+}
 
-export const hold =
-  <C, Ev extends MindEvent<string>, Id extends string>(
-    ...acquire: readonly ((c: C) => Disposable)[]
-  ): BeatBehavior<C, Ev, Id> =>
-  (_s, c) => {
+export function hold<C, Ev extends MindEvent<string>, Id extends string>(
+  ...acquire: readonly ((context: C) => Disposable)[]
+): BeatBehavior<C, Ev, Id> {
+  return function start(_scope, context) {
     const held = new Disposables();
     try {
       for (const take of acquire) {
-        held.use(take(c));
+        held.use(take(context));
       }
     } catch (error) {
       held[Symbol.dispose]();
       throw error;
     }
 
-    return { stop: () => held[Symbol.dispose]() };
+    return {
+      stop() {
+        held[Symbol.dispose]();
+      },
+    };
   };
+}
 
-export const act =
-  <C, Ev extends MindEvent<string>, Id extends string>(fn: (c: C, s: Scope<Id>) => void): BeatBehavior<C, Ev, Id> =>
-  (s, c) => {
-    fn(c, s);
+export function act<C, Ev extends MindEvent<string>, Id extends string>(
+  fn: (context: C, scope: Scope<Id>) => void,
+): BeatBehavior<C, Ev, Id> {
+  return function start(scope, context) {
+    fn(context, scope);
     return {};
   };
+}
 
-export const on =
-  <C, Ev extends MindEvent<string>, Id extends string, T extends Ev['type']>(
-    type: T,
-    when?: (c: C, e: EventOf<Ev, T>) => boolean,
-    next?: NoInfer<Id> | null,
-  ): BeatBehavior<C, Ev, Id> =>
-  (s, c) => ({
-    on: (e) => {
-      if (is(e, type) && (!when || when(c, e))) {
-        s.done(next);
-      }
-    },
-  });
-
-export const react =
-  <C, Ev extends MindEvent<string>, Id extends string, T extends Ev['type']>(
-    type: T,
-    fn: (c: C, e: EventOf<Ev, T>, s: Scope<Id>) => void,
-  ): BeatBehavior<C, Ev, Id> =>
-  (s, c) => ({
-    on: (e) => {
-      if (is(e, type)) {
-        fn(c, e, s);
-      }
-    },
-  });
-
-export const progressOn =
-  <C, Ev extends MindEvent<string>, Id extends string, T extends Ev['type']>(
-    type: T,
-    when?: (c: C, e: EventOf<Ev, T>) => boolean,
-  ): BeatBehavior<C, Ev, Id> =>
-  (s, c) => ({
-    on: (e) => {
-      if (is(e, type) && (!when || when(c, e))) {
-        s.progress();
-      }
-    },
-  });
-
-export const when =
-  <C, Ev extends MindEvent<string>, Id extends string>(
-    cond: (c: C, s: Scope<Id>) => boolean,
-    opts: { for?: number; next?: NoInfer<Id> | null } = {},
-  ): BeatBehavior<C, Ev, Id> =>
-  (s, c) => {
-    let held = 0;
+export function on<C, Ev extends MindEvent<string>, Id extends string, T extends Ev['type']>(
+  type: T,
+  when?: (context: C, e: EventOf<Ev, T>) => boolean,
+  next?: NoInfer<Id> | null,
+): BeatBehavior<C, Ev, Id> {
+  return function start(scope, context) {
     return {
-      tick: (dt) => {
-        held = cond(c, s) ? held + dt : 0;
-
-        if (held > 0 && held >= (opts.for ?? 0)) {
-          s.done(opts.next);
+      on(e) {
+        if (is(e, type) && (!when || when(context, e))) {
+          scope.done(next);
         }
       },
     };
   };
+}
 
-export const all =
-  <C, Ev extends MindEvent<string>, Id extends string>(
-    parts: readonly BeatBehavior<C, Ev, Id>[],
-  ): BeatBehavior<C, Ev, Id> =>
-  (s, c) => {
+export function react<C, Ev extends MindEvent<string>, Id extends string, T extends Ev['type']>(
+  type: T,
+  fn: (context: C, e: EventOf<Ev, T>, scope: Scope<Id>) => void,
+): BeatBehavior<C, Ev, Id> {
+  return function start(scope, context) {
+    return {
+      on(e) {
+        if (is(e, type)) {
+          fn(context, e, scope);
+        }
+      },
+    };
+  };
+}
+
+export function progressOn<C, Ev extends MindEvent<string>, Id extends string, T extends Ev['type']>(
+  type: T,
+  when?: (context: C, e: EventOf<Ev, T>) => boolean,
+): BeatBehavior<C, Ev, Id> {
+  return function start(scope, context) {
+    return {
+      on(e) {
+        if (is(e, type) && (!when || when(context, e))) {
+          scope.progress();
+        }
+      },
+    };
+  };
+}
+
+export function when<C, Ev extends MindEvent<string>, Id extends string>(
+  cond: (context: C, scope: Scope<Id>) => boolean,
+  opts: { for?: number; next?: NoInfer<Id> | null } = {},
+): BeatBehavior<C, Ev, Id> {
+  return function start(scope, context) {
+    let held = 0;
+    return {
+      tick(dt) {
+        held = cond(context, scope) ? held + dt : 0;
+
+        if (held > 0 && held >= (opts.for ?? 0)) {
+          scope.done(opts.next);
+        }
+      },
+    };
+  };
+}
+
+export function all<C, Ev extends MindEvent<string>, Id extends string>(
+  parts: readonly BeatBehavior<C, Ev, Id>[],
+): BeatBehavior<C, Ev, Id> {
+  return function start(scope, context) {
     const pending = new Set(parts.keys());
     const actives = new Map<number, RunningBehavior<Ev>>();
-    const stop = (i: number): void => {
+    function stop(i: number): void {
       const active = actives.get(i);
       actives.delete(i);
       active?.stop?.();
-    };
+    }
 
-    const branch = (i: number): Scope<Id> => ({
-      get id() {
-        return s.id;
-      },
-      get key() {
-        return `${s.key}:${i}`;
-      },
-      get owner() {
-        return s.owner;
-      },
-      get t() {
-        return s.t;
-      },
-      get idle() {
-        return s.idle;
-      },
-      get stuck() {
-        return s.stuck;
-      },
-      progress: () => s.progress(),
-      struggle: () => s.struggle(),
-      done: () => {
-        if (!pending.delete(i)) {
-          return;
-        }
+    function branch(i: number): Scope<Id> {
+      return {
+        get id() {
+          return scope.id;
+        },
+        get key() {
+          return `${scope.key}:${i}`;
+        },
+        get owner() {
+          return scope.owner;
+        },
+        get t() {
+          return scope.t;
+        },
+        get idle() {
+          return scope.idle;
+        },
+        get stuck() {
+          return scope.stuck;
+        },
+        progress() {
+          scope.progress();
+        },
+        struggle() {
+          scope.struggle();
+        },
+        done() {
+          if (!pending.delete(i)) {
+            return;
+          }
 
-        stop(i);
+          stop(i);
 
-        if (!pending.size) {
-          s.done();
-        }
-      },
-    });
+          if (!pending.size) {
+            scope.done();
+          }
+        },
+      };
+    }
+
     parts.forEach((p, i) => {
-      const active = p(branch(i), c);
+      const active = p(branch(i), context);
       if (pending.has(i)) {
         actives.set(i, active);
       } else {
@@ -206,29 +224,38 @@ export const all =
     });
 
     if (!parts.length) {
-      s.done();
+      scope.done();
     }
 
     return {
-      tick: (dt) => actives.forEach((a) => a.tick?.(dt)),
-      on: (e) => actives.forEach((a) => a.on?.(e)),
-      progressed: () => actives.forEach((a) => a.progressed?.()),
-      stop: () => {
+      tick(dt) {
+        actives.forEach((a) => a.tick?.(dt));
+      },
+      on(e) {
+        actives.forEach((a) => a.on?.(e));
+      },
+      progressed() {
+        actives.forEach((a) => a.progressed?.());
+      },
+      stop() {
         pending.clear();
         [...actives.keys()].reverse().forEach(stop);
       },
     };
   };
+}
 
-export const after =
-  <C, Ev extends MindEvent<string>, Id extends string>(
-    seconds: number,
-    next?: NoInfer<Id> | null,
-  ): BeatBehavior<C, Ev, Id> =>
-  (s) => ({
-    tick: () => {
-      if (s.t >= seconds) {
-        s.done(next);
-      }
-    },
-  });
+export function after<C, Ev extends MindEvent<string>, Id extends string>(
+  seconds: number,
+  next?: NoInfer<Id> | null,
+): BeatBehavior<C, Ev, Id> {
+  return function start(scope) {
+    return {
+      tick() {
+        if (scope.t >= seconds) {
+          scope.done(next);
+        }
+      },
+    };
+  };
+}
