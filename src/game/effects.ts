@@ -8,7 +8,7 @@ import type { CubeParticles } from '@/fx/cube-particles';
 import type { SpriteFx } from '@/fx/sprite-fx';
 import type { ToastTone } from '@/ui/hud';
 
-import type { GameEvents } from './game';
+import type { GameEvents } from './game-events';
 
 /** Rendering and HUD services used by event effects. */
 export interface Stage {

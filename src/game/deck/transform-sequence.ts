@@ -102,7 +102,7 @@ export class TransformSequence {
   private swap(): void {
     this.swapped = true;
     const v = this.vehicle;
-    const { scene, slime, sprites, shake, flash } = this.fx;
+    const { scene, slime, sprites } = this.fx;
     scene.remove(this.oldRig.root);
     this.newRig = this.build();
     v.setForm(this.to, this.newRig);
@@ -125,8 +125,8 @@ export class TransformSequence {
       0.9,
     );
     sprites.spray(at, 14, 10, [0, 3], SLIME_PUFF, 3, 7, 1.2, 'puff', 0.7);
-    shake(0.75);
-    flash(
+    this.fx.shake(0.75);
+    this.fx.flash(
       this.to === 'truck' ? 0.55 : 0.3,
       this.to === 'truck' ? '#9dff3a' : '#ffd9b0',
     );

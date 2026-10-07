@@ -2,7 +2,8 @@ import type { Vehicle } from '@/actors/vehicles/vehicle';
 import { TUNING } from '@/config';
 import { clamp } from '@/engine/core/math';
 import { KEYS, keyName } from '@/game/controls';
-import type { Game, GameEvents } from '@/game/game';
+import type { Game } from '@/game/game';
+import type { GameEvents } from '@/game/game-events';
 import { ITEM_BREEDS } from '@/game/items/item-breeds';
 
 import type { SoundOf } from './cues';

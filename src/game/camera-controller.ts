@@ -7,13 +7,13 @@ const KEY = '30pc.camera';
 const MODES: readonly CamMode[] = ['iso', 'chase', 'auto'];
 const TOUCH_MODES: readonly CamMode[] = ['iso', 'chase'];
 
-interface CameraEffects {
+export type CameraEffects = {
   snapBehind(yaw: number): void;
   releasePointer(): void;
   setView(view: CamView): void;
   showMode(mode: CamMode, hint: boolean): void;
   changed(mode: CamMode): void;
-}
+};
 
 function savedMode(): CamMode | null {
   try {

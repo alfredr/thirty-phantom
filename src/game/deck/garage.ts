@@ -155,7 +155,7 @@ export class Garage {
   }
 
   /** Count vehicles inside the deck, excluding removed vehicles. */
-  actual(vehicles: Vehicle[]): number {
+  actual(vehicles: readonly Vehicle[]): number {
     let n = 0;
     for (const v of vehicles) {
       if (v.insideDeck && !v.gone) {
@@ -166,7 +166,7 @@ export class Garage {
     return n;
   }
 
-  phantomOccupancy(vehicles: Vehicle[]): number {
+  phantomOccupancy(vehicles: readonly Vehicle[]): number {
     return this.logged - this.actual(vehicles);
   }
 
