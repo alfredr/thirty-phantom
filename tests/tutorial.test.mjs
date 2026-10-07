@@ -178,7 +178,7 @@ test('a stall that releases on nightfall frees the engine at the transform, once
   const v = { ignition: { stalled: false } };
   let roared = 0;
   const part = stall(() => v, { releaseOn: 'nightfall', released: () => roared++ });
-  const active = part.create({}, { access });
+  const active = part({}, { access });
   active.on({ type: 'swallowed' });
   assert.equal(v.ignition.stalled, true);
   active.on({ type: 'nightfall' });

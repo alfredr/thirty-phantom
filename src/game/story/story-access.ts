@@ -1,10 +1,11 @@
 import type { Vehicle } from '@/actors/vehicles/vehicle';
+import type { Release } from '@/engine/core/disposable';
 import { Leases } from '@/engine/sim/leases';
 import type { MindEvent } from '@/engine/sim/mind';
 import type { CodyAbility } from '@/game/cody/cody-state';
 import type { Game } from '@/game/game';
 
-import type { Part } from './director';
+import { hold, type BeatBehavior } from './behaviors';
 
 export type Entry = 'none' | 'pickup' | 'any';
 
@@ -63,31 +64,31 @@ export class Access {
     private readonly defaults: Defaults,
   ) {}
 
-  enter(e: Entry): () => void {
+  enter(e: Entry): Release {
     return this.entry.take(e);
   }
 
-  lock(why: string): () => void {
+  lock(why: string): Release {
     return this.doors.take(why);
   }
 
-  hold(grants: readonly CodyAbility[]): () => void {
+  hold(grants: readonly CodyAbility[]): Release {
     return this.look.take(grants);
   }
 
-  wall(): () => void {
+  wall(): Release {
     return this.walls.take(true);
   }
 
-  noTrades(): () => void {
+  noTrades(): Release {
     return this.trades.take(false);
   }
 
-  keepEscapes(): () => void {
+  keepEscapes(): Release {
     return this.escapes.take(true);
   }
 
-  stall(v: Vehicle): () => void {
+  stall(v: Vehicle): Release {
     return this.stalls.take(v);
   }
 
@@ -102,40 +103,34 @@ export class Access {
   }
 }
 
-type AccessPart = Part<{ readonly access: Access }, MindEvent<string>, string>;
+type AccessBehavior = BeatBehavior<{ readonly access: Access }, MindEvent<string>, string>;
 
-const lease = (take: (a: Access) => () => void): AccessPart => ({
-  create: (_s, c) => ({ stop: take(c.access) }),
-});
-
-export const entry = (e: Entry): AccessPart => lease((a) => a.enter(e));
-export const doors = (why: string): AccessPart => lease((a) => a.lock(why));
-export const dayLook = (...grants: CodyAbility[]): AccessPart => lease((a) => a.hold(grants));
-export const barriers = (): AccessPart => lease((a) => a.wall());
-export const noTrades = (): AccessPart => lease((a) => a.noTrades());
-export const keepEscapes = (): AccessPart => lease((a) => a.keepEscapes());
+export const entry = (e: Entry): AccessBehavior => hold((c) => c.access.enter(e));
+export const doors = (why: string): AccessBehavior => hold((c) => c.access.lock(why));
+export const dayLook = (...grants: CodyAbility[]): AccessBehavior => hold((c) => c.access.hold(grants));
+export const barriers: AccessBehavior = hold((c) => c.access.wall());
+export const noTrades: AccessBehavior = hold((c) => c.access.noTrades());
+export const keepEscapes: AccessBehavior = hold((c) => c.access.keepEscapes());
 
 export function stall<C>(
   vehicle: (c: C) => Vehicle,
   opts: { releaseOn?: string; released?: (c: C) => void } = {},
-): Part<C & { readonly access: Access }, MindEvent<string>, string> {
-  return {
-    create: (_s, c) => {
-      let release: (() => void) | null = c.access.stall(vehicle(c));
-      const free = (): void => {
-        release?.();
-        release = null;
-      };
+): BeatBehavior<C & { readonly access: Access }, MindEvent<string>, string> {
+  return (_s, c) => {
+    let release: Release | null = c.access.stall(vehicle(c));
+    const free = (): void => {
+      release?.();
+      release = null;
+    };
 
-      return {
-        on: (e) => {
-          if (release && e.type === opts.releaseOn) {
-            free();
-            opts.released?.(c);
-          }
-        },
-        stop: free,
-      };
-    },
+    return {
+      on: (e) => {
+        if (release && e.type === opts.releaseOn) {
+          free();
+          opts.released?.(c);
+        }
+      },
+      stop: free,
+    };
   };
 }

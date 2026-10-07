@@ -683,7 +683,7 @@ test('leaving the roof relocates Randy and his fire after the action settles', (
   n.place(new Vector3(0, 8, 0), 0);
   let finished = 0;
   const puffs = [];
-  const active = leaveRoof().create(
+  const active = leaveRoof(
     { done: () => finished++ },
     {
       randy: n,
@@ -711,7 +711,7 @@ test('leaving the tutorial cancels departure without a later relocation', () => 
   const n = randyAt(new Vector3(), 0);
   const roof = new Vector3(0, 8, 0);
   n.place(roof, 0);
-  const active = leaveRoof().create(
+  const active = leaveRoof(
     { done: () => assert.fail('cancelled beat completed') },
     {
       randy: n,

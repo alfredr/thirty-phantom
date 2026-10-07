@@ -1,11 +1,10 @@
 import { Vector3 } from 'three';
 
 import type { Vehicle } from '@/actors/vehicles/vehicle';
-import type { MindEvent } from '@/engine/sim/mind';
 import type { Game } from '@/game/game';
 import { NAV } from '@/world/nav-grid';
 
-import type { Part } from './director';
+import { act, type BeatBehaviorFactory } from './behaviors';
 
 const TRAIL = [15, 23, 31, 39];
 const TRAIL_TURNS = [0, 0.4, -0.4, 0.8, -0.8, 1.3, -1.3, 2, -2, Math.PI];
@@ -13,8 +12,7 @@ const RESUPPLY = 20;
 const NEAR = 40;
 const EMPTY = 0.05;
 
-type GhostCast = { readonly game: Game };
-type GhostPart<C> = Part<C & GhostCast, MindEvent<string>, string>;
+type GhostServices = { readonly game: Game };
 
 export function spawnTrail(g: Game, from: Vehicle): void {
   for (const turn of TRAIL_TURNS) {
@@ -42,30 +40,24 @@ export function spawnTrail(g: Game, from: Vehicle): void {
   }
 }
 
-export const ghostTrail = <C>(from: (c: C) => Vehicle): GhostPart<C> => ({
-  create: (_s, c) => {
-    spawnTrail(c.game, from(c));
-    return {};
-  },
-});
+export const ghostTrail: BeatBehaviorFactory<Vehicle, GhostServices> = (selectVehicle) =>
+  act((c) => spawnTrail(c.game, selectVehicle(c)));
 
-export const ghostSupply = <C>(from: (c: C) => Vehicle): GhostPart<C> => ({
-  create: (s, c) => {
-    let last = -Infinity;
-    return {
-      tick: () => {
-        const g = c.game;
-        const v = from(c);
-        if (g.ghast > EMPTY || s.t - last < RESUPPLY || g.activeGhosts().some((p) => p.distanceTo(v.pos) < NEAR)) {
-          return;
-        }
+export const ghostSupply: BeatBehaviorFactory<Vehicle, GhostServices> = (selectVehicle) => (s, c) => {
+  let last = -Infinity;
+  return {
+    tick: () => {
+      const g = c.game;
+      const v = selectVehicle(c);
+      if (g.ghast > EMPTY || s.t - last < RESUPPLY || g.activeGhosts().some((p) => p.distanceTo(v.pos) < NEAR)) {
+        return;
+      }
 
-        last = s.t;
-        spawnTrail(g, v);
-      },
-    };
-  },
-});
+      last = s.t;
+      spawnTrail(g, v);
+    },
+  };
+};
 
 export function nearestGhost(g: Game, from: Vector3): Vector3 | null {
   const at = new Vector3();

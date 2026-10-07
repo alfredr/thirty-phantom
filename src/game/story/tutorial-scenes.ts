@@ -17,7 +17,7 @@ import { ISO_ELEVATION } from '@/render/iso-camera';
 import { ITEM_ICONS } from '@/ui/item-icons';
 import type { GateDef, LevelData, RampDef } from '@/world/level-data';
 
-import { type Part, steps } from './director';
+import { act, hold, type BeatBehavior } from './behaviors';
 import { inView, npcScenes, player, type NpcSceneBindings } from './npc-scene';
 import type { StoryCamera } from './story-camera';
 import type { RoofStage, TutorialContext, TutorialEvent } from './tutorial-context';
@@ -42,9 +42,7 @@ const TAILPIPE = 0.5;
 const _side = new Vector3();
 const _toCamera = new Vector3();
 
-type ScenePart = Part<TutorialContext, TutorialEvent, string>;
-
-const { hold } = steps<TutorialContext, TutorialEvent, string>();
+type SceneBehavior = BeatBehavior<TutorialContext, TutorialEvent, string>;
 
 export function coat(game: Pick<Game, 'waresShown'>, npc: Npc, open: boolean): void {
   npc.send({ type: 'flash', open });
@@ -111,25 +109,22 @@ export function meltedKeys(game: Pick<Game, 'hud' | 'inventory'>, randy: Npc, pi
   game.hud.toast('+ MELTED KEYS', 'ONE USELESS CLUMP', '', 2.6);
 }
 
-export const roofScene = (): ScenePart =>
-  hold(
-    (c) => c.camera.hold(),
-    (c) => c.randy.attention.take({ face: c.stage.window }),
-    (c) =>
-      releaseOnce(() => {
-        c.game.waresShown = null;
-      }),
-  );
+export const roofScene: SceneBehavior = hold(
+  (c) => c.camera.hold(),
+  (c) => c.randy.attention.take({ face: c.stage.window }),
+  (c) =>
+    releaseOnce(() => {
+      c.game.waresShown = null;
+    }),
+);
 
-export const ledgerOnJump = (): ScenePart => ({
-  create: (_s, c) => ({
-    tick: () => {
-      const v = c.pickup;
-      if (!v.grounded && v.pos.y > c.stage.roof + AIR_ABOVE) {
-        c.game.hud.showLedger(true);
-      }
-    },
-  }),
+export const ledgerOnJump: SceneBehavior = (_s, c) => ({
+  tick: () => {
+    const v = c.pickup;
+    if (!v.grounded && v.pos.y > c.stage.roof + AIR_ABOVE) {
+      c.game.hud.showLedger(true);
+    }
+  },
 });
 
 export const imprintSign = (c: TutorialContext): Sequence<TutorialContext, TutorialContext> =>
@@ -160,47 +155,45 @@ export const imprintSign = (c: TutorialContext): Sequence<TutorialContext, Tutor
     return done;
   });
 
-export const seatAtFire = (): ScenePart =>
-  hold(
-    (c) => {
-      const r = c.randy;
-      const cameraHeight = 1.2;
-      const focus = new Vector3()
-        .addVectors(r.pos, c.game.player.pos)
-        .multiplyScalar(0.5)
-        .setY(r.pos.y + cameraHeight);
-      return c.camera.cut({ focus, zoom: 10 });
-    },
-    (c) => c.randy.attention.take({ face: null }),
-    (c) =>
-      releaseOnce(() => {
-        c.game.waresShown = null;
-      }),
-  );
-
-export const faceCody = (): ScenePart => hold((c) => c.randy.attention.take({ face: null }));
-
-export const watchViews = (): ScenePart => ({
-  create: (s, c) => {
-    c.progress.viewsSeen.clear();
-    return {
-      tick: () => {
-        if (c.pickup.role !== 'player') {
-          return;
-        }
-
-        const view: CamView = c.game.cameraMode === 'iso' ? 'iso' : 'chase';
-        if (!c.progress.viewsSeen.has(view)) {
-          c.progress.viewsSeen.add(view);
-          s.progress();
-        }
-      },
-    };
+export const seatAtFire: SceneBehavior = hold(
+  (c) => {
+    const r = c.randy;
+    const cameraHeight = 1.2;
+    const focus = new Vector3()
+      .addVectors(r.pos, c.game.player.pos)
+      .multiplyScalar(0.5)
+      .setY(r.pos.y + cameraHeight);
+    return c.camera.cut({ focus, zoom: 10 });
   },
-});
+  (c) => c.randy.attention.take({ face: null }),
+  (c) =>
+    releaseOnce(() => {
+      c.game.waresShown = null;
+    }),
+);
 
-export const getIn = (mode: 'refuse' | 'board'): ScenePart => ({
-  create: (s, c) => {
+export const faceCody: SceneBehavior = hold((c) => c.randy.attention.take({ face: null }));
+
+export const watchViews: SceneBehavior = (s, c) => {
+  c.progress.viewsSeen.clear();
+  return {
+    tick: () => {
+      if (c.pickup.role !== 'player') {
+        return;
+      }
+
+      const view: CamView = c.game.cameraMode === 'iso' ? 'iso' : 'chase';
+      if (!c.progress.viewsSeen.has(view)) {
+        c.progress.viewsSeen.add(view);
+        s.progress();
+      }
+    },
+  };
+};
+
+export const getIn =
+  (mode: 'refuse' | 'board'): SceneBehavior =>
+  (s, c) => {
     const g = c.game;
     return {
       stop: g.addOffer(() => {
@@ -228,29 +221,27 @@ export const getIn = (mode: 'refuse' | 'board'): ScenePart => ({
         });
       }),
     };
-  },
-});
+  };
 
-export const talkToRandy = (): ScenePart => ({
-  create: (_s, c) => {
-    const g = c.game;
-    return {
-      stop: g.addOffer(() => {
-        if (!g.player.visible || !c.outreach.free || g.npcs.talkable(g.player.pos, TALK_REACH) !== c.randy) {
-          return null;
-        }
+export const talkToRandy: SceneBehavior = (_s, c) => {
+  const g = c.game;
+  return {
+    stop: g.addOffer(() => {
+      if (!g.player.visible || !c.outreach.free || g.npcs.talkable(g.player.pos, TALK_REACH) !== c.randy) {
+        return null;
+      }
 
-        return new ScriptedOffer({
-          label: 'TALK TO RANDY',
-          start: () => c.send({ type: 'talk', tires: g.inventory.count('tire') }),
-        });
-      }),
-    };
-  },
-});
+      return new ScriptedOffer({
+        label: 'TALK TO RANDY',
+        start: () => c.send({ type: 'talk', tires: g.inventory.count('tire') }),
+      });
+    }),
+  };
+};
 
-export const directRandy = (build: (c: TutorialContext) => NpcAction): ScenePart => ({
-  create: (s, c) => {
+export const directRandy =
+  (build: (c: TutorialContext) => NpcAction): SceneBehavior =>
+  (s, c) => {
     const run = c.randy.direct([build(c)]);
     let finished = false;
     return {
@@ -272,8 +263,7 @@ export const directRandy = (build: (c: TutorialContext) => NpcAction): ScenePart
         c.randy.stopDirecting(run);
       },
     };
-  },
-});
+  };
 
 const handoff = npcScenes<'randy', never, 'roof'>();
 const departure = npcScenes<'randy', 'roofExit', never>();
@@ -320,47 +310,41 @@ export function handPhone(
   return handoff.play(PHONE_HANDOFF, sceneBindings(game, randy, camera));
 }
 
-export const leaveRoof = (): ScenePart => ({
-  create: (s, c) => {
-    const r = c.randy;
-    const run = r.direct([
-      departure.play(ROOF_DEPARTURE, {
-        actors: { randy: r },
-        points: { roofExit: roofExit(c.level, r.pos) },
-        shots: {},
-        actions: {},
-        visible: (actor) => inView(c.game, actor.pos),
-      }),
-    ]);
-    return {
-      tick: () => {
-        if (run.running) {
-          return;
-        }
+export const leaveRoof: SceneBehavior = (s, c) => {
+  const r = c.randy;
+  const run = r.direct([
+    departure.play(ROOF_DEPARTURE, {
+      actors: { randy: r },
+      points: { roofExit: roofExit(c.level, r.pos) },
+      shots: {},
+      actions: {},
+      visible: (actor) => inView(c.game, actor.pos),
+    }),
+  ]);
+  return {
+    tick: () => {
+      if (run.running) {
+        return;
+      }
 
-        c.game.puff(r.pos);
+      c.game.puff(r.pos);
 
-        if (r.fire) {
-          c.game.puff(r.fire.root.position);
-        }
+      if (r.fire) {
+        c.game.puff(r.fire.root.position);
+      }
 
-        r.place(new Vector3(...r.def.pos), r.def.yaw);
-        s.done();
-      },
-      stop: () => r.stopDirecting(run),
-    };
-  },
-});
+      r.place(new Vector3(...r.def.pos), r.def.yaw);
+      s.done();
+    },
+    stop: () => r.stopDirecting(run),
+  };
+};
 
-export const facing = (): ScenePart => ({
-  create: (_s, c) => {
-    c.randy.lookAt(null);
-    return {};
-  },
-});
+export const facing: SceneBehavior = act((c) => c.randy.lookAt(null));
 
-export const coughing = (after = 0): ScenePart => ({
-  create: (s, c) => {
+export const coughing =
+  (after = 0): SceneBehavior =>
+  (s, c) => {
     let wait = 0;
     return {
       tick: (dt) => {
@@ -380,8 +364,7 @@ export const coughing = (after = 0): ScenePart => ({
         }
       },
     };
-  },
-});
+  };
 
 export function tailpipe(v: Vehicle): Vector3 {
   const back = v.params.length / 2;

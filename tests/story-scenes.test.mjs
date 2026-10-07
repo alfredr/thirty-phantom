@@ -14,7 +14,7 @@ const [
   { Leases },
   { StoryCamera },
   { imprintSign, roofScene, seatAtFire, faceCody, tossBadge, directRandy },
-  { steps },
+  { run },
   { Action, done, fail, running },
 ] = await loadModules(
   '/src/game/story/roof-scene.ts',
@@ -24,7 +24,7 @@ const [
   '/src/engine/sim/leases.ts',
   '/src/game/story/story-camera.ts',
   '/src/game/story/tutorial-scenes.ts',
-  '/src/game/story/director.ts',
+  '/src/game/story/behaviors.ts',
   '/src/engine/sim/action.ts',
 );
 
@@ -41,7 +41,7 @@ for (const ending of ['done', 'failed', 'cancelled', 'beat ended']) {
         return ++ticks < 2 ? running : ending === 'done' ? done : fail('NO ROUTE');
       }
     })();
-    const part = directRandy(() => action).create(
+    const part = directRandy(() => action)(
       { done: () => outcomes.push('done'), struggle: () => outcomes.push('struggle') },
       { randy: npc },
     );
@@ -193,12 +193,12 @@ test('cancelling a pour releases the animation without marking the pour finished
   assert.equal(s.props.poured, false);
 });
 
-for (const part of [roofScene, seatAtFire, faceCody]) {
-  test(`${part.name} releases its attention and camera when its beat ends`, () => {
+for (const [name, part] of Object.entries({ roofScene, seatAtFire, faceCody })) {
+  test(`${name} releases its attention and camera when its beat ends`, () => {
     const s = setup();
     const before = { focus: new Vector3(), zoom: 8 };
     const lower = s.game.cameraShots.take(before);
-    const active = part().create(
+    const active = part(
       { done: () => assert.fail('a passive scope cannot finish the beat') },
       {
         ...s,
@@ -239,16 +239,14 @@ function signScene() {
     },
   };
   s.pickup.grounded = false;
-  const active = steps()
-    .run(imprintSign)
-    .create(
-      { done: () => completed++ },
-      {
-        ...s,
-        sign,
-        progress: { firstPhantom: { at: new Vector3(), title: 'FIRST', meta: '' } },
-      },
-    );
+  const active = run(imprintSign)(
+    { done: () => completed++ },
+    {
+      ...s,
+      sign,
+      progress: { firstPhantom: { at: new Vector3(), title: 'FIRST', meta: '' } },
+    },
+  );
   return { ...s, active, sign, completed: () => completed };
 }
 

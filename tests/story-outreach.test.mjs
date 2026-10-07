@@ -3,10 +3,11 @@ import { test } from 'node:test';
 
 import { loadModules } from './modules.mjs';
 
-const [{ OutreachQueue, OUTREACH_GAP }, { Outreach, nudge, call }, { Director, steps }] = await loadModules(
+const [{ OutreachQueue, OUTREACH_GAP }, { Outreach, nudge, call }, { Director }, { on }] = await loadModules(
   '/src/ui/phone/outreach.ts',
   '/src/game/story/story-outreach.ts',
   '/src/game/story/director.ts',
+  '/src/game/story/behaviors.ts',
 );
 
 function harness() {
@@ -65,7 +66,7 @@ for (const state of ['queued', 'ringing', 'talking']) {
   for (const cleanup of ['progressed', 'stop']) {
     test(`${cleanup} cancels a ${state} nudge without leaving a stale call`, () => {
       const h = harness();
-      const active = nudge('HOTWIRE THAT PICKUP').create({ key: 'beat:hotwire', idle: 31 }, h);
+      const active = nudge('HOTWIRE THAT PICKUP')({ key: 'beat:hotwire', idle: 31 }, h);
       active.tick(0.1);
       active.tick(0.1);
 
@@ -95,7 +96,6 @@ for (const state of ['queued', 'ringing', 'talking']) {
 
 test('a new beat call waits for the outreach gap after cancelling an old nudge', () => {
   const h = harness();
-  const { on } = steps();
   const director = new Director(
     {
       hotwire: { parts: [nudge('HOTWIRE THAT PICKUP'), on('hotwired')], next: 'drive' },

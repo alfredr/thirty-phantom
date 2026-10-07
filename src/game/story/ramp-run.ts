@@ -7,7 +7,7 @@ import type { Pose } from '@/game/driving/reset';
 import type { Game } from '@/game/game';
 import type { RampDef } from '@/world/level-data';
 
-import type { Active, Part, Scope } from './director';
+import type { RunningBehavior, BeatBehavior, Scope } from './behaviors';
 import type { Recovery } from './story-recovery';
 
 const ON_RAMP = 0.4;
@@ -32,17 +32,17 @@ export interface RampConfig<C> {
   readonly forced?: string;
 }
 
-type RampCast = { readonly game: Game; readonly recovery: Recovery };
+type RampServices = { readonly game: Game; readonly recovery: Recovery };
 
 export function launchOf(k: RampDef): Vector3 {
   return k.axis === 'x' ? new Vector3(k.dir, 0, 0) : new Vector3(0, 0, k.dir);
 }
 
-export function rampRun<C>(config: RampConfig<C>): Part<C & RampCast, MindEvent<string>, string> {
-  return { create: (s, c) => new RampRun(s, c, config) };
+export function rampRun<C>(config: RampConfig<C>): BeatBehavior<C & RampServices, MindEvent<string>, string> {
+  return (s, c) => new RampRun(s, c, config);
 }
 
-class RampRun<C> implements Active<MindEvent<string>> {
+class RampRun<C> implements RunningBehavior<MindEvent<string>> {
   private attempt = false;
   private t = 0;
   private slow = 0;
@@ -56,7 +56,7 @@ class RampRun<C> implements Active<MindEvent<string>> {
 
   constructor(
     private readonly s: Scope<string>,
-    private readonly c: C & RampCast,
+    private readonly c: C & RampServices,
     private readonly config: RampConfig<C>,
   ) {
     this.launch = launchOf(config.ramp(c));

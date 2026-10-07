@@ -39,6 +39,8 @@ the block that uses it. Oxlint also rejects `instanceof` through
 [`tools/lint/rules.mjs`](tools/lint/rules.mjs). Use discriminated unions or shape checks.
 Necessary platform checks require an inline exception with an explanation.
 
+Prefer `type` aliases for object shapes. Use `interface` when declaration merging is needed.
+
 In application code, import across folders with `@/`, which resolves to `src/`. Use `./`
 for files in the same folder. Parent-relative imports (`../`) are rejected. Local game
 imports omit the `.ts` extension; Node tools, tests, and schemas use explicit extensions

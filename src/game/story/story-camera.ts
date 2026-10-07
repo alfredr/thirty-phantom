@@ -2,11 +2,8 @@ import { Vector3 } from 'three';
 
 import { type Release, releaseOnce } from '@/engine/core/disposable';
 import { Leases } from '@/engine/sim/leases';
-import type { MindEvent } from '@/engine/sim/mind';
 import type { CamMode } from '@/game/camera-controller';
 import type { Cutscene, Game } from '@/game/game';
-
-import type { Part } from './director';
 
 const SCENE_ZOOM = 15;
 const TRACK_ZOOM = 24;
@@ -100,7 +97,3 @@ export class StoryCamera {
     }
   }
 }
-
-export const sceneShot = (): Part<{ readonly camera: StoryCamera }, MindEvent<string>, string> => ({
-  create: (_s, c) => ({ stop: c.camera.hold() }),
-});

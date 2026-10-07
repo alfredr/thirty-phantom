@@ -3,35 +3,56 @@ import { test } from 'node:test';
 
 import { loadModules } from './modules.mjs';
 
-const [{ Director, steps }, { Action, done, fail, instead, running }, { Sequence, Wait }, { releaseOnce }] =
-  await loadModules(
-    '/src/game/story/director.ts',
-    '/src/engine/sim/action.ts',
-    '/src/engine/sim/sequence.ts',
-    '/src/engine/core/disposable.ts',
-  );
-const { all, on, hold, run } = steps();
+const [
+  { Director },
+  { all, on, hold, run, when },
+  { Action, done, fail, instead, running },
+  { Sequence, Wait },
+  { releaseOnce },
+] = await loadModules(
+  '/src/game/story/director.ts',
+  '/src/game/story/behaviors.ts',
+  '/src/engine/sim/action.ts',
+  '/src/engine/sim/sequence.ts',
+  '/src/engine/core/disposable.ts',
+);
+
+test('reusing a behavior definition keeps elapsed time separate for each execution', () => {
+  const beats = { waiting: { parts: [when((c) => c.ready, { for: 2 })], next: null } };
+  const first = new Director(beats, { ready: true }, { prefix: 'first' });
+  const second = new Director(beats, { ready: true }, { prefix: 'second' });
+  first.start('waiting');
+  second.start('waiting');
+  first.tick(1);
+  second.tick(1);
+  assert.equal(first.beat, 'waiting');
+  assert.equal(second.beat, 'waiting');
+  first.tick(1);
+  assert.equal(first.beat, null);
+  assert.equal(second.beat, 'waiting');
+  second.tick(1);
+  assert.equal(second.beat, null);
+});
 
 test('parallel parts retire on completion while their siblings keep running', () => {
   const log = [];
   const scopes = [];
-  const part = (name) => ({
-    create(s) {
-      scopes.push(s);
-      return {
-        tick: () => log.push(`${name}:tick`),
-        on: (e) => {
-          log.push(`${name}:${e.type}`);
+  const part = (name) => (s) => {
+    scopes.push(s);
+    return {
+      tick: () => log.push(`${name}:tick`),
+      on: (e) => {
+        log.push(`${name}:${e.type}`);
 
-          if (e.type === name) {
-            s.done();
-          }
-        },
-        progressed: () => log.push(`${name}:progress`),
-        stop: () => log.push(`${name}:stop`),
-      };
-    },
-  });
+        if (e.type === name) {
+          s.done();
+        }
+      },
+      progressed: () => log.push(`${name}:progress`),
+      stop: () => log.push(`${name}:stop`),
+    };
+  };
+
   const director = new Director({ both: { parts: [all([part('a'), part('b')])], next: null } }, {}, { prefix: 'test' });
   director.start('both');
   assert.notEqual(scopes[0].key, scopes[1].key, 'each branch owns its outreach');
@@ -47,12 +68,10 @@ test('parallel parts retire on completion while their siblings keep running', ()
 test('leaving parallel parts cleans up once in reverse order and ignores late completion', () => {
   const log = [];
   const scopes = [];
-  const parts = ['a', 'b'].map((name) => ({
-    create(s) {
-      scopes.push(s);
-      return { stop: () => log.push(name) };
-    },
-  }));
+  const parts = ['a', 'b'].map((name) => (s) => {
+    scopes.push(s);
+    return { stop: () => log.push(name) };
+  });
   const director = new Director(
     { both: { parts: [all(parts), on('skip')], next: 'next' }, next: { parts: [], next: null } },
     {},
@@ -68,13 +87,12 @@ test('leaving parallel parts cleans up once in reverse order and ignores late co
 
 test('parallel parts can complete during creation and still release their resources once', () => {
   const log = [];
-  const part = (name) => ({
-    create(s) {
-      log.push(`${name}:start`);
-      s.done();
-      return { stop: () => log.push(`${name}:stop`) };
-    },
-  });
+  const part = (name) => (s) => {
+    log.push(`${name}:start`);
+    s.done();
+    return { stop: () => log.push(`${name}:stop`) };
+  };
+
   const director = new Director({ both: { parts: [all([part('a'), part('b')])], next: null } }, {}, { prefix: 'test' });
   director.start('both');
   assert.equal(director.beat, null);
@@ -115,7 +133,7 @@ test('failed acquisition releases earlier beat resources', () => {
       throw new Error('unavailable');
     },
   );
-  assert.throws(() => part.create({}, {}), /unavailable/);
+  assert.throws(() => part({}, {}), /unavailable/);
   assert.deepEqual(log, ['released']);
 });
 
@@ -127,7 +145,7 @@ test('a resource cleanup failure does not prevent the remaining beat resources f
       releaseOnce(() => {
         throw new Error('cleanup failed');
       }),
-  ).create({}, {});
+  )({}, {});
   assert.throws(() => active.stop(), AggregateError);
   active.stop();
   assert.deepEqual(log, ['released']);
@@ -209,7 +227,7 @@ test('an action failure reports struggle once and leaves the beat pending', () =
       return fail('NO ROUTE');
     }
   }
-  const active = run(() => new Refused()).create(
+  const active = run(() => new Refused())(
     { struggle: () => struggles++, done: () => assert.fail('failed beat advanced') },
     {},
   );

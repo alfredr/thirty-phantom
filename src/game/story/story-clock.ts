@@ -1,8 +1,9 @@
+import type { Release } from '@/engine/core/disposable';
 import { Leases } from '@/engine/sim/leases';
 import type { MindEvent } from '@/engine/sim/mind';
 import type { GameClock } from '@/game/game-clock';
 
-import type { Part } from './director';
+import { hold as holdResources, type BeatBehavior, type BeatBehaviorFactory } from './behaviors';
 
 export type ClockRule =
   | { readonly kind: 'pause' }
@@ -19,7 +20,7 @@ export class StoryClock {
     return this.clock.pace;
   }
 
-  take(rule: ClockRule): () => void {
+  take(rule: ClockRule): Release {
     return this.rules.take(rule);
   }
 
@@ -41,30 +42,23 @@ export class StoryClock {
   }
 }
 
-type ClockPart = Part<{ readonly clock: StoryClock }, MindEvent<string>, string>;
+type ClockServices = { readonly clock: StoryClock };
+type ClockBehavior = BeatBehavior<ClockServices, MindEvent<string>, string>;
 
-const lease = (rule: ClockRule): ClockPart => ({
-  create: (_s, c) => ({ stop: c.clock.take(rule) }),
-});
+export const pause: ClockBehavior = holdResources((c) => c.clock.take({ kind: 'pause' }));
+export const free: ClockBehavior = holdResources((c) => c.clock.take({ kind: 'free' }));
+export const hold = (limit: number): ClockBehavior => holdResources((c) => c.clock.take({ kind: 'hold', limit }));
+export const sweep = (to: number, seconds: number, limit: number | null): ClockBehavior =>
+  holdResources((c) => c.clock.take({ kind: 'sweep', to, seconds, limit }));
 
-export const pause = (): ClockPart => lease({ kind: 'pause' });
-export const free = (): ClockPart => lease({ kind: 'free' });
-export const hold = (limit: number): ClockPart => lease({ kind: 'hold', limit });
-export const sweep = (to: number, seconds: number, limit: number | null): ClockPart =>
-  lease({ kind: 'sweep', to, seconds, limit });
-
-export const pauseWhen = <C>(
-  cond: (c: C) => boolean,
-): Part<C & { readonly clock: StoryClock }, MindEvent<string>, string> => ({
-  create: (_s, c) => {
-    let release: (() => void) | null = null;
-    return {
-      tick: () => {
-        if (!release && cond(c)) {
-          release = c.clock.take({ kind: 'pause' });
-        }
-      },
-      stop: () => release?.(),
-    };
-  },
-});
+export const pauseWhen: BeatBehaviorFactory<boolean, ClockServices> = (cond) => (_s, c) => {
+  let release: Release | null = null;
+  return {
+    tick: () => {
+      if (!release && cond(c)) {
+        release = c.clock.take({ kind: 'pause' });
+      }
+    },
+    stop: () => release?.(),
+  };
+};

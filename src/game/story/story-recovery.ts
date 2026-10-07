@@ -5,7 +5,7 @@ import type { MindEvent } from '@/engine/sim/mind';
 import type { Pose } from '@/game/driving/reset';
 import type { Cutscene, Game } from '@/game/game';
 
-import type { Part } from './director';
+import type { BeatBehavior } from './behaviors';
 import type { Line, Outreach } from './story-outreach';
 
 type Pilot = (v: Vehicle, dt: number) => DriveInput;
@@ -49,7 +49,7 @@ export class Recovery {
   }
 }
 
-type Cast = { readonly game: Game; readonly recovery: Recovery; readonly outreach: Outreach };
+type RecoveryServices = { readonly game: Game; readonly recovery: Recovery; readonly outreach: Outreach };
 
 export interface RegionSpec<C> {
   readonly inside: (c: C) => boolean;
@@ -57,30 +57,28 @@ export interface RegionSpec<C> {
   readonly line?: Line;
 }
 
-export function region<C>(spec: RegionSpec<C>): Part<C & Cast, MindEvent<string>, string> {
-  return {
-    create: (s, c) => {
-      let state: 'in' | 'out' | 'carrying' = 'in';
-      const say = (): void => {
-        if (spec.line) {
-          c.outreach.later([spec.line]);
-        }
-      };
+export function region<C>(spec: RegionSpec<C>): BeatBehavior<C & RecoveryServices, MindEvent<string>, string> {
+  return (s, c) => {
+    let state: 'in' | 'out' | 'carrying' = 'in';
+    const say = (): void => {
+      if (spec.line) {
+        c.outreach.later([spec.line]);
+      }
+    };
 
-      return {
-        tick: () => {
-          const g = c.game;
-          const p = g.player;
-          if (state === 'in' && p.visible && !spec.inside(c)) {
-            state = 'out';
-          } else if (state === 'out' && p.grounded && !g.fading && c.recovery.carry(spec.home(c), say)) {
-            state = 'carrying';
-            s.struggle();
-          } else if (state === 'carrying' && !g.fading) {
-            state = 'in';
-          }
-        },
-      };
-    },
+    return {
+      tick: () => {
+        const g = c.game;
+        const p = g.player;
+        if (state === 'in' && p.visible && !spec.inside(c)) {
+          state = 'out';
+        } else if (state === 'out' && p.grounded && !g.fading && c.recovery.carry(spec.home(c), say)) {
+          state = 'carrying';
+          s.struggle();
+        } else if (state === 'carrying' && !g.fading) {
+          state = 'in';
+        }
+      },
+    };
   };
 }

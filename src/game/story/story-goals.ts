@@ -2,7 +2,7 @@ import type { Vector3 } from 'three';
 
 import type { MindEvent } from '@/engine/sim/mind';
 
-import type { Part, Scope } from './director';
+import type { BeatBehavior, Scope } from './behaviors';
 import type { Objective, Objectives } from './objectives';
 
 const HOW_AFTER = 20;
@@ -53,86 +53,80 @@ export class Goals {
 }
 
 export type Line<C> = string | null | ((c: C, s: Scope<string>) => string | null);
-type GoalPart<C> = Part<C & { readonly goals: Goals }, MindEvent<string>, string>;
+type GoalBehavior<C> = BeatBehavior<C & { readonly goals: Goals }, MindEvent<string>, string>;
 
 export interface GoalSpec<C> {
   readonly how?: Line<C>;
   readonly marks?: (c: C, s: Scope<string>) => readonly Objective[];
 }
 
-export const lineOf = <C>(v: Line<C>, c: C, s: Scope<string>): string | null => (typeof v === 'function' ? v(c, s) : v);
+const lineOf = <C>(v: Line<C>, c: C, s: Scope<string>): string | null => (typeof v === 'function' ? v(c, s) : v);
 
-export function goal<C>(text: Line<C>, spec: GoalSpec<C> = {}): GoalPart<C> {
-  return {
-    create: (s, c) => {
-      const token = {};
-      let nearest: number | null = null;
-      const show = (): void => {
-        const how = s.stuck || s.idle >= HOW_AFTER ? lineOf(spec.how ?? null, c, s) : null;
-        c.goals.show(token, lineOf(text, c, s), how);
+export function goal<C>(text: Line<C>, spec: GoalSpec<C> = {}): GoalBehavior<C> {
+  return (s, c) => {
+    const token = {};
+    let nearest: number | null = null;
+    const show = (): void => {
+      const how = s.stuck || s.idle >= HOW_AFTER ? lineOf(spec.how ?? null, c, s) : null;
+      c.goals.show(token, lineOf(text, c, s), how);
 
-        if (!spec.marks) {
-          return;
+      if (!spec.marks) {
+        return;
+      }
+
+      const list = spec.marks(c, s);
+      c.goals.mark(s.owner, token, list);
+      const primary = list.find((o) => o.kind === 'primary');
+      if (!primary) {
+        return;
+      }
+
+      const d = primary.at.distanceTo(c.goals.at);
+      if (nearest === null || d < nearest - CLOSER) {
+        if (nearest !== null) {
+          s.progress();
         }
 
-        const list = spec.marks(c, s);
-        c.goals.mark(s.owner, token, list);
-        const primary = list.find((o) => o.kind === 'primary');
-        if (!primary) {
-          return;
-        }
+        nearest = d;
+      }
+    };
 
-        const d = primary.at.distanceTo(c.goals.at);
-        if (nearest === null || d < nearest - CLOSER) {
-          if (nearest !== null) {
-            s.progress();
-          }
-
-          nearest = d;
-        }
-      };
-
-      show();
-      return {
-        tick: show,
-        stop: () => {
-          c.goals.clear(token);
-          c.goals.unmark(s.owner, token);
-        },
-      };
-    },
+    show();
+    return {
+      tick: show,
+      stop: () => {
+        c.goals.clear(token);
+        c.goals.unmark(s.owner, token);
+      },
+    };
   };
 }
 
-export function mark<C>(marks: (c: C, s: Scope<string>) => readonly Objective[]): GoalPart<C> {
-  return {
-    create: (s, c) => {
-      const token = {};
-      const show = (): void => c.goals.mark(s.owner, token, marks(c, s));
-      show();
-      return { tick: show, stop: () => c.goals.unmark(s.owner, token) };
-    },
+export function mark<C>(marks: (c: C, s: Scope<string>) => readonly Objective[]): GoalBehavior<C> {
+  return (s, c) => {
+    const token = {};
+    const show = (): void => c.goals.mark(s.owner, token, marks(c, s));
+    show();
+    return { tick: show, stop: () => c.goals.unmark(s.owner, token) };
   };
 }
 
-export function pins<C>(read: (c: C) => readonly Readonly<Vector3>[], range: number, color?: string): GoalPart<C> {
-  return {
-    create: (_s, c) => {
-      const source = {};
-      const show = (): void => {
-        const me = c.goals.at;
-        const list: Objective[] = [];
-        for (const at of read(c)) {
-          if (at.distanceTo(me) < range) {
-            list.push({ id: `pin-${list.length}`, label: '', kind: 'pin', at, color });
-          }
+export function pins<C>(read: (c: C) => readonly Readonly<Vector3>[], range: number, color?: string): GoalBehavior<C> {
+  return (_s, c) => {
+    const source = {};
+    const show = (): void => {
+      const me = c.goals.at;
+      const list: Objective[] = [];
+      for (const at of read(c)) {
+        if (at.distanceTo(me) < range) {
+          list.push({ id: `pin-${list.length}`, label: '', kind: 'pin', at, color });
         }
+      }
 
-        c.goals.mark(source, source, list);
-      };
+      c.goals.mark(source, source, list);
+    };
 
-      show();
-      return { tick: show, stop: () => c.goals.unmark(source, source) };
-    },
+    show();
+    return { tick: show, stop: () => c.goals.unmark(source, source) };
   };
 }
