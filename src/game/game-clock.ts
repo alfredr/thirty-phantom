@@ -17,7 +17,10 @@ const EPS = 1e-9;
 const ahead = (from: number, to: number): number => mod(to - from, 24);
 const wrap = (h: number): number => mod(h, 24);
 
-/** Track game hours and emit day/night transitions at the configured phase boundaries. */
+/**
+ * Track game hours and emit day/night transitions at the configured phase
+ * boundaries.
+ */
 export class GameClock {
   hours: number = TUNING.clock.startHour;
   day = 1;
@@ -26,8 +29,14 @@ export class GameClock {
   paused = false;
   private readonly ev: ClockEvents = { nightfall: false, sunrise: false };
   private limit: number | null = null;
-  private lapse: { to: number; seconds: number; t: number; span: number; moved: number; done?: () => void } | null =
-    null;
+  private lapse: {
+    to: number;
+    seconds: number;
+    t: number;
+    span: number;
+    moved: number;
+    done?: () => void;
+  } | null = null;
 
   get phase(): Phase {
     return GameClock.phaseAt(this.hours);
@@ -61,14 +70,28 @@ export class GameClock {
   sweep(to: number, seconds: number, done?: () => void): void {
     const target = wrap(to);
     const span = ahead(this.hours, target);
-    if (this.limit !== null && span > 0 && ahead(this.hours, this.limit) <= span) {
+    if (
+      this.limit !== null &&
+      span > 0 &&
+      ahead(this.hours, this.limit) <= span
+    ) {
       this.limit = null;
     }
 
-    this.lapse = { to: target, seconds: Math.max(seconds, 1e-3), t: 0, span, moved: 0, done };
+    this.lapse = {
+      to: target,
+      seconds: Math.max(seconds, 1e-3),
+      t: 0,
+      span,
+      moved: 0,
+      done,
+    };
   }
 
-  /** Advance the clock. The returned events object is reused: read it before the next update. */
+  /**
+   * Advance the clock. The returned events object is reused: read it before
+   * the next update.
+   */
   update(dt: number): ClockEvents {
     const ev = this.ev;
     ev.nightfall = false;
@@ -108,8 +131,8 @@ export class GameClock {
   }
 
   /**
-   * Set the clock just before the next phase boundary so the next update can emit its event. Holds and sweeps ignore
-   * it.
+   * Set the clock just before the next phase boundary so the next update can
+   * emit its event. Holds and sweeps ignore it.
    */
   skipToNextPhase(): void {
     if (this.limit !== null || this.lapse) {

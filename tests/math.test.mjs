@@ -5,8 +5,20 @@ import { Vector3 } from 'three';
 
 import { loadModules } from './modules.mjs';
 
-const [{ clamp, cross2, lerp, invLerp, mod, TAU, wrapAngle, damp, dampAngle, smoothstep }] =
-  await loadModules('/src/engine/core/math.ts');
+const [
+  {
+    clamp,
+    cross2,
+    lerp,
+    invLerp,
+    mod,
+    TAU,
+    wrapAngle,
+    damp,
+    dampAngle,
+    smoothstep,
+  },
+] = await loadModules('/src/engine/core/math.ts');
 const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-10, `${a} != ${b}`);
 
 test('planar cross products preserve turn direction and the x/z sign convention', () => {

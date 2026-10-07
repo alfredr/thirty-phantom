@@ -20,7 +20,9 @@ function* modules(dir) {
 test('the engine imports only three and itself, never the game', () => {
   const strays = [];
   for (const file of modules(ENGINE)) {
-    for (const [, spec] of readFileSync(file, 'utf8').matchAll(/(?:import|export)[^'"]*?from\s*'([^']+)'/g)) {
+    for (const [, spec] of readFileSync(file, 'utf8').matchAll(
+      /(?:import|export)[^'"]*?from\s*'([^']+)'/g,
+    )) {
       if (spec === 'three') {
         continue;
       }
@@ -31,7 +33,8 @@ test('the engine imports only three and itself, never the game', () => {
         : spec.startsWith('.')
           ? resolve(dirname(file), spec)
           : null;
-      const inside = target !== null && !relative(ENGINE, target).startsWith('..');
+      const inside =
+        target !== null && !relative(ENGINE, target).startsWith('..');
       if (!inside) {
         strays.push(`${relative(ENGINE, file)} imports ${spec}`);
       }

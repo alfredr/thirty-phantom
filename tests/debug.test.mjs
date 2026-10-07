@@ -64,7 +64,12 @@ test('debug teleport reads the current vehicle and preserves the state output', 
   const { game, debug, drive } = fixture();
   debug.teleport(1, 2, 3);
   assert.deepEqual(game.player.pos.toArray(), [1, 2, 3]);
-  const car = { form: 'truck', pos: new Vector3(), vel: new Vector3(1, 2, 3), insideDeck: false };
+  const car = {
+    form: 'truck',
+    pos: new Vector3(),
+    vel: new Vector3(1, 2, 3),
+    insideDeck: false,
+  };
   game.vehicles.push(car);
   drive(car);
   debug.teleport(4, 5, 6);
@@ -90,15 +95,28 @@ test('debug teleport reads the current vehicle and preserves the state output', 
 
 test('debug boarding picks the car nearest Cody, and a scare the traffic car nearest the deck entry', () => {
   const { game, debug, boarded, frightened, frightAt } = fixture();
-  const car = (id, role, distance) => ({ id, role, pos: new Vector3(distance, 0, 0) });
+  const car = (id, role, distance) => ({
+    id,
+    role,
+    pos: new Vector3(distance, 0, 0),
+  });
   const parked = car(1, 'parked', 2);
   const farFromCody = car(3, 'traffic', 9);
-  game.vehicles.push(car(0, 'player', 1), parked, farFromCody, car(2, 'traffic', 4));
+  game.vehicles.push(
+    car(0, 'player', 1),
+    parked,
+    farFromCody,
+    car(2, 'traffic', 4),
+  );
   debug.enterNearest();
   assert.equal(boarded(), parked);
   assert.equal(debug.scare(), 3);
   assert.equal(frightened(), farFromCody);
-  assert.deepEqual(frightAt().toArray(), [9, 0, 6], 'frightened from a point along its road');
+  assert.deepEqual(
+    frightAt().toArray(),
+    [9, 0, 6],
+    'frightened from a point along its road',
+  );
   debug.scare(-6, 2);
   assert.equal(frightened().id, 2, 'or the car asked for');
   assert.deepEqual(frightAt().toArray(), [4, 0, -6]);

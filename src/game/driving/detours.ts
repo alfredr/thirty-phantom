@@ -3,7 +3,11 @@ import { Vector3 } from 'three';
 import { footprint } from '@/actors/avoidance';
 import { Autopilot, type Obstacle } from '@/actors/vehicles/autopilot';
 import type { Jam, Traffic } from '@/actors/vehicles/traffic';
-import type { DriveEvents, DriveInput, Vehicle } from '@/actors/vehicles/vehicle';
+import type {
+  DriveEvents,
+  DriveInput,
+  Vehicle,
+} from '@/actors/vehicles/vehicle';
 import { TUNING } from '@/config';
 import { cross2, lerp, mod } from '@/engine/core/math';
 import type { Polyline } from '@/engine/nav/polyline';
@@ -18,25 +22,37 @@ import type { Fleet } from './fleet';
 /** Lane re-entry sampling interval in meters. */
 const STEP = 2;
 /**
- * Obstacle search radius and extra pedestrian padding, in meters. Vehicle padding comes from
- * TUNING.traffic.impatience.squeeze.
+ * Obstacle search radius and extra pedestrian padding, in meters. Vehicle
+ * padding comes from TUNING.traffic.impatience.squeeze.
  */
 const PLAN_REACH = 35;
 const PERSON_EXTRA = 0.5;
-/** Speed threshold in m/s for treating vehicles as stationary planning obstacles. */
+/**
+ * Speed threshold in m/s for treating vehicles as stationary planning
+ * obstacles.
+ */
 const STANDING = 0.5;
 /** Vertical obstacle extent below the feet and above them, in meters. */
 const BELOW = 0.3;
 const ABOVE = 2;
-/** Re-entry thresholds: lateral offset in meters, heading cosine, and distance past the obstruction in meters. */
+/**
+ * Re-entry thresholds: lateral offset in meters, heading cosine, and distance
+ * past the obstruction in meters.
+ */
 const JOIN_OFFSET = 0.8;
 const JOIN_ALIGN = 0.95;
 const JOIN_PAST = 1;
-/** Maximum lane offset in meters for returning to traffic after a failed detour; heading alignment is also required. */
+/**
+ * Maximum lane offset in meters for returning to traffic after a failed
+ * detour; heading alignment is also required.
+ */
 const OFF_LANE = 0.6;
 /** Braking gain per m/s; full braking begins at 1/BRAKE_GAIN. */
 const BRAKE_GAIN = 0.5;
-/** Oncoming traffic thresholds: minimum speed in m/s, maximum heading dot product, and lateral range in meters. */
+/**
+ * Oncoming traffic thresholds: minimum speed in m/s, maximum heading dot
+ * product, and lateral range in meters.
+ */
 const ONCOMING_SPEED = 1;
 const ONCOMING_DOT = -0.3;
 const ONCOMING_SIDE = 9;
@@ -61,7 +77,10 @@ interface Detour {
   /** Blocking vehicle, or null for a pedestrian obstruction at `at`. */
   by: Vehicle | null;
   at: Vector3;
-  /** Normalized impatience at departure; controls clearance, search distance, and oncoming wait. */
+  /**
+   * Normalized impatience at departure; controls clearance, search distance,
+   * and oncoming wait.
+   */
   anger: number;
   /** Wait for planning, wait for a traffic gap, or follow the route. */
   phase: 'planning' | 'gap' | 'driving';
@@ -73,13 +92,17 @@ interface Detour {
 }
 
 /**
- * Route impatient traffic around nearby obstructions and back into its lane. Limit concurrent plans and reject
- * excessive detours. Impatience controls route clearance and gap waiting. Replan once if stuck; after failure, resume
+ * Route impatient traffic around nearby obstructions and back into its lane.
+ * Limit concurrent plans and reject excessive detours. Impatience controls
+ * route clearance and gap waiting. Replan once if stuck; after failure, resume
  * traffic when aligned with the lane or abandon the car outside it.
  */
 export class Detours {
   private readonly detours: Detour[] = [];
-  /** Cars that crashed during detours; the game releases their drivers after they settle. */
+  /**
+   * Cars that crashed during detours; the game releases their drivers after
+   * they settle.
+   */
   readonly stranded: Vehicle[] = [];
 
   constructor(
@@ -88,7 +111,10 @@ export class Detours {
     private readonly collision: CollisionWorld,
     private readonly fleet: Fleet,
     private readonly traffic: Traffic,
-    /** Process physics events and vehicle contacts after each detour driving step. */
+    /**
+     * Process physics events and vehicle contacts after each detour driving
+     * step.
+     */
     private readonly drove: (car: Vehicle, ev: DriveEvents) => void,
     /** Reserve the driver seat so another claimant can cancel the detour. */
     private readonly claims: Claims<ClaimKind>,
@@ -104,7 +130,10 @@ export class Detours {
     return this.detours.some((d) => d.car === car);
   }
 
-  /** Cancel a detour, return its car to the original traffic loop, and apply the reported fright. */
+  /**
+   * Cancel a detour, return its car to the original traffic loop, and apply
+   * the reported fright.
+   */
   frighten(car: Vehicle, from: Vector3): void {
     const i = this.detours.findIndex((d) => d.car === car);
     const d = this.detours[i];
@@ -118,13 +147,17 @@ export class Detours {
   }
 
   /**
-   * Reserve the driver seat and plan a detour when a lane re-entry point and capacity are available. Return whether the
-   * maneuver started.
+   * Reserve the driver seat and plan a detour when a lane re-entry point and
+   * capacity are available. Return whether the maneuver started.
    */
   take(jam: Jam): boolean {
     const I = TUNING.traffic.impatience;
     const car = jam.car;
-    if (this.detours.length >= I.max || car.role !== 'traffic' || car.crashing) {
+    if (
+      this.detours.length >= I.max ||
+      car.role !== 'traffic' ||
+      car.crashing
+    ) {
       return false;
     }
 
@@ -133,7 +166,9 @@ export class Detours {
       return false;
     }
 
-    const block = (jam.at.x - car.pos.x) * Math.sin(car.yaw) + (jam.at.z - car.pos.z) * Math.cos(car.yaw);
+    const block =
+      (jam.at.x - car.pos.x) * Math.sin(car.yaw) +
+      (jam.at.z - car.pos.z) * Math.cos(car.yaw);
     // Choose the first clear sampled position beyond the obstruction.
     const s0 = line.project(car.pos);
     let s = -1;
@@ -205,7 +240,11 @@ export class Detours {
   }
 
   /** Advance one detour; return false when it ends. */
-  private step(d: Detour, dt: number, obstacles: readonly Obstacle[]): boolean {
+  private step(
+    d: Detour,
+    dt: number,
+    obstacles: readonly Obstacle[],
+  ): boolean {
     const I = TUNING.traffic.impatience;
     const car = d.car;
     // Cancel when the seat, role, or vehicle is no longer owned by this detour.
@@ -241,11 +280,19 @@ export class Detours {
         d.job = null;
         // Reject missing routes and routes too long relative to the direct distance.
         const legs = job.legs;
-        if (!legs || !job.path || job.path.total > I.detour * car.pos.distanceTo(d.goal)) {
+        if (
+          !legs ||
+          !job.path ||
+          job.path.total > I.detour * car.pos.distanceTo(d.goal)
+        ) {
           return this.giveUp(d);
         }
 
-        d.pilot = new Autopilot(legs, { inDeck: () => false, nav: this.nav, profile: car.breed.nav }, car.params);
+        d.pilot = new Autopilot(
+          legs,
+          { inDeck: () => false, nav: this.nav, profile: car.breed.nav },
+          car.params,
+        );
         d.phase = 'gap';
         d.t = 0;
         return true;
@@ -273,7 +320,10 @@ export class Detours {
           return this.giveUp(d);
         }
 
-        this.drove(car, car.drive(dt, pilot.update(dt, car, obstacles), this.collision));
+        this.drove(
+          car,
+          car.drive(dt, pilot.update(dt, car, obstacles), this.collision),
+        );
 
         if (this.rejoin(d, false)) {
           return false;
@@ -319,7 +369,12 @@ export class Detours {
         continue;
       }
 
-      if (o === d.by || o.role === 'parked' || o.crashing || Math.hypot(o.vel.x, o.vel.z) < STANDING) {
+      if (
+        o === d.by ||
+        o.role === 'parked' ||
+        o.crashing ||
+        Math.hypot(o.vel.x, o.vel.z) < STANDING
+      ) {
         blocks.push(footprint(o, pad));
       }
     }
@@ -327,7 +382,10 @@ export class Detours {
     if (!d.by) {
       const a = d.at;
       const r = pad + PERSON_EXTRA;
-      blocks.push({ min: [a.x - r, a.y - BELOW, a.z - r], max: [a.x + r, a.y + ABOVE, a.z + r] });
+      blocks.push({
+        min: [a.x - r, a.y - BELOW, a.z - r],
+        max: [a.x + r, a.y + ABOVE, a.z + r],
+      });
     }
 
     d.job = this.planner.request(car.pos, d.goal, car.breed.nav, {
@@ -339,8 +397,8 @@ export class Detours {
   }
 
   /**
-   * Return to traffic when aligned with the lane beyond the obstruction. `force` bypasses those checks. Return whether
-   * re-entry occurred.
+   * Return to traffic when aligned with the lane beyond the obstruction.
+   * `force` bypasses those checks. Return whether re-entry occurred.
    */
   private rejoin(d: Detour, force: boolean): boolean {
     const car = d.car;
@@ -364,7 +422,10 @@ export class Detours {
     this.traffic.join(d.car, d.path, s);
   }
 
-  /** On failure, rejoin traffic if still aligned with the lane; otherwise park and mark the car for distant removal. */
+  /**
+   * On failure, rejoin traffic if still aligned with the lane; otherwise park
+   * and mark the car for distant removal.
+   */
   private giveUp(d: Detour): false {
     const car = d.car;
     const s = d.line.project(car.pos);
@@ -385,7 +446,10 @@ export class Detours {
     return false;
   }
 
-  /** Test for opposing traffic within the forward gap and lateral range, in meters. */
+  /**
+   * Test for opposing traffic within the forward gap and lateral range, in
+   * meters.
+   */
   private oncoming(car: Vehicle, gap: number): boolean {
     const fx = Math.sin(car.yaw);
     const fz = Math.cos(car.yaw);
@@ -397,7 +461,11 @@ export class Detours {
       const dx = o.pos.x - car.pos.x;
       const dz = o.pos.z - car.pos.z;
       const along = dx * fx + dz * fz;
-      if (along < 0 || along > gap || Math.abs(cross2(dx, dz, fx, fz)) > ONCOMING_SIDE) {
+      if (
+        along < 0 ||
+        along > gap ||
+        Math.abs(cross2(dx, dz, fx, fz)) > ONCOMING_SIDE
+      ) {
         continue;
       }
 
@@ -409,16 +477,22 @@ export class Detours {
     return false;
   }
 
-  /** Test vehicle clearance around a prospective lane re-entry point, excluding `self`. */
+  /**
+   * Test vehicle clearance around a prospective lane re-entry point, excluding
+   * `self`.
+   */
   private roomAt(p: Vector3, self: Vehicle): boolean {
     const clear = TUNING.traffic.impatience.clear;
-    return !this.fleet.vehicles.some((v) => v !== self && !v.gone && v.pos.distanceTo(p) < clear);
+    return !this.fleet.vehicles.some(
+      (v) => v !== self && !v.gone && v.pos.distanceTo(p) < clear,
+    );
   }
 
   /** Brake while waiting and process the resulting physics events. */
   private hold(car: Vehicle, dt: number): void {
     const input: DriveInput = {
-      throttle: -Math.sign(car.speed) * Math.min(1, Math.abs(car.speed) * BRAKE_GAIN),
+      throttle:
+        -Math.sign(car.speed) * Math.min(1, Math.abs(car.speed) * BRAKE_GAIN),
       steer: 0,
       hop: false,
       drift: false,

@@ -5,23 +5,45 @@ import { Group, Scene, Vector3 } from 'three';
 
 import { loadModules } from './modules.mjs';
 
-const [{ CodyRide }, { CodyState }, { Claims }, { CLAIMS }, { Vehicle }, { CollisionWorld }, { Emitter }, { Keyring }] =
-  await loadModules(
-    '/src/game/cody/cody-ride.ts',
-    '/src/game/cody/cody-state.ts',
-    '/src/engine/sim/claims.ts',
-    '/src/game/rules/claim-kinds.ts',
-    '/src/actors/vehicles/vehicle.ts',
-    '/src/engine/physics/collision.ts',
-    '/src/engine/core/events.ts',
-    '/src/actors/vehicles/ignition.ts',
-  );
+const [
+  { CodyRide },
+  { CodyState },
+  { Claims },
+  { CLAIMS },
+  { Vehicle },
+  { CollisionWorld },
+  { Emitter },
+  { Keyring },
+] = await loadModules(
+  '/src/game/cody/cody-ride.ts',
+  '/src/game/cody/cody-state.ts',
+  '/src/engine/sim/claims.ts',
+  '/src/game/rules/claim-kinds.ts',
+  '/src/actors/vehicles/vehicle.ts',
+  '/src/engine/physics/collision.ts',
+  '/src/engine/core/events.ts',
+  '/src/actors/vehicles/ignition.ts',
+);
 
 function rig() {
-  return { root: new Group(), body: new Group(), wheels: [], lights: [], materials: [], height: 2, scale: 1 };
+  return {
+    root: new Group(),
+    body: new Group(),
+    wheels: [],
+    lights: [],
+    materials: [],
+    height: 2,
+    scale: 1,
+  };
 }
 
-function setup({ night = false, role = 'parked', insideDeck = true, spot = null, kind = 'sedan' } = {}) {
+function setup({
+  night = false,
+  role = 'parked',
+  insideDeck = true,
+  spot = null,
+  kind = 'sedan',
+} = {}) {
   const player = {
     form: night ? 'night' : 'day',
     pos: new Vector3(),
@@ -68,7 +90,10 @@ function setup({ night = false, role = 'parked', insideDeck = true, spot = null,
     scene: new Scene(),
     collision: new CollisionWorld(),
     conditions: { deckAwake: () => night },
-    money: { empty: (v) => empty.add(v), glovebox: (v) => (empty.has(v) ? 0 : 5) },
+    money: {
+      empty: (v) => empty.add(v),
+      glovebox: (v) => (empty.has(v) ? 0 : 5),
+    },
     carjacked: () => log.push({ type: 'carjacked' }),
     bail: () => log.push({ type: 'bailed' }),
     // Complete the animation in one tick; vehicle state and seat ownership use the real classes.
@@ -92,8 +117,16 @@ function setup({ night = false, role = 'parked', insideDeck = true, spot = null,
 }
 
 test('possession takes the seat before transforming, and exiting releases it after parking', () => {
-  const spot = { center: new Vector3(3, 0, 4), def: { yaw: 0 }, occupant: null };
-  const { ride, car, cody, player, claims, log } = setup({ night: true, role: 'valet', spot });
+  const spot = {
+    center: new Vector3(3, 0, 4),
+    def: { yaw: 0 },
+    occupant: null,
+  };
+  const { ride, car, cody, player, claims, log } = setup({
+    night: true,
+    role: 'valet',
+    spot,
+  });
   const valetJob = {};
   claims.take('driverSeat', {}, car, { owner: valetJob });
   assert.equal(ride.possessable(car), true);
@@ -141,10 +174,15 @@ test('scripted boarding stays quiet and handing over the keys removes valet elig
 });
 
 test('stealing announces entry before glovebox money, with the ride already established', () => {
-  const { ride, world, car, player, log } = setup({ role: 'traffic', insideDeck: false });
+  const { ride, world, car, player, log } = setup({
+    role: 'traffic',
+    insideDeck: false,
+  });
   const seen = [];
   for (const event of ['entered', 'money']) {
-    world.events.on(event, () => seen.push({ event, driving: ride.driving, visible: player.visible }));
+    world.events.on(event, () =>
+      seen.push({ event, driving: ride.driving, visible: player.visible }),
+    );
   }
 
   ride.enter(car);
@@ -208,7 +246,9 @@ test('civilian vehicles stay available after an unlogged exit and landing', () =
 });
 
 test('moonrise transforms an occupied bike outside the deck without losing its seat claim', () => {
-  const { ride, car, player, cody, claims, log } = setup({ insideDeck: false });
+  const { ride, car, player, cody, claims, log } = setup({
+    insideDeck: false,
+  });
   const saddle = new Group();
   car.rig.rider = { saddle };
   ride.board(car);
@@ -235,7 +275,11 @@ test('a parked car stays still and silent until hotwired, then retains its ignit
   car.drive(0.1, input, world.collision);
   assert.equal(car.pos.distanceTo(before), 0);
   ride.moonrise();
-  assert.equal(ride.transform, null, 'waiting in a keyless car does not bypass hotwiring at moonrise');
+  assert.equal(
+    ride.transform,
+    null,
+    'waiting in a keyless car does not bypass hotwiring at moonrise',
+  );
   assert.equal(ride.hotwire(car), true);
   assert.equal(car.engineOn, true);
   car.drive(0.1, input, world.collision);
@@ -256,7 +300,11 @@ test('drivers leave their keys behind when Cody takes the seat', () => {
     assert.equal(ride.canHotwire(car), false, role);
     ride.exit();
     ride.enter(car);
-    assert.equal(car.engineOn, true, 'parking a stolen car does not remove its keys');
+    assert.equal(
+      car.engineOn,
+      true,
+      'parking a stolen car does not remove its keys',
+    );
   }
 });
 
@@ -307,8 +355,16 @@ test('matching keys start only their car and valet selection chooses the nearest
   farther.pos.set(100, 0, 0);
   assert.equal(ride.carForValet(), null);
   car.ignition.hotwired = true;
-  assert.equal(car.ignition.insert(world.keys), false, 'hotwiring does not supply missing keys');
-  assert.equal(car.ignition.heldBy(valetKeys), true, 'failed insertion preserves the key holder');
+  assert.equal(
+    car.ignition.insert(world.keys),
+    false,
+    'hotwiring does not supply missing keys',
+  );
+  assert.equal(
+    car.ignition.heldBy(valetKeys),
+    true,
+    'failed insertion preserves the key holder',
+  );
   car.ignition.hotwired = false;
   assert.equal(car.ignition.insert(valetKeys), true);
   assert.equal(valetKeys.held.size, 0, 'the keys are now in the ignition');

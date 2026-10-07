@@ -1,9 +1,18 @@
 import { Vector3 } from 'three';
 
 import { wrapAngle } from '@/engine/core/math';
-import { bodyOffsets, type VehicleParams } from '@/engine/physics/vehicle-params';
+import {
+  bodyOffsets,
+  type VehicleParams,
+} from '@/engine/physics/vehicle-params';
 
-import { type DriveGoal, type DriveGoals, type DriveGround, type DrivePose, DriveSearch } from './drive-search';
+import {
+  type DriveGoal,
+  type DriveGoals,
+  type DriveGround,
+  type DrivePose,
+  DriveSearch,
+} from './drive-search';
 import { Polyline } from './polyline';
 import { ROUTE_EPS, type RoutePoint, type RouteShaper } from './route-shaper';
 
@@ -12,7 +21,10 @@ export type DriveBounds = readonly [number, number, number, number];
 
 export interface DriveTerrain {
   readonly ground: DriveGround;
-  /** Follow a surface near the previous height, without requiring vehicle clearance. */
+  /**
+   * Follow a surface near the previous height, without requiring vehicle
+   * clearance.
+   */
   heightAt(x: number, y: number, z: number): number | null;
   /** Build a remaining-cost estimate for these bounds and destination poses. */
   guide(bounds: DriveBounds, goals: DriveGoals): DriveGround['toGo'];
@@ -24,7 +36,10 @@ export interface DriveRequest {
   readonly goals: DriveGoals;
 }
 
-/** Search window distances before and after an invalid route section, in turning radii. */
+/**
+ * Search window distances before and after an invalid route section, in
+ * turning radii.
+ */
 const WINDOW_BACK = 2;
 const WINDOW_AHEAD = 0.8;
 /** Merge search windows separated by at most this many turning radii. */
@@ -32,21 +47,34 @@ const WINDOW_GAP = 1;
 /** Margin around sampled route sections for the drive-search guide, in meters. */
 const WINDOW_MARGIN = 12;
 const BOX_STEP = 1;
-/** Window endpoint adjustment step and minimum entry distance from corners, in meters. */
+/**
+ * Window endpoint adjustment step and minimum entry distance from corners, in
+ * meters.
+ */
 const WINDOW_NUDGE = 0.5;
 const CORNER_CLEAR = 0.3;
-/** Heading difference in radians that requires a drive-search window at the start. */
+/**
+ * Heading difference in radians that requires a drive-search window at the
+ * start.
+ */
 const START_SLACK = 0.35;
 /**
- * Try rejoining the following straight at REJOIN_STEP turning-radius intervals, up to REJOIN_REACH radii ahead. Leave
- * REJOIN_SPARE meters before the next turn.
+ * Try rejoining the following straight at REJOIN_STEP turning-radius
+ * intervals, up to REJOIN_REACH radii ahead. Leave REJOIN_SPARE meters before
+ * the next turn.
  */
 const REJOIN_REACH = 3;
 const REJOIN_STEP = 0.5;
 const REJOIN_SPARE = 0.5;
-/** Maximum passes that validate ordinary route sections and add drive-search windows. */
+/**
+ * Maximum passes that validate ordinary route sections and add drive-search
+ * windows.
+ */
 const LAYOUT_PASSES = 6;
-/** Distance between vehicle fit checks along ordinary route sections, in meters. */
+/**
+ * Distance between vehicle fit checks along ordinary route sections, in
+ * meters.
+ */
 const CHECK_STEP = 0.5;
 
 /** A route section whose vehicle poses must be found by DriveSearch. */
@@ -57,7 +85,10 @@ interface DriveWindow {
   box: [number, number, number, number];
   /** Route arc length at the first goal, in meters. */
   until: number;
-  /** Whether either boundary lies inside the route rather than at a requested endpoint. */
+  /**
+   * Whether either boundary lies inside the route rather than at a requested
+   * endpoint.
+   */
   midway: { start: boolean; end: boolean };
   search: DriveSearch | null;
   poses: DrivePose[] | null;
@@ -69,7 +100,10 @@ type DrivePiece = { pts: RoutePoint[] } | { window: DriveWindow };
 const _f = new Vector3();
 const _g = new Vector3();
 
-/** Plan vehicle maneuvers between valid route sections, then join their forward and reverse travel. */
+/**
+ * Plan vehicle maneuvers between valid route sections, then join their forward
+ * and reverse travel.
+ */
 export class DrivePlan {
   private readonly pieces: DrivePiece[];
   private route: RoutePoint[] | null = null;
@@ -87,8 +121,9 @@ export class DrivePlan {
   }
 
   /**
-   * Search each drive window within the deadline, then assemble the route. Replace failed windows with straight
-   * fallback segments and mark the plan as not drivable. Return null while a search is still running.
+   * Search each drive window within the deadline, then assemble the route.
+   * Replace failed windows with straight fallback segments and mark the plan
+   * as not drivable. Return null while a search is still running.
    */
   advance(deadline: number): RoutePoint[] | null {
     if (this.route) {
@@ -137,7 +172,10 @@ export class DrivePlan {
         // Resume from the rejoin goal selected by the preceding window.
         route.push(
           ...(ended
-            ? [{ p: new Vector3(ended.x, ended.y, ended.z), reverse: false }, ...piece.pts.slice(1)]
+            ? [
+                { p: new Vector3(ended.x, ended.y, ended.z), reverse: false },
+                ...piece.pts.slice(1),
+              ]
             : piece.pts),
         );
         ended = null;
@@ -148,7 +186,12 @@ export class DrivePlan {
       ended = w.poses && w.search ? (w.goals[w.search.reached] ?? null) : null;
 
       if (w.poses) {
-        route.push(...w.poses.map((q) => ({ p: new Vector3(q.x, q.y, q.z), reverse: q.reverse })));
+        route.push(
+          ...w.poses.map((q) => ({
+            p: new Vector3(q.x, q.y, q.z),
+            reverse: q.reverse,
+          })),
+        );
       } else {
         // Preserve guidance through failed windows, but report that the route is not drivable.
         this.drivable = false;
@@ -165,9 +208,11 @@ export class DrivePlan {
   }
 
   /**
-   * Partition the route into validated lines and arcs plus windows requiring vehicle pose searches, following Pinter,
-   * "Toward More Realistic Pathfinding". Always search the destination approach and search the departure when its
-   * heading differs. Expand and merge windows to find usable boundary poses, up to LAYOUT_PASSES passes.
+   * Partition the route into validated lines and arcs plus windows requiring
+   * vehicle pose searches, following Pinter, "Toward More Realistic
+   * Pathfinding". Always search the destination approach and search the
+   * departure when its heading differs. Expand and merge windows to find
+   * usable boundary poses, up to LAYOUT_PASSES passes.
    */
   private partition(line: readonly Vector3[]): DrivePiece[] {
     const { vehicle, from, goals: destinations } = this.request;
@@ -187,12 +232,24 @@ export class DrivePlan {
     }
 
     const floorAt = (s: number): number =>
-      floor[Math.min(floor.length - 1, Math.round(Math.max(0, s) / CHECK_STEP))] as number;
+      floor[
+        Math.min(floor.length - 1, Math.round(Math.max(0, s) / CHECK_STEP))
+      ] as number;
     const fitsAt = (x: number, y: number, z: number, yaw: number): boolean =>
-      body.every((o) => ground.fits(x + Math.sin(yaw) * o, y, z + Math.cos(yaw) * o, yaw) !== null);
+      body.every(
+        (o) =>
+          ground.fits(x + Math.sin(yaw) * o, y, z + Math.cos(yaw) * o, yaw) !==
+          null,
+      );
     const poseAt = (s: number): DrivePose => {
       route.sample(s, _f, _g);
-      return { x: _f.x, y: floorAt(s), z: _f.z, yaw: Math.atan2(_g.x, _g.z), reverse: false };
+      return {
+        x: _f.x,
+        y: floorAt(s),
+        z: _f.z,
+        yaw: Math.atan2(_g.x, _g.z),
+        reverse: false,
+      };
     };
 
     const fitsAtS = (s: number): boolean => {
@@ -200,7 +257,10 @@ export class DrivePlan {
       return fitsAt(q.x, q.y, q.z, q.yaw);
     };
 
-    const trouble = (s: number): [number, number] => [s - R * WINDOW_BACK, s + R * WINDOW_AHEAD];
+    const trouble = (s: number): [number, number] => [
+      s - R * WINDOW_BACK,
+      s + R * WINDOW_AHEAD,
+    ];
 
     let spans: [number, number][] = [[L - R * WINDOW_BACK, L]];
     route.sample(0, _f, _g);
@@ -216,7 +276,11 @@ export class DrivePlan {
         sp[0] = Math.max(0, sp[0]);
         sp[1] = Math.min(L, sp[1]);
 
-        while (sp[0] > 0 && (at.some((a) => Math.abs(a - sp[0]) < CORNER_CLEAR) || !fitsAtS(sp[0]))) {
+        while (
+          sp[0] > 0 &&
+          (at.some((a) => Math.abs(a - sp[0]) < CORNER_CLEAR) ||
+            !fitsAtS(sp[0]))
+        ) {
           sp[0] = Math.max(0, sp[0] - WINDOW_NUDGE);
         }
 
@@ -245,7 +309,10 @@ export class DrivePlan {
         if (s0 > s + ROUTE_EPS) {
           const pts = [
             poseAt(s),
-            ...line.filter((_, k) => (at[k] ?? 0) > s + ROUTE_EPS && (at[k] ?? 0) < s0 - ROUTE_EPS),
+            ...line.filter(
+              (_, k) =>
+                (at[k] ?? 0) > s + ROUTE_EPS && (at[k] ?? 0) < s0 - ROUTE_EPS,
+            ),
             poseAt(s0),
           ].map((q) => new Vector3(q.x, q.y, q.z));
           if (s === 0) {
@@ -259,7 +326,11 @@ export class DrivePlan {
           }
 
           const check = new Polyline(plain.map((r) => r.p));
-          for (let c = CHECK_STEP, y = floorAt(s); c < check.total; c += CHECK_STEP) {
+          for (
+            let c = CHECK_STEP, y = floorAt(s);
+            c < check.total;
+            c += CHECK_STEP
+          ) {
             check.sample(c, _f, _g);
             const h = this.terrain.heightAt(_f.x, y, _f.z);
             y = h ?? y;
@@ -275,9 +346,15 @@ export class DrivePlan {
 
         if (s1 > s0) {
           const entry = s0 <= 0 ? { ...from, reverse: false } : poseAt(s0);
-          const goals: DriveGoals = s1 >= L ? destinations : [{ ...poseAt(s1), rest: 0 }];
+          const goals: DriveGoals =
+            s1 >= L ? destinations : [{ ...poseAt(s1), rest: 0 }];
           // Include maneuvering space around the route in the guide bounds.
-          const box: [number, number, number, number] = [Infinity, Infinity, -Infinity, -Infinity];
+          const box: [number, number, number, number] = [
+            Infinity,
+            Infinity,
+            -Infinity,
+            -Infinity,
+          ];
           for (let c = s0; c <= s1 + BOX_STEP; c += BOX_STEP) {
             route.sample(Math.min(c, s1), _f);
             box[0] = Math.min(box[0], _f.x - WINDOW_MARGIN);
@@ -328,7 +405,14 @@ export class DrivePlan {
       const reach = Math.min(straight, R * REJOIN_REACH);
       // Stop adding rejoin goals at the first pose that cannot fit.
       const goals: [DriveGoal, ...DriveGoal[]] = [
-        { x: g0.x, y: floorAt(a.window.until), z: g0.z, yaw: g0.yaw, reverse: false, rest: 0 },
+        {
+          x: g0.x,
+          y: floorAt(a.window.until),
+          z: g0.z,
+          yaw: g0.yaw,
+          reverse: false,
+          rest: 0,
+        },
       ];
       let last = goals[0];
       for (let t = R * REJOIN_STEP; t <= reach; t += R * REJOIN_STEP) {
@@ -345,7 +429,9 @@ export class DrivePlan {
 
       // Include the remaining straight-line cost when comparing rejoin goals.
       for (const q of goals) {
-        q.rest = Math.hypot(last.x - q.x, last.z - q.z) * ground.cost(q.x, q.y, q.z, q.yaw);
+        q.rest =
+          Math.hypot(last.x - q.x, last.z - q.z) *
+          ground.cost(q.x, q.y, q.z, q.yaw);
       }
 
       a.window.goals = goals;

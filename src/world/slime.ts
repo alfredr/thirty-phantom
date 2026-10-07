@@ -17,7 +17,10 @@ import { PALETTE } from '@/render/palette';
 
 import { BULB, type DripSpec, type FilmSpec } from './drips';
 
-/** Where drops collect into a puddle, and how far it can spread there before running off the edge. */
+/**
+ * Where drops collect into a puddle, and how far it can spread there before
+ * running off the edge.
+ */
 export interface PoolSite {
   x: number;
   y: number;
@@ -25,42 +28,64 @@ export interface PoolSite {
   room: number;
 }
 
-/** Fraction of a bulb's slime that leaks away (evaporates, soaks in) per second. */
+/**
+ * Fraction of a bulb's slime that leaks away (evaporates, soaks in) per
+ * second.
+ */
 const LEAK = 1 / 20;
 /** Fraction of a puddle that evaporates per second. */
 const EVAP = 1 / 45;
 /**
- * Wall-drip fill thresholds as fractions of full bulb volume. Feed toward WALL_FILL; begin sliding above SLIDE_AT and
- * stop transferring bulb volume to the strand at SLIDE_TO.
+ * Wall-drip fill thresholds as fractions of full bulb volume. Feed toward
+ * WALL_FILL; begin sliding above SLIDE_AT and stop transferring bulb volume to
+ * the strand at SLIDE_TO.
  */
 const WALL_FILL = 0.85;
 const SLIDE_AT = 0.7;
 const SLIDE_TO = 0.4;
 /** How fast a sliding bulb runs down the wall (m/s). */
 const SLIDE = 0.35;
-/** Strand thickness off the face (m); its cross-section is this times its width. */
+/**
+ * Strand thickness off the face (m); its cross-section is this times its
+ * width.
+ */
 const STRAND = 0.09;
 /** Hanging drips: a full bulb pinches off, leaving this much behind. */
 const REST = 0.15;
-/** Fraction of an underside run's slime that slides to its under edge per second. */
+/**
+ * Fraction of an underside run's slime that slides to its under edge per
+ * second.
+ */
 const DRAIN = 1 / 25;
 /** Cohesion: spring and damping on a hanging drip's stretch. */
 const STIFF = 30;
 const DAMPING = 4;
-/** Drop acceleration in meters per second squared, reduced for a slower visible fall. */
+/**
+ * Drop acceleration in meters per second squared, reduced for a slower visible
+ * fall.
+ */
 const GRAVITY = 18;
 /** Puddle radius per sqrt(volume), and the most it spreads. */
 const PUDDLE_K = 1.5;
 const PUDDLE_MAX = 2;
-/** Distance in meters beyond batch bounds at which simulation continues without updating drip instance matrices. */
+/**
+ * Distance in meters beyond batch bounds at which simulation continues without
+ * updating drip instance matrices.
+ */
 const NEAR = 90;
 /** Splats this close to the focus get a splash. */
 const SPLASH = 45;
-/** A full bulb's width per meter of drip width, and its length once it hangs free. */
+/**
+ * A full bulb's width per meter of drip width, and its length once it hangs
+ * free.
+ */
 const BULB_W = BULB.base + BULB.grow;
 const FREE_STRETCH = 1 + BULB.stretchFree;
 
-/** How a slime puddle looks, shared with the static puddle decals (build-world). */
+/**
+ * How a slime puddle looks, shared with the static puddle decals
+ * (build-world).
+ */
 export const PUDDLE = {
   color: new Color(PALETTE.slime).multiplyScalar(0.8),
   /** Height above the surface it lies on (m). */
@@ -85,11 +110,13 @@ interface Batch {
 }
 
 /**
- * Simulate slime volume in wall drips, hanging bulbs, underside films, and puddles. Top lips supply continuous inflow;
- * underside runs distribute finite volume among their drips. Wall bulbs transfer volume into strands while sliding.
- * Hanging bulbs stretch against a damped spring and detach when full. Drops feed puddles, which evaporate. State uses
- * fixed-size typed arrays and instance matrices are updated in place; distant batches continue simulating without
- * redraws.
+ * Simulate slime volume in wall drips, hanging bulbs, underside films, and
+ * puddles. Top lips supply continuous inflow; underside runs distribute finite
+ * volume among their drips. Wall bulbs transfer volume into strands while
+ * sliding. Hanging bulbs stretch against a damped spring and detach when full.
+ * Drops feed puddles, which evaporate. State uses fixed-size typed arrays and
+ * instance matrices are updated in place; distant batches continue simulating
+ * without redraws.
  */
 export class SlimeSim {
   readonly root = new Group();
@@ -100,14 +127,23 @@ export class SlimeSim {
   splatSize = 0;
 
   private readonly batches: Batch[] = [];
-  /** Reusable box dimensions avoid allocating argument containers in the drawing loop. */
+  /**
+   * Reusable box dimensions avoid allocating argument containers in the
+   * drawing loop.
+   */
   private readonly arg = new Float64Array(5);
   /** Clamped simulation timestep shared by per-drip updates, in seconds. */
   private dt = 0;
-  /** Global visibility fraction from 0 to 1 and its increase per second during emergence. */
+  /**
+   * Global visibility fraction from 0 to 1 and its increase per second during
+   * emergence.
+   */
   private presence = 1;
   private emerging = 0;
-  /** Materials that fade with it: the slime itself (every edge lip), the puddle decals, any added by fadeWith(). */
+  /**
+   * Materials that fade with it: the slime itself (every edge lip), the puddle
+   * decals, any added by fadeWith().
+   */
   private readonly fading: Material[] = [];
 
   // per drip: layout
@@ -168,9 +204,14 @@ export class SlimeSim {
     puddleMat: Material,
   ) {
     // Batch owned drips together; group unowned drips by world chunk.
-    const groups = new Map<string, { owner: Object3D | null; specs: DripSpec[]; films: FilmSpec[] }>();
+    const groups = new Map<
+      string,
+      { owner: Object3D | null; specs: DripSpec[]; films: FilmSpec[] }
+    >();
     const groupFor = (owner: Object3D | null, x: number, z: number) => {
-      const key = owner ? `o${owner.id}` : `${Math.floor(x / CHUNK)}|${Math.floor(z / CHUNK)}`;
+      const key = owner
+        ? `o${owner.id}`
+        : `${Math.floor(x / CHUNK)}|${Math.floor(z / CHUNK)}`;
       let g = groups.get(key);
       if (!g) {
         groups.set(key, (g = { owner, specs: [], films: [] }));
@@ -188,7 +229,11 @@ export class SlimeSim {
     }
 
     for (const { film, owner } of filmEntries) {
-      groupFor(owner, (film.min[0] + film.max[0]) / 2, (film.min[2] + film.max[2]) / 2).films.push(film);
+      groupFor(
+        owner,
+        (film.min[0] + film.max[0]) / 2,
+        (film.min[2] + film.max[2]) / 2,
+      ).films.push(film);
     }
 
     const n = entries.length;
@@ -277,7 +322,9 @@ export class SlimeSim {
           this.feed[k] = WALL_FILL * full * LEAK;
           const settled = rng.chance(0.65);
           this.len[k] = settled ? s.reach : s.reach * rng.range(0.45, 1);
-          this.vol[k] = settled ? WALL_FILL * full : rng.range(SLIDE_TO, SLIDE_AT) * full;
+          this.vol[k] = settled
+            ? WALL_FILL * full
+            : rng.range(SLIDE_TO, SLIDE_AT) * full;
         } else if (!s.drops) {
           // Balance light inflow against leakage at a partially filled equilibrium.
           const fill = rng.range(0.5, 0.9);
@@ -293,23 +340,36 @@ export class SlimeSim {
           this.stretch[k] = s.hang * (0.2 + 0.8 * f * f);
           const period = Math.log((c - REST) / (c - 1)) / LEAK;
           if (s.pool >= 0) {
-            inflow[s.pool] = (inflow[s.pool] as number) + ((1 - REST) * full) / period;
+            inflow[s.pool] =
+              (inflow[s.pool] as number) + ((1 - REST) * full) / period;
           }
         }
 
         const x = s.axis === 'x' ? s.along : s.face;
         const z = s.axis === 'x' ? s.face : s.along;
         bounds.expandByPoint(p.set(x, s.top + 0.3, z));
-        bounds.expandByPoint(p.set(x, s.drops ? s.landY : s.top - s.reach - s.hang * 1.5 - 0.6, z));
+        bounds.expandByPoint(
+          p.set(
+            x,
+            s.drops ? s.landY : s.top - s.reach - s.hang * 1.5 - 0.6,
+            z,
+          ),
+        );
         k++;
       }
 
       for (const f of films) {
         const o = fk * 7;
-        this.film.set([f.min[0], f.min[1], f.min[2], f.max[0], f.max[1], f.max[2], f.edge], o);
+        this.film.set(
+          [f.min[0], f.min[1], f.min[2], f.max[0], f.max[1], f.max[2], f.edge],
+          o,
+        );
         this.filmRun[fk] = f.run;
         this.filmSlot[fk] = slots++;
-        const v = (f.max[0] - f.min[0]) * (f.max[1] - f.min[1]) * (f.max[2] - f.min[2]);
+        const v =
+          (f.max[0] - f.min[0]) *
+          (f.max[1] - f.min[1]) *
+          (f.max[2] - f.min[2]);
         this.runVol[f.run] = (this.runVol[f.run] as number) + v;
         this.runVol0[f.run] = (this.runVol0[f.run] as number) + v;
         bounds.expandByPoint(p.set(f.min[0], f.min[1], f.min[2]));
@@ -357,7 +417,10 @@ export class SlimeSim {
       this.py[i] = s.y + PUDDLE.lift;
       this.pz[i] = s.z;
       this.pv[i] = (inflow[i] as number) / EVAP;
-      this.pr[i] = Math.min(this.pmax[i] as number, PUDDLE_K * Math.sqrt(this.pv[i] as number));
+      this.pr[i] = Math.min(
+        this.pmax[i] as number,
+        PUDDLE_K * Math.sqrt(this.pv[i] as number),
+      );
       const a = rng.range(0, Math.PI);
       this.pcos[i] = Math.cos(a);
       this.psin[i] = Math.sin(a);
@@ -372,8 +435,8 @@ export class SlimeSim {
   }
 
   /**
-   * Set visibility immediately, clamped to [0, 1], and stop emergence. Fade materials and scale drip extension; zero
-   * hides all slime.
+   * Set visibility immediately, clamped to [0, 1], and stop emergence. Fade
+   * materials and scale drip extension; zero hides all slime.
    */
   setPresence(f: number): void {
     this.presence = clamp(f, 0, 1);
@@ -381,12 +444,18 @@ export class SlimeSim {
     this.applyPresence();
   }
 
-  /** Increase presence at 1 / seconds per second until fully visible. A partially visible start finishes sooner. */
+  /**
+   * Increase presence at 1 / seconds per second until fully visible. A
+   * partially visible start finishes sooner.
+   */
   emerge(seconds = 3): void {
     this.emerging = 1 / Math.max(0.01, seconds);
   }
 
-  /** Register a material to share slime visibility and opacity, applying the current presence immediately. */
+  /**
+   * Register a material to share slime visibility and opacity, applying the
+   * current presence immediately.
+   */
   fadeWith(mat: Material): void {
     if (!this.fading.includes(mat)) {
       this.fading.push(mat);
@@ -468,7 +537,9 @@ export class SlimeSim {
     const full = this.full[k] as number;
     // Apply continuous feed and leakage before adding the underside run's contribution.
     const run = this.run[k] as number;
-    let vol = (this.vol[k] as number) + ((this.feed[k] as number) - LEAK * (this.vol[k] as number)) * dt;
+    let vol =
+      (this.vol[k] as number) +
+      ((this.feed[k] as number) - LEAK * (this.vol[k] as number)) * dt;
     if (run >= 0) {
       vol += this.runShare[run] as number;
     }
@@ -479,13 +550,18 @@ export class SlimeSim {
       let len = this.len[k] as number;
       if (len < reach && (this.sliding[k] || vol > SLIDE_AT * full)) {
         const section = (this.w[k] as number) * STRAND;
-        const d = Math.min(dt * SLIDE, reach - len, (vol - SLIDE_TO * full) / section);
+        const d = Math.min(
+          dt * SLIDE,
+          reach - len,
+          (vol - SLIDE_TO * full) / section,
+        );
         if (d > 0) {
           len += d;
           vol -= d * section;
         }
 
-        this.sliding[k] = d > 0 && len < reach && vol > SLIDE_TO * full ? 1 : 0;
+        this.sliding[k] =
+          d > 0 && len < reach && vol > SLIDE_TO * full ? 1 : 0;
         this.len[k] = len;
       }
 
@@ -496,7 +572,9 @@ export class SlimeSim {
     // Drive unsupported extension toward a fill-dependent target with a damped spring.
     const f = vol / full;
     const hang = this.hang[k] as number;
-    const target = this.drops[k] ? hang * (0.2 + 0.8 * f * f) : (hang * vol) / ((this.feed[k] as number) / LEAK);
+    const target = this.drops[k]
+      ? hang * (0.2 + 0.8 * f * f)
+      : (hang * vol) / ((this.feed[k] as number) / LEAK);
     let e = this.stretch[k] as number;
     let v = this.stretchV[k] as number;
     v += ((target - e) * STIFF - v * DAMPING) * dt;
@@ -507,7 +585,11 @@ export class SlimeSim {
       const w = this.w[k] as number;
       const tall = w * BULB_W * FREE_STRETCH;
       this.dropVol[k] = vol - REST * full;
-      this.dropY[k] = (this.top[k] as number) - (this.reach[k] as number) - e - tall * (BULB.below - 0.5);
+      this.dropY[k] =
+        (this.top[k] as number) -
+        (this.reach[k] as number) -
+        e -
+        tall * (BULB.below - 0.5);
       this.dropV[k] = -Math.max(0, v);
       vol = REST * full;
       v = -hang * 3;
@@ -565,7 +647,10 @@ export class SlimeSim {
       const top = this.top[k] as number;
       const w = this.w[k] as number;
       // Allow slight overfill in the rendered bulb before detachment.
-      const f = Math.min(1.15, (this.vol[k] as number) / (this.full[k] as number));
+      const f = Math.min(
+        1.15,
+        (this.vol[k] as number) / (this.full[k] as number),
+      );
       const across = w * (BULB.base + BULB.grow * f) * g;
       if (this.hang[k] === 0) {
         const end = top - (this.len[k] as number) * g;
@@ -650,8 +735,9 @@ export class SlimeSim {
   }
 
   /**
-   * Write an axis-aligned box transform into `m` at offset `o` for drip `k`. Read dimensions from arg: edge width, two
-   * outward face offsets, and lower and upper Y.
+   * Write an axis-aligned box transform into `m` at offset `o` for drip `k`.
+   * Read dimensions from arg: edge width, two outward face offsets, and lower
+   * and upper Y.
    */
   private box(m: Float32Array, o: number, k: number): void {
     const a = this.arg;
@@ -659,7 +745,8 @@ export class SlimeSim {
     const o1 = a[2] as number;
     const y0 = a[3] as number;
     const y1 = a[4] as number;
-    const c = (this.face[k] as number) + (this.out[k] as number) * (o0 + o1) * 0.5;
+    const c =
+      (this.face[k] as number) + (this.out[k] as number) * (o0 + o1) * 0.5;
     const along = this.along[k] as number;
     if (this.axisZ[k]) {
       m[o] = o1 - o0;
@@ -683,7 +770,13 @@ export class SlimeSim {
     for (let i = 0; i < this.pv.length; i++) {
       // Ease puddle radius toward its volume-dependent target after impacts.
       let r = this.pr[i] as number;
-      r += (Math.min(this.pmax[i] as number, PUDDLE_K * Math.sqrt(this.pv[i] as number)) - r) * k;
+      r +=
+        (Math.min(
+          this.pmax[i] as number,
+          PUDDLE_K * Math.sqrt(this.pv[i] as number),
+        ) -
+          r) *
+        k;
       this.pr[i] = r;
       const o = i * 16;
       const sx = r < 0.05 ? 0 : r * 2;
@@ -703,7 +796,10 @@ export class SlimeSim {
   }
 }
 
-/** Return full bulb volume for drip width `w`, matching bulbSize at fill fraction 1. */
+/**
+ * Return full bulb volume for drip width `w`, matching bulbSize at fill
+ * fraction 1.
+ */
 function bulbVolume(w: number, free: boolean): number {
   const across = w * BULB_W;
   return (

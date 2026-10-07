@@ -13,14 +13,25 @@ import type { ItemKind } from '@/game/items/item-breeds';
 import { Stock } from '@/game/items/stock';
 import type { ItemAmount } from '@/game/items/trades';
 import type { NpcDef, ZoneDef } from '@/world/level-data';
-import { type NavGrid, type NavHop, type NavPlanner, NO_HOPS } from '@/world/nav-grid';
+import {
+  type NavGrid,
+  type NavHop,
+  type NavPlanner,
+  NO_HOPS,
+} from '@/world/nav-grid';
 
 import type { Facing, NpcEvent, Pitch, Work } from './behaviors';
 import { NPC_BREEDS, type NpcBreed } from './breeds';
 import { Fire, type FireWorld } from './fire';
 import type { NpcAction } from './npc-actions';
 import type { Hand, NpcModel } from './presentation';
-import { clampAround, heading, offBy, turnToward, type Turning } from './steering';
+import {
+  clampAround,
+  heading,
+  offBy,
+  turnToward,
+  type Turning,
+} from './steering';
 import { Throwing, type ThrowWorld } from './throwing';
 
 /** Maximum vertical separation for conversations, in meters. */
@@ -51,7 +62,10 @@ export class NpcRun {
     return this.status === 'running';
   }
 
-  end(status: Exclude<RunStatus, 'running'>, reason: string | null = null): void {
+  end(
+    status: Exclude<RunStatus, 'running'>,
+    reason: string | null = null,
+  ): void {
     if (this.running) {
       this.status = status;
       this.reason = reason;
@@ -68,7 +82,10 @@ export interface NpcWorld extends FireWorld, ThrowWorld {
   fed(reward: ItemAmount): void;
 }
 
-/** An NPC's model, stock, and capability instances, built from its shared breed definition. */
+/**
+ * An NPC's model, stock, and capability instances, built from its shared breed
+ * definition.
+ */
 export class Npc {
   readonly keys = new Keyring();
   readonly walker: Walker;
@@ -83,7 +100,10 @@ export class Npc {
     this.send(held ? { type: 'held', face: held.face } : { type: 'released' });
   });
   private readonly smoke: Smoke | null;
-  /** Resting and current yaw in radians. Use place() to move the NPC and fire together. */
+  /**
+   * Resting and current yaw in radians. Use place() to move the NPC and fire
+   * together.
+   */
   homeYaw: number;
   yaw: number;
   /** Animation time with an independent phase for each NPC. */
@@ -122,7 +142,12 @@ export class Npc {
     world.scene.add(this.model.root);
     this.fire =
       def.fire && breed.fire
-        ? new Fire(breed.fire, world, { pos: this.pos, yaw: this.yaw, time: this.t }, def.fire)
+        ? new Fire(
+            breed.fire,
+            world,
+            { pos: this.pos, yaw: this.yaw, time: this.t },
+            def.fire,
+          )
         : null;
     this.throwing = null;
 
@@ -131,7 +156,12 @@ export class Npc {
         throw new Error(`${breed.name} needs a throwing arm`);
       }
 
-      this.throwing = new Throwing(breed.throwing, this.model.throwArm, this.model.props ?? {}, world);
+      this.throwing = new Throwing(
+        breed.throwing,
+        this.model.throwArm,
+        this.model.props ?? {},
+        world,
+      );
     }
 
     this.stock = breed.shop ? new Stock(breed.shop.stock) : null;
@@ -144,11 +174,18 @@ export class Npc {
         throw new Error(`${breed.name} needs a smoke origin`);
       }
 
-      this.smoke = new Smoke(breed.smoke, this.model.smokeOrigin, world.sprites);
+      this.smoke = new Smoke(
+        breed.smoke,
+        this.model.smokeOrigin,
+        world.sprites,
+      );
     }
   }
 
-  /** Require a named prop for a scripted scene. Missing props indicate a scene/model mismatch. */
+  /**
+   * Require a named prop for a scripted scene. Missing props indicate a
+   * scene/model mismatch.
+   */
   prop(kind: ItemKind): Object3D {
     const prop = this.model.props?.[kind];
     if (!prop) {
@@ -180,10 +217,17 @@ export class Npc {
   /** Whether the current pitch state requests an open coat. */
   get pitching(): boolean {
     const s = this.pitch?.state;
-    return s?.at === 'pitching' || s?.at === 'browsing' || (s?.at === 'directed' && s.open);
+    return (
+      s?.at === 'pitching' ||
+      s?.at === 'browsing' ||
+      (s?.at === 'directed' && s.open)
+    );
   }
 
-  /** Send an event to the pitch and work behaviors. Return whether either transitioned. */
+  /**
+   * Send an event to the pitch and work behaviors. Return whether either
+   * transitioned.
+   */
   send(event: NpcEvent): boolean {
     const pitch = this.pitch?.send(event) ?? false;
     const work = this.work?.send(event) ?? false;
@@ -199,13 +243,23 @@ export class Npc {
   }
 
   get anchored(): boolean {
-    return !!this.fire && Math.hypot(this.pos.x - this.home.x, this.pos.z - this.home.z) < ANCHOR;
+    return (
+      !!this.fire &&
+      Math.hypot(this.pos.x - this.home.x, this.pos.z - this.home.z) < ANCHOR
+    );
   }
 
-  walk(path: Polyline, speed = WALK_SPEED, hops: readonly NavHop[] = NO_HOPS): void {
+  walk(
+    path: Polyline,
+    speed = WALK_SPEED,
+    hops: readonly NavHop[] = NO_HOPS,
+  ): void {
     this.walker.follow(path, speed, hops);
     const ahead = path.sample(Math.min(SET_OFF, path.total), _ahead);
-    this.setOff = Math.hypot(ahead.x - this.pos.x, ahead.z - this.pos.z) > STEER_MIN ? heading(this.pos, ahead) : null;
+    this.setOff =
+      Math.hypot(ahead.x - this.pos.x, ahead.z - this.pos.z) > STEER_MIN
+        ? heading(this.pos, ahead)
+        : null;
   }
 
   halt(path?: Polyline): void {
@@ -229,7 +283,10 @@ export class Npc {
   }
 
   aligned(within: number): boolean {
-    return !this.walking && offBy(this.yaw, this.standingYaw(this.gazeAt())) <= within;
+    return (
+      !this.walking &&
+      offBy(this.yaw, this.standingYaw(this.gazeAt())) <= within
+    );
   }
 
   direct(steps: readonly NpcAction[]): NpcRun {
@@ -302,7 +359,10 @@ export class Npc {
     this.fire?.moveWith(pos, yaw);
   }
 
-  /** Advance behaviors and animation. Null disables responses to Cody's proximity. */
+  /**
+   * Advance behaviors and animation. Null disables responses to Cody's
+   * proximity.
+   */
   update(dt: number, cody: Vector3 | null): void {
     this.t += dt;
     this.reaching = Math.max(0, this.reaching - dt);
@@ -327,7 +387,11 @@ export class Npc {
     this.fire?.update(dt);
   }
 
-  private settle(act: NpcAction, status: 'done' | 'failed', reason: string | null = null): void {
+  private settle(
+    act: NpcAction,
+    status: 'done' | 'failed',
+    reason: string | null = null,
+  ): void {
     if (this.directive?.act === act) {
       this.directive.end(status, reason);
     }
@@ -358,11 +422,16 @@ export class Npc {
     const w = this.walker;
     if (w.walking) {
       const v = w.vel;
-      const dir = this.setOff ?? (Math.hypot(v.x, v.z) > MOVING ? Math.atan2(v.x, v.z) : this.yaw);
+      const dir =
+        this.setOff ??
+        (Math.hypot(v.x, v.z) > MOVING ? Math.atan2(v.x, v.z) : this.yaw);
       this.frozen = offBy(this.yaw, dir) > IN_PLACE;
       this.yaw = turnToward(this.yaw, dir, STRIDING, dt);
 
-      if (this.setOff !== null && offBy(this.yaw, this.setOff) < SET_OFF_DONE) {
+      if (
+        this.setOff !== null &&
+        offBy(this.yaw, this.setOff) < SET_OFF_DONE
+      ) {
         this.setOff = null;
       }
 
@@ -373,7 +442,12 @@ export class Npc {
         this.restYaw = this.yaw;
       }
     } else {
-      this.yaw = turnToward(this.yaw, this.standingYaw(this.gaze), STANDING, dt);
+      this.yaw = turnToward(
+        this.yaw,
+        this.standingYaw(this.gaze),
+        STANDING,
+        dt,
+      );
       w.update(dt, this.world.nav);
     }
 
@@ -385,7 +459,11 @@ export class Npc {
 export class Npcs {
   readonly list: Npc[];
 
-  constructor(defs: readonly NpcDef[], scene: Scene, hooks: Omit<NpcWorld, 'scene'>) {
+  constructor(
+    defs: readonly NpcDef[],
+    scene: Scene,
+    hooks: Omit<NpcWorld, 'scene'>,
+  ) {
     const world: NpcWorld = { scene, ...hooks };
     this.list = defs.map((def) => new Npc(def, NPC_BREEDS[def.id], world));
   }

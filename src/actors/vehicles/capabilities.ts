@@ -7,10 +7,17 @@ import type { V3 } from '@/engine/core/math';
 import type { Vehicle } from './vehicle';
 
 export interface Crush {
-  hit(by: Vehicle, target: Vehicle, report: (target: Vehicle, by: Vehicle) => void): boolean;
+  hit(
+    by: Vehicle,
+    target: Vehicle,
+    report: (target: Vehicle, by: Vehicle) => void,
+  ): boolean;
 }
 
-/** Crush eligible targets above the configured speed, then recoil after reporting the impact. */
+/**
+ * Crush eligible targets above the configured speed, then recoil after
+ * reporting the impact.
+ */
 export function crushCars(p: {
   readonly minimumSpeed: number;
   readonly recoil: number;
@@ -36,7 +43,10 @@ export interface PhantomEscape {
 }
 
 export interface GhostIntake {
-  /** Intake position in body-local meters, collection radius, and normalized fuel per ghost. */
+  /**
+   * Intake position in body-local meters, collection radius, and normalized
+   * fuel per ghost.
+   */
   readonly at: V3;
   readonly reach: number;
   readonly perGhost: number;
@@ -50,12 +60,24 @@ export interface FuelBoost {
 }
 
 export type PartDrops = Readonly<
-  Pick<typeof TUNING.junk, 'crashDv' | 'perDv' | 'perHit' | 'perCar' | 'cooldown' | 'tireShare' | 'crushed'>
+  Pick<
+    typeof TUNING.junk,
+    | 'crashDv'
+    | 'perDv'
+    | 'perHit'
+    | 'perCar'
+    | 'cooldown'
+    | 'tireShare'
+    | 'crushed'
+  >
 > & { readonly parts: readonly PartKind[] };
 
 export type SmokeExhaust = Readonly<typeof TUNING.vehicle.exhaust>;
 
-/** One spectral exhaust mode. Size is start/end in meters; life and interval are seconds. */
+/**
+ * One spectral exhaust mode. Size is start/end in meters; life and interval
+ * are seconds.
+ */
 export interface ExhaustPuff {
   readonly every: number;
   readonly color: Color;

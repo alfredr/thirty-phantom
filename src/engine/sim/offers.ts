@@ -15,17 +15,24 @@ export interface Offer<C extends string, S, W extends S> {
   readonly label: string;
 }
 
-/** Selected actions and refusal reasons for controls without an available action. */
+/**
+ * Selected actions and refusal reasons for controls without an available
+ * action.
+ */
 export interface Offers<C extends string, S, W extends S> {
   readonly offers: ReadonlyMap<C, Offer<C, S, W>>;
-  /** The reason from the highest-ranked refused candidate of each control that has no offer. */
+  /**
+   * The reason from the highest-ranked refused candidate of each control that
+   * has no offer.
+   */
   readonly refusals: ReadonlyMap<C, string>;
 }
 
 /**
- * Resolves candidates into the best offer per control. Higher rank wins; among equal ranks the earlier candidate wins,
- * so a caller can list candidates nearest first. Resolving has no side effects, so offers are suggestions: performing
- * an offer resolves it again against the world.
+ * Resolves candidates into the best offer per control. Higher rank wins; among
+ * equal ranks the earlier candidate wins, so a caller can list candidates
+ * nearest first. Resolving has no side effects, so offers are suggestions:
+ * performing an offer resolves it again against the world.
  */
 export function bestOffers<C extends string, S, W extends S>(
   w: S,
@@ -50,7 +57,12 @@ export function bestOffers<C extends string, S, W extends S>(
       continue;
     }
 
-    offers.set(control, { control, rank, action: resolved, label: resolved.label(w) });
+    offers.set(control, {
+      control,
+      rank,
+      action: resolved,
+      label: resolved.label(w),
+    });
   }
 
   for (const control of offers.keys()) {

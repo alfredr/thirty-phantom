@@ -1,6 +1,11 @@
 import { type Scene, Vector3 } from 'three';
 
-import { type Avoidance, inZones, parkedBlocks, PERSON_RADIUS } from '@/actors/avoidance';
+import {
+  type Avoidance,
+  inZones,
+  parkedBlocks,
+  PERSON_RADIUS,
+} from '@/actors/avoidance';
 import type { Prey } from '@/actors/hunting';
 import type { LootKind } from '@/actors/models/loot';
 import { buildPerson, randomOutfit } from '@/actors/models/person';
@@ -15,7 +20,13 @@ import { Polyline } from '@/engine/nav/polyline';
 import { bodyOffsets } from '@/engine/physics/vehicle-params';
 import type { Visitors } from '@/game/driving/visitors';
 import type { Bodies } from '@/game/rules/bodies';
-import { NAV, type NavGrid, type NavJob, type NavPlanner, type NavQuery } from '@/world/nav-grid';
+import {
+  NAV,
+  type NavGrid,
+  type NavJob,
+  type NavPlanner,
+  type NavQuery,
+} from '@/world/nav-grid';
 
 import { Casualties } from './casualties';
 import { type Town, Townsperson } from './town-mind';
@@ -26,10 +37,16 @@ const C = TUNING.crowd;
 const STREET_LEVEL = 0.6;
 /** Minimum interval between pedestrian spawns, in seconds. */
 const SPAWN_EVERY = 0.4;
-/** Initial escape distance and terrain sampling interval, in meters, while a longer route is planned. */
+/**
+ * Initial escape distance and terrain sampling interval, in meters, while a
+ * longer route is planned.
+ */
 const DASH = 5;
 const DASH_STEP = 0.5;
-/** Number of escape destinations sampled before choosing the farthest from the threat. */
+/**
+ * Number of escape destinations sampled before choosing the farthest from the
+ * threat.
+ */
 const FLEE_TRIES = 6;
 /** Lateral and vertical range in meters for vehicle threat checks. */
 const IN_THE_WAY = 2;
@@ -55,7 +72,10 @@ export interface CrowdFrame {
   vehicles: readonly Vehicle[];
   /** Dynamic walking avoidance; null disables obstacle steering. */
   avoid: Avoidance | null;
-  /** Visitor arrival and departure service; null permits direct pedestrian spawning. */
+  /**
+   * Visitor arrival and departure service; null permits direct pedestrian
+   * spawning.
+   */
   visitors: Visitors | null;
 }
 
@@ -67,9 +87,10 @@ const MAULED = 50;
 const CLAW_FLING = 3;
 
 /**
- * Manage pedestrian population, visitor drivers, navigation requests, and physical threats. Townsperson state machines
- * in town-mind.ts control individual behavior. Expose living or fallen victims to skeletons and register bodies for
- * steering.
+ * Manage pedestrian population, visitor drivers, navigation requests, and
+ * physical threats. Townsperson state machines in town-mind.ts control
+ * individual behavior. Expose living or fallen victims to skeletons and
+ * register bodies for steering.
  */
 export class Crowd implements Prey, Town {
   private readonly people: Townsperson[] = [];
@@ -89,13 +110,23 @@ export class Crowd implements Prey, Town {
     readonly nav: NavGrid,
     readonly rng: Rng,
     /** Emit a money drop with its kind and threat position. */
-    private readonly drop: (at: Vector3, kind: LootKind, from: Vector3) => void,
-    /** Optional ragdoll and injury simulation; without it, vehicle contacts only shove pedestrians. */
+    private readonly drop: (
+      at: Vector3,
+      kind: LootKind,
+      from: Vector3,
+    ) => void,
+    /**
+     * Optional ragdoll and injury simulation; without it, vehicle contacts
+     * only shove pedestrians.
+     */
     readonly casualties: Casualties | null = null,
   ) {
     if (casualties) {
       casualties.onDeath = (c, cause) => {
-        if (cause === 'vehicle' && this.rng.chance(TUNING.ghosts.carKillChance)) {
+        if (
+          cause === 'vehicle' &&
+          this.rng.chance(TUNING.ghosts.carKillChance)
+        ) {
           this.onGhost?.(c.at);
         }
       };
@@ -106,8 +137,16 @@ export class Crowd implements Prey, Town {
     return this.people.length;
   }
 
-  /** Return the nearest eligible living victim within horizontal reach and vertical tolerance, or null. */
-  nearest(at: Vector3, reach: number, sameLevel: number, may: (v: object) => boolean): object | null {
+  /**
+   * Return the nearest eligible living victim within horizontal reach and
+   * vertical tolerance, or null.
+   */
+  nearest(
+    at: Vector3,
+    reach: number,
+    sameLevel: number,
+    may: (v: object) => boolean,
+  ): object | null {
     let best: Townsperson | null = null;
     let bd = reach * reach;
     for (const p of this.people) {
@@ -145,8 +184,9 @@ export class Crowd implements Prey, Town {
   }
 
   /**
-   * Apply a claw attack. Standing victims lose health and may flee or fall; fallen victims escalate one injury level.
-   * Return the resulting hit category.
+   * Apply a claw attack. Standing victims lose health and may flee or fall;
+   * fallen victims escalate one injury level. Return the resulting hit
+   * category.
    */
   maul(v: object, from: Vector3, damage: number): 'hit' | 'downed' | 'killed' {
     const p = this.people.find((q) => q === v);
@@ -183,7 +223,14 @@ export class Crowd implements Prey, Town {
       _b.set(CLAW_FLING, 0, 0);
     }
 
-    p.mind.send({ type: 'felled', from, vx: _b.x, vz: _b.z, harm: p.hp <= 0 ? 'dead' : 'injured', cause: 'claws' });
+    p.mind.send({
+      type: 'felled',
+      from,
+      vx: _b.x,
+      vz: _b.z,
+      harm: p.hp <= 0 ? 'dead' : 'injured',
+      cause: 'claws',
+    });
     return p.hp <= 0 ? 'killed' : 'downed';
   }
 
@@ -196,7 +243,10 @@ export class Crowd implements Prey, Town {
     p.mind.send({ type: 'frightened', from });
   }
 
-  /** Spawn a visitor’s pedestrian driver and associate the parked car for a later return. */
+  /**
+   * Spawn a visitor’s pedestrian driver and associate the parked car for a
+   * later return.
+   */
   arrive(car: Vehicle): void {
     const door = driverDoor(car, TUNING.valet.doorGap, new Vector3());
     door.y = this.nav.heightAt(door.x, car.pos.y, door.z) ?? car.pos.y;
@@ -273,9 +323,20 @@ export class Crowd implements Prey, Town {
   }
 
   strollFrom(at: Vector3): NavJob | null {
-    const to = this.nav.spotNear(this.rng, at.x, at.z, C.stroll[0], C.stroll[1], NAV.person, STREET_LEVEL, true);
+    const to = this.nav.spotNear(
+      this.rng,
+      at.x,
+      at.z,
+      C.stroll[0],
+      C.stroll[1],
+      NAV.person,
+      STREET_LEVEL,
+      true,
+    );
     const q = this.around();
-    return to && !inZones(to, q.blocks ?? []) ? this.planner.request(at, to, NAV.person, q) : null;
+    return to && !inZones(to, q.blocks ?? [])
+      ? this.planner.request(at, to, NAV.person, q)
+      : null;
   }
 
   walkTo(at: Vector3, car: Vehicle): NavJob {
@@ -304,8 +365,16 @@ export class Crowd implements Prey, Town {
     const blocks = parkedBlocks(this.vehicles);
     let y = at.y;
     for (let d = DASH_STEP; d <= DASH; d += DASH_STEP) {
-      const g = this.nav.standable(at.x + ux * d, y, at.z + uz * d, NAV.person);
-      if (g === null || inZones(_a.set(at.x + ux * d, g, at.z + uz * d), blocks)) {
+      const g = this.nav.standable(
+        at.x + ux * d,
+        y,
+        at.z + uz * d,
+        NAV.person,
+      );
+      if (
+        g === null ||
+        inZones(_a.set(at.x + ux * d, g, at.z + uz * d), blocks)
+      ) {
         break;
       }
 
@@ -321,7 +390,16 @@ export class Crowd implements Prey, Town {
     let best: Vector3 | null = null;
     let bd = -Infinity;
     for (let t = 0; t < FLEE_TRIES; t++) {
-      const s = this.nav.spotNear(this.rng, start.x, start.z, C.flee[0], C.flee[1], NAV.person, STREET_LEVEL, false);
+      const s = this.nav.spotNear(
+        this.rng,
+        start.x,
+        start.z,
+        C.flee[0],
+        C.flee[1],
+        NAV.person,
+        STREET_LEVEL,
+        false,
+      );
       if (s && s.distanceTo(from) > bd && !inZones(s, q.blocks ?? [])) {
         bd = s.distanceTo(from);
         best = s;
@@ -369,14 +447,19 @@ export class Crowd implements Prey, Town {
     const dx = w.pos.x - v.pos.x;
     const dz = w.pos.z - v.pos.z;
     const along = dx * fx + dz * fz;
-    if (along > 0 && along < C.carReach && Math.abs(cross2(dx, dz, fx, fz)) < IN_THE_WAY) {
+    if (
+      along > 0 &&
+      along < C.carReach &&
+      Math.abs(cross2(dx, dz, fx, fz)) < IN_THE_WAY
+    ) {
       p.mind.send({ type: 'frightened', from: v.pos });
     }
   }
 
   /**
-   * Test vehicle-circle contacts. Knock the pedestrian down if the impact causes injury; otherwise shove and frighten
-   * them. Return whether a contact was handled.
+   * Test vehicle-circle contacts. Knock the pedestrian down if the impact
+   * causes injury; otherwise shove and frighten them. Return whether a contact
+   * was handled.
    */
   private struck(p: Townsperson, f: CrowdFrame): boolean {
     const w = p.walker;
@@ -391,7 +474,11 @@ export class Crowd implements Prey, Town {
       }
 
       for (const o of bodyOffsets(v.params)) {
-        _a.set(v.pos.x + Math.sin(v.yaw) * o, w.pos.y, v.pos.z + Math.cos(v.yaw) * o);
+        _a.set(
+          v.pos.x + Math.sin(v.yaw) * o,
+          w.pos.y,
+          v.pos.z + Math.cos(v.yaw) * o,
+        );
         const ox = w.pos.x - _a.x;
         const oz = w.pos.z - _a.z;
         const d = Math.sqrt(ox * ox + oz * oz);
@@ -401,10 +488,21 @@ export class Crowd implements Prey, Town {
 
         // Measure vehicle velocity toward the pedestrian along the contact normal.
         const impact =
-          d > 1e-3 ? (v.vel.x * (w.pos.x - _a.x) + v.vel.z * (w.pos.z - _a.z)) / d : Math.hypot(v.vel.x, v.vel.z);
-        const harm = this.casualties ? Casualties.harmFor(impact, v.mass) : null;
+          d > 1e-3
+            ? (v.vel.x * (w.pos.x - _a.x) + v.vel.z * (w.pos.z - _a.z)) / d
+            : Math.hypot(v.vel.x, v.vel.z);
+        const harm = this.casualties
+          ? Casualties.harmFor(impact, v.mass)
+          : null;
         if (harm) {
-          p.mind.send({ type: 'felled', from: v.pos, vx: v.vel.x, vz: v.vel.z, harm, cause: 'vehicle' });
+          p.mind.send({
+            type: 'felled',
+            from: v.pos,
+            vx: v.vel.x,
+            vz: v.vel.z,
+            harm,
+            cause: 'vehicle',
+          });
           return true;
         }
 
@@ -441,7 +539,10 @@ export class Crowd implements Prey, Town {
     return p;
   }
 
-  /** Remove distant pedestrians and replenish toward the day/night target, including pending visitor arrivals. */
+  /**
+   * Remove distant pedestrians and replenish toward the day/night target,
+   * including pending visitor arrivals.
+   */
   private maintain(dt: number, f: CrowdFrame): void {
     for (let i = this.people.length - 1; i >= 0; i--) {
       const p = this.people[i];
@@ -459,7 +560,10 @@ export class Crowd implements Prey, Town {
 
     this.spawnIn -= dt;
     const v = f.visitors;
-    if (this.spawnIn > 0 || this.people.length + (v?.incoming ?? 0) >= (f.day ? C.day : C.night)) {
+    if (
+      this.spawnIn > 0 ||
+      this.people.length + (v?.incoming ?? 0) >= (f.day ? C.day : C.night)
+    ) {
       return;
     }
 
@@ -476,13 +580,25 @@ export class Crowd implements Prey, Town {
     }
 
     this.spawnIn = SPAWN_EVERY;
-    const at = this.nav.spotNear(this.rng, f.near.x, f.near.z, C.spawnMin, C.spawnMax, NAV.person, STREET_LEVEL, true);
+    const at = this.nav.spotNear(
+      this.rng,
+      f.near.x,
+      f.near.z,
+      C.spawnMin,
+      C.spawnMax,
+      NAV.person,
+      STREET_LEVEL,
+      true,
+    );
     if (at) {
       this.add(at, this.rng.range(0, Math.PI * 2));
     }
   }
 
-  /** Spawn an owner beyond the minimum view distance and associate a parked car for immediate return. */
+  /**
+   * Spawn an owner beyond the minimum view distance and associate a parked car
+   * for immediate return.
+   */
   private comeBack(v: Visitors, near: Vector3): void {
     const car = v.claim(near);
     if (!car) {

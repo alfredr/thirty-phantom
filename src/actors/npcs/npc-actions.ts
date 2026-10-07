@@ -1,7 +1,14 @@
 import type { Object3D, Quaternion, Vector3 } from 'three';
 
 import type { Polyline } from '@/engine/nav/polyline';
-import { Action, done, fail, instead, type Result, running } from '@/engine/sim/action';
+import {
+  Action,
+  done,
+  fail,
+  instead,
+  type Result,
+  running,
+} from '@/engine/sim/action';
 import { Do, Wait } from '@/engine/sim/sequence';
 import type { ItemKind } from '@/game/items/item-breeds';
 import { NAV, type NavJob } from '@/world/nav-grid';
@@ -17,16 +24,26 @@ const FACE_MAX = 2.5;
 
 export type NpcAction = Action<NpcWorld, NpcWorld>;
 
-export const wait = (seconds: number): NpcAction => new Wait<NpcWorld, NpcWorld>(seconds);
-export const effect = (run: () => void): NpcAction => new Do<NpcWorld, NpcWorld>(run);
+export const wait = (seconds: number): NpcAction =>
+  new Wait<NpcWorld, NpcWorld>(seconds);
+export const effect = (run: () => void): NpcAction =>
+  new Do<NpcWorld, NpcWorld>(run);
 
-export const attachProp = (npc: Npc, hand: Hand, item: Object3D, below = 0): NpcAction =>
-  effect(() => npc.attach(item, hand, below));
+export const attachProp = (
+  npc: Npc,
+  hand: Hand,
+  item: Object3D,
+  below = 0,
+): NpcAction => effect(() => npc.attach(item, hand, below));
 
-export const releaseProp = (npc: Npc, item: Object3D, into: Object3D | null): NpcAction =>
-  effect(() => npc.release(item, into));
+export const releaseProp = (
+  npc: Npc,
+  item: Object3D,
+  into: Object3D | null,
+): NpcAction => effect(() => npc.release(item, into));
 
-const snapshot = (at: Facing): Facing => (at === null || typeof at === 'number' ? at : at.clone());
+const snapshot = (at: Facing): Facing =>
+  at === null || typeof at === 'number' ? at : at.clone();
 
 export interface WalkToParams {
   readonly npc: Npc;
@@ -48,7 +65,9 @@ export class WalkTo extends Action<NpcWorld, NpcWorld> {
   perform(w: NpcWorld, dt: number): Result<NpcAction> {
     const { npc, to } = this.p;
     if (!this.job && !this.path) {
-      this.job = w.planner.request(npc.pos, to, NAV.person, { blocks: w.walkBlocks() });
+      this.job = w.planner.request(npc.pos, to, NAV.person, {
+        blocks: w.walkBlocks(),
+      });
     }
 
     const job = this.job;
@@ -101,7 +120,13 @@ export class WalkTo extends Action<NpcWorld, NpcWorld> {
 export class Face extends Action<NpcWorld, NpcWorld> {
   private t = -1;
 
-  constructor(readonly p: { readonly npc: Npc; readonly at: Facing; readonly within?: number }) {
+  constructor(
+    readonly p: {
+      readonly npc: Npc;
+      readonly at: Facing;
+      readonly within?: number;
+    },
+  ) {
     super();
   }
 
@@ -114,17 +139,20 @@ export class Face extends Action<NpcWorld, NpcWorld> {
       this.t += dt;
     }
 
-    return npc.aligned(this.p.within ?? FACE_WITHIN) || this.t >= FACE_MAX ? done : running;
+    return npc.aligned(this.p.within ?? FACE_WITHIN) || this.t >= FACE_MAX
+      ? done
+      : running;
   }
 }
 
 export type GesturePose = 'reach' | 'bend' | 'pour';
 
-const POSES: Readonly<Record<GesturePose, (n: Npc, seconds: number) => void>> = {
-  reach: (n, s) => n.reach(s),
-  bend: (n, s) => n.bend(s),
-  pour: (n, s) => n.pour(s),
-};
+const POSES: Readonly<Record<GesturePose, (n: Npc, seconds: number) => void>> =
+  {
+    reach: (n, s) => n.reach(s),
+    bend: (n, s) => n.bend(s),
+    pour: (n, s) => n.pour(s),
+  };
 
 export interface GestureParams {
   readonly npc: Npc;
@@ -255,7 +283,12 @@ export interface Home {
 export function homeOf(item: Object3D): Home | null {
   const parent = item.parent;
   return parent
-    ? { parent, position: item.position.clone(), quaternion: item.quaternion.clone(), scale: item.scale.clone() }
+    ? {
+        parent,
+        position: item.position.clone(),
+        quaternion: item.quaternion.clone(),
+        scale: item.scale.clone(),
+      }
     : null;
 }
 
@@ -309,10 +342,17 @@ export class Take extends Action<NpcWorld, NpcWorld> {
   }
 }
 
-export const walkTo = (npc: Npc, to: Vector3, opts: Omit<WalkToParams, 'npc' | 'to'> = {}): NpcAction =>
-  new WalkTo({ npc, to, ...opts });
+export const walkTo = (
+  npc: Npc,
+  to: Vector3,
+  opts: Omit<WalkToParams, 'npc' | 'to'> = {},
+): NpcAction => new WalkTo({ npc, to, ...opts });
 
 export const face = (npc: Npc, at: Facing): NpcAction => new Face({ npc, at });
 
-export const gesture = (npc: Npc, pose: GesturePose, seconds: number, beat?: GestureParams['beat']): NpcAction =>
-  new Gesture({ npc, pose, seconds, beat });
+export const gesture = (
+  npc: Npc,
+  pose: GesturePose,
+  seconds: number,
+  beat?: GestureParams['beat'],
+): NpcAction => new Gesture({ npc, pose, seconds, beat });

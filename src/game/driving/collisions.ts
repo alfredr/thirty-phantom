@@ -7,7 +7,10 @@ import { bodyHalf } from '@/engine/physics/vehicle-params';
 const BOUNCE = 0.2;
 /** Velocity-change threshold in m/s for starting a crash. */
 const CRASH_DV = 5;
-/** Minimum velocity change in m/s required to displace an anchored parked or traffic car. */
+/**
+ * Minimum velocity change in m/s required to displace an anchored parked or
+ * traffic car.
+ */
 const BUDGE_DV = 1.5;
 /** Maximum vertical separation for vehicle contacts, in meters. */
 const LEVELS = 2.2;
@@ -18,10 +21,12 @@ const _va = new Vector3();
 const _vb = new Vector3();
 
 /**
- * Resolve each vehicle pair using the deepest overlap among their three body circles. Apply mass-weighted impulses at
- * contact points and separate overlapping bodies. Parked and traffic cars remain anchored below BUDGE_DV. A successful
- * `crush` skips ordinary contact resolution; `struck` reports impulses applied to other cars. Return the greatest
- * velocity change applied to `v`, in m/s.
+ * Resolve each vehicle pair using the deepest overlap among their three body
+ * circles. Apply mass-weighted impulses at contact points and separate
+ * overlapping bodies. Parked and traffic cars remain anchored below BUDGE_DV.
+ * A successful `crush` skips ordinary contact resolution; `struck` reports
+ * impulses applied to other cars. Return the greatest velocity change applied
+ * to `v`, in m/s.
  */
 export function carContacts(
   v: Vehicle,
@@ -96,7 +101,8 @@ export function carContacts(
     const ma = v.mass;
     const mb = o.mass;
     // Parked and traffic cars resist small impacts unless already crashing.
-    const anchored = (o.role === 'parked' || o.role === 'traffic') && !o.crashing;
+    const anchored =
+      (o.role === 'parked' || o.role === 'traffic') && !o.crashing;
     let j = vn < 0 ? (-(1 + BOUNCE) * vn) / (1 / ma + 1 / mb) : 0;
     let dvo = j / mb;
     const budge = !anchored || dvo >= BUDGE_DV;

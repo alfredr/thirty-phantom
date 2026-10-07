@@ -1,5 +1,7 @@
 if (!Symbol.dispose) {
-  Object.defineProperty(Symbol, 'dispose', { value: Symbol.for('Symbol.dispose') });
+  Object.defineProperty(Symbol, 'dispose', {
+    value: Symbol.for('Symbol.dispose'),
+  });
 }
 
 export type Release = (() => void) & Disposable;

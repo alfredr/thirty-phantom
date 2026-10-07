@@ -60,19 +60,41 @@ test('getting into a vehicle becomes possessing, stealing or getting in, by the 
   const deck = car('deck', { insideDeck: true });
   const truck = car('truck', { form: 'truck' });
   const day = play();
-  assert.equal(label(day, new InteractWithVehicle({ car: traffic })), 'STEAL · PCD-0001');
-  assert.equal(label(day, new InteractWithVehicle({ car: lot })), 'GET IN · PCD-0001');
-  assert.equal(label(day, new InteractWithVehicle({ car: deck })), 'GET IN · PCD-0001');
-  assert.equal(label(day, new InteractWithVehicle({ car: truck })), 'fail:', 'day Cody has no business with the truck');
+  assert.equal(
+    label(day, new InteractWithVehicle({ car: traffic })),
+    'STEAL · PCD-0001',
+  );
+  assert.equal(
+    label(day, new InteractWithVehicle({ car: lot })),
+    'GET IN · PCD-0001',
+  );
+  assert.equal(
+    label(day, new InteractWithVehicle({ car: deck })),
+    'GET IN · PCD-0001',
+  );
+  assert.equal(
+    label(day, new InteractWithVehicle({ car: truck })),
+    'fail:',
+    'day Cody has no business with the truck',
+  );
   const night = play({ phantom: true, possessable: (c) => c === deck });
-  assert.equal(label(night, new InteractWithVehicle({ car: deck })), 'POSSESS &nbsp;☾');
+  assert.equal(
+    label(night, new InteractWithVehicle({ car: deck })),
+    'POSSESS &nbsp;☾',
+  );
   assert.equal(
     label(night, new InteractWithVehicle({ car: lot })),
     'fail:',
     'phantom Cody only possesses, in the deck',
   );
-  assert.equal(label(night, new InteractWithVehicle({ car: truck })), 'GET IN · PCD-0001');
-  const held = play({ abilities: ['steal', 'truck', 'possess'], possessable: (c) => c === deck });
+  assert.equal(
+    label(night, new InteractWithVehicle({ car: truck })),
+    'GET IN · PCD-0001',
+  );
+  const held = play({
+    abilities: ['steal', 'truck', 'possess'],
+    possessable: (c) => c === deck,
+  });
   assert.equal(
     label(held, new InteractWithVehicle({ car: deck })),
     'GET IN &nbsp;☾',
@@ -82,16 +104,39 @@ test('getting into a vehicle becomes possessing, stealing or getting in, by the 
 
 test('getting out waits for the ground and for an escaped truck, and says PARK HERE in a free spot by day', () => {
   const inSpot = car('c', { insideDeck: true });
-  assert.equal(label(play({ freeSpot: true }), new GetOut({ car: inSpot })), 'PARK HERE');
-  assert.equal(label(play({ freeSpot: true, parking: false }), new GetOut({ car: inSpot })), '');
-  assert.equal(label(play(), new GetOut({ car: car('air', { grounded: false }) })), 'fail:');
   assert.equal(
-    label(play(), new GetOut({ car: car('rolled', { grounded: false, crashing: true, resting: true }) })),
+    label(play({ freeSpot: true }), new GetOut({ car: inSpot })),
+    'PARK HERE',
+  );
+  assert.equal(
+    label(
+      play({ freeSpot: true, parking: false }),
+      new GetOut({ car: inSpot }),
+    ),
+    '',
+  );
+  assert.equal(
+    label(play(), new GetOut({ car: car('air', { grounded: false }) })),
+    'fail:',
+  );
+  assert.equal(
+    label(
+      play(),
+      new GetOut({
+        car: car('rolled', { grounded: false, crashing: true, resting: true }),
+      }),
+    ),
     '',
     'a car on its roof can still be left',
   );
-  assert.equal(label(play({ escaping: true }), new GetOut({ car: inSpot })), 'fail:');
-  assert.equal(label(play({ locked: 'SHUT' }), new GetOut({ car: inSpot })), 'fail:SHUT');
+  assert.equal(
+    label(play({ escaping: true }), new GetOut({ car: inSpot })),
+    'fail:',
+  );
+  assert.equal(
+    label(play({ locked: 'SHUT' }), new GetOut({ car: inSpot })),
+    'fail:SHUT',
+  );
 });
 
 test('offers pick the best action per key, nearest first, and keep the reason when nothing can be done', () => {
@@ -100,24 +145,53 @@ test('offers pick the best action per key, nearest first, and keep the reason wh
   const far = car('far', { role: 'traffic' });
   const valet = { name: 'valet' };
   const { offers } = bestOffers(w, [
-    { control: 'interact', rank: RANK.vehicle, action: new InteractWithVehicle({ car: near }) },
-    { control: 'interact', rank: RANK.vehicle, action: new InteractWithVehicle({ car: far }) },
+    {
+      control: 'interact',
+      rank: RANK.vehicle,
+      action: new InteractWithVehicle({ car: near }),
+    },
+    {
+      control: 'interact',
+      rank: RANK.vehicle,
+      action: new InteractWithVehicle({ car: far }),
+    },
   ]);
   assert.equal(offers.get('interact').action.p.car, near);
   const withValet = bestOffers(w, [
-    { control: 'interact', rank: RANK.vehicle, action: new InteractWithVehicle({ car: near }) },
-    { control: 'interact', rank: RANK.valet, action: new TalkToValet({ valet }) },
+    {
+      control: 'interact',
+      rank: RANK.vehicle,
+      action: new InteractWithVehicle({ car: near }),
+    },
+    {
+      control: 'interact',
+      rank: RANK.valet,
+      action: new TalkToValet({ valet }),
+    },
   ]);
-  assert.equal(withValet.offers.get('interact').label, 'TALK TO VALET', 'the valet outranks the car');
-  const dayX = bestOffers(w, [{ control: 'summon', rank: 0, action: new Summon() }]);
+  assert.equal(
+    withValet.offers.get('interact').label,
+    'TALK TO VALET',
+    'the valet outranks the car',
+  );
+  const dayX = bestOffers(w, [
+    { control: 'summon', rank: 0, action: new Summon() },
+  ]);
   assert.equal(dayX.offers.has('summon'), false);
-  assert.equal(dayX.refusals.get('summon'), 'ONLY THE PHANTOM CAN RAISE THE DEAD');
+  assert.equal(
+    dayX.refusals.get('summon'),
+    'ONLY THE PHANTOM CAN RAISE THE DEAD',
+  );
 });
 
 test('performing an offer does what its label said, and a summon that raises nothing says why', () => {
   const w = play({ phantom: true, summoned: 0 });
-  const { offers } = bestOffers(w, [{ control: 'summon', rank: 0, action: new Summon() }]);
-  assert.deepEqual(offers.get('summon').action.perform(w, 0), { fail: 'THE DEAD NEED A MOMENT' });
+  const { offers } = bestOffers(w, [
+    { control: 'summon', rank: 0, action: new Summon() },
+  ]);
+  assert.deepEqual(offers.get('summon').action.perform(w, 0), {
+    fail: 'THE DEAD NEED A MOMENT',
+  });
   const d = play();
   const steal = bestOffers(d, [
     {

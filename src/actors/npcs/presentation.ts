@@ -27,8 +27,8 @@ interface CoatRig extends CharacterRig {
 }
 
 /**
- * Left coat flap opening angle in radians and damping rate. Only the left flap opens because the right hand holds the
- * roasting stick.
+ * Left coat flap opening angle in radians and damping rate. Only the left flap
+ * opens because the right hand holds the roasting stick.
  */
 const FLAP_OPEN = 1.9;
 const FLAP_RATE = 9;
@@ -37,11 +37,17 @@ const DOWN = new Vector3(0, -1, 0);
 const _grip = new Vector3();
 const _aim = new Quaternion();
 const _rest = new Quaternion();
-/** Turn damping rate and maximum body and head angles in radians. Limit body rotation to keep the stick near the fire. */
+/**
+ * Turn damping rate and maximum body and head angles in radians. Limit body
+ * rotation to keep the stick near the fire.
+ */
 const TURN_RATE = 6;
 const BODY_TURN = 0.6;
 const LOOK = 1.1;
-/** Idle sway rate in rad/s and amplitude in meters; glance interval in seconds and angle in radians. */
+/**
+ * Idle sway rate in rad/s and amplitude in meters; glance interval in seconds
+ * and angle in radians.
+ */
 const SWAY_RATE = 1.3;
 const SWAY = 0.02;
 const GLANCE_EVERY = 5;
@@ -63,7 +69,10 @@ const REACH_GIVE = 1.25;
 const REACH_DIP = 0.35;
 const REACH_IN = 0.45;
 
-/** Pose a coat seller, keeping the right arm over the fire and the left available for throws. */
+/**
+ * Pose a coat seller, keeping the right arm over the fire and the left
+ * available for throws.
+ */
 export function coatSeller(r: CoatRig, roastLift: number): NpcModel {
   let open = 0;
   let lean = 0;
@@ -97,8 +106,11 @@ export function coatSeller(r: CoatRig, roastLift: number): NpcModel {
       r.armR.rotation.z = -REACH_IN * lean;
       const k = n.pace / WALK_PACE;
       stride += STRIDE_RATE * k * dt;
-      const swing = n.walking ? Math.sin(stride) * STRIDE * Math.min(k, STRIDE_MAX) : 0;
-      const stoop = (k > STRIDE_MAX ? RUN_LEAN : 0) + BEND * bend + POUR_LEAN * pour;
+      const swing = n.walking
+        ? Math.sin(stride) * STRIDE * Math.min(k, STRIDE_MAX)
+        : 0;
+      const stoop =
+        (k > STRIDE_MAX ? RUN_LEAN : 0) + BEND * bend + POUR_LEAN * pour;
       r.body.rotation.x = damp(r.body.rotation.x, stoop, ARM_RATE, dt);
       r.legL.rotation.x = damp(r.legL.rotation.x, swing, ARM_RATE * 2, dt);
       r.legR.rotation.x = damp(r.legR.rotation.x, -swing, ARM_RATE * 2, dt);
@@ -108,13 +120,17 @@ export function coatSeller(r: CoatRig, roastLift: number): NpcModel {
         ? 0
         : n.near || n.held
           ? clamp(wrapAngle((n.gaze ?? n.yaw) - n.yaw), -LOOK, LOOK)
-          : Math.max(0, Math.sin((n.t / GLANCE_EVERY) * Math.PI * 2)) ** 4 * GLANCE;
+          : Math.max(0, Math.sin((n.t / GLANCE_EVERY) * Math.PI * 2)) ** 4 *
+            GLANCE;
       r.head.rotation.y = damp(r.head.rotation.y, look, TURN_RATE, dt);
     },
   };
 }
 
-/** Aim the left arm at the flap grip and blend from rest according to the coat opening. */
+/**
+ * Aim the left arm at the flap grip and blend from rest according to the coat
+ * opening.
+ */
 function holdFlap(rig: CoatRig, open: number): void {
   if (open < 0.01) {
     return;

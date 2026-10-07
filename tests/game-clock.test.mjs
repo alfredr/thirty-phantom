@@ -3,7 +3,10 @@ import { test } from 'node:test';
 
 import { loadModules } from './modules.mjs';
 
-const [{ GameClock }, { TUNING }] = await loadModules('/src/game/game-clock.ts', '/src/config.ts');
+const [{ GameClock }, { TUNING }] = await loadModules(
+  '/src/game/game-clock.ts',
+  '/src/config.ts',
+);
 
 const { sunrise, nightfall, secondsPerGameHour } = TUNING.clock;
 const ahead = (from, to) => (((to - from) % 24) + 24) % 24;
@@ -34,10 +37,17 @@ test('a hold eases toward its limit and never reaches it, even over hours of pla
     let closest = Infinity;
     const events = run(clock, 4 * 3600, dt, (c) => {
       const gap = ahead(c.hours, nightfall);
-      assert.ok(gap > 0 && gap < 2.01, `dt ${dt}: the clock stays short of the limit (gap ${gap})`);
+      assert.ok(
+        gap > 0 && gap < 2.01,
+        `dt ${dt}: the clock stays short of the limit (gap ${gap})`,
+      );
       closest = Math.min(closest, gap);
     });
-    assert.equal(events.nightfall, 0, 'nightfall never fires while held at it');
+    assert.equal(
+      events.nightfall,
+      0,
+      'nightfall never fires while held at it',
+    );
     assert.equal(clock.phase, 'day');
     assert.ok(closest < 0.01, `the clock gets close (within ${closest} h)`);
     assert.equal(GameClock.format(clock.hours), '6:59 PM');
@@ -49,7 +59,10 @@ test('a hold runs at normal speed until 30 game-minutes before the limit', () =>
   clock.hours = 12;
   clock.hold(15);
   run(clock, 2 * secondsPerGameHour, 1 / 60);
-  assert.ok(Math.abs(clock.hours - 14) < 1e-6, `two normal hours elapsed (${clock.hours})`);
+  assert.ok(
+    Math.abs(clock.hours - 14) < 1e-6,
+    `two normal hours elapsed (${clock.hours})`,
+  );
   assert.equal(clock.pace, 1);
   run(clock, 0.5 * secondsPerGameHour - 0.5, 1 / 60);
   assert.equal(clock.pace, 1, 'still outside the slow zone');
@@ -75,8 +88,14 @@ test('pace falls through the nudge thresholds within a few minutes of entering t
     }
   });
   assert.ok(crossed[1] < 0.1, `below 1 at once (${crossed[1]} s)`);
-  assert.ok(crossed[0.25] > 40 && crossed[0.25] < 90, `below 0.25 after about a minute (${crossed[0.25]} s)`);
-  assert.ok(crossed[0.05] > 100 && crossed[0.05] < 180, `below 0.05 after about two minutes (${crossed[0.05]} s)`);
+  assert.ok(
+    crossed[0.25] > 40 && crossed[0.25] < 90,
+    `below 0.25 after about a minute (${crossed[0.25]} s)`,
+  );
+  assert.ok(
+    crossed[0.05] > 100 && crossed[0.05] < 180,
+    `below 0.05 after about two minutes (${crossed[0.05]} s)`,
+  );
   clock.hold(null);
   assert.equal(clock.pace, 1, 'releasing the hold restores full pace');
 });
@@ -89,7 +108,10 @@ test('a hold wraps past midnight', () => {
     const gap = ahead(c.hours, 4.5);
     assert.ok(gap > 0 && gap <= 6.01, `short of 4:30 AM (gap ${gap})`);
   });
-  assert.ok(clock.hours > 4.4 && clock.hours < 4.5, `eased in after midnight (${clock.hours})`);
+  assert.ok(
+    clock.hours > 4.4 && clock.hours < 4.5,
+    `eased in after midnight (${clock.hours})`,
+  );
   assert.equal(clock.day, 1, 'sunrise was never reached');
   assert.deepEqual(events, { nightfall: 0, sunrise: 0 });
 });
@@ -112,7 +134,11 @@ test('a sweep emits nightfall once, lands on its hour and runs done once', () =>
   assert.equal(done, 1);
   assert.equal(clock.sweeping, false);
   assert.equal(clock.hours, 19);
-  assert.equal(clock.pace, 1, 'the sweep passed the hold limit, so the hold is gone');
+  assert.equal(
+    clock.pace,
+    1,
+    'the sweep passed the hold limit, so the hold is gone',
+  );
 });
 
 test('a sweep across midnight emits sunrise once and starts the next day', () => {
@@ -136,7 +162,10 @@ test('a hold set below the current hour means tomorrow, and eases in after midni
   clock.hours = 21;
   clock.hold(1);
   const events = run(clock, 3 * 3600, 0.05);
-  assert.ok(clock.hours > 0.9 && clock.hours < 1, `just short of 1 AM (${clock.hours})`);
+  assert.ok(
+    clock.hours > 0.9 && clock.hours < 1,
+    `just short of 1 AM (${clock.hours})`,
+  );
   assert.deepEqual(events, { nightfall: 0, sunrise: 0 });
 });
 
@@ -165,7 +194,11 @@ test('a sweep through midnight into the morning emits each boundary once', () =>
 });
 
 test('cancelSweep, a new hold, or a new sweep stops a sweep where it is without its done', () => {
-  for (const stop of [(c) => c.cancelSweep(), (c) => c.hold(23.5), (c) => c.sweep(c.hours, 0.001, () => {})]) {
+  for (const stop of [
+    (c) => c.cancelSweep(),
+    (c) => c.hold(23.5),
+    (c) => c.sweep(c.hours, 0.001, () => {}),
+  ]) {
     const clock = new GameClock();
     clock.hours = 18;
     let done = 0;
@@ -206,7 +239,10 @@ test('a sweep that stops short of the hold keeps it, and holds and sweeps ignore
   clock.skipToNextPhase();
   assert.equal(clock.hours, before, 'no skip during a hold');
   run(clock, 600, 1 / 30);
-  assert.ok(clock.hours < 23 && clock.hours > 22.9, `still held short of 11 PM (${clock.hours})`);
+  assert.ok(
+    clock.hours < 23 && clock.hours > 22.9,
+    `still held short of 11 PM (${clock.hours})`,
+  );
   clock.hold(null);
   clock.skipToNextPhase();
   assert.equal(clock.hours, sunrise - 0.02);

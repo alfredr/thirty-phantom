@@ -1,4 +1,11 @@
-import { BoxGeometry, Group, Mesh, MeshStandardMaterial, type Object3D, type Vector3 } from 'three';
+import {
+  BoxGeometry,
+  Group,
+  Mesh,
+  MeshStandardMaterial,
+  type Object3D,
+  type Vector3,
+} from 'three';
 
 import { TAU } from '@/engine/core/math';
 import { Rng } from '@/engine/core/rng';
@@ -28,10 +35,19 @@ export class Bats {
   ) {
     const rng = new Rng(13);
     const mat = withCutaway(
-      new MeshStandardMaterial({ color: '#160b22', roughness: 0.8, emissive: '#5a1f9a', emissiveIntensity: 0.9 }),
+      new MeshStandardMaterial({
+        color: '#160b22',
+        roughness: 0.8,
+        emissive: '#5a1f9a',
+        emissiveIntensity: 0.9,
+      }),
     );
     const eye = withCutaway(
-      new MeshStandardMaterial({ color: PALETTE.red, emissive: PALETTE.red, emissiveIntensity: 3 }),
+      new MeshStandardMaterial({
+        color: PALETTE.red,
+        emissive: PALETTE.red,
+        emissiveIntensity: 3,
+      }),
     );
     const bodyGeo = new BoxGeometry(0.34, 0.3, 0.6);
     const wingGeo = new BoxGeometry(0.9, 0.05, 0.75);
@@ -60,7 +76,11 @@ export class Bats {
         const pivot = new Group();
         pivot.position.x = side * 0.15;
         pivot.scale.x = side;
-        pivot.add(new Mesh(wingGeo, mat), new Mesh(tipGeo, mat), new Mesh(scallop, mat));
+        pivot.add(
+          new Mesh(wingGeo, mat),
+          new Mesh(tipGeo, mat),
+          new Mesh(scallop, mat),
+        );
         root.add(pivot);
         return pivot;
       };

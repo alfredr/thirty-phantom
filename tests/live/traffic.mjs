@@ -1,12 +1,17 @@
 // Traffic on the city loops. Each case runs in the page (see tools/scenarios.mjs).
 
-/** Verify that queued traffic honks and completes a detour around a stopped car. */
+/**
+ * Verify that queued traffic honks and completes a detour around a stopped
+ * car.
+ */
 export function pullsRoundBlockedLane() {
   const g = window.__game;
   const sim = window.__sim;
   g.start();
   sim.run(300);
-  const blocker = g.vehicles.find((v) => v.role === 'traffic' && Math.abs(v.speed) > 3);
+  const blocker = g.vehicles.find(
+    (v) => v.role === 'traffic' && Math.abs(v.speed) > 3,
+  );
   if (!blocker) {
     return { ok: false, why: 'no moving traffic' };
   }
@@ -32,13 +37,18 @@ export function pullsRoundBlockedLane() {
   };
 }
 
-/** Verify that boarding a detouring car cancels the detour and gives Cody the seat. */
+/**
+ * Verify that boarding a detouring car cancels the detour and gives Cody the
+ * seat.
+ */
 export function codyTakesAPullRound() {
   const g = window.__game;
   const sim = window.__sim;
   g.start();
   sim.run(300);
-  const blocker = g.vehicles.find((v) => v.role === 'traffic' && Math.abs(v.speed) > 3);
+  const blocker = g.vehicles.find(
+    (v) => v.role === 'traffic' && Math.abs(v.speed) > 3,
+  );
   if (!blocker) {
     return { ok: false, why: 'no moving traffic' };
   }
@@ -57,7 +67,11 @@ export function codyTakesAPullRound() {
   g.board(car);
   sim.run(2);
   return {
-    ok: held && !g.detours.has(car) && g.claims.holder('driverSeat', car) === g.cody && car.role === 'player',
+    ok:
+      held &&
+      !g.detours.has(car) &&
+      g.claims.holder('driverSeat', car) === g.cody &&
+      car.role === 'player',
     held,
     mine: g.claims.holder('driverSeat', car) === g.cody,
   };

@@ -9,13 +9,19 @@ type FuelEvents = {
   boosted: null;
 };
 
-/** Cody's fuel persists between vehicles. Breeds supply intake and burn behavior for the current ride. */
+/**
+ * Cody's fuel persists between vehicles. Breeds supply intake and burn
+ * behavior for the current ride.
+ */
 export class GhostFuel {
   fill = 0;
   burning = false;
   private readonly at = new Vector3();
 
-  /** Collect before burning so a newly collected ghost can power the current frame. */
+  /**
+   * Collect before burning so a newly collected ghost can power the current
+   * frame.
+   */
   update(
     car: Vehicle,
     boost: boolean,

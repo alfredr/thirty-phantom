@@ -24,7 +24,10 @@ function savedMode(): CamMode | null {
   }
 }
 
-/** Camera preferences and transitions. Game decides when to synchronize the view. */
+/**
+ * Camera preferences and transitions. Game decides when to synchronize the
+ * view.
+ */
 export class CameraController {
   private currentMode: CamMode;
   private currentView: CamView = 'iso';
@@ -52,10 +55,14 @@ export class CameraController {
     this.currentMode = this.normalize(mode);
   }
 
-  /** Advance and remember the player's choice, then notify the HUD and tutorial. */
+  /**
+   * Advance and remember the player's choice, then notify the HUD and
+   * tutorial.
+   */
   cycle(): void {
     const modes = this.touch ? TOUCH_MODES : MODES;
-    this.currentMode = modes[(modes.indexOf(this.currentMode) + 1) % modes.length] ?? 'iso';
+    this.currentMode =
+      modes[(modes.indexOf(this.currentMode) + 1) % modes.length] ?? 'iso';
 
     try {
       localStorage.setItem(KEY, this.currentMode);
@@ -69,11 +76,17 @@ export class CameraController {
   }
 
   /** Titles and cutscenes use iso; touch devices always use chase while riding. */
-  sync(playing: boolean, cutscene: boolean, ride: { yaw: number } | null, playerYaw: number): void {
+  sync(
+    playing: boolean,
+    cutscene: boolean,
+    ride: { yaw: number } | null,
+    playerYaw: number,
+  ): void {
     const chase =
       playing &&
       !cutscene &&
-      (this.currentMode === 'chase' || (ride !== null && (this.currentMode === 'auto' || this.touch)));
+      (this.currentMode === 'chase' ||
+        (ride !== null && (this.currentMode === 'auto' || this.touch)));
     const view = chase ? 'chase' : 'iso';
     if (view === this.currentView) {
       return;

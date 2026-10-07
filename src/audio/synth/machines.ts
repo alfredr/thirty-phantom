@@ -1,6 +1,18 @@
 import { lerp } from '@/engine/core/math';
 
-import { Sources, osc, noise, filter, amp, shape, strike, chain, rand, type Kit, type Voice } from './nodes';
+import {
+  Sources,
+  osc,
+  noise,
+  filter,
+  amp,
+  shape,
+  strike,
+  chain,
+  rand,
+  type Kit,
+  type Voice,
+} from './nodes';
 
 export interface HornP {
   /** Horn frequencies in Hz. Car horns use two notes; the motorcycle uses one. */
@@ -26,7 +38,14 @@ export function horn(k: Kit, out: AudioNode, t: number, p: HornP): Voice {
   // Compensate for drive gain so distortion changes the timbre more than the volume.
   const top = 1 / Math.sqrt(drive);
   const env = amp(k, 0);
-  chain(pre, shape(k, k.soft), filter(k, 'peaking', p.tone, 1.4, 9), filter(k, 'lowpass', p.tone * 2), env, out);
+  chain(
+    pre,
+    shape(k, k.soft),
+    filter(k, 'peaking', p.tone, 1.4, 9),
+    filter(k, 'lowpass', p.tone * 2),
+    env,
+    out,
+  );
 
   for (const f of p.f) {
     const o = osc(k, s, p.wave, f, t, end);
@@ -138,7 +157,12 @@ export function crank(k: Kit, out: AudioNode, t: number, p: CrankP): Voice {
     chug.gain.setValueAtTime(p.vol * 0.2, at);
     chug.gain.linearRampToValueAtTime(p.vol, at + period * 0.3);
     chug.gain.linearRampToValueAtTime(p.vol * 0.2, at + period * 0.95);
-    chain(noise(k, s, at, at + 0.07), filter(k, 'bandpass', 900, 1.2), strike(k, at, p.vol * 0.4, 0.002, 0.05), out);
+    chain(
+      noise(k, s, at, at + 0.07),
+      filter(k, 'bandpass', 900, 1.2),
+      strike(k, at, p.vol * 0.4, 0.002, 0.05),
+      out,
+    );
     at += period;
   }
 

@@ -13,9 +13,23 @@ import {
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 
-import { atSedanScale, buildCarRig, SEDAN, SEDAN_SCALE } from '@/actors/models/car';
-import { type CharacterModel, GltfCharacter, ProceduralCharacter } from '@/actors/models/character';
-import { isFrontWheel, type VehicleRig, WHEELS, type WheelRig } from '@/actors/models/rig';
+import {
+  atSedanScale,
+  buildCarRig,
+  SEDAN,
+  SEDAN_SCALE,
+} from '@/actors/models/car';
+import {
+  type CharacterModel,
+  GltfCharacter,
+  ProceduralCharacter,
+} from '@/actors/models/character';
+import {
+  isFrontWheel,
+  type VehicleRig,
+  WHEELS,
+  type WheelRig,
+} from '@/actors/models/rig';
 import { addUnderglow, buildTruckRig } from '@/actors/models/truck';
 import { urlFlag } from '@/engine/core/url-flags';
 import { truckLivery } from '@/render/livery';
@@ -24,8 +38,9 @@ import { softInk, withCutaway } from '@/render/materials';
 export type ModelKey = 'monsterTruck' | 'car' | 'cody';
 
 /**
- * Disable shadow casting for meshes whose bounding radius is below this fraction of the full model. Small details add
- * shadow draw calls with little visible benefit.
+ * Disable shadow casting for meshes whose bounding radius is below this
+ * fraction of the full model. Small details add shadow draw calls with little
+ * visible benefit.
  */
 const SMALL_CASTER = 0.12;
 
@@ -39,13 +54,14 @@ interface Loaded {
 }
 
 /**
- * Load optional GLB actor models from public/assets/manifest.json, with procedural fallbacks for missing or failed
- * assets.
+ * Load optional GLB actor models from public/assets/manifest.json, with
+ * procedural fallbacks for missing or failed assets.
  *
- * Models use meters, +Y up, +Z forward, and an origin at ground center. Vehicle wheels use wheel_fl, wheel_fr,
- * wheel_rl, and wheel_rr nodes at axle centers; a body node supports suspension motion. Cody models provide idle, walk,
- * and run animations with day_* and night_* outfit meshes. Material names identify paint, livery_side, hood, headlight,
- * and taillight roles.
+ * Models use meters, +Y up, +Z forward, and an origin at ground center.
+ * Vehicle wheels use wheel_fl, wheel_fr, wheel_rl, and wheel_rr nodes at axle
+ * centers; a body node supports suspension motion. Cody models provide idle,
+ * walk, and run animations with day_* and night_* outfit meshes. Material
+ * names identify paint, livery_side, hood, headlight, and taillight roles.
  */
 export class AssetRegistry {
   private readonly models = new Map<ModelKey, Loaded>();
@@ -68,40 +84,51 @@ export class AssetRegistry {
 
     const loader = new GLTFLoader();
     await Promise.all(
-      (Object.entries(manifest.models) as [ModelKey, string | null][]).map(async ([key, file]) => {
-        if (!file) {
-          return;
-        }
+      (Object.entries(manifest.models) as [ModelKey, string | null][]).map(
+        async ([key, file]) => {
+          if (!file) {
+            return;
+          }
 
-        try {
-          const gltf = await loader.loadAsync(`${base}${file}`);
-          gltf.scene.updateMatrixWorld(true);
-          const whole = new Box3().setFromObject(gltf.scene).getBoundingSphere(new Sphere()).radius;
-          gltf.scene.traverse((o) => {
-            const m = o as Mesh;
-            if (!m.isMesh) {
-              return;
-            }
-
-            m.geometry.computeBoundingSphere();
-            const r = (m.geometry.boundingSphere?.radius ?? 0) * m.matrixWorld.getMaxScaleOnAxis();
-            m.castShadow = r >= whole * SMALL_CASTER;
-            m.receiveShadow = true;
-            const mats = Array.isArray(m.material) ? m.material : [m.material];
-            mats.forEach((mm: Material) => {
-              withCutaway(mm);
-
-              if (baseName(mm.name) === 'slime') {
-                softInk(mm);
+          try {
+            const gltf = await loader.loadAsync(`${base}${file}`);
+            gltf.scene.updateMatrixWorld(true);
+            const whole = new Box3()
+              .setFromObject(gltf.scene)
+              .getBoundingSphere(new Sphere()).radius;
+            gltf.scene.traverse((o) => {
+              const m = o as Mesh;
+              if (!m.isMesh) {
+                return;
               }
+
+              m.geometry.computeBoundingSphere();
+              const r =
+                (m.geometry.boundingSphere?.radius ?? 0) *
+                m.matrixWorld.getMaxScaleOnAxis();
+              m.castShadow = r >= whole * SMALL_CASTER;
+              m.receiveShadow = true;
+              const mats = Array.isArray(m.material)
+                ? m.material
+                : [m.material];
+              mats.forEach((mm: Material) => {
+                withCutaway(mm);
+
+                if (baseName(mm.name) === 'slime') {
+                  softInk(mm);
+                }
+              });
             });
-          });
-          reg.models.set(key, { scene: gltf.scene, clips: gltf.animations });
-          console.info(`[assets] ${key} <- ${file}`);
-        } catch (err) {
-          console.warn(`[assets] failed to load ${file}, using procedural ${key}`, err);
-        }
-      }),
+            reg.models.set(key, { scene: gltf.scene, clips: gltf.animations });
+            console.info(`[assets] ${key} <- ${file}`);
+          } catch (err) {
+            console.warn(
+              `[assets] failed to load ${file}, using procedural ${key}`,
+              err,
+            );
+          }
+        },
+      ),
     );
     return reg;
   }
@@ -148,15 +175,19 @@ export class AssetRegistry {
     }
 
     // Match the procedural sedan scale and its collision dimensions.
-    const rig = vehicleFromGltf(src.scene.clone(true), SEDAN.height * SEDAN_SCALE, (name, m) => {
-      if (name === 'paint') {
-        const p = m.clone();
-        p.color.set(color);
-        return p;
-      }
+    const rig = vehicleFromGltf(
+      src.scene.clone(true),
+      SEDAN.height * SEDAN_SCALE,
+      (name, m) => {
+        if (name === 'paint') {
+          const p = m.clone();
+          p.color.set(color);
+          return p;
+        }
 
-      return null;
-    });
+        return null;
+      },
+    );
     return atSedanScale(rig);
   }
 }
@@ -180,7 +211,10 @@ function liveryMat(
   return m;
 }
 
-/** Remove Blender numeric name suffixes, including the dotless form produced by GLTFLoader. */
+/**
+ * Remove Blender numeric name suffixes, including the dotless form produced by
+ * GLTFLoader.
+ */
 function baseName(n: string): string {
   return n.replace(/\.?\d{3}$/, '');
 }
@@ -188,7 +222,10 @@ function baseName(n: string): string {
 function vehicleFromGltf(
   scene: Object3D,
   height: number,
-  remap: (name: string, m: MeshStandardMaterial) => MeshStandardMaterial | null,
+  remap: (
+    name: string,
+    m: MeshStandardMaterial,
+  ) => MeshStandardMaterial | null,
 ): VehicleRig {
   const root = new Group();
   root.add(scene);
@@ -209,7 +246,9 @@ function vehicleFromGltf(
 
       const std = mm as MeshStandardMaterial;
       let out: MeshStandardMaterial = std;
-      const r = std.isMeshStandardMaterial ? remap(baseName(std.name), std) : null;
+      const r = std.isMeshStandardMaterial
+        ? remap(baseName(std.name), std)
+        : null;
       if (r) {
         out = withCutaway(r);
       } else if (std.name === 'headlight' || std.name === 'taillight') {
@@ -225,7 +264,9 @@ function vehicleFromGltf(
       return out;
     };
 
-    m.material = Array.isArray(m.material) ? m.material.map(fix) : fix(m.material);
+    m.material = Array.isArray(m.material)
+      ? m.material.map(fix)
+      : fix(m.material);
   });
 
   const find = (prefix: string): Object3D | null => {
@@ -258,7 +299,12 @@ function vehicleFromGltf(
     spin.add(node);
     node.position.set(0, 0, 0);
     const size = new Box3().setFromObject(node).getSize(new Vector3());
-    wheels.push({ pivot, spin, front: isFrontWheel(name), radius: Math.max(0.2, size.y / 2) });
+    wheels.push({
+      pivot,
+      spin,
+      front: isFrontWheel(name),
+      radius: Math.max(0.2, size.y / 2),
+    });
   }
 
   return { root, body, wheels, lights, materials, height, scale: 1 };

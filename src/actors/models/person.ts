@@ -2,7 +2,16 @@ import { TAU, type V3 } from '@/engine/core/math';
 import type { Rng } from '@/engine/core/rng';
 import { PALETTE } from '@/render/palette';
 
-import { box, build, group, model, NO_CAST, pivot, SIDES, solid } from './part';
+import {
+  box,
+  build,
+  group,
+  model,
+  NO_CAST,
+  pivot,
+  SIDES,
+  solid,
+} from './part';
 import { type CharacterRig, characterRig, limb } from './rig';
 
 /** Body proportions shared by every city person (valets, pedestrians). */
@@ -35,11 +44,17 @@ export interface Outfit {
 /** Shared dark material for facial details and ties. */
 export const FACE_INK = { color: '#1a0f14', roughness: 0.9 };
 
-/** A city person on the shared rig layout (body, head, armL/R, legL/R). Feet at y=0, faces +Z. */
+/**
+ * A city person on the shared rig layout (body, head, armL/R, legL/R). Feet at
+ * y=0, faces +Z.
+ */
 export function person(o: Outfit) {
   const b = BODY;
   const jacket = box(...b.torso).on(b.hip);
-  const shirt = jacket.sized(0.2, 0.46, 0.05).onFace(jacket, '+z').move(0, 0.12);
+  const shirt = jacket
+    .sized(0.2, 0.46, 0.05)
+    .onFace(jacket, '+z')
+    .move(0, 0.12);
   const head = box(...b.head).on(jacket.top + 0.04);
   const cap = head.sized(0.36, 0.16, 0.36).on(head.top - 0.01);
   const beanie = head.sized(0.44, 0.2, 0.42).on(head.top - 0.08);
@@ -49,7 +64,15 @@ export function person(o: Outfit) {
     ...(o.hat === 'cap'
       ? [
           solid(cap, 'hat'),
-          ...(o.trim ? [solid(cap.sized(0.37, 0.04, 0.37).y(cap.bottom + 0.02), 'trim', NO_CAST)] : []),
+          ...(o.trim
+            ? [
+                solid(
+                  cap.sized(0.37, 0.04, 0.37).y(cap.bottom + 0.02),
+                  'trim',
+                  NO_CAST,
+                ),
+              ]
+            : []),
         ]
       : []),
     ...(o.hat === 'beanie' ? [solid(beanie, 'hat')] : []),
@@ -64,7 +87,11 @@ export function person(o: Outfit) {
         NO_CAST,
       ),
     ),
-    solid(head.sized(0.14, 0.03, 0.03).onFace(head, '+z', 0.01).move(0, -0.1), 'ink', NO_CAST),
+    solid(
+      head.sized(0.14, 0.03, 0.03).onFace(head, '+z', 0.01).move(0, -0.1),
+      'ink',
+      NO_CAST,
+    ),
   ];
   return model(
     {
@@ -94,7 +121,15 @@ export function person(o: Outfit) {
           ]);
         }),
         solid(jacket, 'top'),
-        ...(o.trim ? [solid(jacket.sized(0.68, 0.06, 0.42).y(jacket.bottom + 0.04), 'trim', NO_CAST)] : []),
+        ...(o.trim
+          ? [
+              solid(
+                jacket.sized(0.68, 0.06, 0.42).y(jacket.bottom + 0.04),
+                'trim',
+                NO_CAST,
+              ),
+            ]
+          : []),
         ...(o.shirt ? [solid(shirt, 'shirt', NO_CAST)] : []),
         ...(o.tie
           ? [
@@ -113,7 +148,10 @@ export function person(o: Outfit) {
             .under(jacket.top - 0.04)
             .outside(jacket, s < 0 ? '-x' : '+x');
           return limb(s < 0 ? 'armL' : 'armR', arm, 'top', [
-            solid(arm.sized(0.16, 0.15, 0.18).under(arm.bottom + 0.01), 'skin'),
+            solid(
+              arm.sized(0.16, 0.15, 0.18).under(arm.bottom + 0.01),
+              'skin',
+            ),
           ]);
         }),
         pivot('head', [0, jacket.top + 0.02, 0], headParts),
@@ -140,13 +178,41 @@ const TOPS = [
   '#444455',
   '#6a2f4a',
 ];
-const BOTTOMS = ['#2b2f48', '#1b1622', '#3a3a3a', '#5a4a3a', '#2a3a4a', '#4a3a5a'];
-const SKINS = ['#e0b08c', '#c48a64', '#8a5a3c', '#f0c8a8', '#6a4028', '#d9a07a'];
-const HAIR = ['#1a120e', '#5a3a24', '#c8a050', '#8a8a8a', '#2a1a12', '#7a2f8a'];
+const BOTTOMS = [
+  '#2b2f48',
+  '#1b1622',
+  '#3a3a3a',
+  '#5a4a3a',
+  '#2a3a4a',
+  '#4a3a5a',
+];
+const SKINS = [
+  '#e0b08c',
+  '#c48a64',
+  '#8a5a3c',
+  '#f0c8a8',
+  '#6a4028',
+  '#d9a07a',
+];
+const HAIR = [
+  '#1a120e',
+  '#5a3a24',
+  '#c8a050',
+  '#8a8a8a',
+  '#2a1a12',
+  '#7a2f8a',
+];
 
-/** Choose a pedestrian outfit from the configured palettes using the supplied generator. */
+/**
+ * Choose a pedestrian outfit from the configured palettes using the supplied
+ * generator.
+ */
 export function randomOutfit(rng: Rng): Outfit {
-  const hat = rng.chance(0.25) ? (rng.chance(0.5) ? 'cap' : 'beanie') : undefined;
+  const hat = rng.chance(0.25)
+    ? rng.chance(0.5)
+      ? 'cap'
+      : 'beanie'
+    : undefined;
   return {
     top: rng.pick(TOPS),
     bottom: rng.pick(BOTTOMS),
@@ -165,12 +231,18 @@ const RUN_SPEED = 3.5;
 const WALK_STRIDE = 1.5;
 const RUN_STRIDE = 2.2;
 const RUN_SWING = 1.15;
-/** Swing of the legs and arms (radians) and bob of the body (meters) at full stride. */
+/**
+ * Swing of the legs and arms (radians) and bob of the body (meters) at full
+ * stride.
+ */
 const LEG_SWING = 0.7;
 const ARM_SWING = 0.6;
 const BOB = 0.06;
 
-/** Advance a walking or running gait from ground speed in m/s, with phase proportional to distance. */
+/**
+ * Advance a walking or running gait from ground speed in m/s, with phase
+ * proportional to distance.
+ */
 export class Gait {
   private phase = 0;
 
@@ -182,7 +254,10 @@ export class Gait {
   }
 }
 
-/** Set limb rotations for stride phase in radians and amplitude `amp`. Return vertical body displacement in meters. */
+/**
+ * Set limb rotations for stride phase in radians and amplitude `amp`. Return
+ * vertical body displacement in meters.
+ */
 export function stride(rig: CharacterRig, phase: number, amp: number): number {
   const s = Math.sin(phase);
   rig.legL.rotation.x = s * LEG_SWING * amp;

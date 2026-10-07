@@ -15,7 +15,15 @@ const CODY = '30-CODY-01';
 const seeds = (n, from = 1) => Array.from({ length: n }, (_, i) => from + i);
 
 function car() {
-  const rig = { root: new Group(), body: new Group(), wheels: [], lights: [], materials: [], height: 1.4, scale: 1 };
+  const rig = {
+    root: new Group(),
+    body: new Group(),
+    wheels: [],
+    lights: [],
+    materials: [],
+    height: 1.4,
+    scale: 1,
+  };
   return new Vehicle('car', rig, '#fff', 'parked');
 }
 
@@ -30,11 +38,21 @@ test('plates are three letters, a dash and four digits, with no I, O or Q', () =
 test('a lot of cars gets varied plates with no repeats', () => {
   const lot = seeds(60).map((seed) => licensePlate(seed));
   assert.equal(new Set(lot).size, lot.length);
-  assert.equal(new Set(lot.map((p) => p.slice(0, 3))).size, lot.length, 'letter groups vary');
-  assert.ok(new Set(lot.map((p) => p.slice(4))).size >= 58, 'digit groups vary');
+  assert.equal(
+    new Set(lot.map((p) => p.slice(0, 3))).size,
+    lot.length,
+    'letter groups vary',
+  );
+  assert.ok(
+    new Set(lot.map((p) => p.slice(4))).size >= 58,
+    'digit groups vary',
+  );
   assert.ok(new Set(lot.map((p) => p[0])).size >= 15, 'leading letters vary');
   assert.ok(new Set(lot.map((p) => p[7])).size === 10, 'final digits vary');
-  assert.ok(!lot.some((p) => p.startsWith('PCD-')), 'no sequential fleet prefix');
+  assert.ok(
+    !lot.some((p) => p.startsWith('PCD-')),
+    'no sequential fleet prefix',
+  );
 });
 
 test('the same seed always gives the same plate', () => {
@@ -43,7 +61,11 @@ test('the same seed always gives the same plate', () => {
   }
 
   issuePlate(42);
-  assert.equal(licensePlate(42), licensePlate(42), 'issuing does not change the unreserved plate');
+  assert.equal(
+    licensePlate(42),
+    licensePlate(42),
+    'issuing does not change the unreserved plate',
+  );
 });
 
 test('a taken plate is skipped for a fresh one from the same seed', () => {

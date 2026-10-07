@@ -12,9 +12,14 @@ export interface Stamp extends GameTime {
 
 const WALL = import.meta.env.DEV;
 
-export const stampAt = (t: GameTime): Stamp => ({ hours: t.hours, day: t.day, wall: new Date() });
+export const stampAt = (t: GameTime): Stamp => ({
+  hours: t.hours,
+  day: t.day,
+  wall: new Date(),
+});
 
-export const dayLabel = (t: GameTime): string => `${GameClock.phaseAt(t.hours) === 'day' ? 'DAY' : 'NIGHT'} ${t.day}`;
+export const dayLabel = (t: GameTime): string =>
+  `${GameClock.phaseAt(t.hours) === 'day' ? 'DAY' : 'NIGHT'} ${t.day}`;
 
 const two = (n: number): string => String(n).padStart(2, '0');
 

@@ -15,12 +15,19 @@ export function buildGasCan(): Group {
       },
       [
         solid(body, 'paint'),
-        solid(body.sized(BODY.w + 0.012, 0.03, BODY.d * 0.7).y(BODY.h * 0.5), 'trim'),
+        solid(
+          body.sized(BODY.w + 0.012, 0.03, BODY.d * 0.7).y(BODY.h * 0.5),
+          'trim',
+        ),
         solid(body.sized(0.04, 0.05, 0.16).on(body).move(0, 0, -0.06), 'trim'),
-        solid(body.sized(0.05, 0.02, 0.18).on(body).move(0, 0.05, -0.06), 'trim'),
-        group({ at: [0, BODY.h + 0.04, BODY.d / 2 - 0.04], rot: [0.7, 0, 0] }, [
-          cylinder(0.025, 0.12, 8, 'cap', { at: [0, 0.05, 0] }),
-        ]),
+        solid(
+          body.sized(0.05, 0.02, 0.18).on(body).move(0, 0.05, -0.06),
+          'trim',
+        ),
+        group(
+          { at: [0, BODY.h + 0.04, BODY.d / 2 - 0.04], rot: [0.7, 0, 0] },
+          [cylinder(0.025, 0.12, 8, 'cap', { at: [0, 0.05, 0] })],
+        ),
       ],
     ),
   ).root;

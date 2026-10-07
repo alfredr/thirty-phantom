@@ -4,7 +4,10 @@ import type { BoxDef, LevelData, V3 } from '@/world/level-data';
 
 /** Dynamic state required to draw one map frame. */
 export interface MapView {
-  /** Player or vehicle position and heading; forward is (sin yaw, cos yaw) in x/z. */
+  /**
+   * Player or vehicle position and heading; forward is (sin yaw, cos yaw) in
+   * x/z.
+   */
   x: number;
   z: number;
   yaw: number;
@@ -12,7 +15,12 @@ export interface MapView {
   upX: number;
   upZ: number;
   driving: boolean;
-  marks: readonly { x: number; z: number; kind: ObjectiveKind; color?: string }[];
+  marks: readonly {
+    x: number;
+    z: number;
+    kind: ObjectiveKind;
+    color?: string;
+  }[];
 }
 
 /** Resolution of the static city image, in pixels per meter. */
@@ -33,13 +41,17 @@ const COLORS = {
   pin: '#e8fff0',
 };
 const PIN = 2.5;
-/** Compass radius in CSS pixels; placement includes additional room for the north pointer. */
+/**
+ * Compass radius in CSS pixels; placement includes additional room for the
+ * north pointer.
+ */
 const COMPASS = 13;
 
 /**
- * Draw a camera-aligned city map using a static image baked from level geometry. Center on the player and overlay fixed
- * landmarks, objective markers, and a north compass. Clamp distant objectives to the map edge. The HUD can dock this
- * view in the dashboard, phone, or desktop corner.
+ * Draw a camera-aligned city map using a static image baked from level
+ * geometry. Center on the player and overlay fixed landmarks, objective
+ * markers, and a north compass. Clamp distant objectives to the map edge. The
+ * HUD can dock this view in the dashboard, phone, or desktop corner.
  */
 export class Minimap {
   readonly root: HTMLDivElement;
@@ -48,9 +60,17 @@ export class Minimap {
   private readonly city: HTMLCanvasElement;
   private readonly x0: number;
   private readonly z0: number;
-  private readonly marks: readonly { x: number; z: number; label: string; color: string }[];
+  private readonly marks: readonly {
+    x: number;
+    z: number;
+    label: string;
+    color: string;
+  }[];
 
-  /** Reuse `share`’s city image and static markers when supplied. Both views must represent the same level. */
+  /**
+   * Reuse `share`’s city image and static markers when supplied. Both views
+   * must represent the same level.
+   */
   constructor(parent: HTMLElement, level: LevelData, share?: Minimap) {
     this.root = el('div', 'hud-map', parent);
     this.canvas = el('canvas', 'map-canvas', this.root);
@@ -79,12 +99,22 @@ export class Minimap {
 
     this.x0 = x0 - 20;
     this.z0 = z0 - 20;
-    this.city = bake(level, this.x0, this.z0, x1 + 20 - this.x0, z1 + 20 - this.z0);
+    this.city = bake(
+      level,
+      this.x0,
+      this.z0,
+      x1 + 20 - this.x0,
+      z1 + 20 - this.z0,
+    );
     const randy = level.npcs.find((n) => n.id === 'randy');
     const foxy = level.valets[0];
     this.marks = [
-      ...(randy ? [{ x: randy.pos[0], z: randy.pos[2], label: 'R', color: '#ffcf73' }] : []),
-      ...(foxy ? [{ x: foxy.pos[0], z: foxy.pos[2], label: 'F', color: '#c46bff' }] : []),
+      ...(randy
+        ? [{ x: randy.pos[0], z: randy.pos[2], label: 'R', color: '#ffcf73' }]
+        : []),
+      ...(foxy
+        ? [{ x: foxy.pos[0], z: foxy.pos[2], label: 'F', color: '#c46bff' }]
+        : []),
     ];
   }
 
@@ -96,7 +126,10 @@ export class Minimap {
     const cw = this.canvas.clientWidth;
     const ch = this.canvas.clientHeight;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    if (this.canvas.width !== Math.round(cw * dpr) || this.canvas.height !== Math.round(ch * dpr)) {
+    if (
+      this.canvas.width !== Math.round(cw * dpr) ||
+      this.canvas.height !== Math.round(ch * dpr)
+    ) {
       this.canvas.width = Math.round(cw * dpr);
       this.canvas.height = Math.round(ch * dpr);
     }
@@ -117,13 +150,22 @@ export class Minimap {
     ctx.scale(k, k);
     ctx.translate(-v.x, -v.z);
     ctx.imageSmoothingEnabled = true;
-    ctx.drawImage(this.city, this.x0, this.z0, this.city.width / BAKE, this.city.height / BAKE);
+    ctx.drawImage(
+      this.city,
+      this.x0,
+      this.z0,
+      this.city.width / BAKE,
+      this.city.height / BAKE,
+    );
     ctx.restore();
 
     // Clamp marker positions to an inset rectangle while preserving their direction.
     const hx = cw / 2 - 9;
     const hz = ch / 2 - 9;
-    const toMap = (x: number, z: number): { x: number; y: number; out: boolean } => {
+    const toMap = (
+      x: number,
+      z: number,
+    ): { x: number; y: number; out: boolean } => {
       const dx = (x - v.x) * k;
       const dz = (z - v.z) * k;
       let sx = dx * cos - dz * sin;
@@ -160,7 +202,9 @@ export class Minimap {
       }
     }
 
-    for (const m of [...v.marks].sort((a, b) => (a.kind === b.kind ? 0 : a.kind === 'optional' ? -1 : 1))) {
+    for (const m of [...v.marks].sort((a, b) =>
+      a.kind === b.kind ? 0 : a.kind === 'optional' ? -1 : 1,
+    )) {
       if (m.kind === 'pin') {
         continue;
       }
@@ -243,8 +287,17 @@ export class Minimap {
   }
 }
 
-/** Rasterize visible level boxes by height and overlay the deck footprint with a green outline. */
-function bake(level: LevelData, x0: number, z0: number, w: number, d: number): HTMLCanvasElement {
+/**
+ * Rasterize visible level boxes by height and overlay the deck footprint with
+ * a green outline.
+ */
+function bake(
+  level: LevelData,
+  x0: number,
+  z0: number,
+  w: number,
+  d: number,
+): HTMLCanvasElement {
   const c = document.createElement('canvas');
   c.width = Math.ceil(w * BAKE);
   c.height = Math.ceil(d * BAKE);
@@ -292,9 +345,17 @@ function bake(level: LevelData, x0: number, z0: number, w: number, d: number): H
   return c;
 }
 
-/** Exclude invisible surfaces, markings, lamps, lines, and footprints below four square meters. */
+/**
+ * Exclude invisible surfaces, markings, lamps, lines, and footprints below
+ * four square meters.
+ */
 function shown(b: BoxDef): boolean {
-  if (b.mat === 'invisible' || b.mat === 'marking' || b.mat.startsWith('lamp') || b.mat.startsWith('line')) {
+  if (
+    b.mat === 'invisible' ||
+    b.mat === 'marking' ||
+    b.mat.startsWith('lamp') ||
+    b.mat.startsWith('line')
+  ) {
     return false;
   }
 
@@ -302,7 +363,14 @@ function shown(b: BoxDef): boolean {
   return area >= 4;
 }
 
-function dot(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, stroke: string, fill: string): void {
+function dot(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  r: number,
+  stroke: string,
+  fill: string,
+): void {
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.fillStyle = fill;
@@ -312,7 +380,13 @@ function dot(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, str
   ctx.stroke();
 }
 
-function diamond(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, fill: string): void {
+function diamond(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  r: number,
+  fill: string,
+): void {
   ctx.beginPath();
   ctx.moveTo(x, y - r);
   ctx.lineTo(x + r, y);

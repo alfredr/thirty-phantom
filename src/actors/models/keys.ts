@@ -9,7 +9,9 @@ export function buildKeys() {
         ...SIDES.map((side) =>
           group({ at: [0, 0, side * 0.025], rot: [0, 0, side * 0.35] }, [
             solid(box(0.045, 0.2, 0.035).y(-0.18), 'metal'),
-            ...[-0.21, -0.27].map((y) => solid(box(0.08, 0.035, 0.035).at(0.025, y, 0), 'metal')),
+            ...[-0.21, -0.27].map((y) =>
+              solid(box(0.08, 0.035, 0.035).at(0.025, y, 0), 'metal'),
+            ),
           ]),
         ),
       ]),

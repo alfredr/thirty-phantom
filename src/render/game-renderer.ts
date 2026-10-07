@@ -1,4 +1,12 @@
-import { NoToneMapping, PCFShadowMap, type Scene, SRGBColorSpace, Vector2, Vector3, WebGLRenderer } from 'three';
+import {
+  NoToneMapping,
+  PCFShadowMap,
+  type Scene,
+  SRGBColorSpace,
+  Vector2,
+  Vector3,
+  WebGLRenderer,
+} from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
@@ -9,45 +17,70 @@ import { TUNING } from '@/config';
 import { urlChoice } from '@/engine/core/url-flags';
 
 import type { ChaseCamera } from './chase-camera';
-import { CURVE_ON, curveCull, curveFrame, curvePoint, curveSweep, curveTop } from './curvature';
+import {
+  CURVE_ON,
+  curveCull,
+  curveFrame,
+  curvePoint,
+  curveSweep,
+  curveTop,
+} from './curvature';
 import { type IsoCamera, ISO_ELEVATION } from './iso-camera';
 import { cutUniforms } from './materials';
 import { GhostPass } from './post/ghost-pass';
 import { SceneOutlinePass } from './post/scene-outline-pass';
 import { GradeShader, MOON_X, MOON_Y, SkyShader } from './post/sky-shader';
 
-/** A ShaderPass whose (cloned) uniforms keep the shader definition's names and value types. */
-export type TypedShaderPass<U> = Omit<ShaderPass, 'uniforms'> & { uniforms: U };
+/**
+ * A ShaderPass whose (cloned) uniforms keep the shader definition's names and
+ * value types.
+ */
+export type TypedShaderPass<U> = Omit<ShaderPass, 'uniforms'> & {
+  uniforms: U;
+};
 
-function shaderPass<S extends { uniforms: object }>(shader: S): TypedShaderPass<S['uniforms']> {
+function shaderPass<S extends { uniforms: object }>(
+  shader: S,
+): TypedShaderPass<S['uniforms']> {
   return new ShaderPass(shader) as unknown as TypedShaderPass<S['uniforms']>;
 }
 
 /**
- * Bloom settings shared across times of day. Keep the broad blur levels weak to limit glare. `threshold` sets the
- * starting luminance and `knee` controls the transition width; day-night.ts controls overall strength.
+ * Bloom settings shared across times of day. Keep the broad blur levels weak
+ * to limit glare. `threshold` sets the starting luminance and `knee` controls
+ * the transition width; day-night.ts controls overall strength.
  */
 const BLOOM = { radius: 0.1, threshold: 0.9, knee: 0.6 };
 
-/** Frames between sweeps for materials that would still draw flat (render/curvature.ts). */
+/**
+ * Frames between sweeps for materials that would still draw flat
+ * (render/curvature.ts).
+ */
 const SWEEP_EVERY = 60;
 
 /**
- * Render the scene and outlines, sky, ghosts, bloom, grading with tone mapping, output conversion, and SMAA in order.
- * Isometric curvature bends scene geometry before postprocessing and fills uncovered pixels with sky.
+ * Render the scene and outlines, sky, ghosts, bloom, grading with tone
+ * mapping, output conversion, and SMAA in order. Isometric curvature bends
+ * scene geometry before postprocessing and fills uncovered pixels with sky.
  */
 export class GameRenderer {
   readonly renderer: WebGLRenderer;
   readonly composer: EffectComposer;
   readonly outline: SceneOutlinePass;
   readonly sky: TypedShaderPass<typeof SkyShader.uniforms>;
-  /** Draws the ghost layer (a faded Cody); enable it while anything is on that layer. */
+  /**
+   * Draws the ghost layer (a faded Cody); enable it while anything is on that
+   * layer.
+   */
   readonly ghost: GhostPass;
   readonly bloom: UnrealBloomPass;
   readonly grade: TypedShaderPass<typeof GradeShader.uniforms>;
   /** Render through the chase camera instead of the iso rig. */
   chaseView = false;
-  /** Whether the last frame was drawn on the curved world (iso with TUNING.camera.curve). */
+  /**
+   * Whether the last frame was drawn on the curved world (iso with
+   * TUNING.camera.curve).
+   */
   curved = false;
   private readonly pixelRatio: number;
   private readonly tmpUp = new Vector3();
@@ -61,7 +94,11 @@ export class GameRenderer {
     private readonly iso: IsoCamera,
     private readonly chase: ChaseCamera,
   ) {
-    const r = new WebGLRenderer({ antialias: false, powerPreference: 'high-performance', stencil: false });
+    const r = new WebGLRenderer({
+      antialias: false,
+      powerPreference: 'high-performance',
+      stencil: false,
+    });
     r.outputColorSpace = SRGBColorSpace;
     // The grade pass applies per-channel tone mapping to preserve neon saturation.
     r.toneMapping = NoToneMapping;
@@ -71,7 +108,10 @@ export class GameRenderer {
     this.renderer = r;
 
     const q = urlChoice('q', ['low', 'high']);
-    this.pixelRatio = Math.min(window.devicePixelRatio || 1, q === 'low' ? 1 : q === 'high' ? 2 : 1.5);
+    this.pixelRatio = Math.min(
+      window.devicePixelRatio || 1,
+      q === 'low' ? 1 : q === 'high' ? 2 : 1.5,
+    );
     const w = window.innerWidth;
     const h = window.innerHeight;
     r.setPixelRatio(this.pixelRatio);
@@ -85,8 +125,15 @@ export class GameRenderer {
     this.sky = shaderPass(SkyShader);
     this.ghost = new GhostPass(scene);
     // DayNight supplies bloom strength before the first frame.
-    this.bloom = new UnrealBloomPass(new Vector2(w, h), 0, BLOOM.radius, BLOOM.threshold);
-    (this.bloom.highPassUniforms as { smoothWidth: { value: number } }).smoothWidth.value = BLOOM.knee;
+    this.bloom = new UnrealBloomPass(
+      new Vector2(w, h),
+      0,
+      BLOOM.radius,
+      BLOOM.threshold,
+    );
+    (
+      this.bloom.highPassUniforms as { smoothWidth: { value: number } }
+    ).smoothWidth.value = BLOOM.knee;
     this.grade = shaderPass(GradeShader);
     this.composer.addPass(this.outline);
     this.composer.addPass(this.sky);
@@ -114,7 +161,10 @@ export class GameRenderer {
     this.outline.setThickness(Math.max(1.6, this.pixelRatio * 1.35));
   }
 
-  /** Transform a HUD anchor in place for the current curved view. Return the same point, unchanged for flat views. */
+  /**
+   * Transform a HUD anchor in place for the current curved view. Return the
+   * same point, unchanged for flat views.
+   */
   bend(p: Vector3): Vector3 {
     return this.curved ? curvePoint(p) : p;
   }
@@ -127,7 +177,10 @@ export class GameRenderer {
     this.outline.camera = cam;
     this.ghost.camera = cam;
     this.ghost.depthTexture = this.outline.depthTexture;
-    su.invViewProj.value.multiplyMatrices(cam.matrixWorld, cam.projectionMatrixInverse);
+    su.invViewProj.value.multiplyMatrices(
+      cam.matrixWorld,
+      cam.projectionMatrixInverse,
+    );
     su.isPersp.value = this.chaseView ? 1 : 0;
     // Show the distant skyline only in the chase view.
     su.skylineAmount.value = this.chaseView ? 1 : 0;
@@ -158,7 +211,10 @@ export class GameRenderer {
     cut.copy(this.cutFlat);
   }
 
-  /** Configure curvature, shadow coverage, and the matching sky horizon, or reset them for a flat view. */
+  /**
+   * Configure curvature, shadow coverage, and the matching sky horizon, or
+   * reset them for a flat view.
+   */
   private curve(on: boolean): void {
     const u = curveFrame.planet;
     const su = this.sky.uniforms;
@@ -193,8 +249,15 @@ export class GameRenderer {
     // Raise the moon above the curved horizon within the available screen height.
     const mp = su.moonPos.value;
     const hx = (MOON_X - 0.5) * su.horizon.value.z;
-    const foot = cy + Math.sqrt(Math.max(su.horizon.value.x ** 2 - hx * hx, 0));
-    mp.y += Math.max(0, Math.min(foot + su.moonSize.value * 1.25 - MOON_Y, 1 - su.moonSize.value - MOON_Y));
+    const foot =
+      cy + Math.sqrt(Math.max(su.horizon.value.x ** 2 - hx * hx, 0));
+    mp.y += Math.max(
+      0,
+      Math.min(
+        foot + su.moonSize.value * 1.25 - MOON_Y,
+        1 - su.moonSize.value - MOON_Y,
+      ),
+    );
   }
 
   private isoSky(): void {

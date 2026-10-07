@@ -3,7 +3,14 @@ import { Vector3 } from 'three';
 import { TUNING } from '@/config';
 import { clamp, smoothstep } from '@/engine/core/math';
 
-import { type Bus, type Cue, CUES, type CueName, type SoundOf, type Source } from './cues';
+import {
+  type Bus,
+  type Cue,
+  CUES,
+  type CueName,
+  type SoundOf,
+  type Source,
+} from './cues';
 import { soundLog } from './flags';
 import { engine, type Mark } from './grains';
 import { synthesize } from './synth';
@@ -21,19 +28,26 @@ const FADE = 0.08;
 const FOLLOW = 0.05;
 
 /**
- * Return distance attenuation for a cue with the given range, in meters. Apply inverse-distance falloff and fade to
- * silence over the final 40% of the range.
+ * Return distance attenuation for a cue with the given range, in meters. Apply
+ * inverse-distance falloff and fade to silence over the final 40% of the
+ * range.
  */
 export function falloff(d: number, range: number): number {
   if (d >= range) {
     return 0;
   }
 
-  return Math.min(1, A.near / Math.max(d, 1e-3)) * (1 - smoothstep(range * 0.6, range, d));
+  return (
+    Math.min(1, A.near / Math.max(d, 1e-3)) *
+    (1 - smoothstep(range * 0.6, range, d))
+  );
 }
 
 export interface PlayOpts {
-  /** Sound position. Omit or use null for centered audio without distance attenuation. */
+  /**
+   * Sound position. Omit or use null for centered audio without distance
+   * attenuation.
+   */
   at?: Vector3 | null;
   /** Gain multiplier applied in addition to the cue and sound levels. */
   gain?: number;
@@ -41,9 +55,15 @@ export interface PlayOpts {
   note?: string;
 }
 
-/** Handle for a playing loop. The owner updates its position, gain, and synthesis controls, then stops it. */
+/**
+ * Handle for a playing loop. The owner updates its position, gain, and
+ * synthesis controls, then stops it.
+ */
 export interface Loop {
-  /** Mutable source position read each frame, or null for audio without spatial effects. */
+  /**
+   * Mutable source position read each frame, or null for audio without spatial
+   * effects.
+   */
   readonly at: Vector3 | null;
   /** Gain multiplier applied to the loop each frame. */
   gain: number;
@@ -94,9 +114,10 @@ class LoopVoice implements Loop {
 const fmt = (v: number): string => v.toFixed(2);
 
 /**
- * Mix synthesized and recorded sounds through effects and ambience buses, a master gain, and a limiter. Apply distance
- * attenuation, camera-relative stereo panning, and voice limits. Call unlock() from a user gesture before playing
- * audio.
+ * Mix synthesized and recorded sounds through effects and ambience buses, a
+ * master gain, and a limiter. Apply distance attenuation, camera-relative
+ * stereo panning, and voice limits. Call unlock() from a user gesture before
+ * playing audio.
  */
 export class Mixer {
   private ctx: AudioContext | null = null;
@@ -108,7 +129,10 @@ export class Mixer {
   private readonly files = new Map<string, Fetched<AudioBuffer>>();
   /** Engine cycle metadata cached by file path. */
   private readonly marks = new Map<string, Fetched<readonly Mark[]>>();
-  /** Listener position and horizontal camera-right vector used for spatial audio. */
+  /**
+   * Listener position and horizontal camera-right vector used for spatial
+   * audio.
+   */
   readonly ear = new Vector3();
   readonly right = new Vector3(1, 0, 0);
   private muted = false;
@@ -121,7 +145,10 @@ export class Mixer {
     return this.muted;
   }
 
-  /** Create or resume the audio context. Call from a keyboard, pointer, or touch event. */
+  /**
+   * Create or resume the audio context. Call from a keyboard, pointer, or
+   * touch event.
+   */
   unlock(): void {
     if (!this.ctx) {
       if (typeof AudioContext === 'undefined') {
@@ -136,7 +163,10 @@ export class Mixer {
     }
   }
 
-  /** Suspend the audio context when the page is hidden. Resume it with unlock(). */
+  /**
+   * Suspend the audio context when the page is hidden. Resume it with
+   * unlock().
+   */
   suspend(): void {
     if (this.ctx?.state === 'running') {
       void this.ctx.suspend();
@@ -147,7 +177,11 @@ export class Mixer {
     this.muted = on;
     const ctx = this.ctx;
     if (ctx && this.master) {
-      this.master.gain.setTargetAtTime(on ? 0 : A.master, ctx.currentTime, 0.03);
+      this.master.gain.setTargetAtTime(
+        on ? 0 : A.master,
+        ctx.currentTime,
+        0.03,
+      );
     }
   }
 
@@ -191,8 +225,15 @@ export class Mixer {
     }
   }
 
-  /** Play a one-shot cue. Return false if audio is unavailable, muted, inaudible, still loading, or at its voice limit. */
-  play<C extends CueName>(cue: C, sound: SoundOf<C>, o: PlayOpts = {}): boolean {
+  /**
+   * Play a one-shot cue. Return false if audio is unavailable, muted,
+   * inaudible, still loading, or at its voice limit.
+   */
+  play<C extends CueName>(
+    cue: C,
+    sound: SoundOf<C>,
+    o: PlayOpts = {},
+  ): boolean {
     const def: Cue = CUES[cue];
     const src = def.sounds[sound];
     if (!src || !this.ctx || this.muted || !this.ready) {
@@ -202,7 +243,8 @@ export class Mixer {
     const at = o.at ?? null;
     const level = def.vol * (src.vol ?? 1) * (o.gain ?? 1);
     const d = at ? at.distanceTo(this.ear) : 0;
-    const heard = level * (at && def.range !== null ? falloff(d, def.range) : 1);
+    const heard =
+      level * (at && def.range !== null ? falloff(d, def.range) : 1);
     // Silently discard sounds below the audible threshold.
     if (heard < A.cull) {
       return false;
@@ -229,7 +271,18 @@ export class Mixer {
       return this.drop(name, `${def.max} already playing`);
     }
 
-    const live = this.start(cue, name, def, src, at, level, heard, this.ctx.currentTime + 0.005, false, o.note);
+    const live = this.start(
+      cue,
+      name,
+      def,
+      src,
+      at,
+      level,
+      heard,
+      this.ctx.currentTime + 0.005,
+      false,
+      o.note,
+    );
     if (!live) {
       return this.drop(name, 'file still loading');
     }
@@ -239,10 +292,16 @@ export class Mixer {
   }
 
   /**
-   * Start a looping cue, or return null if its source is unavailable or its cue limit is reached. A null position
-   * disables spatial effects.
+   * Start a looping cue, or return null if its source is unavailable or its
+   * cue limit is reached. A null position disables spatial effects.
    */
-  loop<C extends CueName>(cue: C, sound: SoundOf<C>, at: Vector3 | null, gain = 1, note?: string): Loop | null {
+  loop<C extends CueName>(
+    cue: C,
+    sound: SoundOf<C>,
+    at: Vector3 | null,
+    gain = 1,
+    note?: string,
+  ): Loop | null {
     const def: Cue = CUES[cue];
     const src = def.sounds[sound];
     if (!src || !this.ctx) {
@@ -262,8 +321,20 @@ export class Mixer {
 
     const level = def.vol * (src.vol ?? 1);
     const d = at ? at.distanceTo(this.ear) : 0;
-    const heard = level * gain * (at && def.range !== null ? falloff(d, def.range) : 1);
-    const live = this.start(cue, `${cue}: ${sound}`, def, src, at, level, 0, this.ctx.currentTime, true, note);
+    const heard =
+      level * gain * (at && def.range !== null ? falloff(d, def.range) : 1);
+    const live = this.start(
+      cue,
+      `${cue}: ${sound}`,
+      def,
+      src,
+      at,
+      level,
+      0,
+      this.ctx.currentTime,
+      true,
+      note,
+    );
     if (!live) {
       return null;
     }
@@ -276,7 +347,10 @@ export class Mixer {
     return handle;
   }
 
-  /** Update loop gain and panning, schedule audible loop voices, and disconnect completed one-shots. */
+  /**
+   * Update loop gain and panning, schedule audible loop voices, and disconnect
+   * completed one-shots.
+   */
   update(): void {
     const ctx = this.ctx;
     if (!ctx) {
@@ -315,7 +389,10 @@ export class Mixer {
     }
   }
 
-  /** Remove a loop from the active set, fade it out, then stop and disconnect its sources. */
+  /**
+   * Remove a loop from the active set, fade it out, then stop and disconnect
+   * its sources.
+   */
   release(l: Live): void {
     const i = this.live.indexOf(l);
     if (i >= 0) {
@@ -377,24 +454,40 @@ export class Mixer {
           return null;
         }
 
-        return this.keep(cue, name, def, engine(kit, out, t, buf, marks.value, src.engine), out, pan, level, note);
+        return this.keep(
+          cue,
+          name,
+          def,
+          engine(kit, out, t, buf, marks.value, src.engine),
+          out,
+          pan,
+          level,
+          note,
+        );
       }
 
       const s = ctx.createBufferSource();
       s.buffer = buf;
       s.loop = loop;
       // Vary playback rate to make repeated recordings less uniform.
-      const rate = 1 + (Math.random() * 2 - 1) * ('vary' in src ? (src.vary ?? 0) : 0);
+      const rate =
+        1 + (Math.random() * 2 - 1) * ('vary' in src ? (src.vary ?? 0) : 0);
       s.playbackRate.value = rate;
       s.connect(out);
       s.start(t);
-      voice = { end: loop ? Infinity : t + buf.duration / rate, stop: (when) => s.stop(when) };
+      voice = {
+        end: loop ? Infinity : t + buf.duration / rate,
+        stop: (when) => s.stop(when),
+      };
     }
 
     return this.keep(cue, name, def, voice, out, pan, level, note);
   }
 
-  /** Connect a voice to its stereo panner and output bus, then register it for updates. */
+  /**
+   * Connect a voice to its stereo panner and output bus, then register it for
+   * updates.
+   */
   private keep(
     cue: CueName,
     name: string,
@@ -410,12 +503,25 @@ export class Mixer {
       out.connect(pan).connect(buses[def.bus]);
     }
 
-    const live: Live = { cue, name, voice, out, pan, level, range: def.range, loop: null, note };
+    const live: Live = {
+      cue,
+      name,
+      voice,
+      out,
+      pan,
+      level,
+      range: def.range,
+      loop: null,
+      note,
+    };
     this.live.push(live);
     return live;
   }
 
-  /** Calculate a loop's distance-adjusted level before applying its mutable gain. */
+  /**
+   * Calculate a loop's distance-adjusted level before applying its mutable
+   * gain.
+   */
   private heard(l: Live): number {
     const at = l.loop?.at;
     if (!at || l.range === null) {
@@ -425,7 +531,10 @@ export class Mixer {
     return l.level * falloff(at.distanceTo(this.ear), l.range);
   }
 
-  /** Calculate camera-relative stereo pan, reducing separation near the listener. */
+  /**
+   * Calculate camera-relative stereo pan, reducing separation near the
+   * listener.
+   */
   private panFor(at: Vector3): number {
     const dx = at.x - this.ear.x;
     const dz = at.z - this.ear.z;
@@ -434,7 +543,11 @@ export class Mixer {
       return 0;
     }
 
-    return clamp((dx * this.right.x + dz * this.right.z) / h, -1, 1) * A.pan * smoothstep(0, A.near, h);
+    return (
+      clamp((dx * this.right.x + dz * this.right.z) / h, -1, 1) *
+      A.pan *
+      smoothstep(0, A.near, h)
+    );
   }
 
   /** Fetch and decode an audio file once. Cache the result or the failure. */
@@ -447,7 +560,9 @@ export class Mixer {
     const url = `${import.meta.env.BASE_URL}audio/${path}`;
     this.files.set(path, { state: 'loading' });
     void fetch(url)
-      .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((r) =>
+        r.ok ? r.arrayBuffer() : Promise.reject(new Error(`HTTP ${r.status}`)),
+      )
       .then((data) => ctx.decodeAudioData(data))
       .then((value) => void this.files.set(path, { state: 'ready', value }))
       .catch((err: unknown) => {
@@ -465,7 +580,9 @@ export class Mixer {
     const url = `${import.meta.env.BASE_URL}audio/${path}`;
     this.marks.set(path, { state: 'loading' });
     void fetch(url)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((r) =>
+        r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)),
+      )
       .then((data: unknown) => {
         if (
           typeof data !== 'object' ||
@@ -473,7 +590,10 @@ export class Mixer {
           !('marks' in data) ||
           !Array.isArray(data.marks) ||
           !data.marks.every(
-            (mark: unknown): mark is Mark => Array.isArray(mark) && mark.length === 4 && mark.every(Number.isFinite),
+            (mark: unknown): mark is Mark =>
+              Array.isArray(mark) &&
+              mark.length === 4 &&
+              mark.every(Number.isFinite),
           )
         ) {
           throw new Error('Invalid engine cycle metadata');
@@ -492,8 +612,21 @@ export class Mixer {
     return false;
   }
 
-  private log(l: Live, src: Source, d: number | null, heard: number, what: string | null): void {
-    const parts = [what, d !== null ? `${Math.round(d)} m` : null, `vol ${fmt(heard)}`, l.note].filter((p) => p);
-    soundLog(`${l.name} (${'synth' in src ? 'synth' : 'file'}) ${parts.join(', ')}`);
+  private log(
+    l: Live,
+    src: Source,
+    d: number | null,
+    heard: number,
+    what: string | null,
+  ): void {
+    const parts = [
+      what,
+      d !== null ? `${Math.round(d)} m` : null,
+      `vol ${fmt(heard)}`,
+      l.note,
+    ].filter((p) => p);
+    soundLog(
+      `${l.name} (${'synth' in src ? 'synth' : 'file'}) ${parts.join(', ')}`,
+    );
   }
 }

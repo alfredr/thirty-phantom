@@ -5,15 +5,17 @@ import { clamp, lerp, mod, type V3 } from '@/engine/core/math';
 const _a = new Vector3();
 const _d = new Vector3();
 /**
- * Weight vertical separation to distinguish overlapping routes on different floors. Ignore the first LEVEL_SLACK meters
- * so differences between stair treads and the route’s slope do not prevent cursor advancement.
+ * Weight vertical separation to distinguish overlapping routes on different
+ * floors. Ignore the first LEVEL_SLACK meters so differences between stair
+ * treads and the route’s slope do not prevent cursor advancement.
  */
 const LEVEL_WEIGHT = 8;
 const LEVEL_SLACK = 0.5;
 
 /**
- * A path through points, measured by arc length: traffic loops (closed) and planned routes (open) alike. Followers keep
- * an arc-length cursor and look ahead along it.
+ * A path through points, measured by arc length: traffic loops (closed) and
+ * planned routes (open) alike. Followers keep an arc-length cursor and look
+ * ahead along it.
  */
 export class Polyline {
   readonly points: Vector3[];
@@ -23,7 +25,9 @@ export class Polyline {
   readonly total: number;
 
   constructor(points: readonly (Vector3 | V3)[], closed = false) {
-    this.points = points.map((p) => (Array.isArray(p) ? new Vector3(p[0], p[1], p[2]) : p.clone()));
+    this.points = points.map((p) =>
+      Array.isArray(p) ? new Vector3(p[0], p[1], p[2]) : p.clone(),
+    );
     this.closed = closed;
     const n = this.segments;
     const distances: number[] = [0];
@@ -38,7 +42,9 @@ export class Polyline {
   }
 
   get segments(): number {
-    return this.closed ? this.points.length : Math.max(0, this.points.length - 1);
+    return this.closed
+      ? this.points.length
+      : Math.max(0, this.points.length - 1);
   }
 
   get end(): Vector3 {
@@ -66,7 +72,10 @@ export class Polyline {
     return new Polyline(rest);
   }
 
-  /** Write the position and optional unit tangent at arc length `s`. Return `pos`. */
+  /**
+   * Write the position and optional unit tangent at arc length `s`. Return
+   * `pos`.
+   */
   sample(s: number, pos: Vector3, dir?: Vector3): Vector3 {
     if (this.points.length < 2) {
       dir?.set(0, 0, 1);
@@ -87,7 +96,8 @@ export class Polyline {
 
     const a = this.at(lo);
     const b = this.at(lo + 1);
-    const segLen = (this.distances[lo + 1] ?? this.total) - (this.distances[lo] ?? 0);
+    const segLen =
+      (this.distances[lo + 1] ?? this.total) - (this.distances[lo] ?? 0);
     const t = segLen > 0 ? (s - (this.distances[lo] ?? 0)) / segLen : 0;
     if (dir) {
       dir.subVectors(b, a).normalize();
@@ -97,9 +107,10 @@ export class Polyline {
   }
 
   /**
-   * Find the nearest segment projection using height-weighted distance. For open paths, search segments intersecting
-   * [from, from + window] and clamp the result to at least `from`; a projection may extend past the window. Closed
-   * paths search every segment.
+   * Find the nearest segment projection using height-weighted distance. For
+   * open paths, search segments intersecting [from, from + window] and clamp
+   * the result to at least `from`; a projection may extend past the window.
+   * Closed paths search every segment.
    */
   project(p: Vector3, from = 0, window = Infinity): number {
     let best = from;
@@ -118,7 +129,8 @@ export class Polyline {
       const len2 = _d.lengthSq();
       const t = len2 > 0 ? clamp(_a.subVectors(p, a).dot(_d) / len2, 0, 1) : 0;
       _a.copy(a).addScaledVector(_d, t);
-      const dy = Math.max(0, Math.abs(_a.y - p.y) - LEVEL_SLACK) * LEVEL_WEIGHT;
+      const dy =
+        Math.max(0, Math.abs(_a.y - p.y) - LEVEL_SLACK) * LEVEL_WEIGHT;
       const d = (_a.x - p.x) ** 2 + (_a.z - p.z) ** 2 + dy * dy;
       if (d < bd) {
         bd = d;
@@ -131,15 +143,19 @@ export class Polyline {
 }
 
 /**
- * Track progress and sample look-ahead targets on a polyline. The guidance arrow, autopilot, and walkers share this
- * cursor. Progress is monotonic on open paths; closed paths wrap.
+ * Track progress and sample look-ahead targets on a polyline. The guidance
+ * arrow, autopilot, and walkers share this cursor. Progress is monotonic on
+ * open paths; closed paths wrap.
  */
 export class RouteCursor {
   s = 0;
 
   constructor(readonly path: Polyline) {}
 
-  /** Project `pos` onto the route. Open routes advance monotonically using the segment search window. */
+  /**
+   * Project `pos` onto the route. Open routes advance monotonically using the
+   * segment search window.
+   */
   track(pos: Vector3, window = 12): number {
     this.s = this.path.project(pos, this.s, window);
     return this.s;

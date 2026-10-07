@@ -3,7 +3,9 @@ import { type Release, releaseOnce } from '@/engine/core/disposable';
 export class Leases<T> {
   private readonly held: { value: T }[] = [];
 
-  constructor(private readonly apply: (top: T | null) => void = () => undefined) {}
+  constructor(
+    private readonly apply: (top: T | null) => void = () => undefined,
+  ) {}
 
   get top(): T | null {
     return this.held.at(-1)?.value ?? null;

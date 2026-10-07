@@ -57,7 +57,12 @@ export function isControl(name: string): name is Control {
 }
 
 /** Movement actions driven by the touch stick. */
-export const STICK: StickControls<Control> = { left: 'left', right: 'right', forward: 'forward', back: 'back' };
+export const STICK: StickControls<Control> = {
+  left: 'left',
+  right: 'right',
+  forward: 'forward',
+  back: 'back',
+};
 
 /** Return the display label for the primary binding. */
 export function keyName(control: Control): string {

@@ -14,7 +14,10 @@ function ordered(values: number[], path: string): void {
   }
 }
 
-/** Validate the declared format before applying its defaults and checking geometry. */
+/**
+ * Validate the declared format before applying its defaults and checking
+ * geometry.
+ */
 export function parseLevel(json: unknown): LevelData {
   if (typeof json !== 'object' || json === null || Array.isArray(json)) {
     fail('level', 'an object');
@@ -28,7 +31,9 @@ export function parseLevel(json: unknown): LevelData {
     case 1:
       return parseV1(json);
     default:
-      throw new Error('level.version: unsupported format version (expected 1)');
+      throw new Error(
+        'level.version: unsupported format version (expected 1)',
+      );
   }
 }
 
@@ -44,7 +49,8 @@ function parseV1(json: object): LevelData {
         path += /^\d+$/.test(key) ? `[${key}]` : `.${key}`;
       }
 
-      const field = error.params.missingProperty ?? error.params.additionalProperty;
+      const field =
+        error.params.missingProperty ?? error.params.additionalProperty;
       if (typeof field === 'string') {
         path += `.${field}`;
       }
@@ -53,7 +59,16 @@ function parseV1(json: object): LevelData {
     throw new Error(`${path}: ${error?.message ?? 'invalid level'}`);
   }
 
-  for (const key of ['boxes', 'ramps', 'ghostZones', 'gates', 'fences', 'pits', 'elevators', 'buildings'] as const) {
+  for (const key of [
+    'boxes',
+    'ramps',
+    'ghostZones',
+    'gates',
+    'fences',
+    'pits',
+    'elevators',
+    'buildings',
+  ] as const) {
     result[key].forEach((b, i) => checkBounds(b, `level.${key}[${i}]`));
   }
 
@@ -91,20 +106,29 @@ function parseV1(json: object): LevelData {
     );
     elevator.stops.forEach((stop, j) => {
       if (stop.y < elevator.min[1] || stop.y > elevator.max[1]) {
-        fail(`level.elevators[${i}].stops[${j}].y`, 'a height within the shaft');
+        fail(
+          `level.elevators[${i}].stops[${j}].y`,
+          'a height within the shaft',
+        );
       }
     });
   });
   result.buildings.forEach((building, i) => {
     const rect = building.core?.rect;
     if (rect && (rect[0] >= rect[2] || rect[1] >= rect[3])) {
-      fail(`level.buildings[${i}].core.rect`, 'an ordered rectangle with positive area');
+      fail(
+        `level.buildings[${i}].core.rect`,
+        'an ordered rectangle with positive area',
+      );
     }
   });
   return result;
 }
 
-function checkBounds({ min, max }: Pick<LevelData['deck'], 'min' | 'max'>, path: string): void {
+function checkBounds(
+  { min, max }: Pick<LevelData['deck'], 'min' | 'max'>,
+  path: string,
+): void {
   for (let i = 0; i < 3; i++) {
     if (min[i]! > max[i]!) {
       fail(`${path}.max[${i}]`, 'a coordinate at or above min');

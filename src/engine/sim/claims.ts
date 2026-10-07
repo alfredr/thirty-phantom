@@ -1,6 +1,9 @@
 import { type Owner, Relation } from './relation';
 
-/** Capacity limits for a claim kind. Omit perHolder to allow unlimited targets per holder. */
+/**
+ * Capacity limits for a claim kind. Omit perHolder to allow unlimited targets
+ * per holder.
+ */
 export interface ClaimRule {
   readonly perTarget: number;
   readonly perHolder?: number;
@@ -8,7 +11,10 @@ export interface ClaimRule {
 
 export type ClaimTable<K extends string> = Readonly<Record<K, ClaimRule>>;
 
-/** A stored claim: `holder` holds `target` for `kind`, in `slot`, for as long as `owner` lasts. */
+/**
+ * A stored claim: `holder` holds `target` for `kind`, in `slot`, for as long
+ * as `owner` lasts.
+ */
 export interface Claim<K extends string> {
   readonly kind: K;
   readonly holder: object;
@@ -19,14 +25,18 @@ export interface Claim<K extends string> {
 
 export interface TakeOptions {
   readonly owner: Owner;
-  /** Evict the oldest conflicting claim when a capacity is full. Report the loss through lostBy() and `lost`. */
+  /**
+   * Evict the oldest conflicting claim when a capacity is full. Report the
+   * loss through lostBy() and `lost`.
+   */
   readonly preempt?: boolean;
 }
 
 /**
- * Claims are a stored relation: `holds(holder, target, kind)`, keyed per kind by target (and by holder where the table
- * says so). Taking a full claim is refused, or evicts the current holder when the taker preempts. Claims end with their
- * owner.
+ * Claims are a stored relation: `holds(holder, target, kind)`, keyed per kind
+ * by target (and by holder where the table says so). Taking a full claim is
+ * refused, or evicts the current holder when the taker preempts. Claims end
+ * with their owner.
  */
 export class Claims<K extends string> {
   readonly rows: Relation<Claim<K>>;
@@ -38,22 +48,39 @@ export class Claims<K extends string> {
     this.rows = new Relation<Claim<K>>({
       keys: [
         { on: ['kind', 'target'], cap: ({ kind }) => table[kind].perTarget },
-        { on: ['kind', 'holder'], cap: ({ kind }) => table[kind].perHolder ?? Infinity },
+        {
+          on: ['kind', 'holder'],
+          cap: ({ kind }) => table[kind].perHolder ?? Infinity,
+        },
       ],
       evicted: lost,
     });
   }
 
-  /** Takes a claim. Returns true if `holder` holds it afterwards, including when it already did. */
-  take(kind: K, holder: object, target: object, { owner, preempt = false }: TakeOptions): boolean {
+  /**
+   * Takes a claim. Returns true if `holder` holds it afterwards, including
+   * when it already did.
+   */
+  take(
+    kind: K,
+    holder: object,
+    target: object,
+    { owner, preempt = false }: TakeOptions,
+  ): boolean {
     if (this.rows.where({ kind, holder, target }).length) {
       return true;
     }
 
     const held = this.rows.where({ kind, target });
     const cap = this.table[kind].perTarget;
-    const slot = held.length >= cap ? (held[0]?.slot ?? 0) : firstFreeSlot(held, cap);
-    return this.rows.insert({ kind, holder, target, slot, owner }, preempt ? 'evict' : 'refuse') !== null;
+    const slot =
+      held.length >= cap ? (held[0]?.slot ?? 0) : firstFreeSlot(held, cap);
+    return (
+      this.rows.insert(
+        { kind, holder, target, slot, owner },
+        preempt ? 'evict' : 'refuse',
+      ) !== null
+    );
   }
 
   /** The first holder of `target` for `kind`, or null. */
@@ -76,9 +103,14 @@ export class Claims<K extends string> {
     return this.rows.where({ kind, holder, target })[0]?.slot ?? null;
   }
 
-  /** Return whether the target has capacity for this claim kind. Holder limits are not checked. */
+  /**
+   * Return whether the target has capacity for this claim kind. Holder limits
+   * are not checked.
+   */
   free(kind: K, target: object): boolean {
-    return this.rows.where({ kind, target }).length < this.table[kind].perTarget;
+    return (
+      this.rows.where({ kind, target }).length < this.table[kind].perTarget
+    );
   }
 
   /** Ends one claim, whoever owns it. */
@@ -93,7 +125,10 @@ export class Claims<K extends string> {
     this.rows.end(owner);
   }
 
-  /** Transfer matching claims from `from` to `to` without releasing their slots. */
+  /**
+   * Transfer matching claims from `from` to `to` without releasing their
+   * slots.
+   */
   handOn(from: Owner, to: Owner, kind: K, target: object): void {
     this.rows.handOn(from, to, (c) => c.kind === kind && c.target === target);
   }
@@ -107,7 +142,10 @@ export class Claims<K extends string> {
   }
 }
 
-function firstFreeSlot(held: readonly { slot: number }[], cap: number): number {
+function firstFreeSlot(
+  held: readonly { slot: number }[],
+  cap: number,
+): number {
   for (let s = 0; s < cap; s++) {
     if (!held.some(({ slot }) => slot === s)) {
       return s;

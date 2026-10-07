@@ -29,7 +29,12 @@ interface ButtonSpec {
 }
 
 /** Movement controls represented by the analog stick. */
-const STICK: ReadonlySet<Control> = new Set<Control>(['forward', 'back', 'left', 'right']);
+const STICK: ReadonlySet<Control> = new Set<Control>([
+  'forward',
+  'back',
+  'left',
+  'right',
+]);
 
 const BUTTONS: readonly ButtonSpec[] = [
   { action: 'interact', glyph: 'F', caption: 'USE', cls: 'use' },
@@ -43,7 +48,10 @@ const BUTTONS: readonly ButtonSpec[] = [
   { action: 'rotateRight', glyph: '↻', cls: 'small rot-r' },
 ];
 
-/** Return the touch label for a control, matching shared primary keys such as run and drift. */
+/**
+ * Return the touch label for a control, matching shared primary keys such as
+ * run and drift.
+ */
 export function touchGlyph(action: Control): string | undefined {
   if (STICK.has(action)) {
     return 'STICK';
@@ -53,10 +61,12 @@ export function touchGlyph(action: Control): string | undefined {
 }
 
 /**
- * Translate touch gestures and buttons into the shared Input interface. Start a movement stick on the left, use
- * remaining drags for camera motion, and convert two-pointer spread into zoom steps. Route HUD action taps through key
- * presses. Mirror HUD mode and summon availability, hide controls on the title screen, and offer landscape, fullscreen,
- * or home-screen installation guidance as appropriate.
+ * Translate touch gestures and buttons into the shared Input interface. Start
+ * a movement stick on the left, use remaining drags for camera motion, and
+ * convert two-pointer spread into zoom steps. Route HUD action taps through
+ * key presses. Mirror HUD mode and summon availability, hide controls on the
+ * title screen, and offer landscape, fullscreen, or home-screen installation
+ * guidance as appropriate.
  */
 export class TouchControls {
   readonly root: HTMLDivElement;
@@ -71,9 +81,15 @@ export class TouchControls {
   private spread = 0;
   private readonly fullCard: HTMLDivElement;
   private readonly fullButton: HTMLDivElement;
-  /** Whether the fullscreen card was dismissed; retain the smaller fullscreen button. */
+  /**
+   * Whether the fullscreen card was dismissed; retain the smaller fullscreen
+   * button.
+   */
   private fullDismissed = false;
-  /** Home-screen installation instructions used when direct fullscreen is unavailable. */
+  /**
+   * Home-screen installation instructions used when direct fullscreen is
+   * unavailable.
+   */
   private readonly homeCard: HTMLDivElement;
   private homeSeen = remembered(HOME_HINT_KEY);
 
@@ -127,7 +143,9 @@ export class TouchControls {
       this.syncFullscreen();
     });
     document.addEventListener('fullscreenchange', () => this.syncFullscreen());
-    matchMedia('(orientation: landscape)').addEventListener('change', () => this.syncFullscreen());
+    matchMedia('(orientation: landscape)').addEventListener('change', () =>
+      this.syncFullscreen(),
+    );
     this.syncFullscreen();
 
     this.pad.addEventListener('pointerdown', (e) => this.padDown(e));
@@ -139,7 +157,9 @@ export class TouchControls {
 
     // Dispatch HUD action taps through the same focus routing as keyboard presses.
     document.addEventListener('pointerdown', (e) => {
-      const t = (e.target as Element | null)?.closest<HTMLElement>('#hud [data-action]');
+      const t = (e.target as Element | null)?.closest<HTMLElement>(
+        '#hud [data-action]',
+      );
       const action = t?.dataset.action;
       if (action && isControl(action)) {
         this.input.press(KEYS[action][0]);
@@ -149,7 +169,12 @@ export class TouchControls {
   }
 
   private button(parent: HTMLElement, b: ButtonSpec): void {
-    const btn = el('div', `touch-btn ${b.cls}`, parent, `<b>${b.glyph}</b>${b.caption ? `<i>${b.caption}</i>` : ''}`);
+    const btn = el(
+      'div',
+      `touch-btn ${b.cls}`,
+      parent,
+      `<b>${b.glyph}</b>${b.caption ? `<i>${b.caption}</i>` : ''}`,
+    );
     const code = KEYS[b.action][0];
     const release = (): void => {
       btn.classList.remove('on');
@@ -255,7 +280,10 @@ export class TouchControls {
     return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
   }
 
-  /** Mirror HUD mode and summon availability into attributes used to show the appropriate touch controls. */
+  /**
+   * Mirror HUD mode and summon availability into attributes used to show the
+   * appropriate touch controls.
+   */
   private followMode(): void {
     const hud = document.getElementById('hud');
     if (!hud) {
@@ -267,11 +295,17 @@ export class TouchControls {
       this.root.dataset.summon = hud.dataset.summon ?? '';
     };
 
-    new MutationObserver(sync).observe(hud, { attributes: true, attributeFilter: ['data-mode', 'data-summon'] });
+    new MutationObserver(sync).observe(hud, {
+      attributes: true,
+      attributeFilter: ['data-mode', 'data-summon'],
+    });
     sync();
   }
 
-  /** Update fullscreen and installation prompts from orientation, browser support, and prior dismissal. */
+  /**
+   * Update fullscreen and installation prompts from orientation, browser
+   * support, and prior dismissal.
+   */
   private syncFullscreen(): void {
     // After fullscreen has been used, retain only the compact re-entry button.
     if (document.fullscreenElement) {
@@ -281,10 +315,14 @@ export class TouchControls {
     const landscape = matchMedia('(orientation: landscape)').matches;
     const offer = canFullscreen() && !document.fullscreenElement && landscape;
     // Offer installation guidance for supported Apple devices outside standalone mode.
-    const home = !canFullscreen() && isAppleMobile() && !isHomeScreenApp() && landscape;
+    const home =
+      !canFullscreen() && isAppleMobile() && !isHomeScreenApp() && landscape;
     this.fullCard.classList.toggle('on', offer && !this.fullDismissed);
     this.homeCard.classList.toggle('on', home && !this.homeSeen);
-    this.fullButton.classList.toggle('on', (offer && this.fullDismissed) || (home && this.homeSeen));
+    this.fullButton.classList.toggle(
+      'on',
+      (offer && this.fullDismissed) || (home && this.homeSeen),
+    );
   }
 }
 
@@ -295,11 +333,15 @@ function isAppleMobile(): boolean {
   return 'standalone' in navigator;
 }
 
-/** Detect standalone or fullscreen launch modes, including Apple home-screen apps. */
+/**
+ * Detect standalone or fullscreen launch modes, including Apple home-screen
+ * apps.
+ */
 function isHomeScreenApp(): boolean {
   return (
     (navigator as Navigator & { standalone?: boolean }).standalone === true ||
-    matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches
+    matchMedia('(display-mode: standalone), (display-mode: fullscreen)')
+      .matches
   );
 }
 
@@ -320,29 +362,42 @@ function remember(key: string): void {
 }
 
 /**
- * Require the document fullscreen API and enabled flag. Explicitly exclude iPhone and iPod user agents, whose
- * advertised support is not accepted by this UI.
+ * Require the document fullscreen API and enabled flag. Explicitly exclude
+ * iPhone and iPod user agents, whose advertised support is not accepted by
+ * this UI.
  */
 function canFullscreen(): boolean {
   if (/iPhone|iPod/.test(navigator.userAgent)) {
     return false;
   }
 
-  return document.fullscreenEnabled && typeof document.documentElement.requestFullscreen === 'function';
+  return (
+    document.fullscreenEnabled &&
+    typeof document.documentElement.requestFullscreen === 'function'
+  );
 }
 
 /** Safari's share button: a box with an arrow up out of it. */
 const SHARE_ICON =
   '<svg class="share" viewBox="0 0 20 24"><path d="M10 15V2M5.5 6.5 10 2l4.5 4.5M6.5 10H3v12h14V10h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
-/** Request fullscreen and optional landscape lock. Call from a user gesture; ignore unsupported or rejected requests. */
+/**
+ * Request fullscreen and optional landscape lock. Call from a user gesture;
+ * ignore unsupported or rejected requests.
+ */
 async function goFullscreen(): Promise<void> {
   try {
     if (!document.fullscreenElement) {
-      await document.documentElement.requestFullscreen?.({ navigationUI: 'hide' });
+      await document.documentElement.requestFullscreen?.({
+        navigationUI: 'hide',
+      });
     }
 
-    await (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }).lock?.('landscape');
+    await (
+      screen.orientation as ScreenOrientation & {
+        lock?: (o: string) => Promise<void>;
+      }
+    ).lock?.('landscape');
   } catch {
     // The portrait guidance remains available if fullscreen or orientation locking is rejected.
   }

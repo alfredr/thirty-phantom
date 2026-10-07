@@ -30,11 +30,17 @@ import type { Fleet } from './fleet';
 /** Horizontal and vertical tolerances for stall occupancy, in meters. */
 const TAKEN = 2.5;
 const SAME_LEVEL = 1.5;
-/** Minimum spawn distance from the view and vehicle spacing in meters, followed by the lane sample count. */
+/**
+ * Minimum spawn distance from the view and vehicle spacing in meters, followed
+ * by the lane sample count.
+ */
 const SPAWN_DIST = 55;
 const SPAWN_GAP = 9;
 const LANE_TRIES = 40;
-/** Timeout in seconds while a planned spawn remains too close to the view or obstructed. */
+/**
+ * Timeout in seconds while a planned spawn remains too close to the view or
+ * obstructed.
+ */
 const START_WAIT = 4;
 /** Initial lane speed in m/s. */
 const START_SPEED = 6;
@@ -51,7 +57,10 @@ const STALL_ALONG = 3.2;
 /** Region extent below and above the floor, in meters. */
 const BELOW = 0.3;
 const ABOVE = 2;
-/** Maximum displacement in meters before a visitor loses track of its parked car. */
+/**
+ * Maximum displacement in meters before a visitor loses track of its parked
+ * car.
+ */
 const MOVED = 0.5;
 
 const _p = new Vector3();
@@ -66,7 +75,10 @@ interface LanePoint {
   s: number;
 }
 
-/** Pending arrival waiting for a route, then for a distant clear spawn position. */
+/**
+ * Pending arrival waiting for a route, then for a distant clear spawn
+ * position.
+ */
 interface Coming {
   bay: Berth;
   lane: LanePoint;
@@ -75,7 +87,10 @@ interface Coming {
   wait: number;
 }
 
-/** Build axis-aligned bounds around the rotated stall, including its vertical extent. */
+/**
+ * Build axis-aligned bounds around the rotated stall, including its vertical
+ * extent.
+ */
 function stallZone(center: Vector3, yaw: number): ZoneDef {
   const s = Math.abs(Math.sin(yaw));
   const c = Math.abs(Math.cos(yaw));
@@ -97,7 +112,10 @@ interface VisitorHooks {
 
 type ArriveStep = DriveStep | { readonly at: 'park'; readonly action: Park };
 
-/** Follow an arrival route, avoid reported threats, and interpolate into the stall before notifying the visitor system. */
+/**
+ * Follow an arrival route, avoid reported threats, and interpolate into the
+ * stall before notifying the visitor system.
+ */
 export class Arrive extends DriverJob<ArriveStep> {
   constructor(
     readonly p: {
@@ -125,7 +143,11 @@ export class Arrive extends DriverJob<ArriveStep> {
     });
   }
 
-  protected drive(w: DriveWorld, dt: number, seen: Vector3 | null): Result<DriveAction> {
+  protected drive(
+    w: DriveWorld,
+    dt: number,
+    seen: Vector3 | null,
+  ): Result<DriveAction> {
     const { car, bay, hooks } = this.p;
     const step = this.step;
     if (!step) {
@@ -184,7 +206,11 @@ export class Leave extends DriverJob<DriveStep> {
     });
   }
 
-  protected drive(w: DriveWorld, dt: number, seen: Vector3 | null): Result<DriveAction> {
+  protected drive(
+    w: DriveWorld,
+    dt: number,
+    seen: Vector3 | null,
+  ): Result<DriveAction> {
     const { car, lane, join, hooks } = this.p;
     const step = this.step;
     if (!step) {
@@ -208,8 +234,9 @@ export class Leave extends DriverJob<DriveStep> {
 }
 
 /**
- * Coordinate visitor arrivals, parked-car ownership, and departures. Plan arrivals before spawning distant cars, then
- * release drivers into the crowd after parking. Departing drivers return their cars to traffic.
+ * Coordinate visitor arrivals, parked-car ownership, and departures. Plan
+ * arrivals before spawning distant cars, then release drivers into the crowd
+ * after parking. Departing drivers return their cars to traffic.
  */
 export class Visitors {
   private readonly bays: Berth[];
@@ -237,7 +264,10 @@ export class Visitors {
     /** Notify the crowd when a visitor parks. */
     private readonly arrive: (car: Vehicle) => void,
   ) {
-    this.bays = bays.map((b) => ({ center: new Vector3(...b.pos), yaw: b.yaw }));
+    this.bays = bays.map((b) => ({
+      center: new Vector3(...b.pos),
+      yaw: b.yaw,
+    }));
   }
 
   get hasBays(): boolean {
@@ -249,9 +279,15 @@ export class Visitors {
     return this.coming.length + this.live().length;
   }
 
-  /** Queue an arrival to an available stall near `near`. Return false if no stall or distant clear lane point is found. */
+  /**
+   * Queue an arrival to an available stall near `near`. Return false if no
+   * stall or distant clear lane point is found.
+   */
   send(near: Vector3): boolean {
-    const free = this.bays.filter((b) => b.center.distanceTo(near) < TUNING.crowd.bayReach && this.isFree(b));
+    const free = this.bays.filter(
+      (b) =>
+        b.center.distanceTo(near) < TUNING.crowd.bayReach && this.isFree(b),
+    );
     if (free.length === 0) {
       return false;
     }
@@ -265,14 +301,24 @@ export class Visitors {
       return false;
     }
 
-    this.coming.push({ bay, lane: start, job: this.planIn(start.pos, start.yaw, bay), wait: 0 });
+    this.coming.push({
+      bay,
+      lane: start,
+      job: this.planIn(start.pos, start.yaw, bay),
+      wait: 0,
+    });
     return true;
   }
 
   /** Register existing parked lot vehicles for future pedestrian ownership. */
   adopt(): void {
     for (const v of this.fleet.vehicles) {
-      if (v.role !== 'parked' || v.gone || v.insideDeck || !this.bays.some((b) => this.holds(b, v))) {
+      if (
+        v.role !== 'parked' ||
+        v.gone ||
+        v.insideDeck ||
+        !this.bays.some((b) => this.holds(b, v))
+      ) {
         continue;
       }
 
@@ -287,7 +333,10 @@ export class Visitors {
     for (const v of this.unclaimed) {
       if (!this.waiting(v)) {
         this.unclaimed.delete(v);
-      } else if (v.ignition.heldBy('away') && v.pos.distanceTo(near) < TUNING.crowd.bayReach) {
+      } else if (
+        v.ignition.heldBy('away') &&
+        v.pos.distanceTo(near) < TUNING.crowd.bayReach
+      ) {
         nearby.push(v);
       }
     }
@@ -308,7 +357,10 @@ export class Visitors {
     }
   }
 
-  /** Test whether the car remains parked near its recorded position; discard invalid records. */
+  /**
+   * Test whether the car remains parked near its recorded position; discard
+   * invalid records.
+   */
   waiting(car: Vehicle): boolean {
     const at = this.parked.get(car);
     if (!at) {
@@ -330,8 +382,8 @@ export class Visitors {
   }
 
   /**
-   * Start departure toward a sampled traffic-lane point. Return false if the car is unavailable, no target exists, or
-   * the driver job cannot start.
+   * Start departure toward a sampled traffic-lane point. Return false if the
+   * car is unavailable, no target exists, or the driver job cannot start.
    */
   leave(car: Vehicle, keys: Keyring): boolean {
     if (!this.waiting(car)) {
@@ -350,7 +402,13 @@ export class Visitors {
     }
 
     const started = this.drivers.start(
-      new Leave({ car, lane, keepOut: this.keepOut, join: (c, l, force) => this.join(c, l, force), hooks: this.hooks }),
+      new Leave({
+        car,
+        lane,
+        keepOut: this.keepOut,
+        join: (c, l, force) => this.join(c, l, force),
+        hooks: this.hooks,
+      }),
     );
     if (started) {
       this.parked.delete(car);
@@ -372,8 +430,8 @@ export class Visitors {
   }
 
   /**
-   * Update pending spawns using the current view target. Spawn only after planning succeeds and the start is distant
-   * and clear.
+   * Update pending spawns using the current view target. Spawn only after
+   * planning succeeds and the start is distant and clear.
    */
   update(dt: number, view: Vector3): void {
     this.view.copy(view);
@@ -399,14 +457,27 @@ export class Visitors {
     }
 
     const p = c.lane.pos;
-    if (p.distanceTo(this.view) < SPAWN_DIST || !this.roomAt(p, SPAWN_GAP / 2)) {
+    if (
+      p.distanceTo(this.view) < SPAWN_DIST ||
+      !this.roomAt(p, SPAWN_GAP / 2)
+    ) {
       return (c.wait += dt) >= START_WAIT;
     }
 
     const car = this.fleet.spawnCar('visitor', p, c.lane.yaw);
-    car.vel.set(Math.sin(c.lane.yaw) * START_SPEED, 0, Math.cos(c.lane.yaw) * START_SPEED);
+    car.vel.set(
+      Math.sin(c.lane.yaw) * START_SPEED,
+      0,
+      Math.cos(c.lane.yaw) * START_SPEED,
+    );
     car.speed = START_SPEED;
-    const job = new Arrive({ car, bay: c.bay, legs: [first, ...more], keepOut: this.keepOut, hooks: this.hooks });
+    const job = new Arrive({
+      car,
+      bay: c.bay,
+      legs: [first, ...more],
+      keepOut: this.keepOut,
+      hooks: this.hooks,
+    });
     if (this.drivers.start(job)) {
       this.arrivals.push(job);
     }
@@ -426,8 +497,9 @@ export class Visitors {
   }
 
   /**
-   * Remove failed visitor cars immediately when distant. Nearby arrivals release their pedestrian driver; departures
-   * stop in place. Mark retained cars for distant removal.
+   * Remove failed visitor cars immediately when distant. Nearby arrivals
+   * release their pedestrian driver; departures stop in place. Mark retained
+   * cars for distant removal.
    */
   private giveUp(car: Vehicle, coming: boolean): void {
     if (car.pos.distanceTo(this.view) > SPAWN_DIST) {
@@ -446,8 +518,8 @@ export class Visitors {
   }
 
   /**
-   * Rejoin the selected traffic loop when aligned, or unconditionally when forced. Return whether the handover
-   * occurred.
+   * Rejoin the selected traffic loop when aligned, or unconditionally when
+   * forced. Return whether the handover occurred.
    */
   private join(car: Vehicle, lane: LanePoint, force: boolean): boolean {
     const s = lane.line.project(car.pos);
@@ -473,7 +545,10 @@ export class Visitors {
     });
   }
 
-  /** Combine excluded regions with padded obstacles for parked cars outside the deck. */
+  /**
+   * Combine excluded regions with padded obstacles for parked cars outside the
+   * deck.
+   */
   private blocks(): ZoneDef[] {
     const out = [...this.keepOut];
     for (const o of this.fleet.vehicles) {
@@ -493,7 +568,10 @@ export class Visitors {
     );
   }
 
-  /** Test whether a live vehicle occupies the stall’s horizontal and vertical range. */
+  /**
+   * Test whether a live vehicle occupies the stall’s horizontal and vertical
+   * range.
+   */
   private holds(b: Berth, v: Vehicle): boolean {
     return (
       !v.gone &&
@@ -503,11 +581,19 @@ export class Visitors {
   }
 
   private roomAt(p: Vector3, gap: number): boolean {
-    return !this.fleet.vehicles.some((v) => !v.gone && v.pos.distanceTo(p) < gap);
+    return !this.fleet.vehicles.some(
+      (v) => !v.gone && v.pos.distanceTo(p) < gap,
+    );
   }
 
-  /** Return the highest-scoring valid point among LANE_TRIES random lane samples, or null. */
-  private lanePoint(ok: (p: Vector3) => boolean, score: (p: Vector3) => number): LanePoint | null {
+  /**
+   * Return the highest-scoring valid point among LANE_TRIES random lane
+   * samples, or null.
+   */
+  private lanePoint(
+    ok: (p: Vector3) => boolean,
+    score: (p: Vector3) => number,
+  ): LanePoint | null {
     const paths = this.traffic.paths;
     if (paths.length === 0) {
       return null;

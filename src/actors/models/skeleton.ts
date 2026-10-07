@@ -1,17 +1,32 @@
 import type { V3 } from '@/engine/core/math';
 import { PALETTE } from '@/render/palette';
 
-import { box, build, group, model, NO_CAST, pivot, SIDES, solid } from './part';
+import {
+  box,
+  build,
+  group,
+  model,
+  NO_CAST,
+  pivot,
+  SIDES,
+  solid,
+} from './part';
 import { BODY } from './person';
 import { type CharacterRig, characterRig, limb } from './rig';
 
-/** Bone dimensions matching BODY proportions for shared gait and ragdoll support. */
+/**
+ * Bone dimensions matching BODY proportions for shared gait and ragdoll
+ * support.
+ */
 export const SKELETON = {
   bone: 0.09,
   knob: 0.15,
   pelvis: [0.44, 0.14, 0.22] as V3,
   spine: [0.09, 0.62, 0.09] as V3,
-  /** Rib count and dimensions, with the lowest rib ribsFrom meters above the hip. */
+  /**
+   * Rib count and dimensions, with the lowest rib ribsFrom meters above the
+   * hip.
+   */
   ribs: 4,
   rib: [0.52, 0.05, 0.32] as V3,
   ribsFrom: 0.28,
@@ -21,8 +36,9 @@ export const SKELETON = {
 };
 
 /**
- * A risen skeleton on the shared person rig (body, head, armL/R, legL/R; feet at y=0, facing +Z): bone limbs with
- * knobbly joints, a ribcage on a spine, and a skull with green-glowing eyes.
+ * A risen skeleton on the shared person rig (body, head, armL/R, legL/R; feet
+ * at y=0, facing +Z): bone limbs with knobbly joints, a ribcage on a spine,
+ * and a skull with green-glowing eyes.
  */
 export function skeleton(p = SKELETON) {
   const b = BODY;
@@ -58,8 +74,14 @@ export function skeleton(p = SKELETON) {
             .x(s * b.stance)
             .under(b.hip);
           return limb(s < 0 ? 'legL' : 'legR', leg, 'bone', [
-            solid(box(p.knob, p.knob, p.knob).at(leg.center[0], leg.center[1], 0), 'bone'),
-            solid(box(0.16, 0.06, 0.28).on(0).x(leg.center[0]).z(0.05), 'bone'),
+            solid(
+              box(p.knob, p.knob, p.knob).at(leg.center[0], leg.center[1], 0),
+              'bone',
+            ),
+            solid(
+              box(0.16, 0.06, 0.28).on(0).x(leg.center[0]).z(0.05),
+              'bone',
+            ),
           ]);
         }),
         solid(pelvis, 'bone'),
@@ -71,7 +93,10 @@ export function skeleton(p = SKELETON) {
             .under(torso.top - 0.04)
             .outside(torso, s < 0 ? '-x' : '+x', -0.05);
           return limb(s < 0 ? 'armL' : 'armR', arm, 'bone', [
-            solid(box(p.knob, p.knob, p.knob).at(arm.center[0], arm.center[1], 0), 'bone'),
+            solid(
+              box(p.knob, p.knob, p.knob).at(arm.center[0], arm.center[1], 0),
+              'bone',
+            ),
             solid(
               box(0.13, 0.16, 0.1)
                 .under(arm.bottom + 0.02)
@@ -87,7 +112,9 @@ export function skeleton(p = SKELETON) {
             solid(box(0.08, 0.1, 0.08).on(torso.top), 'bone'),
             solid(skull, 'bone'),
             solid(jaw, 'bone'),
-            ...eyes.map((e) => solid(e.sized(0.12, 0.11, 0.025), 'socket', NO_CAST)),
+            ...eyes.map((e) =>
+              solid(e.sized(0.12, 0.11, 0.025), 'socket', NO_CAST),
+            ),
             ...eyes.map((e) => solid(e.move(0, 0, 0.004), 'eye', NO_CAST)),
           ],
         ),

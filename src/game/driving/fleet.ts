@@ -1,6 +1,10 @@
 import { type Scene, Vector3 } from 'three';
 
-import { CAR_KINDS, type CarKind, VEHICLE_BREEDS } from '@/actors/vehicles/breeds';
+import {
+  CAR_KINDS,
+  type CarKind,
+  VEHICLE_BREEDS,
+} from '@/actors/vehicles/breeds';
 import { Traffic } from '@/actors/vehicles/traffic';
 import { Vehicle } from '@/actors/vehicles/vehicle';
 import type { AssetRegistry } from '@/assets/asset-registry';
@@ -10,15 +14,24 @@ import type { Rng } from '@/engine/core/rng';
 import type { Garage } from '@/game/deck/garage';
 import { CAR_COLORS } from '@/render/palette';
 
-/** Traffic replenishment interval in seconds and spawn/removal distances from the view target in meters. */
+/**
+ * Traffic replenishment interval in seconds and spawn/removal distances from
+ * the view target in meters.
+ */
 const SPAWN_EVERY = 1.2;
 const SPAWN_DIST = 55;
 const DROP_DIST = 60;
-/** Headlight flash duration in seconds and added emissive intensity; two pulses accompany a honk. */
+/**
+ * Headlight flash duration in seconds and added emissive intensity; two pulses
+ * accompany a honk.
+ */
 const FLASH_TIME = 0.5;
 const FLASH_GLOW = 4;
 
-/** Manage vehicle creation, traffic population, lighting, and removal animations. */
+/**
+ * Manage vehicle creation, traffic population, lighting, and removal
+ * animations.
+ */
 export class Fleet {
   readonly vehicles: Vehicle[] = [];
   private spawnTimer = 0;
@@ -35,11 +48,25 @@ export class Fleet {
     private readonly rng: Rng,
   ) {}
 
-  /** Create a civilian vehicle at `pos`, using the supplied kind or the weighted breed distribution. */
-  spawnCar(role: 'parked' | 'traffic' | 'visitor', pos: Vector3, yaw: number, kind?: CarKind): Vehicle {
+  /**
+   * Create a civilian vehicle at `pos`, using the supplied kind or the
+   * weighted breed distribution.
+   */
+  spawnCar(
+    role: 'parked' | 'traffic' | 'visitor',
+    pos: Vector3,
+    yaw: number,
+    kind?: CarKind,
+  ): Vehicle {
     const color = this.rng.pick(CAR_COLORS);
     kind ??= this.pickKind();
-    const v = new Vehicle('car', VEHICLE_BREEDS[kind].model(this.assets, color), color, role, kind);
+    const v = new Vehicle(
+      'car',
+      VEHICLE_BREEDS[kind].model(this.assets, color),
+      color,
+      role,
+      kind,
+    );
     v.place(pos.x, pos.y, pos.z, yaw, 0, 0, null);
     v.markRest();
     v.insideDeck = this.garage.inFootprint(pos);
@@ -60,7 +87,10 @@ export class Fleet {
     return 'sedan';
   }
 
-  /** Spawn traffic on a clear lane at least `minDist` meters from `near`; return whether spawning succeeded. */
+  /**
+   * Spawn traffic on a clear lane at least `minDist` meters from `near`;
+   * return whether spawning succeeded.
+   */
   spawnTraffic(near: Vector3, minDist: number): boolean {
     const sp = this.traffic.spawnPoint(this.rng, near, minDist, this.vehicles);
     if (!sp) {
@@ -88,7 +118,10 @@ export class Fleet {
     this.abandoned.add(v);
   }
 
-  /** Adjust traffic toward the day/night target and remove distant abandoned cars. */
+  /**
+   * Adjust traffic toward the day/night target and remove distant abandoned
+   * cars.
+   */
   maintain(dt: number, near: Vector3, day: boolean): void {
     for (const v of this.abandoned) {
       if (v.role !== 'parked') {
@@ -112,7 +145,9 @@ export class Fleet {
       this.spawnTimer = SPAWN_EVERY;
       this.spawnTraffic(near, SPAWN_DIST);
     } else if (live > target) {
-      const far = this.vehicles.find((v) => v.role === 'traffic' && v.pos.distanceTo(near) > DROP_DIST);
+      const far = this.vehicles.find(
+        (v) => v.role === 'traffic' && v.pos.distanceTo(near) > DROP_DIST,
+      );
       if (far) {
         this.remove(far);
       }
@@ -135,7 +170,10 @@ export class Fleet {
     }
   }
 
-  /** Update lighting and removal animations for crushed cars and vanishing trucks. */
+  /**
+   * Update lighting and removal animations for crushed cars and vanishing
+   * trucks.
+   */
   update(dt: number, nightness: number): void {
     for (const [v, t] of this.flashes) {
       if (t > dt) {
@@ -154,9 +192,15 @@ export class Fleet {
       if (v.form === 'car') {
         const f = this.flashes.get(v);
 
-        const flash = f !== undefined && Math.sin((f / FLASH_TIME) * TAU * 2) > 0 ? FLASH_GLOW : 0;
+        const flash =
+          f !== undefined && Math.sin((f / FLASH_TIME) * TAU * 2) > 0
+            ? FLASH_GLOW
+            : 0;
         for (const l of v.rig.lights) {
-          l.emissiveIntensity = l.name === 'taillight' ? lerp(0.6, 1.8, nightness) : lerp(0.2, 2.8, nightness) + flash;
+          l.emissiveIntensity =
+            l.name === 'taillight'
+              ? lerp(0.6, 1.8, nightness)
+              : lerp(0.2, 2.8, nightness) + flash;
         }
       }
 
@@ -164,7 +208,11 @@ export class Fleet {
       const base = v.rig.scale;
       if (v.status === 'crushed') {
         const t = (v.statusTime += dt);
-        v.rig.root.scale.set(1.15 * base, Math.max(0.28, 1 - t * 6) * base, 1.1 * base);
+        v.rig.root.scale.set(
+          1.15 * base,
+          Math.max(0.28, 1 - t * 6) * base,
+          1.1 * base,
+        );
 
         if (t > 6) {
           this.remove(v);

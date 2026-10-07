@@ -4,7 +4,11 @@ import { clamp } from '@/engine/core/math';
 import type { LightEmitter } from '@/world/build-world';
 
 /** How far each kind of lamp's light reaches (m). */
-const RANGE: Readonly<Record<LightEmitter['kind'], number>> = { street: 16, ceiling: 11, flood: 30 };
+const RANGE: Readonly<Record<LightEmitter['kind'], number>> = {
+  street: 16,
+  ceiling: 11,
+  flood: 30,
+};
 
 interface Scored {
   e: LightEmitter;
@@ -15,8 +19,9 @@ interface Scored {
 const nearestFirst = (a: Scored, b: Scored): number => a.d - b.d;
 
 /**
- * A fixed number of real point lights reassigned every frame to the emitters nearest the camera focus. Keeps shader
- * light count constant (no recompiles) while lamps near the action still light vehicles and characters. Intensities
+ * A fixed number of real point lights reassigned every frame to the emitters
+ * nearest the camera focus. Keeps shader light count constant (no recompiles)
+ * while lamps near the action still light vehicles and characters. Intensities
  * fade near the selection distance to soften changes in light assignment.
  */
 export class LightPool {

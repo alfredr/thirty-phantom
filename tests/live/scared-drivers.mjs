@@ -11,8 +11,8 @@ const nightTraffic = () => {
 };
 
 /**
- * Repeatedly frighten traffic near the deck entry. Return the first car that starts a refuge route, or null after 900
- * frames.
+ * Repeatedly frighten traffic near the deck entry. Return the first car that
+ * starts a refuge route, or null after 900 frames.
  */
 const turnIn = () => {
   const g = window.__game;
@@ -29,14 +29,20 @@ const turnIn = () => {
   return null;
 };
 
-/** Return a point the requested number of meters behind the car along its heading. */
+/**
+ * Return a point the requested number of meters behind the car along its
+ * heading.
+ */
 const behind = (car, meters) => ({
   x: car.pos.x - Math.sin(car.yaw) * meters,
   y: car.pos.y,
   z: car.pos.z - Math.cos(car.yaw) * meters,
 });
 
-/** Verify that a frightened driver enters the deck without stopping, parks in a spot, and joins the pedestrian crowd. */
+/**
+ * Verify that a frightened driver enters the deck without stopping, parks in a
+ * spot, and joins the pedestrian crowd.
+ */
 export function turnsIntoDeck() {
   const g = window.__game;
   const sim = window.__sim;
@@ -59,11 +65,21 @@ export function turnsIntoDeck() {
     [car],
   );
   const peopleBefore = g.crowd.living().length;
-  const parked = sim.until(() => car.role === 'parked' && !g.refuge.has(car), 90, [car]);
+  const parked = sim.until(
+    () => car.role === 'parked' && !g.refuge.has(car),
+    90,
+    [car],
+  );
   const spot = g.garage.spots.find((s) => s.occupant === car);
   const driverRan = g.crowd.living().length > peopleBefore;
   return {
-    ok: inside.ok && inside.seconds < 10 && slowest > 1 && parked.ok && !!spot && driverRan,
+    ok:
+      inside.ok &&
+      inside.seconds < 10 &&
+      slowest > 1 &&
+      parked.ok &&
+      !!spot &&
+      driverRan,
     secondsToGate: inside.seconds,
     slowestOnRoad: Math.round(slowest * 10) / 10,
     secondsToOut: parked.seconds,
@@ -73,7 +89,10 @@ export function turnsIntoDeck() {
   };
 }
 
-/** Verify that a driver accelerates along the road when Cody remains behind the car. */
+/**
+ * Verify that a driver accelerates along the road when Cody remains behind the
+ * car.
+ */
 export function speedsAwayWhenCodyIsBehind() {
   const g = window.__game;
   const sim = window.__sim;
@@ -98,7 +117,10 @@ export function speedsAwayWhenCodyIsBehind() {
   };
 }
 
-/** Verify that a driver far from the deck stops short of Cody and joins the pedestrian crowd. */
+/**
+ * Verify that a driver far from the deck stops short of Cody and joins the
+ * pedestrian crowd.
+ */
 export function stopsAndRunsWhenCornered() {
   const g = window.__game;
   const sim = window.__sim;
@@ -137,7 +159,10 @@ export function stopsAndRunsWhenCornered() {
   };
 }
 
-/** Verify that moving Cody behind a driver cancels the refuge route, releases its spot, and restores traffic driving. */
+/**
+ * Verify that moving Cody behind a driver cancels the refuge route, releases
+ * its spot, and restores traffic driving.
+ */
 export function backToTheRoadWhenCodyMoves() {
   const g = window.__game;
   const sim = window.__sim;
@@ -156,10 +181,17 @@ export function backToTheRoadWhenCodyMoves() {
     2,
     [car],
   );
-  const spotsHeld = g.garage.spots.filter((s) => g.claims.holder('spot', s) === car).length;
+  const spotsHeld = g.garage.spots.filter(
+    (s) => g.claims.holder('spot', s) === car,
+  ).length;
   sim.run(30);
   return {
-    ok: back.ok && !g.refuge.has(car) && spotsHeld === 0 && car.role === 'traffic' && !car.insideDeck,
+    ok:
+      back.ok &&
+      !g.refuge.has(car) &&
+      spotsHeld === 0 &&
+      car.role === 'traffic' &&
+      !car.insideDeck,
     seconds: back.seconds,
     role: car.role,
     spotsHeld,
@@ -167,7 +199,10 @@ export function backToTheRoadWhenCodyMoves() {
   };
 }
 
-/** Verify that a refuge route resolves while keeping the car clear of Cody when he blocks the approach. */
+/**
+ * Verify that a refuge route resolves while keeping the car clear of Cody when
+ * he blocks the approach.
+ */
 export function givesWayWhenCodyIsInTheWayIn() {
   const g = window.__game;
   const sim = window.__sim;
@@ -178,7 +213,11 @@ export function givesWayWhenCodyIsInTheWayIn() {
   }
 
   const divert = g.refuge.diverts.find((d) => d.p.car === car);
-  const offRoad = sim.until(() => !g.traffic.onRoad(car) && divert.step.action.ahead?.(16).length > 0, 10, [car]);
+  const offRoad = sim.until(
+    () => !g.traffic.onRoad(car) && divert.step.action.ahead?.(16).length > 0,
+    10,
+    [car],
+  );
   if (!offRoad.ok) {
     return { ok: false, why: 'never left the road with a way in' };
   }
@@ -207,7 +246,10 @@ export function givesWayWhenCodyIsInTheWayIn() {
   };
 }
 
-/** Verify that repeated scares inside the deck send the driver upstairs, where it eventually parks. */
+/**
+ * Verify that repeated scares inside the deck send the driver upstairs, where
+ * it eventually parks.
+ */
 export function climbsWhileCodyIsInSight() {
   const g = window.__game;
   const sim = window.__sim;
@@ -235,7 +277,12 @@ export function climbsWhileCodyIsInSight() {
   const spot = g.garage.spots.find((s) => s.occupant === car);
   return {
     ok:
-      up.ok && g.garage.floorOf(car.pos.y) >= 1 && parked.ok && car.role === 'parked' && !!spot && spot.def.level >= 1,
+      up.ok &&
+      g.garage.floorOf(car.pos.y) >= 1 &&
+      parked.ok &&
+      car.role === 'parked' &&
+      !!spot &&
+      spot.def.level >= 1,
     secondsToClimb: up.seconds,
     level: g.garage.floorOf(car.pos.y),
     spotLevel: spot?.def.level ?? null,
@@ -243,7 +290,10 @@ export function climbsWhileCodyIsInSight() {
   };
 }
 
-/** Verify that boarding a fleeing driver’s car cancels the refuge route and frees its reserved spot. */
+/**
+ * Verify that boarding a fleeing driver’s car cancels the refuge route and
+ * frees its reserved spot.
+ */
 export function stopsWhenCarjacked() {
   const g = window.__game;
   const sim = window.__sim;
@@ -274,8 +324,8 @@ export function stopsWhenCarjacked() {
 }
 
 /**
- * Place Cody at `at` for `seconds` and record vehicle reactions, minimum moving-car distance, and maximum frame
- * displacement.
+ * Place Cody at `at` for `seconds` and record vehicle reactions, minimum
+ * moving-car distance, and maximum frame displacement.
  */
 const watch = (at, seconds) => {
   const g = window.__game;
@@ -308,7 +358,10 @@ const watch = (at, seconds) => {
       was.set(v, v.role);
 
       if (Math.abs(v.speed) > 2) {
-        closestMoving = Math.min(closestMoving, Math.hypot(v.pos.x - at.x, v.pos.z - at.z));
+        closestMoving = Math.min(
+          closestMoving,
+          Math.hypot(v.pos.x - at.x, v.pos.z - at.z),
+        );
       }
 
       const p = last.get(v);
@@ -331,7 +384,10 @@ const watch = (at, seconds) => {
   };
 };
 
-/** Find the traffic path nearest the deck entry and the distance along that path to its closest point. */
+/**
+ * Find the traffic path nearest the deck entry and the distance along that
+ * path to its closest point.
+ */
 const gateLane = () => {
   const g = window.__game;
   const e = g.refuge.entry;
@@ -348,7 +404,10 @@ const gateLane = () => {
   return best;
 };
 
-/** Verify that Cody standing just beyond the entry sends at least one driver into the deck and keeps moving cars clear. */
+/**
+ * Verify that Cody standing just beyond the entry sends at least one driver
+ * into the deck and keeps moving cars clear.
+ */
 export function playerJustPastTheGate() {
   const g = window.__game;
   const sim = window.__sim;
@@ -360,8 +419,8 @@ export function playerJustPastTheGate() {
 }
 
 /**
- * Place Cody ahead of two nearby cars away from the deck. Verify that both react and moving cars keep clear without
- * entering the deck.
+ * Place Cody ahead of two nearby cars away from the deck. Verify that both
+ * react and moving cars keep clear without entering the deck.
  */
 export function playerInTheRoadAwayFromTheDeck() {
   const g = window.__game;
@@ -371,10 +430,19 @@ export function playerInTheRoadAwayFromTheDeck() {
   let pair = null;
   sim.until(
     () => {
-      const cars = g.vehicles.filter((v) => v.role === 'traffic' && Math.abs(v.speed) > 3 && v.pos.distanceTo(e) > 50);
+      const cars = g.vehicles.filter(
+        (v) =>
+          v.role === 'traffic' &&
+          Math.abs(v.speed) > 3 &&
+          v.pos.distanceTo(e) > 50,
+      );
       for (const a of cars) {
         const b = cars.find(
-          (o) => o !== a && o.pathIndex === a.pathIndex && o.pathS < a.pathS && a.pathS - o.pathS < 20,
+          (o) =>
+            o !== a &&
+            o.pathIndex === a.pathIndex &&
+            o.pathS < a.pathS &&
+            a.pathS - o.pathS < 20,
         );
         if (b) {
           pair = { a, b };
@@ -393,7 +461,11 @@ export function playerInTheRoadAwayFromTheDeck() {
 
   const at = g.traffic.roadAt(pair.a, 22);
   const r = sim.watch(at, 45);
-  return { ok: r.phantom && r.spooked >= 2 && r.turnedIn === 0 && r.closestMoving > 1.5, ...r };
+  return {
+    ok:
+      r.phantom && r.spooked >= 2 && r.turnedIn === 0 && r.closestMoving > 1.5,
+    ...r,
+  };
 }
 
 /** Shared browser scenario helpers installed on window.__sim before each case. */

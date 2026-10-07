@@ -1,10 +1,20 @@
-import { BufferGeometry, Float32BufferAttribute, Group, Line, LineBasicMaterial } from 'three';
+import {
+  BufferGeometry,
+  Float32BufferAttribute,
+  Group,
+  Line,
+  LineBasicMaterial,
+} from 'three';
 
 import type { Polyline } from '@/engine/nav/polyline';
 import { FX_LAYER } from '@/render/layers';
 import { PALETTE } from '@/render/palette';
 
-const COLORS: Record<string, string> = { car: PALETTE.slime, truck: PALETTE.purpleHot, person: PALETTE.foxy };
+const COLORS: Record<string, string> = {
+  car: PALETTE.slime,
+  truck: PALETTE.purpleHot,
+  person: PALETTE.foxy,
+};
 
 /** Display the most recent planned routes when navigation debugging is enabled. */
 export class NavDebug {
@@ -24,7 +34,11 @@ export class NavDebug {
     if (!mat) {
       this.mats.set(
         kind,
-        (mat = new LineBasicMaterial({ color: COLORS[kind] ?? '#ffffff', depthTest: false, toneMapped: false })),
+        (mat = new LineBasicMaterial({
+          color: COLORS[kind] ?? '#ffffff',
+          depthTest: false,
+          toneMapped: false,
+        })),
       );
     }
 

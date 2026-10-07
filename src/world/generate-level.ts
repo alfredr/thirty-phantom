@@ -4,7 +4,10 @@ import { generateLandscape } from './gen-landscape';
 import type { LevelData } from './level-data';
 import { LevelWriter } from './level-writer';
 
-/** Generate the seeded default city, placing the haunted deck in the central block and landscaping available space. */
+/**
+ * Generate the seeded default city, placing the haunted deck in the central
+ * block and landscaping available space.
+ */
 export function generateLevel(seed = 30): LevelData {
   const w = new LevelWriter('phantom-city');
   generateCity(w, seed);

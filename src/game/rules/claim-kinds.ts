@@ -6,7 +6,10 @@ export type ClaimKind = 'driverSeat' | 'spot' | 'divert' | 'quarry';
 
 /** Reservation limits per target and, where specified, per holder. */
 export const CLAIMS = {
-  /** One driver per car, and one car per driver. Cody taking the wheel preempts whoever had it. */
+  /**
+   * One driver per car, and one car per driver. Cody taking the wheel preempts
+   * whoever had it.
+   */
   driverSeat: { perTarget: 1, perHolder: 1 },
   /** Reserve a destination spot until the garage records physical occupancy. */
   spot: { perTarget: 1, perHolder: 1 },

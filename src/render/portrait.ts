@@ -14,29 +14,47 @@ import {
 import { PALETTE } from './palette';
 
 /**
- * Fraction of the figure's height included in the portrait. HEADROOM adds space above the head relative to this
- * fraction; LOOK_DOWN and LOOK_SIDE control the viewing angle.
+ * Fraction of the figure's height included in the portrait. HEADROOM adds
+ * space above the head relative to this fraction; LOOK_DOWN and LOOK_SIDE
+ * control the viewing angle.
  */
 const FRAME_SHARE = 0.36;
 const HEADROOM = 0.12;
 const FOV = 24;
 const LOOK_DOWN = 0.1;
 const LOOK_SIDE = 0.35;
-/** Stage height below the world keeps portrait geometry outside the cutaway's vertical range. */
+/**
+ * Stage height below the world keeps portrait geometry outside the cutaway's
+ * vertical range.
+ */
 const STAGE_Y = -500;
-/** Key light from the front left, a cool fill from the sky, and a backdrop of night purple. */
+/**
+ * Key light from the front left, a cool fill from the sky, and a backdrop of
+ * night purple.
+ */
 const KEY = { color: '#fff1dc', intensity: 4.2, at: [-1.2, 1.6, 2] as const };
 const FILL = { sky: '#b9a8ff', ground: '#2a1a36', intensity: 1.9 };
 const BACKDROP = PALETTE.night;
 
 /**
- * Render a square dialogue portrait and return a PNG data URL. The caller supplies a posed character with feet at y=0
- * facing +Z; `looks` selects the direction it faces across the image. Temporarily reparent and position `root`, then
- * restore its parent, position, yaw, visibility, and the renderer's target after rendering.
+ * Render a square dialogue portrait and return a PNG data URL. The caller
+ * supplies a posed character with feet at y=0 facing +Z; `looks` selects the
+ * direction it faces across the image. Temporarily reparent and position
+ * `root`, then restore its parent, position, yaw, visibility, and the
+ * renderer's target after rendering.
  */
-export function renderPortrait(renderer: WebGLRenderer, root: Object3D, looks: 'left' | 'right', size = 256): string {
+export function renderPortrait(
+  renderer: WebGLRenderer,
+  root: Object3D,
+  looks: 'left' | 'right',
+  size = 256,
+): string {
   const parent = root.parent;
-  const was = { pos: root.position.clone(), rot: root.rotation.y, visible: root.visible };
+  const was = {
+    pos: root.position.clone(),
+    rot: root.rotation.y,
+    visible: root.visible,
+  };
   const stage = new Scene();
   stage.background = new Color(BACKDROP);
   stage.add(new HemisphereLight(FILL.sky, FILL.ground, FILL.intensity));
@@ -59,7 +77,11 @@ export function renderPortrait(renderer: WebGLRenderer, root: Object3D, looks: '
   const camera = new PerspectiveCamera(FOV, 1, 0.05, 50);
   // Offset the camera opposite the requested gaze direction.
   const side = looks === 'left' ? LOOK_SIDE : -LOOK_SIDE;
-  camera.position.set(Math.sin(side) * dist, midY + dist * LOOK_DOWN, Math.cos(side) * dist);
+  camera.position.set(
+    Math.sin(side) * dist,
+    midY + dist * LOOK_DOWN,
+    Math.cos(side) * dist,
+  );
   camera.lookAt(new Vector3(0, midY, 0));
 
   const target = new WebGLRenderTarget(size, size);
@@ -77,7 +99,10 @@ export function renderPortrait(renderer: WebGLRenderer, root: Object3D, looks: '
   const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
   const img = ctx.createImageData(size, size);
   for (let y = 0; y < size; y++) {
-    img.data.set(pixels.subarray((size - 1 - y) * size * 4, (size - y) * size * 4), y * size * 4);
+    img.data.set(
+      pixels.subarray((size - 1 - y) * size * 4, (size - y) * size * 4),
+      y * size * 4,
+    );
   }
 
   ctx.putImageData(img, 0, 0);

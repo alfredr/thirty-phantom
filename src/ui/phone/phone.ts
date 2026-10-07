@@ -8,7 +8,12 @@ import { keyText } from '@/ui/hud';
 
 import type { CallLine, Calls } from './calls';
 import type { Messages } from './messages';
-import { type CallOptions, type Outreach, OutreachQueue, type TextOptions } from './outreach';
+import {
+  type CallOptions,
+  type Outreach,
+  OutreachQueue,
+  type TextOptions,
+} from './outreach';
 import { type GameTime, type Stamp, stampAt } from './stamp';
 
 import './phone.css';
@@ -19,9 +24,22 @@ export type { CallOptions, Outreach, TextOptions } from './outreach';
 /** Vertical scroll distance per menu control press, in CSS pixels. */
 const SCROLL = 48;
 /** The keys that open apps from the home screen, in order. */
-const APP_KEYS: readonly Control[] = ['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6', 'slot7', 'slot8', 'slot9'];
+const APP_KEYS: readonly Control[] = [
+  'slot1',
+  'slot2',
+  'slot3',
+  'slot4',
+  'slot5',
+  'slot6',
+  'slot7',
+  'slot8',
+  'slot9',
+];
 
-/** Phone application lifecycle: mount once, receive selection changes, and update while the phone is raised. */
+/**
+ * Phone application lifecycle: mount once, receive selection changes, and
+ * update while the phone is raised.
+ */
 export interface PhoneApp {
   readonly id: string;
   readonly name: string;
@@ -29,7 +47,10 @@ export interface PhoneApp {
   readonly icon: string;
   /** Builds its screen inside `root`, once. */
   mount(root: HTMLElement): void;
-  /** Notify selection or deselection of this app, independently of the phone’s raised state. */
+  /**
+   * Notify selection or deselection of this app, independently of the phone’s
+   * raised state.
+   */
   shown?(on: boolean): void;
   /** Refresh the selected app while the phone is raised. */
   update?(): void;
@@ -49,9 +70,10 @@ export interface PhoneStatus {
 }
 
 /**
- * Manage the burner phone’s applications, text pop-ups, and call screen. Manual opening holds the phone onscreen and
- * reserves navigation controls. Texts and calls take turns through one queue; calls remain raised until ended. The
- * current task appears separately beneath the HUD clock.
+ * Manage the burner phone’s applications, text pop-ups, and call screen.
+ * Manual opening holds the phone onscreen and reserves navigation controls.
+ * Texts and calls take turns through one queue; calls remain raised until
+ * ended. The current task appears separately beneath the HUD clock.
  */
 export class Phone {
   /** Notify the game when ringing starts, ringing stops, or a text arrives. */
@@ -73,7 +95,10 @@ export class Phone {
   private app: PhoneApp | null = null;
   /** The home screen's highlighted app. */
   private pick = 0;
-  /** Whether manually opened; held phones reserve controls and do not retract automatically. */
+  /**
+   * Whether manually opened; held phones reserve controls and do not retract
+   * automatically.
+   */
   private held = false;
   private unfocus: (() => void) | null = null;
   /** Applications in home-screen order, with messages first. */
@@ -96,7 +121,10 @@ export class Phone {
     const bar = el('div', 'burner-status', screen);
     const time = el('span', 'time', bar, '');
     el('span', 'bars', bar, '<i></i><i></i><i></i><i></i>');
-    this.views.add({ read: () => status.time(), draw: (t) => (time.textContent = t) });
+    this.views.add({
+      read: () => status.time(),
+      draw: (t) => (time.textContent = t),
+    });
     const home = el('div', 'phone-home', screen);
     this.home = home;
     apps.forEach((app, i) => {
@@ -148,7 +176,12 @@ export class Phone {
     const card = el('div', 'text-pop-card', this.pop);
     const head = el('div', 'text-pop-head', card);
     el('div', 'burner-avatar', head);
-    el('div', 'text-pop-who', head, '<span class="name">RANDY</span><span class="sub">NEW TEXT</span>');
+    el(
+      'div',
+      'text-pop-who',
+      head,
+      '<span class="name">RANDY</span><span class="sub">NEW TEXT</span>',
+    );
     this.popMsg = el('div', 'text-pop-msg', card);
     this.popFoot = el('div', 'text-pop-foot', card);
     card.addEventListener('click', () => this.queue.acknowledge());
@@ -176,7 +209,10 @@ export class Phone {
     this.showScreen();
   }
 
-  /** Close a held phone when no app is requested or that app is selected; otherwise open the requested screen. */
+  /**
+   * Close a held phone when no app is requested or that app is selected;
+   * otherwise open the requested screen.
+   */
   toggle(id?: string): void {
     if (this.held && (!id || this.app?.id === id)) {
       this.putAway();
@@ -185,7 +221,10 @@ export class Phone {
     }
   }
 
-  /** Raise and hold the phone on app `id`, or home when the ID is absent or unknown. Reserve phone controls. */
+  /**
+   * Raise and hold the phone on app `id`, or home when the ID is absent or
+   * unknown. Reserve phone controls.
+   */
   open(id?: string): void {
     this.held = true;
     this.raise();
@@ -196,7 +235,10 @@ export class Phone {
     });
   }
 
-  /** Hide the phone, cancel automatic retraction, and release reserved controls. */
+  /**
+   * Hide the phone, cancel automatic retraction, and release reserved
+   * controls.
+   */
   putAway(): void {
     this.held = false;
     this.unfocus?.();
@@ -236,7 +278,10 @@ export class Phone {
     return this.queue.elapsed;
   }
 
-  /** Randy's face (a data URL), for his contact, the call screen and text pop-ups. */
+  /**
+   * Randy's face (a data URL), for his contact, the call screen and text
+   * pop-ups.
+   */
   setAvatar(url: string): void {
     for (const a of [this.frame, this.pop].flatMap((root) => [
       ...root.querySelectorAll<HTMLElement>('.burner-avatar'),
@@ -275,7 +320,10 @@ export class Phone {
     this.putAway();
   }
 
-  /** Run the text and call queue, refresh status bindings and unread badges, then update the selected app if raised. */
+  /**
+   * Run the text and call queue, refresh status bindings and unread badges,
+   * then update the selected app if raised.
+   */
   update(dt: number): void {
     this.queue.update(dt, this.quiet());
     this.views.update();
@@ -311,7 +359,14 @@ export class Phone {
         : ['phone', 'cancel', 'menuUp', 'menuDown'];
     }
 
-    return ['phone', 'cancel', 'menuUp', 'menuDown', 'confirm', ...APP_KEYS.slice(0, this.apps.length)];
+    return [
+      'phone',
+      'cancel',
+      'menuUp',
+      'menuDown',
+      'confirm',
+      ...APP_KEYS.slice(0, this.apps.length),
+    ];
   }
 
   private press(control: Control): void {
@@ -328,7 +383,8 @@ export class Phone {
     } else if (this.app) {
       const body = this.bodies.get(this.app);
       if (body) {
-        body.scrollTop += control === 'menuUp' ? -SCROLL : control === 'menuDown' ? SCROLL : 0;
+        body.scrollTop +=
+          control === 'menuUp' ? -SCROLL : control === 'menuDown' ? SCROLL : 0;
       }
     } else if (control === 'menuUp' || control === 'menuDown') {
       const n = this.apps.length;
@@ -344,7 +400,10 @@ export class Phone {
     }
   }
 
-  /** Select an app or home and notify applications whose selection state changes. */
+  /**
+   * Select an app or home and notify applications whose selection state
+   * changes.
+   */
   private go(app: PhoneApp | null): void {
     if (app === this.app) {
       return;
@@ -369,7 +428,9 @@ export class Phone {
       page.classList.toggle('on', app === this.app);
     }
 
-    this.icons.forEach((icon, i) => icon.classList.toggle('picked', i === this.pick));
+    this.icons.forEach((icon, i) =>
+      icon.classList.toggle('picked', i === this.pick),
+    );
   }
 
   private ring(): void {
@@ -421,7 +482,9 @@ export class Phone {
 
     const from = card.getBoundingClientRect();
     const to = this.frame.getBoundingClientRect();
-    const tx = Math.max(to.left, 0) + (Math.min(to.right, window.innerWidth) - Math.max(to.left, 0)) / 2;
+    const tx =
+      Math.max(to.left, 0) +
+      (Math.min(to.right, window.innerWidth) - Math.max(to.left, 0)) / 2;
     const ty = to.top + to.height * 0.35;
     pop.style.setProperty('--fx', `${tx - (from.left + from.width / 2)}px`);
     pop.style.setProperty('--fy', `${ty - (from.top + from.height / 2)}px`);

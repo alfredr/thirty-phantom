@@ -5,7 +5,13 @@ import { Vector3 } from 'three';
 
 import { loadModules } from './modules.mjs';
 
-const [{ RouteShaper, toLegs }, { DrivePlan }, { Polyline }, { clipBox }, { TUNING }] = await loadModules(
+const [
+  { RouteShaper, toLegs },
+  { DrivePlan },
+  { Polyline },
+  { clipBox },
+  { TUNING },
+] = await loadModules(
   '/src/engine/nav/route-shaper.ts',
   '/src/engine/nav/drive-plan.ts',
   '/src/engine/nav/polyline.ts',
@@ -25,18 +31,36 @@ test('arc lengths include slopes and the closing segment of a loop', () => {
 
   for (const path of [open, loop]) {
     assert.equal(path.total, path.distances.at(-1));
-    points.forEach((p, i) => assert.ok(path.sample(path.distances[i], new Vector3()).distanceTo(p) < 1e-10));
+    points.forEach((p, i) =>
+      assert.ok(
+        path.sample(path.distances[i], new Vector3()).distanceTo(p) < 1e-10,
+      ),
+    );
   }
 });
 
 test('smoothing respects traversal cost and preserves both ends of an elevator ride', () => {
-  const raw = [point(0, 0), point(2, 0), point(4, 0), point(6, 0), point(8, 0)];
+  const raw = [
+    point(0, 0),
+    point(2, 0),
+    point(4, 0),
+    point(6, 0),
+    point(8, 0),
+  ];
   const costs = [0, 2, 4, 6, 8];
   const shape = new RouteShaper(0, flat);
   assert.deepEqual(shape.smooth(raw, costs), [raw[0], raw[4]]);
-  assert.deepEqual(shape.smooth(raw, costs, new Map([[1, 'lift']])), [raw[0], raw[1], raw[2], raw[4]]);
+  assert.deepEqual(shape.smooth(raw, costs, new Map([[1, 'lift']])), [
+    raw[0],
+    raw[1],
+    raw[2],
+    raw[4],
+  ]);
 
-  const costly = new RouteShaper(0, { ...flat, cost: (a, b) => (a.distanceTo(b) > 2 ? 100 : 2) });
+  const costly = new RouteShaper(0, {
+    ...flat,
+    cost: (a, b) => (a.distanceTo(b) > 2 ? 100 : 2),
+  });
   assert.deepEqual(costly.smooth(raw, costs), raw);
 });
 
@@ -45,12 +69,21 @@ test('merging shallow bends keeps a detour when the shortcut crosses an obstacle
   const blocked = new RouteShaper(3, {
     ...flat,
     cost: (a, b) =>
-      clipBox(a.toArray(), b.clone().sub(a).toArray(), [3.5, -1, -0.1], [4.5, 1, 0.1], [0, 1])
+      clipBox(
+        a.toArray(),
+        b.clone().sub(a).toArray(),
+        [3.5, -1, -0.1],
+        [4.5, 1, 0.1],
+        [0, 1],
+      )
         ? Infinity
         : a.distanceTo(b),
   });
   assert.deepEqual(blocked.merge(detour), detour);
-  assert.deepEqual(new RouteShaper(3, flat).merge(detour), [detour[0], detour[2]]);
+  assert.deepEqual(new RouteShaper(3, flat).merge(detour), [
+    detour[0],
+    detour[2],
+  ]);
 });
 
 test('corner arcs retain the requested radius for left and right turns', () => {
@@ -111,14 +144,21 @@ test('forward and reverse legs share each cusp without dropping travel', () => {
 function drivePlan(fits = () => 0) {
   const from = { x: 0, y: 0, z: 0, yaw: 0, reverse: false };
   const goal = { ...from, z: 30, rest: 0 };
-  const ground = { stepUp: 0.3, fits, cost: () => 1, clearance: () => 10, toGo: () => Infinity };
+  const ground = {
+    stepUp: 0.3,
+    fits,
+    cost: () => 1,
+    clearance: () => 10,
+    toGo: () => Infinity,
+  };
   return new DrivePlan(
     [point(0, 0), point(0, 30)],
     new RouteShaper(4, flat),
     {
       ground,
       heightAt: () => 0,
-      guide: (_bounds, goals) => (x, _y, z) => Math.min(...goals.map((g) => Math.hypot(g.x - x, g.z - z))),
+      guide: (_bounds, goals) => (x, _y, z) =>
+        Math.min(...goals.map((g) => Math.hypot(g.x - x, g.z - z))),
     },
     { from, goals: [goal], vehicle: TUNING.car },
   );

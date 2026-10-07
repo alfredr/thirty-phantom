@@ -4,7 +4,10 @@ export type Owner = object;
 /** Policy for an insertion that exceeds a key’s capacity. */
 export type Conflict = 'refuse' | 'evict' | 'merge';
 
-/** Limit the number of rows sharing these column values. Capacity defaults to one. */
+/**
+ * Limit the number of rows sharing these column values. Capacity defaults to
+ * one.
+ */
 export interface Key<R> {
   readonly on: readonly (keyof R)[];
   readonly cap?: number | ((row: R) => number);
@@ -18,9 +21,15 @@ export interface RelationSpec<R> {
   readonly merge?: (old: R, next: R) => R;
   /** Accept a proposed row. Returning false rejects the insertion or merge. */
   readonly check?: (row: R) => boolean;
-  /** Rows that are deleted as soon as a merge produces them, such as an item count of zero. */
+  /**
+   * Rows that are deleted as soon as a merge produces them, such as an item
+   * count of zero.
+   */
   readonly empty?: (row: R) => boolean;
-  /** Runs after a row is evicted. It may queue an event, but it must not change any relation. */
+  /**
+   * Runs after a row is evicted. It may queue an event, but it must not change
+   * any relation.
+   */
   readonly evicted?: (row: R) => void;
 }
 
@@ -30,9 +39,11 @@ export interface OwnedRow {
 }
 
 /**
- * Store rows with capacity limits, conflict policies, and optional lifetime owners. Use these methods for mutations so
- * row and owner indexes stay synchronized. Eviction callbacks may queue events but must not mutate relations; process
- * dependent changes after the write, through queued events or lostBy().
+ * Store rows with capacity limits, conflict policies, and optional lifetime
+ * owners. Use these methods for mutations so row and owner indexes stay
+ * synchronized. Eviction callbacks may queue events but must not mutate
+ * relations; process dependent changes after the write, through queued events
+ * or lostBy().
  */
 export class Relation<R extends OwnedRow> {
   private readonly rows = new Set<R>();
@@ -47,10 +58,14 @@ export class Relation<R extends OwnedRow> {
   }
 
   /**
-   * Inserts a row, applying the conflict rule when a key is full. Returns the stored row, or null if the insert was
-   * refused. A merge that empties the row deletes it and returns the merged row.
+   * Inserts a row, applying the conflict rule when a key is full. Returns the
+   * stored row, or null if the insert was refused. A merge that empties the
+   * row deletes it and returns the merged row.
    */
-  insert(row: R, conflict: Conflict = this.spec.onConflict ?? 'refuse'): R | null {
+  insert(
+    row: R,
+    conflict: Conflict = this.spec.onConflict ?? 'refuse',
+  ): R | null {
     for (const key of this.spec.keys) {
       const clash = this.index.get(keyOf(key.on, row)) ?? [];
       if (clash.length < capOf(key, row)) {
@@ -110,7 +125,11 @@ export class Relation<R extends OwnedRow> {
   }
 
   /** Reinsert matching rows under `to`, preserving them when `from` ends. */
-  handOn(from: Owner, to: Owner, test: (row: R) => boolean = () => true): void {
+  handOn(
+    from: Owner,
+    to: Owner,
+    test: (row: R) => boolean = () => true,
+  ): void {
     for (const row of [...(this.owned.get(from) ?? [])]) {
       if (!test(row)) {
         continue;
@@ -131,10 +150,17 @@ export class Relation<R extends OwnedRow> {
     this.lost.clear();
   }
 
-  /** The rows whose fields equal every field given, oldest first. Uses an index when the fields cover a key. */
+  /**
+   * The rows whose fields equal every field given, oldest first. Uses an index
+   * when the fields cover a key.
+   */
   where(match: Partial<R>): R[] {
-    const key = this.spec.keys.find(({ on }) => on.every((c) => Object.hasOwn(match, c)));
-    const candidates = key ? (this.index.get(keyOf(key.on, match)) ?? []) : this.rows;
+    const key = this.spec.keys.find(({ on }) =>
+      on.every((c) => Object.hasOwn(match, c)),
+    );
+    const candidates = key
+      ? (this.index.get(keyOf(key.on, match)) ?? [])
+      : this.rows;
     const out: R[] = [];
     for (const row of candidates) {
       if (matches(row, match)) {
@@ -211,7 +237,10 @@ function capOf<R>(key: Key<R>, row: R): number {
 const ids = new WeakMap<object, number>();
 let nextId = 1;
 
-/** A stable identity for a column value: objects by reference, everything else by type and value. */
+/**
+ * A stable identity for a column value: objects by reference, everything else
+ * by type and value.
+ */
 function idOf(value: unknown): string {
   if (typeof value === 'object' && value !== null) {
     let id = ids.get(value);

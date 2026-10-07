@@ -18,7 +18,9 @@ const [
 );
 
 test('reusing a behavior definition keeps elapsed time separate for each execution', () => {
-  const beats = { waiting: { parts: [when((c) => c.ready, { for: 2 })], next: null } };
+  const beats = {
+    waiting: { parts: [when((c) => c.ready, { for: 2 })], next: null },
+  };
   const first = new Director(beats, { ready: true }, { prefix: 'first' });
   const second = new Director(beats, { ready: true }, { prefix: 'second' });
   first.start('waiting');
@@ -53,16 +55,32 @@ test('parallel parts retire on completion while their siblings keep running', ()
     };
   };
 
-  const director = new Director({ both: { parts: [all([part('a'), part('b')])], next: null } }, {}, { prefix: 'test' });
+  const director = new Director(
+    { both: { parts: [all([part('a'), part('b')])], next: null } },
+    {},
+    { prefix: 'test' },
+  );
   director.start('both');
-  assert.notEqual(scopes[0].key, scopes[1].key, 'each branch owns its outreach');
+  assert.notEqual(
+    scopes[0].key,
+    scopes[1].key,
+    'each branch owns its outreach',
+  );
   director.send({ type: 'a' });
   assert.equal(director.beat, 'both');
   director.tick(1);
   scopes[1].progress();
   director.send({ type: 'b' });
   assert.equal(director.beat, null);
-  assert.deepEqual(log, ['a:a', 'a:stop', 'b:a', 'b:tick', 'b:progress', 'b:b', 'b:stop']);
+  assert.deepEqual(log, [
+    'a:a',
+    'a:stop',
+    'b:a',
+    'b:tick',
+    'b:progress',
+    'b:b',
+    'b:stop',
+  ]);
 });
 
 test('leaving parallel parts cleans up once in reverse order and ignores late completion', () => {
@@ -73,7 +91,10 @@ test('leaving parallel parts cleans up once in reverse order and ignores late co
     return { stop: () => log.push(name) };
   });
   const director = new Director(
-    { both: { parts: [all(parts), on('skip')], next: 'next' }, next: { parts: [], next: null } },
+    {
+      both: { parts: [all(parts), on('skip')], next: 'next' },
+      next: { parts: [], next: null },
+    },
     {},
     { prefix: 'test' },
   );
@@ -93,14 +114,22 @@ test('parallel parts can complete during creation and still release their resour
     return { stop: () => log.push(`${name}:stop`) };
   };
 
-  const director = new Director({ both: { parts: [all([part('a'), part('b')])], next: null } }, {}, { prefix: 'test' });
+  const director = new Director(
+    { both: { parts: [all([part('a'), part('b')])], next: null } },
+    {},
+    { prefix: 'test' },
+  );
   director.start('both');
   assert.equal(director.beat, null);
   assert.deepEqual(log, ['a:start', 'a:stop', 'b:start', 'b:stop']);
 });
 
 test('an empty parallel group completes immediately', () => {
-  const director = new Director({ empty: { parts: [all([])], next: null } }, {}, { prefix: 'test' });
+  const director = new Director(
+    { empty: { parts: [all([])], next: null } },
+    {},
+    { prefix: 'test' },
+  );
   director.start('empty');
   assert.equal(director.beat, null);
 });
@@ -113,7 +142,12 @@ test('beat resources stay held without an action and release in reverse order on
   };
 
   const director = new Director(
-    { scene: { parts: [hold(resource('camera'), resource('attention')), on('leave')], next: null } },
+    {
+      scene: {
+        parts: [hold(resource('camera'), resource('attention')), on('leave')],
+        next: null,
+      },
+    },
     {},
     { prefix: 'test' },
   );
@@ -122,7 +156,12 @@ test('beat resources stay held without an action and release in reverse order on
   assert.equal(director.beat, 'scene');
   assert.deepEqual(log, ['take:camera', 'take:attention']);
   director.send({ type: 'leave' });
-  assert.deepEqual(log, ['take:camera', 'take:attention', 'release:attention', 'release:camera']);
+  assert.deepEqual(log, [
+    'take:camera',
+    'take:attention',
+    'release:attention',
+    'release:camera',
+  ]);
 });
 
 test('failed acquisition releases earlier beat resources', () => {
@@ -164,7 +203,11 @@ test('a running action is cancelled when its beat ends, including its generator 
         held();
       }
     });
-  const director = new Director({ scene: { parts: [run(action), on('leave')], next: null } }, {}, { prefix: 'test' });
+  const director = new Director(
+    { scene: { parts: [run(action), on('leave')], next: null } },
+    {},
+    { prefix: 'test' },
+  );
   director.start('scene');
   director.tick(1);
   director.send({ type: 'leave' });
@@ -200,7 +243,11 @@ test('the director resolves and replaces actions before advancing the beat', () 
       assert.fail('a resolved action must not run');
     }
   }
-  const director = new Director({ scene: { parts: [run(() => new Choose())], next: null } }, {}, { prefix: 'test' });
+  const director = new Director(
+    { scene: { parts: [run(() => new Choose())], next: null } },
+    {},
+    { prefix: 'test' },
+  );
   director.start('scene');
   assert.equal(director.beat, 'scene');
   director.tick(1);
@@ -211,7 +258,15 @@ test('the director resolves and replaces actions before advancing the beat', () 
 test('an immediate action advances the beat and releases resources acquired before it', () => {
   let releases = 0;
   const director = new Director(
-    { scene: { parts: [hold(() => releaseOnce(() => releases++)), run(() => new Wait(0))], next: null } },
+    {
+      scene: {
+        parts: [
+          hold(() => releaseOnce(() => releases++)),
+          run(() => new Wait(0)),
+        ],
+        next: null,
+      },
+    },
     {},
     { prefix: 'test' },
   );
@@ -228,7 +283,10 @@ test('an action failure reports struggle once and leaves the beat pending', () =
     }
   }
   const active = run(() => new Refused())(
-    { struggle: () => struggles++, done: () => assert.fail('failed beat advanced') },
+    {
+      struggle: () => struggles++,
+      done: () => assert.fail('failed beat advanced'),
+    },
     {},
   );
   active.tick(1);

@@ -36,7 +36,10 @@ const PROPS: Readonly<Record<string, SoundOf<'prop'>>> = {
 const MUTED_KEY = '30pc.muted';
 const START = { sparks: 0.35, crank: 0.55, strain: 1.4 };
 
-/** Read the saved mute preference; default to unmuted if storage is unavailable. */
+/**
+ * Read the saved mute preference; default to unmuted if storage is
+ * unavailable.
+ */
 function savedMuted(): boolean {
   try {
     return localStorage.getItem(MUTED_KEY) === '1';
@@ -53,7 +56,11 @@ function saveMuted(on: boolean): void {
   }
 }
 
-const SCREAMS: readonly [SoundOf<'scream'>, ...SoundOf<'scream'>[]] = ['scream-high', 'scream-mid', 'scream-low'];
+const SCREAMS: readonly [SoundOf<'scream'>, ...SoundOf<'scream'>[]] = [
+  'scream-high',
+  'scream-mid',
+  'scream-low',
+];
 
 declare global {
   interface Window {
@@ -63,8 +70,9 @@ declare global {
 }
 
 /**
- * Translate game events into sound cues and update continuous sounds each frame. Audio starts after a user gesture,
- * suspends while the page is hidden, and remembers the mute setting across reloads.
+ * Translate game events into sound cues and update continuous sounds each
+ * frame. Audio starts after a user gesture, suspends while the page is hidden,
+ * and remembers the mute setting across reloads.
  */
 export class Sound {
   readonly mixer = new Mixer();
@@ -83,11 +91,23 @@ export class Sound {
     ev.on('honk', (e) => this.honk(e));
     ev.on('impact', (e) => this.impact(e));
     ev.on('prop', ({ kind, at, how }) =>
-      this.mixer.play('prop', how === 'landed' ? 'prop-lamp-down' : (PROPS[kind.name] ?? 'prop-fence'), { at }),
+      this.mixer.play(
+        'prop',
+        how === 'landed'
+          ? 'prop-lamp-down'
+          : (PROPS[kind.name] ?? 'prop-fence'),
+        { at },
+      ),
     );
-    ev.on('smashed', ({ at }) => this.mixer.play('smash', 'smash-parapet', { at }));
-    ev.on('crushed', ({ car }) => this.mixer.play('crush', 'crush-car', { at: car.pos }));
-    ev.on('stoked', ({ at }) => this.mixer.play('stoke', 'fire-whoomph', { at }));
+    ev.on('smashed', ({ at }) =>
+      this.mixer.play('smash', 'smash-parapet', { at }),
+    );
+    ev.on('crushed', ({ car }) =>
+      this.mixer.play('crush', 'crush-car', { at: car.pos }),
+    );
+    ev.on('stoked', ({ at }) =>
+      this.mixer.play('stoke', 'fire-whoomph', { at }),
+    );
     ev.on('sfx', ({ name, at }) => {
       if (name === 'engine-cough' || name === 'engine-roar') {
         this.mixer.play('start', name, { at });
@@ -107,7 +127,11 @@ export class Sound {
     ev.on('money', ({ kind, amount }) =>
       this.mixer.play(
         'money',
-        kind === 'wallet' ? 'coin-wallet' : kind === 'glovebox' ? 'coin-glovebox' : 'coin-cash',
+        kind === 'wallet'
+          ? 'coin-wallet'
+          : kind === 'glovebox'
+            ? 'coin-glovebox'
+            : 'coin-cash',
         { note: `$${amount}` },
       ),
     );
@@ -135,7 +159,11 @@ export class Sound {
       }
     });
     ev.on('outfit', ({ form, at }) =>
-      this.mixer.play('outfit', form === 'night' ? 'outfit-phantom' : 'outfit-day', { at }),
+      this.mixer.play(
+        'outfit',
+        form === 'night' ? 'outfit-phantom' : 'outfit-day',
+        { at },
+      ),
     );
     ev.on('entered', ({ v, possessed }) => {
       if (possessed) {
@@ -144,7 +172,13 @@ export class Sound {
     });
     ev.on('phantom', () => this.mixer.play('phantom', 'phantom-imprint'));
     ev.on('fright', ({ at }) =>
-      this.mixer.play('scream', SCREAMS[Math.floor(Math.random() * SCREAMS.length)] ?? SCREAMS[0], { at }),
+      this.mixer.play(
+        'scream',
+        SCREAMS[Math.floor(Math.random() * SCREAMS.length)] ?? SCREAMS[0],
+        {
+          at,
+        },
+      ),
     );
     ev.on('crossing', ({ vehicle, kind }) => {
       if (kind === 'logged-in' || kind === 'logged-out') {
@@ -154,7 +188,9 @@ export class Sound {
       }
     });
     window.__sound = this;
-    soundLog(`on: audio starts with the first key, click or tap; ${keyName('mute')} mutes`);
+    soundLog(
+      `on: audio starts with the first key, click or tap; ${keyName('mute')} mutes`,
+    );
   }
 
   /** Register user gestures, page visibility changes, and the mute shortcut. */
@@ -165,7 +201,9 @@ export class Sound {
       window.addEventListener(type, wake, { capture: true });
     }
 
-    document.addEventListener('visibilitychange', () => (document.hidden ? this.mixer.suspend() : this.mixer.unlock()));
+    document.addEventListener('visibilitychange', () =>
+      document.hidden ? this.mixer.suspend() : this.mixer.unlock(),
+    );
     const mute: readonly string[] = KEYS.mute;
     window.addEventListener('keydown', (e) => {
       if (e.repeat || !mute.includes(e.code)) {
@@ -194,7 +232,9 @@ export class Sound {
 
     this.cranking = null;
     const strained = c.v.ignition.stalled;
-    this.mixer.play('start', strained ? 'starter-strain' : 'starter-crank', { at: c.v.pos });
+    this.mixer.play('start', strained ? 'starter-strain' : 'starter-crank', {
+      at: c.v.pos,
+    });
     this.loops.holdEngine(c.v, strained ? START.strain : START.crank);
   }
 
@@ -202,13 +242,19 @@ export class Sound {
     this.time += dt;
     this.crank(dt);
     const g = this.game;
-    const ride = g.vehicles.find((v) => v.role === 'player' && !v.status) ?? null;
+    const ride =
+      g.vehicles.find((v) => v.role === 'player' && !v.status) ?? null;
     // Listen from the cutscene focus or Cody's position; pan sounds using the active camera.
     this.mixer.ear.copy(g.cutscene?.focus ?? ride?.pos ?? g.player.pos);
     const cam = g.gfx.chaseView ? g.chase.camera : g.iso.camera;
-    this.mixer.right.set(1, 0, 0).applyQuaternion(cam.quaternion).setY(0).normalize();
+    this.mixer.right
+      .set(1, 0, 0)
+      .applyQuaternion(cam.quaternion)
+      .setY(0)
+      .normalize();
     // Stop ringing when dialogue opens, even while the phone still shows the call screen.
-    this.loops.ringing = this.calling && !document.body.classList.contains('dialogue-open');
+    this.loops.ringing =
+      this.calling && !document.body.classList.contains('dialogue-open');
     this.loops.update(dt, {
       cars: g.vehicles,
       ride,
@@ -236,7 +282,10 @@ export class Sound {
     });
   }
 
-  /** Select an impact cue from collision severity and surface, rate-limited per vehicle. */
+  /**
+   * Select an impact cue from collision severity and surface, rate-limited per
+   * vehicle.
+   */
   private impact({ v, at, dv, against }: GameEvents['impact']): void {
     if (dv < (against === 'ground' ? I.land : I.bump)) {
       return;
@@ -261,8 +310,17 @@ export class Sound {
         note,
       });
     } else {
-      const sound = dv >= I.hard ? 'crash-hard' : against === 'car' ? 'crash-car' : 'crash-wall';
-      this.mixer.play('crash', sound, { at, gain: clamp(dv / I.hard, 0.6, 1.2), note });
+      const sound =
+        dv >= I.hard
+          ? 'crash-hard'
+          : against === 'car'
+            ? 'crash-car'
+            : 'crash-wall';
+      this.mixer.play('crash', sound, {
+        at,
+        gain: clamp(dv / I.hard, 0.6, 1.2),
+        note,
+      });
     }
   }
 }

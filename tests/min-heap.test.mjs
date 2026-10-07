@@ -3,7 +3,10 @@ import { test } from 'node:test';
 
 import { loadModules } from './modules.mjs';
 
-const [{ MinHeap }, { Rng }] = await loadModules('/src/engine/core/min-heap.ts', '/src/engine/core/rng.ts');
+const [{ MinHeap }, { Rng }] = await loadModules(
+  '/src/engine/core/min-heap.ts',
+  '/src/engine/core/rng.ts',
+);
 
 test('the priority queue matches a sorted reference through interleaved inserts and removals', () => {
   const queue = new MinHeap();

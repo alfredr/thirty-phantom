@@ -16,8 +16,8 @@ import { withCutaway } from '@/render/materials';
 import { radialGlowTexture } from '@/render/textures';
 
 /**
- * Highlight appearance: a ground ring and glow plus a sprite halo around the item. Sizes and offsets are in meters;
- * pulse rate is in radians per second.
+ * Highlight appearance: a ground ring and glow plus a sprite halo around the
+ * item. Sizes and offsets are in meters; pulse rate is in radians per second.
  */
 const LOOK = {
   color: '#ffe27a',
@@ -47,11 +47,27 @@ export class Highlight {
       depthWrite: false,
       toneMapped: false,
     } as const;
-    const ringMat = withCutaway(new MeshBasicMaterial({ ...add, opacity: LOOK.alpha }));
-    const glowMat = withCutaway(new MeshBasicMaterial({ ...add, map: radialGlowTexture(), opacity: LOOK.alpha * 0.6 }));
-    const haloMat = new SpriteMaterial({ ...add, map: radialGlowTexture(), opacity: LOOK.alpha * 0.7 });
-    const ring = fxDecal(new Mesh(new RingGeometry(LOOK.ring[0], LOOK.ring[1], 32), ringMat));
-    const glow = fxDecal(new Mesh(new PlaneGeometry(LOOK.glow, LOOK.glow), glowMat));
+    const ringMat = withCutaway(
+      new MeshBasicMaterial({ ...add, opacity: LOOK.alpha }),
+    );
+    const glowMat = withCutaway(
+      new MeshBasicMaterial({
+        ...add,
+        map: radialGlowTexture(),
+        opacity: LOOK.alpha * 0.6,
+      }),
+    );
+    const haloMat = new SpriteMaterial({
+      ...add,
+      map: radialGlowTexture(),
+      opacity: LOOK.alpha * 0.7,
+    });
+    const ring = fxDecal(
+      new Mesh(new RingGeometry(LOOK.ring[0], LOOK.ring[1], 32), ringMat),
+    );
+    const glow = fxDecal(
+      new Mesh(new PlaneGeometry(LOOK.glow, LOOK.glow), glowMat),
+    );
     for (const m of [ring, glow]) {
       m.rotation.x = -Math.PI / 2;
       m.position.y = LOOK.lift;
@@ -67,8 +83,8 @@ export class Highlight {
   }
 
   /**
-   * Position the halo at the item and the ground marker at its resting or landing point. Update whenever either
-   * position changes.
+   * Position the halo at the item and the ground marker at its resting or
+   * landing point. Update whenever either position changes.
    */
   place(item: Vector3, ground: Vector3): void {
     this.ground.position.copy(ground);

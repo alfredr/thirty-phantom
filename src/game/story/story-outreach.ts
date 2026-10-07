@@ -194,7 +194,12 @@ export class Outreach {
   text(
     key: string,
     msg: string,
-    opts: { until?: () => boolean; brief?: number; landed?: () => void; reply?: boolean } = {},
+    opts: {
+      until?: () => boolean;
+      brief?: number;
+      landed?: () => void;
+      reply?: boolean;
+    } = {},
   ): void {
     this.phone.text(msg, { ...opts, key });
   }
@@ -208,9 +213,22 @@ export class Outreach {
     return true;
   }
 
-  call(key: string, lines: readonly Line[], keep: boolean, done: () => void): () => void {
+  call(
+    key: string,
+    lines: readonly Line[],
+    keep: boolean,
+    done: () => void,
+  ): () => void {
     const continuing = this.open !== null && this.calls.size === 0;
-    const call: Call = { key, lines, keep, done, state: 'queued', t: 0, stop: null };
+    const call: Call = {
+      key,
+      lines,
+      keep,
+      done,
+      state: 'queued',
+      t: 0,
+      stop: null,
+    };
     this.calls.add(call);
 
     if (continuing) {
@@ -255,7 +273,14 @@ export class Outreach {
     this.phone.drop(prefix);
   }
 
-  nudge(beat: string, action: string, idle: number, stage: Nudging, dt: number, lines: NudgeLines = {}): void {
+  nudge(
+    beat: string,
+    action: string,
+    idle: number,
+    stage: Nudging,
+    dt: number,
+    lines: NudgeLines = {},
+  ): void {
     if (idle < NUDGE_IDLE) {
       return;
     }
@@ -270,7 +295,10 @@ export class Outreach {
       this.call(
         key,
         lines.crawling ?? [
-          { who: 'left', say: "YOU KNOW, TIME DOESN'T FLY UNLESS WE'RE HAVING FUN..." },
+          {
+            who: 'left',
+            say: "YOU KNOW, TIME DOESN'T FLY UNLESS WE'RE HAVING FUN...",
+          },
           { who: 'right', say: '...WHAT?' },
           { who: 'left', say: `${action}, KID.` },
         ],
@@ -282,8 +310,14 @@ export class Outreach {
       this.call(
         key,
         lines.stopped ?? [
-          { who: 'left', say: `LOOK. WE'RE STUCK IN THIS LIMBO TOGETHER UNTIL YOU ${action}.` },
-          { who: 'left', say: "I'VE GOT ALL NIGHT. LITERALLY. THE CLOCK STOPPED." },
+          {
+            who: 'left',
+            say: `LOOK. WE'RE STUCK IN THIS LIMBO TOGETHER UNTIL YOU ${action}.`,
+          },
+          {
+            who: 'left',
+            say: "I'VE GOT ALL NIGHT. LITERALLY. THE CLOCK STOPPED.",
+          },
         ],
         false,
         () => undefined,
@@ -310,7 +344,12 @@ export class Outreach {
     call.stop = null;
     this.calls.delete(call);
     const log = this.open ?? [];
-    log.push(...call.lines.map((l) => ({ who: this.names[l.who], say: plain(l.say) })));
+    log.push(
+      ...call.lines.map((l) => ({
+        who: this.names[l.who],
+        say: plain(l.say),
+      })),
+    );
 
     if (call.keep) {
       this.open = log;
@@ -339,7 +378,11 @@ export class Outreach {
       call.stop?.();
     }
 
-    if (call.state === 'ringing' || call.state === 'talking' || (call.state === 'waiting' && !call.keep)) {
+    if (
+      call.state === 'ringing' ||
+      call.state === 'talking' ||
+      (call.state === 'waiting' && !call.keep)
+    ) {
       this.phone.endCall(this.open ?? []);
       this.open = null;
     }
@@ -349,7 +392,9 @@ export class Outreach {
 }
 
 function plain(say: string): string {
-  return say.replace(/\{(\w+)\}/g, (m, name: string) => (isControl(name) ? keyName(name) : m));
+  return say.replace(/\{(\w+)\}/g, (m, name: string) =>
+    isControl(name) ? keyName(name) : m,
+  );
 }
 
 export interface Nudging {
@@ -358,7 +403,11 @@ export interface Nudging {
 }
 
 type OutreachServices = { readonly outreach: Outreach };
-type OutreachBehavior<C> = BeatBehavior<C & OutreachServices, MindEvent<string>, string>;
+type OutreachBehavior<C> = BeatBehavior<
+  C & OutreachServices,
+  MindEvent<string>,
+  string
+>;
 
 function linesOf<C>(lines: Lines<C>, context: C): readonly Line[] {
   return typeof lines === 'function' ? lines(context) : lines;
@@ -374,15 +423,25 @@ function dropAll(scope: Scope<string>, context: OutreachServices): () => void {
   };
 }
 
-export function say<C>(lines: Lines<C>, opts: { wait?: number } = {}): OutreachBehavior<C> {
+export function say<C>(
+  lines: Lines<C>,
+  opts: { wait?: number } = {},
+): OutreachBehavior<C> {
   return function start(scope, context) {
     let stop: (() => void) | null = null;
     function speakWhenReady(): void {
-      if (stop || scope.t < (opts.wait ?? 0) || !context.outreach.free || context.outreach.phone.calling) {
+      if (
+        stop ||
+        scope.t < (opts.wait ?? 0) ||
+        !context.outreach.free ||
+        context.outreach.phone.calling
+      ) {
         return;
       }
 
-      stop = context.outreach.speak(linesOf(lines, context), () => scope.done());
+      stop = context.outreach.speak(linesOf(lines, context), () =>
+        scope.done(),
+      );
     }
 
     speakWhenReady();
@@ -407,7 +466,10 @@ export interface TextSpec<C> {
   readonly reply?: boolean;
 }
 
-export function text<C>(msg: Words<C>, spec: TextSpec<C> = {}): OutreachBehavior<C> {
+export function text<C>(
+  msg: Words<C>,
+  spec: TextSpec<C> = {},
+): OutreachBehavior<C> {
   return function start(scope, context) {
     let queued = false;
     function send(): void {
@@ -426,7 +488,11 @@ export function text<C>(msg: Words<C>, spec: TextSpec<C> = {}): OutreachBehavior
       }
 
       context.outreach.text(spec.key ?? `${scope.key}:text`, words, {
-        until: spec.until ? () => spec.until?.(context, scope) === true : spec.doing ? () => false : undefined,
+        until: spec.until
+          ? () => spec.until?.(context, scope) === true
+          : spec.doing
+            ? () => false
+            : undefined,
         brief: spec.brief,
         reply: spec.reply,
         landed: spec.done ? () => scope.done() : undefined,
@@ -448,10 +514,16 @@ export function text<C>(msg: Words<C>, spec: TextSpec<C> = {}): OutreachBehavior
   };
 }
 
-export function call<C>(lines: Lines<C>, opts: { keep?: boolean } = {}): OutreachBehavior<C> {
+export function call<C>(
+  lines: Lines<C>,
+  opts: { keep?: boolean } = {},
+): OutreachBehavior<C> {
   return function start(scope, context) {
-    const abandon = context.outreach.call(`${scope.key}:call`, linesOf(lines, context), opts.keep ?? false, () =>
-      scope.done(),
+    const abandon = context.outreach.call(
+      `${scope.key}:call`,
+      linesOf(lines, context),
+      opts.keep ?? false,
+      () => scope.done(),
     );
     const drop = dropAll(scope, context);
     return {
@@ -463,12 +535,22 @@ export function call<C>(lines: Lines<C>, opts: { keep?: boolean } = {}): Outreac
   };
 }
 
-export function nudge<C>(action: Words<C>, lines: NudgeLines = {}): OutreachBehavior<C> {
+export function nudge<C>(
+  action: Words<C>,
+  lines: NudgeLines = {},
+): OutreachBehavior<C> {
   return function start(scope, context) {
     const stage: Nudging = { n: 0, nag: 0 };
     return {
       tick(dt) {
-        context.outreach.nudge(scope.key, wordsOf(action, context), scope.idle, stage, dt, lines);
+        context.outreach.nudge(
+          scope.key,
+          wordsOf(action, context),
+          scope.idle,
+          stage,
+          dt,
+          lines,
+        );
       },
       progressed() {
         context.outreach.drop(`${scope.key}:nudge`);

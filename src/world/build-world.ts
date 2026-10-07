@@ -14,10 +14,26 @@ import {
 import { instanced, type Model } from '@/actors/models/part';
 import type { V3 } from '@/engine/core/math';
 import { Rng } from '@/engine/core/rng';
-import { CollisionWorld, type GroundHit, type RampShape, type Solid } from '@/engine/physics/collision';
-import { type BoxFace, boxFaces, CHUNK, GeometryBatch, NO_TINT } from '@/render/geometry';
+import {
+  CollisionWorld,
+  type GroundHit,
+  type RampShape,
+  type Solid,
+} from '@/engine/physics/collision';
+import {
+  type BoxFace,
+  boxFaces,
+  CHUNK,
+  GeometryBatch,
+  NO_TINT,
+} from '@/render/geometry';
 import { fxDecal } from '@/render/layers';
-import { UV_SCALE, withCutaway, type MatKey, type MaterialLibrary } from '@/render/materials';
+import {
+  UV_SCALE,
+  withCutaway,
+  type MatKey,
+  type MaterialLibrary,
+} from '@/render/materials';
 import { PALETTE } from '@/render/palette';
 import { signMaterial, signTextures } from '@/render/signs';
 import { puddleTexture, radialGlowTexture } from '@/render/textures';
@@ -25,12 +41,24 @@ import { puddleTexture, radialGlowTexture } from '@/render/textures';
 import { buildDecor } from './build-decor';
 import { ClockFaces } from './clock-faces';
 import { coplanarHoles } from './coplanar';
-import { addDrips, type DripSpec, type DripWorld, type FilmSpec } from './drips';
+import {
+  addDrips,
+  type DripSpec,
+  type DripWorld,
+  type FilmSpec,
+} from './drips';
 import { facadeFaces, facadeOf } from './facade-layout';
 import { Gates } from './gates';
 import { expandInterior } from './interior-layout';
 import { Interiors } from './interiors';
-import { facingYaw, type BoxDef, type LampColor, type LampKind, type LevelData, type RampDef } from './level-data';
+import {
+  facingYaw,
+  type BoxDef,
+  type LampColor,
+  type LampKind,
+  type LevelData,
+  type RampDef,
+} from './level-data';
 import {
   FENCE,
   fenceHeight,
@@ -74,11 +102,17 @@ export interface BuiltWorld {
   slime: SlimeSim;
   /** Breakable props, including lamps, barriers, and decor. */
   props: Props;
-  /** Visual occluders used by isometric cutaway probes without blocking physical movement. */
+  /**
+   * Visual occluders used by isometric cutaway probes without blocking
+   * physical movement.
+   */
   sight: CollisionWorld;
   lampDecals: MeshBasicMaterial;
   puddleDecals: MeshBasicMaterial;
-  /** Interior rendering manager; update with Cody's foot position to activate nearby rooms. */
+  /**
+   * Interior rendering manager; update with Cody's foot position to activate
+   * nearby rooms.
+   */
   interiors: Interiors;
   stats: { meshes: number; triangles: number };
 }
@@ -89,16 +123,28 @@ const LAMP_COLORS: Readonly<Record<LampColor, Color>> = {
   warm: new Color(PALETTE.windowWarm),
 };
 /** The glowing head material each lamp color uses. */
-const LAMP_HEAD: Readonly<Record<LampColor, MatKey>> = { green: 'lampGreen', purple: 'lampPurple', warm: 'lampWarm' };
+const LAMP_HEAD: Readonly<Record<LampColor, MatKey>> = {
+  green: 'lampGreen',
+  purple: 'lampPurple',
+  warm: 'lampWarm',
+};
 
 const uvScale = (m: MatKey): number => UV_SCALE[m] ?? 4;
-const rampShape = (r: RampDef): RampShape => ({ axis: r.axis, dir: r.dir, low: r.low });
+const rampShape = (r: RampDef): RampShape => ({
+  axis: r.axis,
+  dir: r.dir,
+  low: r.low,
+});
 
 /**
- * Build chunked render geometry, collision, lighting, interiors, and runtime props from level data. Return the world
- * root and managers needed for simulation and rendering.
+ * Build chunked render geometry, collision, lighting, interiors, and runtime
+ * props from level data. Return the world root and managers needed for
+ * simulation and rendering.
  */
-export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld {
+export function buildWorld(
+  level: LevelData,
+  mats: MaterialLibrary,
+): BuiltWorld {
   const root = new Group();
   root.name = 'world';
   const collision = new CollisionWorld();
@@ -147,7 +193,10 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
       const alongX = s.facing === 'z+' || s.facing === 'z-';
       const hx = alongX ? w / 2 : 0.12;
       const hz = alongX ? 0.12 : w / 2;
-      return { min: [x - hx, y - h / 2, z - hz] as V3, max: [x + hx, y + h / 2, z + hz] as V3 };
+      return {
+        min: [x - hx, y - h / 2, z - hz] as V3,
+        max: [x + hx, y + h / 2, z + hz] as V3,
+      };
     });
   const onSign = (min: V3, max: V3): boolean =>
     signBoxes.some(
@@ -165,7 +214,8 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
   let runs = 0;
   const under: GroundHit = { solid: null };
   const drip: DripWorld = {
-    occupied: (x, y, z) => y <= occupancy.groundPlane(x, z) || occupancy.containsPoint(x, y, z),
+    occupied: (x, y, z) =>
+      y <= occupancy.groundPlane(x, z) || occupancy.containsPoint(x, y, z),
     blocked: onSign,
     land: (x, y, z, px, pz) => {
       const g = occupancy.groundAt(x, z, y, 0, under);
@@ -174,14 +224,28 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
         return { y: g, pool: -1 };
       }
 
-      const room = on ? Math.min(px - on.min[0], on.max[0] - px, pz - on.min[2], on.max[2] - pz) : Infinity;
+      const room = on
+        ? Math.min(
+            px - on.min[0],
+            on.max[0] - px,
+            pz - on.min[2],
+            on.max[2] - pz,
+          )
+        : Infinity;
       if (room < 0.35) {
         return { y: g, pool: -1 };
       }
 
-      const i = pools.findIndex((p) => Math.abs(p.y - g) < 0.05 && (p.x - px) ** 2 + (p.z - pz) ** 2 < 1.4 ** 2);
+      const i = pools.findIndex(
+        (p) =>
+          Math.abs(p.y - g) < 0.05 &&
+          (p.x - px) ** 2 + (p.z - pz) ** 2 < 1.4 ** 2,
+      );
       if (i < 0) {
-        return { y: g, pool: pools.push({ x: px, y: g, z: pz, room, n: 1 }) - 1 };
+        return {
+          y: g,
+          pool: pools.push({ x: px, y: g, z: pz, room, n: 1 }) - 1,
+        };
       }
 
       const p = pools[i] as PoolSite & { n: number };
@@ -196,8 +260,21 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
   const slimeDrips: { spec: DripSpec; owner: Object3D | null }[] = [];
   const slimeFilms: { film: FilmSpec; owner: Object3D | null }[] = [];
   const dripRng = new Rng(4243);
-  const addSlime = (target: GeometryBatch, b: BoxDef, mode: 'top' | 'bottom', owner: Object3D | null): void => {
-    const { drips, films } = addDrips(target, b.min, b.max, mode, dripRng, NO_TINT, drip);
+  const addSlime = (
+    target: GeometryBatch,
+    b: BoxDef,
+    mode: 'top' | 'bottom',
+    owner: Object3D | null,
+  ): void => {
+    const { drips, films } = addDrips(
+      target,
+      b.min,
+      b.max,
+      mode,
+      dripRng,
+      NO_TINT,
+      drip,
+    );
     for (const spec of drips) {
       slimeDrips.push({ spec, owner });
     }
@@ -224,12 +301,18 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
 
   // Use the rendered face sets when resolving coplanar overlaps.
   const SIDES_TOP: readonly BoxFace[] = [0, 1, 2, 3, 4];
-  const isSolid = (b: BoxDef): boolean => b.solid !== false && b.max[1] - b.min[1] > 0.04;
+  const isSolid = (b: BoxDef): boolean =>
+    b.solid !== false && b.max[1] - b.min[1] > 0.04;
   const holeMap = coplanarHoles(
     level.boxes.map((b) => ({
       min: b.min,
       max: b.max,
-      faces: b.mat === 'invisible' ? [] : b.top && !(b.breakable && isSolid(b)) ? SIDES_TOP : boxFaces(b.min),
+      faces:
+        b.mat === 'invisible'
+          ? []
+          : b.top && !(b.breakable && isSolid(b))
+            ? SIDES_TOP
+            : boxFaces(b.min),
       yields: !!b.breakable && isSolid(b),
     })),
   );
@@ -238,7 +321,9 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
   for (const [i, b] of level.boxes.entries()) {
     const cx = (b.min[0] + b.max[0]) / 2;
     const cz = (b.min[2] + b.max[2]) / 2;
-    const solid = isSolid(b) ? collision.add(b.min, b.max, { breakable: b.breakable }) : null;
+    const solid = isSolid(b)
+      ? collision.add(b.min, b.max, { breakable: b.breakable })
+      : null;
     if (b.mat === 'invisible') {
       continue;
     }
@@ -248,7 +333,8 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
     // Combine facade paint with box tint and supply the shader's bay/storey mappings.
     const fac = facadeOf(b);
     const map = fac ? facadeFaces(b, fac) : undefined;
-    const paint = (c: Color): Color => (fac?.paint ? c.clone().multiply(paintColor(fac.paint)) : c);
+    const paint = (c: Color): Color =>
+      fac?.paint ? c.clone().multiply(paintColor(fac.paint)) : c;
     if (b.breakable && solid) {
       const own = new GeometryBatch();
       own.box(b.min, b.max, paint(tint(b)), uv, true, { holes, map });
@@ -268,7 +354,12 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
       }
 
       root.add(g);
-      breakables.push({ solid, group: g, center: new Vector3(cx, (b.min[1] + b.max[1]) / 2, cz), broken: false });
+      breakables.push({
+        solid,
+        group: g,
+        center: new Vector3(cx, (b.min[1] + b.max[1]) / 2, cz),
+        broken: false,
+      });
       continue;
     }
 
@@ -276,10 +367,21 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
       // Separate the top face when it uses a different material.
       const c = tint(b);
       const lo = b.max[1] - b.min[1] > 6 ? 0.5 : 0.62;
-      batchFor(b.mat, cx, cz).box(b.min, b.max, paint(c), uv, true, { faces: [0, 1, 2, 3], lo, holes, map });
-      batchFor(b.top, cx, cz).box(b.min, b.max, c, uvScale(b.top), false, { faces: [4], holes });
+      batchFor(b.mat, cx, cz).box(b.min, b.max, paint(c), uv, true, {
+        faces: [0, 1, 2, 3],
+        lo,
+        holes,
+        map,
+      });
+      batchFor(b.top, cx, cz).box(b.min, b.max, c, uvScale(b.top), false, {
+        faces: [4],
+        holes,
+      });
     } else {
-      batchFor(b.mat, cx, cz).box(b.min, b.max, paint(tint(b)), uv, true, { holes, map });
+      batchFor(b.mat, cx, cz).box(b.min, b.max, paint(tint(b)), uv, true, {
+        holes,
+        map,
+      });
     }
 
     if (b.drip) {
@@ -288,7 +390,10 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
   }
 
   // Keep interior collision available for navigation regardless of whether nearby rooms are currently rendered.
-  const interiors = new Interiors((level.buildings ?? []).map(expandInterior), mats);
+  const interiors = new Interiors(
+    (level.buildings ?? []).map(expandInterior),
+    mats,
+  );
   for (const it of interiors.all) {
     for (const b of it.shell) {
       collision.add(b.min, b.max);
@@ -308,7 +413,15 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
     const cx = (r.min[0] + r.max[0]) / 2;
     const cz = (r.min[2] + r.max[2]) / 2;
     const mat: MatKey = r.kicker ? 'hazard' : r.mat;
-    batchFor(mat, cx, cz).wedge(r.min, r.max, r.axis, r.dir, r.low, NO_TINT, uvScale(mat));
+    batchFor(mat, cx, cz).wedge(
+      r.min,
+      r.max,
+      r.axis,
+      r.dir,
+      r.low,
+      NO_TINT,
+      uvScale(mat),
+    );
 
     if (r.kicker) {
       // slime lip along the launch edge
@@ -354,19 +467,62 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
     const [x, y, z] = l.pos;
     const color = LAMP_COLORS[l.color];
     if (l.kind === 'street') {
-      const solid = collision.add([x - 0.15, y, z - 0.15], [x + 0.15, y + LAMP.pole[1], z + 0.15], { knockdown: true });
+      const solid = collision.add(
+        [x - 0.15, y, z - 0.15],
+        [x + 0.15, y + LAMP.pole[1], z + 0.15],
+        {
+          knockdown: true,
+        },
+      );
       const at = glow.vertices;
       glow.flat(x, y + 0.035, z, 11, 11, color.clone().multiplyScalar(0.55));
-      const emitter: LightEmitter = { pos: new Vector3(x, y + 5.6, z), color, strength: 1, kind: 'street' };
+      const emitter: LightEmitter = {
+        pos: new Vector3(x, y + 5.6, z),
+        color,
+        strength: 1,
+        kind: 'street',
+      };
       emitters.push(emitter);
-      streetLamps.push({ x, y, z, color: l.color, light: color, solid, emitter, glow: at });
+      streetLamps.push({
+        x,
+        y,
+        z,
+        color: l.color,
+        light: color,
+        solid,
+        emitter,
+        glow: at,
+      });
     } else if (l.kind === 'ceiling') {
       const floor = collision.groundAt(x, z, y - 0.6, 0);
-      glow.flat(x, floor + 0.04, z, 7.5, 7.5, color.clone().multiplyScalar(0.5));
-      emitters.push({ pos: new Vector3(x, y - 0.4, z), color, strength: 0.7, kind: 'ceiling' });
+      glow.flat(
+        x,
+        floor + 0.04,
+        z,
+        7.5,
+        7.5,
+        color.clone().multiplyScalar(0.5),
+      );
+      emitters.push({
+        pos: new Vector3(x, y - 0.4, z),
+        color,
+        strength: 0.7,
+        kind: 'ceiling',
+      });
     } else {
-      batchFor(LAMP_HEAD[l.color], x, z).box([x - 0.5, y, z - 0.5], [x + 0.5, y + 0.5, z + 0.5], NO_TINT, 1, false);
-      emitters.push({ pos: new Vector3(x, y + 0.6, z), color, strength: 1.6, kind: 'flood' });
+      batchFor(LAMP_HEAD[l.color], x, z).box(
+        [x - 0.5, y, z - 0.5],
+        [x + 0.5, y + 0.5, z + 0.5],
+        NO_TINT,
+        1,
+        false,
+      );
+      emitters.push({
+        pos: new Vector3(x, y + 0.6, z),
+        color,
+        strength: 1.6,
+        kind: 'flood',
+      });
     }
   }
 
@@ -391,7 +547,9 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
   }
 
   // additive decals: lamp pools and slime puddles (FX layer: no ink outline)
-  const decalMat = (map: ReturnType<typeof radialGlowTexture>): MeshBasicMaterial =>
+  const decalMat = (
+    map: ReturnType<typeof radialGlowTexture>,
+  ): MeshBasicMaterial =>
     withCutaway(
       new MeshBasicMaterial({
         map,
@@ -420,7 +578,14 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
 
     const draw = instanced(streetLamp(c), these.length);
     mats.register(draw.mats.lit, 'lamps');
-    const kind: PropKind = { name: 'lamp', draw, height: lampHeight(), wide: 0.3, down: lampDown, square: false };
+    const kind: PropKind = {
+      name: 'lamp',
+      draw,
+      height: lampHeight(),
+      wide: 0.3,
+      down: lampDown,
+      square: false,
+    };
     these.forEach((l, slot) =>
       propSpecs.push({
         kind,
@@ -436,7 +601,10 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
     );
   }
 
-  /** A panel from an axis-aligned run, with independent knockdown collision and an optional far-end post. */
+  /**
+   * A panel from an axis-aligned run, with independent knockdown collision and
+   * an optional far-end post.
+   */
   type Panel = Omit<PropSpec, 'kind' | 'slot'> & { end: boolean };
 
   const runPanels = (
@@ -454,12 +622,20 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
     const n = Math.max(1, Math.round(len / span));
     const yaw = Math.atan2(out[0], out[1]);
     // Determine which run endpoint corresponds to local +X for the closing post.
-    const s = Math.sign((ax === 0 ? Math.cos(yaw) : -Math.sin(yaw)) * (b[ax] - a[ax])) || 1;
-    const at = (t: number, i: number): number => (a[i] as number) + ((b[i] as number) - (a[i] as number)) * t;
+    const s =
+      Math.sign(
+        (ax === 0 ? Math.cos(yaw) : -Math.sin(yaw)) * (b[ax] - a[ax]),
+      ) || 1;
+    const at = (t: number, i: number): number =>
+      (a[i] as number) + ((b[i] as number) - (a[i] as number)) * t;
     const list: Panel[] = [];
     for (let k = 0; k < n; k++) {
       const min: V3 = [0, Math.min(at(k / n, 1), at((k + 1) / n, 1)), 0];
-      const max: V3 = [0, Math.max(at(k / n, 1), at((k + 1) / n, 1)) + height, 0];
+      const max: V3 = [
+        0,
+        Math.max(at(k / n, 1), at((k + 1) / n, 1)) + height,
+        0,
+      ];
       min[ax] = Math.min(at(k / n, ax), at((k + 1) / n, ax));
       max[ax] = Math.max(at(k / n, ax), at((k + 1) / n, ax));
       min[o] = a[o] - thick / 2;
@@ -481,7 +657,10 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
     return list;
   };
 
-  /** Create instanced panel kinds for ordinary and end-post variants, then append their prop definitions. */
+  /**
+   * Create instanced panel kinds for ordinary and end-post variants, then
+   * append their prop definitions.
+   */
   const addPanels = (
     name: string,
     panels: Panel[],
@@ -497,8 +676,17 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
         continue;
       }
 
-      const kind: PropKind = { name, draw: instanced(model(end), these.length), height, wide, down, square: true };
-      these.forEach(({ end: _, ...f }, slot) => propSpecs.push({ kind, slot, ...f }));
+      const kind: PropKind = {
+        name,
+        draw: instanced(model(end), these.length),
+        height,
+        wide,
+        down,
+        square: true,
+      };
+      these.forEach(({ end: _, ...f }, slot) =>
+        propSpecs.push({ kind, slot, ...f }),
+      );
     }
   };
 
@@ -506,41 +694,99 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
   for (const f of level.fences ?? []) {
     const alongX = f.max[0] - f.min[0] > f.max[2] - f.min[2];
     const mid = alongX ? (f.min[2] + f.max[2]) / 2 : (f.min[0] + f.max[0]) / 2;
-    const a: V3 = alongX ? [f.min[0], f.min[1], mid] : [mid, f.min[1], f.min[2]];
-    const b: V3 = alongX ? [f.max[0], f.min[1], mid] : [mid, f.min[1], f.max[2]];
+    const a: V3 = alongX
+      ? [f.min[0], f.min[1], mid]
+      : [mid, f.min[1], f.min[2]];
+    const b: V3 = alongX
+      ? [f.max[0], f.min[1], mid]
+      : [mid, f.min[1], f.max[2]];
     const thick = alongX ? f.max[2] - f.min[2] : f.max[0] - f.min[0];
-    fences.push(...runPanels(a, b, alongX ? [0, 1] : [-1, 0], FENCE.span, thick, f.max[1] - f.min[1]));
+    fences.push(
+      ...runPanels(
+        a,
+        b,
+        alongX ? [0, 1] : [-1, 0],
+        FENCE.span,
+        thick,
+        f.max[1] - f.min[1],
+      ),
+    );
   }
 
-  addPanels('fence', fences, fencePanel, fenceHeight(), FENCE.span / 2, FENCE.finial / 2);
+  addPanels(
+    'fence',
+    fences,
+    fencePanel,
+    fenceHeight(),
+    FENCE.span / 2,
+    FENCE.finial / 2,
+  );
   // Associate wall-top railings with breakable parapets so losing support also topples the railing.
   const guardrails: Panel[] = [];
   const railings: Panel[] = [];
   for (const r of level.rails ?? []) {
     if (r.style === 'guardrail') {
-      guardrails.push(...runPanels(r.a, r.b, r.out, GUARDRAIL.span, 0.15, guardrailHeight(), r.out));
+      guardrails.push(
+        ...runPanels(
+          r.a,
+          r.b,
+          r.out,
+          GUARDRAIL.span,
+          0.15,
+          guardrailHeight(),
+          r.out,
+        ),
+      );
       continue;
     }
 
     // Match the supporting wall depth so a vehicle stopped by the wall can still strike the railing.
-    for (const p of runPanels(r.a, r.b, r.out, RAILING.span, 0.4, railingHeight(), r.out)) {
+    for (const p of runPanels(
+      r.a,
+      r.b,
+      r.out,
+      RAILING.span,
+      0.4,
+      railingHeight(),
+      r.out,
+    )) {
       const under = breakables.find(
         ({ solid: s }) =>
-          Math.abs(s.max[1] - p.y) < 0.05 && p.x > s.min[0] && p.x < s.max[0] && p.z > s.min[2] && p.z < s.max[2],
+          Math.abs(s.max[1] - p.y) < 0.05 &&
+          p.x > s.min[0] &&
+          p.x < s.max[0] &&
+          p.z > s.min[2] &&
+          p.z < s.max[2],
       );
       railings.push({ ...p, support: under?.solid });
     }
   }
 
-  addPanels('guardrail', guardrails, guardrailPanel, guardrailHeight(), GUARDRAIL.span / 2, GUARDRAIL.beam.t);
-  addPanels('railing', railings, railingPanel, railingHeight(), RAILING.span / 2, RAILING.rail / 2);
+  addPanels(
+    'guardrail',
+    guardrails,
+    guardrailPanel,
+    guardrailHeight(),
+    GUARDRAIL.span / 2,
+    GUARDRAIL.beam.t,
+  );
+  addPanels(
+    'railing',
+    railings,
+    railingPanel,
+    railingHeight(),
+    RAILING.span / 2,
+    RAILING.rail / 2,
+  );
   // Gate arms use held props for posing and become loose props when struck.
   const gateArms: number[] = [];
   const armKinds = new Map<number, PropKind>();
   level.gates.forEach((g, k) => {
     let kind = armKinds.get(g.armLength);
     if (!kind) {
-      const count = level.gates.filter((o) => o.armLength === g.armLength).length;
+      const count = level.gates.filter(
+        (o) => o.armLength === g.armLength,
+      ).length;
       kind = {
         name: 'gate-arm',
         draw: instanced(gateArm(g.armLength), count),
@@ -552,10 +798,18 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
       armKinds.set(g.armLength, kind);
     }
 
-    const slot = level.gates.slice(0, k).filter((o) => o.armLength === g.armLength).length;
+    const slot = level.gates
+      .slice(0, k)
+      .filter((o) => o.armLength === g.armLength).length;
     const heading = facingYaw(g.armDir);
     // Use a synthetic solid ID for prop bookkeeping; Gates performs arm collision tests.
-    const solid: Solid = { id: -1 - k, min: [...g.hinge], max: [...g.hinge], enabled: true, stamp: 0 };
+    const solid: Solid = {
+      id: -1 - k,
+      min: [...g.hinge],
+      max: [...g.hinge],
+      enabled: true,
+      stamp: 0,
+    };
     gateArms.push(propSpecs.length);
     propSpecs.push({
       kind,
@@ -574,7 +828,9 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
   propSpecs.push(...decor.props);
   root.add(decor.root);
   const props = new Props(propSpecs, collision);
-  props.attachGlow(lampDecalMesh.geometry.getAttribute('color') as BufferAttribute);
+  props.attachGlow(
+    lampDecalMesh.geometry.getAttribute('color') as BufferAttribute,
+  );
   root.add(props.root);
 
   const puddles = new GeometryBatch();
@@ -597,7 +853,14 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
   }
 
   // live drips off the lips, and the puddles their drops feed
-  const slime = new SlimeSim(slimeDrips, slimeFilms, runs, pools, mats.get('slime'), puddleDecals);
+  const slime = new SlimeSim(
+    slimeDrips,
+    slimeFilms,
+    runs,
+    pools,
+    mats.get('slime'),
+    puddleDecals,
+  );
   // Include fountain and pond slime in the tutorial's global slime emergence.
   slime.fadeWith(mats.get('slimePool'));
   root.add(slime.root, fxDecal(slime.puddles));
@@ -608,8 +871,14 @@ export function buildWorld(level: LevelData, mats: MaterialLibrary): BuiltWorld 
     const key = `${s.style}|${s.lines.join('/')}|${s.size.join('x')}`;
     let mat = signMat.get(key);
     if (!mat) {
-      mat = signMaterial(signTextures(s.style, s.lines, s.size[0], s.size[1], i + 1), 0.75);
-      mats.register(mat, s.style === 'banner' || s.style === 'checker' ? 'signs' : 'neon');
+      mat = signMaterial(
+        signTextures(s.style, s.lines, s.size[0], s.size[1], i + 1),
+        0.75,
+      );
+      mats.register(
+        mat,
+        s.style === 'banner' || s.style === 'checker' ? 'signs' : 'neon',
+      );
       signMat.set(key, mat);
     }
 

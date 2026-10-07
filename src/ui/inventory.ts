@@ -15,8 +15,14 @@ export interface InvItem {
   actions: readonly { id: string; label: string }[];
 }
 
-/** Compare the displayed items and actions, including changes with no inventory mutation. */
-export function sameInventory(a: readonly InvItem[], b: readonly InvItem[]): boolean {
+/**
+ * Compare the displayed items and actions, including changes with no inventory
+ * mutation.
+ */
+export function sameInventory(
+  a: readonly InvItem[],
+  b: readonly InvItem[],
+): boolean {
   return (
     a.length === b.length &&
     a.every((item, i) => {
@@ -30,20 +36,27 @@ export function sameInventory(a: readonly InvItem[], b: readonly InvItem[]): boo
         item.note === other.note &&
         item.actions.length === other.actions.length &&
         item.actions.every(
-          (action, j) => action.id === other.actions[j]?.id && action.label === other.actions[j]?.label,
+          (action, j) =>
+            action.id === other.actions[j]?.id &&
+            action.label === other.actions[j]?.label,
         )
       );
     })
   );
 }
 
-/** While the menu is open these run the item's first and second action; Enter runs the first too. */
+/**
+ * While the menu is open these run the item's first and second action; Enter
+ * runs the first too.
+ */
 const ACTION_KEYS: readonly Control[] = ['interact', 'pay'];
 
 /**
- * Render inventory tags and actions for the selected item. The inventory control cycles usable items and closes after
- * the last; menu controls wrap, confirm runs the first action, and cancel closes. Reserve these controls while open to
- * prevent simultaneous world actions. Pointer input selects tags and actions; pressing outside closes it.
+ * Render inventory tags and actions for the selected item. The inventory
+ * control cycles usable items and closes after the last; menu controls wrap,
+ * confirm runs the first action, and cancel closes. Reserve these controls
+ * while open to prevent simultaneous world actions. Pointer input selects tags
+ * and actions; pressing outside closes it.
  */
 export class InventoryStrip {
   readonly root: HTMLDivElement;
@@ -67,14 +80,18 @@ export class InventoryStrip {
       },
       true,
     );
-    focus.add({ controls: () => this.controls(), press: (control, { repeat }) => this.press(control, repeat) });
+    focus.add({
+      controls: () => this.controls(),
+      press: (control, { repeat }) => this.press(control, repeat),
+    });
   }
 
   set(items: readonly InvItem[]): void {
     const kind = this.items[this.sel]?.kind;
     this.items = items;
     // Preserve selection by item identity across count changes; close if the item disappears.
-    this.sel = kind === undefined ? -1 : items.findIndex((it) => it.kind === kind);
+    this.sel =
+      kind === undefined ? -1 : items.findIndex((it) => it.kind === kind);
     this.render();
   }
 
@@ -82,7 +99,10 @@ export class InventoryStrip {
     return this.items.flatMap((it, i) => (it.actions.length ? [i] : []));
   }
 
-  /** Reserve the inventory control when usable items exist, plus menu controls while an item is selected. */
+  /**
+   * Reserve the inventory control when usable items exist, plus menu controls
+   * while an item is selected.
+   */
   private controls(): readonly Control[] {
     // Hidden inventory must not reserve controls.
     if (this.root.offsetParent === null) {
@@ -93,7 +113,14 @@ export class InventoryStrip {
       return this.usable.length ? ['inventory'] : [];
     }
 
-    return ['inventory', 'menuDown', 'menuUp', 'cancel', 'confirm', ...ACTION_KEYS];
+    return [
+      'inventory',
+      'menuDown',
+      'menuUp',
+      'cancel',
+      'confirm',
+      ...ACTION_KEYS,
+    ];
   }
 
   private press(control: Control, repeat: boolean): void {
@@ -116,7 +143,10 @@ export class InventoryStrip {
     }
   }
 
-  /** Move through the usable items; `closeAtEnd` closes after the last instead of wrapping. */
+  /**
+   * Move through the usable items; `closeAtEnd` closes after the last instead
+   * of wrapping.
+   */
   private step(dir: 1 | -1, closeAtEnd: boolean): void {
     const u = this.usable;
     if (!u.length) {
@@ -167,7 +197,12 @@ export class InventoryStrip {
   private render(): void {
     const tags = this.items.map((it, i) => {
       const cls = `inv-item plate${it.actions.length ? ' usable' : ''}${i === this.sel ? ' on' : ''}`;
-      const tag = el('div', cls, undefined, `${it.icon ?? ''}${it.name}${it.count > 1 ? ` <b>${it.count}</b>` : ''}`);
+      const tag = el(
+        'div',
+        cls,
+        undefined,
+        `${it.icon ?? ''}${it.name}${it.count > 1 ? ` <b>${it.count}</b>` : ''}`,
+      );
       tag.dataset.i = String(i);
 
       if (i === this.sel && (it.note || it.actions.length)) {
@@ -179,14 +214,22 @@ export class InventoryStrip {
         it.actions.forEach((a, j) => {
           const key = ACTION_KEYS[j];
           // Use data-act to avoid the global data-action handler dispatching a second input event.
-          el('div', 'inv-act', menu, `${key ? `<kbd>${keyName(key)}</kbd>` : ''}${a.label}`).dataset.act = String(j);
+          el(
+            'div',
+            'inv-act',
+            menu,
+            `${key ? `<kbd>${keyName(key)}</kbd>` : ''}${a.label}`,
+          ).dataset.act = String(j);
         });
       }
 
       return tag;
     });
     // Offer the inventory shortcut only when a usable item exists and no menu is open.
-    const hint = this.sel < 0 && this.usable.length ? [el('kbd', 'inv-hint', undefined, keyName('inventory'))] : [];
+    const hint =
+      this.sel < 0 && this.usable.length
+        ? [el('kbd', 'inv-hint', undefined, keyName('inventory'))]
+        : [];
     this.root.replaceChildren(...hint, ...tags);
   }
 }

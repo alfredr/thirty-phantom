@@ -6,12 +6,19 @@ import type { CollisionWorld } from '@/engine/physics/collision';
 import { exitHit, penetration } from './crash-body';
 import type { CharacterRig } from './models/rig';
 
-/** Vehicle pose and dimensions used to push ragdoll particles with three body circles. */
+/**
+ * Vehicle pose and dimensions used to push ragdoll particles with three body
+ * circles.
+ */
 export interface RagdollPusher {
   readonly pos: Vector3;
   readonly vel: Vector3;
   readonly yaw: number;
-  readonly params: { readonly radius: number; readonly length: number; readonly height: number };
+  readonly params: {
+    readonly radius: number;
+    readonly length: number;
+    readonly height: number;
+  };
   readonly gone: boolean;
 }
 
@@ -27,7 +34,10 @@ const HIP_L = 7;
 const HIP_R = 8;
 const FOOT_L = 9;
 const FOOT_R = 10;
-/** Particle offset in front of the torso to prevent its bracing constraints from collapsing into a plane. */
+/**
+ * Particle offset in front of the torso to prevent its bracing constraints
+ * from collapsing into a plane.
+ */
 const CHEST = 11;
 const COUNT = 12;
 
@@ -73,7 +83,10 @@ const DRAG = 0.998;
 const GROUND_KEEP = 0.55;
 /** Vertical offset applied before point penetration tests, in meters. */
 const RADIUS = 0.09;
-/** Motion threshold in meters and continuous quiet time in seconds required for sleep. */
+/**
+ * Motion threshold in meters and continuous quiet time in seconds required for
+ * sleep.
+ */
 const STILL = 0.004;
 const SLEEP_AFTER = 0.8;
 
@@ -89,22 +102,33 @@ const DOWN = new Vector3(0, -1, 0);
 const UP = new Vector3(0, 1, 0);
 
 /**
- * Simulate a fallen CharacterRig with twelve Verlet particles and distance constraints initialized from its current
- * pose. Resolve gravity, world penetration, and vehicle pushes, then reconstruct the torso and limb transforms. Stop
- * integrating after sustained low motion; a vehicle push or launch wakes the body.
+ * Simulate a fallen CharacterRig with twelve Verlet particles and distance
+ * constraints initialized from its current pose. Resolve gravity, world
+ * penetration, and vehicle pushes, then reconstruct the torso and limb
+ * transforms. Stop integrating after sustained low motion; a vehicle push or
+ * launch wakes the body.
  */
 export class Ragdoll {
-  /** Current and previous substep positions for Verlet integration, stored as x, y, z triples. */
+  /**
+   * Current and previous substep positions for Verlet integration, stored as
+   * x, y, z triples.
+   */
   private readonly p = new Float32Array(COUNT * 3);
   private readonly o = new Float32Array(COUNT * 3);
   private readonly rest = new Float32Array(STICK_COUNT);
-  /** Unscaled pelvis position in rig coordinates and uniform scale, used to reconstruct the root transform. */
+  /**
+   * Unscaled pelvis position in rig coordinates and uniform scale, used to
+   * reconstruct the root transform.
+   */
   private readonly pelvisLocal = new Vector3();
   private readonly scale: number;
   private still = 0;
   /** Whether particle motion requires updating the visual rig. */
   private dirty = true;
-  /** Largest relative vehicle impact speed in m/s. The caller resets this after consuming it. */
+  /**
+   * Largest relative vehicle impact speed in m/s. The caller resets this after
+   * consuming it.
+   */
   hardest = 0;
 
   constructor(private readonly rig: CharacterRig) {
@@ -112,7 +136,13 @@ export class Ragdoll {
     root.updateMatrixWorld(true);
     this.scale = root.scale.x;
 
-    const set = (i: number, o: Object3D, x: number, y: number, z: number): void => {
+    const set = (
+      i: number,
+      o: Object3D,
+      x: number,
+      y: number,
+      z: number,
+    ): void => {
       o.localToWorld(_a.set(x, y, z));
       this.p[i * 3] = _a.x;
       this.p[i * 3 + 1] = _a.y;
@@ -146,12 +176,19 @@ export class Ragdoll {
     root.worldToLocal(this.pelvisLocal.set(px, py, pz));
   }
 
-  /** Initialize particle velocities in m/s. Increase horizontal velocity at the feet and hips to induce tumbling. */
+  /**
+   * Initialize particle velocities in m/s. Increase horizontal velocity at the
+   * feet and hips to induce tumbling.
+   */
   launch(vx: number, vy: number, vz: number, tumble: number): void {
     const dt = 1 / 60 / SUBSTEPS;
     for (let i = 0; i < COUNT; i++) {
       const low =
-        i === FOOT_L || i === FOOT_R ? 1 + tumble : i === HIP_L || i === HIP_R || i === PELVIS ? 1 + tumble * 0.5 : 1;
+        i === FOOT_L || i === FOOT_R
+          ? 1 + tumble
+          : i === HIP_L || i === HIP_R || i === PELVIS
+            ? 1 + tumble * 0.5
+            : 1;
       this.o[i * 3] = (this.p[i * 3] as number) - vx * low * dt;
       this.o[i * 3 + 1] = (this.p[i * 3 + 1] as number) - vy * dt;
       this.o[i * 3 + 2] = (this.p[i * 3 + 2] as number) - vz * low * dt;
@@ -162,16 +199,28 @@ export class Ragdoll {
 
   /** Write the world-space pelvis position to `out`. */
   pelvis(out: Vector3): Vector3 {
-    return out.set(this.p[0] as number, this.p[1] as number, this.p[2] as number);
+    return out.set(
+      this.p[0] as number,
+      this.p[1] as number,
+      this.p[2] as number,
+    );
   }
 
   /** Write the chest particle position to `out` for wound effects. */
   chest(out: Vector3): Vector3 {
-    return out.set(this.p[CHEST * 3] as number, this.p[CHEST * 3 + 1] as number, this.p[CHEST * 3 + 2] as number);
+    return out.set(
+      this.p[CHEST * 3] as number,
+      this.p[CHEST * 3 + 1] as number,
+      this.p[CHEST * 3 + 2] as number,
+    );
   }
 
   head(out: Vector3): Vector3 {
-    return out.set(this.p[HEAD * 3] as number, this.p[HEAD * 3 + 1] as number, this.p[HEAD * 3 + 2] as number);
+    return out.set(
+      this.p[HEAD * 3] as number,
+      this.p[HEAD * 3 + 1] as number,
+      this.p[HEAD * 3 + 2] as number,
+    );
   }
 
   feet(out: Vector3): Vector3 {
@@ -187,7 +236,8 @@ export class Ragdoll {
   /** Torso heading in radians, used when the character stands back up. */
   get yaw(): number {
     const fx = (this.p[CHEST * 3] as number) - (this.p[PELVIS * 3] as number);
-    const fz = (this.p[CHEST * 3 + 2] as number) - (this.p[PELVIS * 3 + 2] as number);
+    const fz =
+      (this.p[CHEST * 3 + 2] as number) - (this.p[PELVIS * 3 + 2] as number);
     return Math.atan2(fx, fz);
   }
 
@@ -195,7 +245,11 @@ export class Ragdoll {
     return this.still > SLEEP_AFTER;
   }
 
-  step(dt: number, world: CollisionWorld, pushers: readonly RagdollPusher[]): void {
+  step(
+    dt: number,
+    world: CollisionWorld,
+    pushers: readonly RagdollPusher[],
+  ): void {
     this.shove(pushers, dt);
 
     if (this.asleep) {
@@ -224,7 +278,11 @@ export class Ragdoll {
 
       for (let it = 0; it < ITERATIONS; it++) {
         for (let k = 0; k < STICK_COUNT; k++) {
-          this.satisfy(STICKS[k * 2] as number, STICKS[k * 2 + 1] as number, this.rest[k] as number);
+          this.satisfy(
+            STICKS[k * 2] as number,
+            STICKS[k * 2 + 1] as number,
+            this.rest[k] as number,
+          );
         }
 
         this.collide(world);
@@ -245,7 +303,10 @@ export class Ragdoll {
     this.still = moved * SUBSTEPS < STILL ? this.still + dt : 0;
   }
 
-  /** Update the rig from particle positions only when motion has marked it dirty. */
+  /**
+   * Update the rig from particle positions only when motion has marked it
+   * dirty.
+   */
   pose(): void {
     if (!this.dirty) {
       return;
@@ -261,7 +322,9 @@ export class Ragdoll {
     _m.makeBasis(_x, _y, _z);
     r.root.quaternion.setFromRotationMatrix(_m);
     this.vec(_a, PELVIS);
-    _b.copy(this.pelvisLocal).multiplyScalar(this.scale).applyQuaternion(r.root.quaternion);
+    _b.copy(this.pelvisLocal)
+      .multiplyScalar(this.scale)
+      .applyQuaternion(r.root.quaternion);
     r.root.position.copy(_a).sub(_b);
     _inv.copy(r.root.quaternion).invert();
     this.bone(r.armL, SHOULDER_L, HAND_L, DOWN);
@@ -271,7 +334,10 @@ export class Ragdoll {
     this.bone(r.head, NECK, HEAD, UP);
   }
 
-  /** Rotate a limb’s rest axis toward the particle segment in root-local coordinates. */
+  /**
+   * Rotate a limb’s rest axis toward the particle segment in root-local
+   * coordinates.
+   */
   private bone(o: Object3D, a: number, b: number, axis: Vector3): void {
     this.vec(_a, b).sub(this.vec(_b, a)).applyQuaternion(_inv).normalize();
     o.quaternion.copy(_q.setFromUnitVectors(axis, _a));
@@ -314,8 +380,11 @@ export class Ragdoll {
           }
 
           // Separate the particle and transfer the vehicle’s horizontal velocity.
-          const pvx = ((this.p[i] as number) - (this.o[i] as number)) / (dt / SUBSTEPS);
-          const pvz = ((this.p[i + 2] as number) - (this.o[i + 2] as number)) / (dt / SUBSTEPS);
+          const pvx =
+            ((this.p[i] as number) - (this.o[i] as number)) / (dt / SUBSTEPS);
+          const pvz =
+            ((this.p[i + 2] as number) - (this.o[i + 2] as number)) /
+            (dt / SUBSTEPS);
           const rvx = v.vel.x - pvx;
           const rvz = v.vel.z - pvz;
           const rv = Math.sqrt(rvx * rvx + rvz * rvz);
@@ -326,7 +395,8 @@ export class Ragdoll {
           this.p[i] = (this.p[i] as number) + (dx / d) * (r - d);
           this.p[i + 2] = (this.p[i + 2] as number) + (dz / d) * (r - d);
           this.o[i] = (this.p[i] as number) - v.vel.x * (dt / SUBSTEPS);
-          this.o[i + 2] = (this.p[i + 2] as number) - v.vel.z * (dt / SUBSTEPS);
+          this.o[i + 2] =
+            (this.p[i + 2] as number) - v.vel.z * (dt / SUBSTEPS);
           this.still = 0;
           break;
         }
@@ -350,9 +420,13 @@ export class Ragdoll {
 
       if (exitHit.ny > 0.5) {
         // Dampen horizontal Verlet displacement at ground-facing contacts.
-        this.o[i] = (this.p[i] as number) - ((this.p[i] as number) - (this.o[i] as number)) * GROUND_KEEP;
+        this.o[i] =
+          (this.p[i] as number) -
+          ((this.p[i] as number) - (this.o[i] as number)) * GROUND_KEEP;
         this.o[i + 2] =
-          (this.p[i + 2] as number) - ((this.p[i + 2] as number) - (this.o[i + 2] as number)) * GROUND_KEEP;
+          (this.p[i + 2] as number) -
+          ((this.p[i + 2] as number) - (this.o[i + 2] as number)) *
+            GROUND_KEEP;
       }
     }
   }
@@ -379,12 +453,17 @@ export class Ragdoll {
   }
 
   private vec(out: Vector3, i: number): Vector3 {
-    return out.set(this.p[i * 3] as number, this.p[i * 3 + 1] as number, this.p[i * 3 + 2] as number);
+    return out.set(
+      this.p[i * 3] as number,
+      this.p[i * 3 + 1] as number,
+      this.p[i * 3 + 2] as number,
+    );
   }
 
   private mid(i: number, a: number, b: number): void {
     for (let c = 0; c < 3; c++) {
-      this.p[i * 3 + c] = ((this.p[a * 3 + c] as number) + (this.p[b * 3 + c] as number)) / 2;
+      this.p[i * 3 + c] =
+        ((this.p[a * 3 + c] as number) + (this.p[b * 3 + c] as number)) / 2;
     }
   }
 

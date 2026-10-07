@@ -7,20 +7,31 @@ import { ghostTexture } from '@/render/textures';
 import type { GhostZoneDef } from '@/world/level-data';
 
 const _to = new Vector3();
-/** Maximum active ghosts spawned from casualties. Reuse the oldest when the limit is reached. */
+/**
+ * Maximum active ghosts spawned from casualties. Reuse the oldest when the
+ * limit is reached.
+ */
 const RISEN_MAX = 12;
-/** Fade-in time in seconds and horizontal roaming radius in meters for casualty ghosts. */
+/**
+ * Fade-in time in seconds and horizontal roaming radius in meters for casualty
+ * ghosts.
+ */
 const RISE_IN = 1.5;
 const HAUNT = 4;
 /**
- * Intake motion uses an initial speed in m/s and acceleration in m/s². Collect ghosts within SWALLOW meters of the
- * intake; ambient ghosts return after their zone's respawn time, or RESPAWN visible simulation seconds by default.
+ * Intake motion uses an initial speed in m/s and acceleration in m/s². Collect
+ * ghosts within SWALLOW meters of the intake; ambient ghosts return after
+ * their zone's respawn time, or RESPAWN visible simulation seconds by
+ * default.
  */
 const SUCK_SPEED = 3;
 const SUCK_ACCEL = 14;
 const SWALLOW = 0.8;
 const RESPAWN = 25;
-/** Rate at which accumulated pull time decays after the intake releases a ghost. */
+/**
+ * Rate at which accumulated pull time decays after the intake releases a
+ * ghost.
+ */
 const RELAX = 2;
 
 interface Ghost {
@@ -37,7 +48,10 @@ interface Ghost {
   pulled: number;
   /** Whether suck() pulled it since the last update(). */
   held: boolean;
-  /** Remaining visible simulation seconds before respawning. Collected casualty ghosts use Infinity. */
+  /**
+   * Remaining visible simulation seconds before respawning. Collected casualty
+   * ghosts use Infinity.
+   */
   gone: number;
 }
 
@@ -63,13 +77,19 @@ export function shareOut<Z extends { readonly weight?: number }>(
   return parts;
 }
 
-/** Animate ambient and casualty ghosts, with visibility controlled by night intensity and fade(). */
+/**
+ * Animate ambient and casualty ghosts, with visibility controlled by night
+ * intensity and fade().
+ */
 export class Ghosts {
   readonly root = new Group();
   private readonly list: Ghost[] = [];
   private t = 0;
   private readonly rng = new Rng(66);
-  /** Visibility multiplier approaching `target` at `rate` per second, combined with night intensity. */
+  /**
+   * Visibility multiplier approaching `target` at `rate` per second, combined
+   * with night intensity.
+   */
   private presence = 1;
   private target = 1;
   private rate = Infinity;
@@ -124,12 +144,16 @@ export class Ghosts {
   private pick(g: Ghost): void {
     const z = g.zone;
     const rng = this.rng;
-    g.target.set(rng.range(z.min[0], z.max[0]), rng.range(z.min[1], z.max[1]), rng.range(z.min[2], z.max[2]));
+    g.target.set(
+      rng.range(z.min[0], z.max[0]),
+      rng.range(z.min[1], z.max[1]),
+      rng.range(z.min[2], z.max[2]),
+    );
   }
 
   /**
-   * Spawn a ghost rising from a casualty at `at`, then roaming nearby. Global night intensity and fade() still control
-   * visibility.
+   * Spawn a ghost rising from a casualty at `at`, then roaming nearby. Global
+   * night intensity and fade() still control visibility.
    */
   rise(at: Vector3): void {
     const rng = this.rng;
@@ -179,8 +203,9 @@ export class Ghosts {
   }
 
   /**
-   * Pull available ghosts within `reach` meters toward the intake and return the number collected this frame. Pull
-   * speed increases with accumulated pull time. Do nothing while the ghost group is hidden.
+   * Pull available ghosts within `reach` meters toward the intake and return
+   * the number collected this frame. Pull speed increases with accumulated
+   * pull time. Do nothing while the ghost group is hidden.
    */
   suck(at: Vector3, reach: number, dt: number): number {
     if (!this.root.visible) {
@@ -246,7 +271,10 @@ export class Ghosts {
     return out;
   }
 
-  /** Hide a collected ghost. Ambient ghosts respawn later; casualty ghosts remain inactive. */
+  /**
+   * Hide a collected ghost. Ambient ghosts respawn later; casualty ghosts
+   * remain inactive.
+   */
   private swallow(g: Ghost): void {
     g.pulled = 0;
     g.s.visible = false;
@@ -260,8 +288,8 @@ export class Ghosts {
   }
 
   /**
-   * Set the target visibility. `seconds` is the duration of a full fade between 0 and 1; zero applies on the next
-   * update.
+   * Set the target visibility. `seconds` is the duration of a full fade
+   * between 0 and 1; zero applies on the next update.
    */
   fade(on: boolean, seconds = 0): void {
     this.target = on ? 1 : 0;
@@ -270,7 +298,10 @@ export class Ghosts {
 
   update(dt: number, night: number): void {
     this.t += dt;
-    this.presence += Math.max(-this.rate * dt, Math.min(this.rate * dt, this.target - this.presence));
+    this.presence += Math.max(
+      -this.rate * dt,
+      Math.min(this.rate * dt, this.target - this.presence),
+    );
     const nightness = night * this.presence;
     this.root.visible = nightness > 0.02;
 
@@ -332,7 +363,10 @@ export class Ghosts {
         fade = Math.min(1, g.age / RISE_IN);
       }
 
-      g.s.material.opacity = nightness * fade * (0.62 + Math.sin(this.t * 3.1 + g.phase * 2) * 0.18);
+      g.s.material.opacity =
+        nightness *
+        fade *
+        (0.62 + Math.sin(this.t * 3.1 + g.phase * 2) * 0.18);
     }
   }
 }

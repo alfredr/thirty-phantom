@@ -9,8 +9,9 @@ export type ItemDeed =
   | { how: 'gave'; kind: ItemKind; n: number; to: NpcDef['id'] };
 
 /**
- * Inventory milestone conditions. `has` tests the current count; other conditions accumulate matching quantities or
- * uses. Counts default to one. Set `past` to include prior deeds; omit `to` to accept any recipient.
+ * Inventory milestone conditions. `has` tests the current count; other
+ * conditions accumulate matching quantities or uses. Counts default to one.
+ * Set `past` to include prior deeds; omit `to` to accept any recipient.
  */
 export type ItemTrigger =
   | { has: ItemKind; count?: number }
@@ -32,17 +33,26 @@ function counts(t: ItemTrigger, d: ItemDeed): number {
   }
 
   if ('used' in t) {
-    return d.how === 'used' && d.kind === t.used && d.action === t.action ? 1 : 0;
+    return d.how === 'used' && d.kind === t.used && d.action === t.action
+      ? 1
+      : 0;
   }
 
   if ('gave' in t) {
-    return d.how === 'gave' && d.kind === t.gave && (t.to === undefined || t.to === d.to) ? d.n : 0;
+    return d.how === 'gave' &&
+      d.kind === t.gave &&
+      (t.to === undefined || t.to === d.to)
+      ? d.n
+      : 0;
   }
 
   return 0;
 }
 
-/** Fire inventory milestone callbacks once. Report deeds here and call check() after other inventory changes. */
+/**
+ * Fire inventory milestone callbacks once. Report deeds here and call check()
+ * after other inventory changes.
+ */
 export class Triggers {
   /** Recorded deeds used when a trigger includes past activity. */
   readonly history: ItemDeed[] = [];
@@ -50,10 +60,17 @@ export class Triggers {
 
   constructor(private readonly inventory: Inventory) {}
 
-  /** Register a callback and check it immediately. Return a function that cancels it. */
+  /**
+   * Register a callback and check it immediately. Return a function that
+   * cancels it.
+   */
   on(when: ItemTrigger, fire: () => void): () => void {
     const past = 'past' in when && when.past === true;
-    const t: Live = { when, fire, seen: past ? this.history.reduce((n, d) => n + counts(when, d), 0) : 0 };
+    const t: Live = {
+      when,
+      fire,
+      seen: past ? this.history.reduce((n, d) => n + counts(when, d), 0) : 0,
+    };
     this.live.push(t);
     this.check();
 

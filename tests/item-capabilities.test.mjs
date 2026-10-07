@@ -5,7 +5,13 @@ import { Vector3 } from 'three';
 
 import { loadModules } from './modules.mjs';
 
-const [{ Inventory }, { ITEM_BREEDS }, { consume }, { Trades }, { NPC_BREEDS }] = await loadModules(
+const [
+  { Inventory },
+  { ITEM_BREEDS },
+  { consume },
+  { Trades },
+  { NPC_BREEDS },
+] = await loadModules(
   '/src/game/items/inventory.ts',
   '/src/game/items/item-breeds.ts',
   '/src/game/items/item-use.ts',
@@ -37,9 +43,19 @@ test('a consumption capability checks permission and quantity before reporting u
   assert.equal(use.use(world, 'hubcap'), true);
   assert.deepEqual(log.slice(-2), [['hubcap', 'eat', 0], 'skip']);
   assert.equal(use.use(world, 'hubcap'), false);
-  const batch = consume({ id: 'eat', label: 'EAT', count: 2, when: () => true, effect: () => log.push('batch') });
+  const batch = consume({
+    id: 'eat',
+    label: 'EAT',
+    count: 2,
+    when: () => true,
+    effect: () => log.push('batch'),
+  });
   assert.equal(batch.use(world, 'brisket'), false);
-  assert.equal(inventory.count('brisket'), 1, 'an incomplete batch is left untouched');
+  assert.equal(
+    inventory.count('brisket'),
+    1,
+    'an incomplete batch is left untouched',
+  );
 });
 
 function tradeSetup(breed = NPC_BREEDS.randy) {
@@ -58,7 +74,9 @@ function tradeSetup(breed = NPC_BREEDS.randy) {
     },
   };
   npc.work = NPC_BREEDS.randy.work(npc);
-  const trades = new Trades({ list: [npc] }, inventory, (deed) => log.push(deed));
+  const trades = new Trades({ list: [npc] }, inventory, (deed) =>
+    log.push(deed),
+  );
   return { trades, npc, inventory, log };
 }
 
@@ -84,7 +102,11 @@ test('Randy pays at handover and reports the reward only after feeding finishes'
     npc.work.tick(1 / 30);
   }
 
-  assert.deepEqual(log.slice(2), ['feed', 'feed', ['finished', { kind: 'brisket', n: 2 }]]);
+  assert.deepEqual(log.slice(2), [
+    'feed',
+    'feed',
+    ['finished', { kind: 'brisket', n: 2 }],
+  ]);
   trades.enabled = false;
   assert.equal(trades.offer('tire', new Vector3()), null);
   assert.equal(
@@ -101,7 +123,10 @@ test('a different exchange recipe changes inputs and rewards without changing tr
     give: { kind: 'hubcap', perItem: 2 },
     start() {},
   };
-  const { trades, npc, inventory, log } = tradeSetup({ name: 'TEST MERCHANT', trades: [exchange] });
+  const { trades, npc, inventory, log } = tradeSetup({
+    name: 'TEST MERCHANT',
+    trades: [exchange],
+  });
   inventory.add('mirror', 3);
   assert.equal(trades.offer('tire', new Vector3()), null);
   assert.equal(trades.offer('mirror', new Vector3()).exchange, exchange);
@@ -118,7 +143,11 @@ test('molten keys cannot be either side of an exchange, including scripted hando
     ['tire', 'moltenKeys'],
     ['moltenKeys', 'brisket'],
   ]) {
-    const exchange = { ...NPC_BREEDS.randy.trades[0], take, give: { kind: give, perItem: 1 } };
+    const exchange = {
+      ...NPC_BREEDS.randy.trades[0],
+      take,
+      give: { kind: give, perItem: 1 },
+    };
     const { trades, npc, inventory, log } = tradeSetup({ trades: [exchange] });
     inventory.add(take);
     assert.equal(trades.offer(take, new Vector3()), null);

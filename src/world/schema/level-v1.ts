@@ -3,8 +3,10 @@ import Type, { type TProperties, type TSchema } from 'typebox';
 import { DECOR_KINDS, MAT_KEYS, SIGN_STYLES } from '../level-kinds.ts';
 
 // These schemas run in build tooling. Only their inferred types and generated validators reach the game.
-const strictObject = <P extends TProperties>(properties: P) => Type.Object(properties, { additionalProperties: false });
-const collection = <T extends TSchema>(item: T) => Type.Optional(Type.Array(item, { default: [] }));
+const strictObject = <P extends TProperties>(properties: P) =>
+  Type.Object(properties, { additionalProperties: false });
+const collection = <T extends TSchema>(item: T) =>
+  Type.Optional(Type.Array(item, { default: [] }));
 const number = Type.Number();
 const positive = Type.Number({ exclusiveMinimum: 0 });
 const nonnegative = Type.Number({ minimum: 0 });
@@ -14,13 +16,21 @@ const material = Type.Enum(MAT_KEYS);
 export const V3Schema = Type.Tuple([number, number, number]);
 export const FacingSchema = Type.Enum(['x+', 'x-', 'z+', 'z-']);
 export const FacadeKindSchema = Type.Enum(['wall', 'trim', 'awning', 'room']);
-export const WindowStyleSchema = Type.Enum(['punched', 'ribbon', 'paired', 'grid']);
+export const WindowStyleSchema = Type.Enum([
+  'punched',
+  'ribbon',
+  'paired',
+  'grid',
+]);
 export const StreetFrontSchema = Type.Enum(['shop', 'lobby', 'entry']);
 export const BuildingUseSchema = Type.Enum(['shop', 'diner', 'lobby', 'hall']);
 export const LampColorSchema = Type.Enum(['green', 'purple', 'warm']);
 export const LampKindSchema = Type.Enum(['street', 'ceiling', 'flood']);
 
-/** Facade dimensions are in meters. A zero ground height omits the storefront band. */
+/**
+ * Facade dimensions are in meters. A zero ground height omits the storefront
+ * band.
+ */
 export const FacadeDefSchema = strictObject({
   kind: FacadeKindSchema,
   paint: Type.Optional(Type.String()),
@@ -100,7 +110,11 @@ export const SignDefSchema = strictObject({
   style: Type.Enum(SIGN_STYLES),
   lines: Type.Array(Type.String()),
 });
-export const LampDefSchema = strictObject({ pos: V3Schema, color: LampColorSchema, kind: LampKindSchema });
+export const LampDefSchema = strictObject({
+  pos: V3Schema,
+  color: LampColorSchema,
+  kind: LampKindSchema,
+});
 export const SpotDefSchema = strictObject({
   /** IDs and floor indices start at zero. IDs must match array positions. */
   id: integer,
@@ -109,7 +123,9 @@ export const SpotDefSchema = strictObject({
   yaw: number,
   level: integer,
 });
-export const PathDefSchema = strictObject({ points: Type.Array(V3Schema, { minItems: 2 }) });
+export const PathDefSchema = strictObject({
+  points: Type.Array(V3Schema, { minItems: 2 }),
+});
 export const ParkedCarDefSchema = strictObject(placed);
 /** Parking stalls outside the deck, used by visitors. */
 export const BayDefSchema = strictObject(placed);
@@ -127,7 +143,10 @@ export const GateDefSchema = strictObject({
   armDir: FacingSchema,
   armLength: positive,
 });
-export const ValetDefSchema = strictObject({ ...placed, crew: Type.Optional(integer) });
+export const ValetDefSchema = strictObject({
+  ...placed,
+  crew: Type.Optional(integer),
+});
 export const FenceDefSchema = strictObject(bounds);
 export const RailDefSchema = strictObject({
   style: Type.Enum(['guardrail', 'railing']),
@@ -136,7 +155,11 @@ export const RailDefSchema = strictObject({
   /** Horizontal unit vector off the guarded side. */
   out: Type.Tuple([number, number]),
 });
-export const ClockDefSchema = strictObject({ pos: V3Schema, facing: FacingSchema, size: positive });
+export const ClockDefSchema = strictObject({
+  pos: V3Schema,
+  facing: FacingSchema,
+  size: positive,
+});
 export const DecorDefSchema = strictObject({
   ...placed,
   kind: Type.Enum(DECOR_KINDS),
@@ -144,8 +167,16 @@ export const DecorDefSchema = strictObject({
   scale: Type.Optional(positive),
   stretch: Type.Optional(positive),
 });
-export const NpcDefSchema = strictObject({ ...placed, id: Type.Literal('randy'), fire: Type.Optional(V3Schema) });
-export const ElevatorStopSchema = strictObject({ y: number, facing: FacingSchema, label: Type.String() });
+export const NpcDefSchema = strictObject({
+  ...placed,
+  id: Type.Literal('randy'),
+  fire: Type.Optional(V3Schema),
+});
+export const ElevatorStopSchema = strictObject({
+  y: number,
+  facing: FacingSchema,
+  label: Type.String(),
+});
 export const ElevatorDefSchema = strictObject({
   /** Shaft interior, from pit floor to the top stop's headroom. */
   ...bounds,
@@ -155,9 +186,15 @@ export const ElevatorDefSchema = strictObject({
   /** Indoor cabins and doors are drawn only while the building is visible. */
   indoors: Type.Optional(Type.Boolean()),
 });
-export const DeckNavSchema = strictObject({ ...bounds, floors: Type.Array(number, { minItems: 1 }) });
+export const DeckNavSchema = strictObject({
+  ...bounds,
+  floors: Type.Array(number, { minItems: 1 }),
+});
 
-/** Version 1 input. Collections may be omitted; geometry, spawn, and deck bounds are required. */
+/**
+ * Version 1 input. Collections may be omitted; geometry, spawn, and deck
+ * bounds are required.
+ */
 export const LevelV1Schema = Type.Object(
   {
     version: Type.Literal(1),
@@ -185,7 +222,11 @@ export const LevelV1Schema = Type.Object(
     decor: collection(DecorDefSchema),
     buildings: collection(BuildingDefSchema),
   },
-  { $id: 'urn:30pc:level:v1', $schema: 'http://json-schema.org/draft-07/schema#', additionalProperties: false },
+  {
+    $id: 'urn:30pc:level:v1',
+    $schema: 'http://json-schema.org/draft-07/schema#',
+    additionalProperties: false,
+  },
 );
 
 export type LevelFileV1 = Type.Static<typeof LevelV1Schema>;

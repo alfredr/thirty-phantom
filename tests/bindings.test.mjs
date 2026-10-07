@@ -9,7 +9,10 @@ test('a binding draws the first time and then only when what it reads has change
   const state = { cash: 0, clock: { hours: 7, phase: 'day' } };
   const drawn = [];
   const views = new Bindings();
-  views.add({ read: () => state.cash, draw: (v, was) => drawn.push(['cash', v, was]) });
+  views.add({
+    read: () => state.cash,
+    draw: (v, was) => drawn.push(['cash', v, was]),
+  });
   views.add({
     read: () => ({ ...state.clock }),
     same: (a, b) => a.phase === b.phase,

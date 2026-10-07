@@ -3,13 +3,17 @@ import { test } from 'node:test';
 
 import { loadModules } from './modules.mjs';
 
-const [{ scenes, playScene }, { Action, Doing, done, fail, instead, running }, { releaseOnce }, { Sequence, Wait }] =
-  await loadModules(
-    '/src/engine/sim/scene.ts',
-    '/src/engine/sim/action.ts',
-    '/src/engine/core/disposable.ts',
-    '/src/engine/sim/sequence.ts',
-  );
+const [
+  { scenes, playScene },
+  { Action, Doing, done, fail, instead, running },
+  { releaseOnce },
+  { Sequence, Wait },
+] = await loadModules(
+  '/src/engine/sim/scene.ts',
+  '/src/engine/sim/action.ts',
+  '/src/engine/core/disposable.ts',
+  '/src/engine/sim/sequence.ts',
+);
 const { action, sequence, holding, orElse, until } = scenes();
 
 function setup(definition, name = 'scene') {
@@ -129,7 +133,11 @@ test('a serialized scene runs with independent state and explicit bindings', () 
     'release:attention',
   ]);
   assert.deepEqual(a.outcomes, ['done']);
-  assert.equal(JSON.stringify(definition), saved, 'execution leaves the definition unchanged');
+  assert.equal(
+    JSON.stringify(definition),
+    saved,
+    'execution leaves the definition unchanged',
+  );
   assert.ok(a.acts.every((step) => step.owner === a.script));
   b.runner.cancel(b.script);
   assert.deepEqual(b.log.slice(-2), ['stop:walk', 'release:attention']);
@@ -138,7 +146,10 @@ test('a serialized scene runs with independent state and explicit bindings', () 
 
 test('cancelling stops the active child before releasing leases, once', () => {
   const s = setup(
-    holding(['attention', 'shot'], sequence([action({ id: 'walk', seconds: 10 }), action({ id: 'later' })])),
+    holding(
+      ['attention', 'shot'],
+      sequence([action({ id: 'walk', seconds: 10 }), action({ id: 'later' })]),
+    ),
   );
   s.runner.do(s.world, s.script);
   s.runner.cancel(s.script);
@@ -162,20 +173,45 @@ test('cancelling before startup acquires nothing', () => {
 });
 
 test('cancellation inside an action stops the sequence without resuming the closed generator', () => {
-  const s = setup(holding(['shot'], sequence([action({ id: 'cancel', cancel: true }), action({ id: 'never' })])));
+  const s = setup(
+    holding(
+      ['shot'],
+      sequence([
+        action({ id: 'cancel', cancel: true }),
+        action({ id: 'never' }),
+      ]),
+    ),
+  );
   assert.deepEqual(s.runner.do(s.world, s.script), fail('cancelled'));
-  assert.deepEqual(s.log, ['hold:shot', 'scene:cancel:0', 'stop:cancel', 'release:shot']);
+  assert.deepEqual(s.log, [
+    'hold:shot',
+    'scene:cancel:0',
+    'stop:cancel',
+    'release:shot',
+  ]);
 });
 
 test('cancellation through the runner during an update closes the sequence and its leases', () => {
   const s = setup(
-    holding(['shot'], sequence([action({ id: 'cancel', cancelRunner: true, seconds: 1 }), action({ id: 'never' })])),
+    holding(
+      ['shot'],
+      sequence([
+        action({ id: 'cancel', cancelRunner: true, seconds: 1 }),
+        action({ id: 'never' }),
+      ]),
+    ),
   );
   s.runner.do(s.world, s.script);
   s.runner.update(s.world, 1);
   s.runner.update(s.world, 1);
   assert.deepEqual(s.outcomes, ['cancelled']);
-  assert.deepEqual(s.log, ['hold:shot', 'scene:cancel:0', 'scene:cancel:1', 'stop:cancel', 'release:shot']);
+  assert.deepEqual(s.log, [
+    'hold:shot',
+    'scene:cancel:0',
+    'scene:cancel:1',
+    'stop:cancel',
+    'release:shot',
+  ]);
 });
 
 for (const when of ['startup', 'resume', 'cleanup']) {
@@ -231,7 +267,12 @@ for (const when of ['startup', 'resume', 'cleanup']) {
     parent.stop();
     assert.deepEqual(parent.perform({}, 0), fail('cancelled'));
     assert.deepEqual(outcomes, ['cancelled']);
-    assert.deepEqual(log, ['parent acquired', 'child acquired', 'child released', 'parent released']);
+    assert.deepEqual(log, [
+      'parent acquired',
+      'child acquired',
+      'child released',
+      'parent released',
+    ]);
   });
 }
 
@@ -240,7 +281,12 @@ test('cancellation during acquisition releases the returned lease without starti
   assert.deepEqual(s.runner.do(s.world, s.script), fail('cancelled'));
   s.runner.update(s.world, 1);
   assert.deepEqual(s.outcomes, ['cancelled']);
-  assert.deepEqual(s.log, ['hold:attention', 'hold:cancel', 'release:cancel', 'release:attention']);
+  assert.deepEqual(s.log, [
+    'hold:attention',
+    'hold:cancel',
+    'release:cancel',
+    'release:attention',
+  ]);
 });
 
 test('partial acquisition failure releases earlier leases', () => {
@@ -253,7 +299,13 @@ test('partial acquisition failure releases earlier leases', () => {
 test('failure closes a held branch before starting recovery', () => {
   const s = setup(
     orElse(
-      holding(['shot'], sequence([action({ id: 'walk', fail: 'NO ROUTE' }), action({ id: 'never' })])),
+      holding(
+        ['shot'],
+        sequence([
+          action({ id: 'walk', fail: 'NO ROUTE' }),
+          action({ id: 'never' }),
+        ]),
+      ),
       action({ id: 'recover' }),
     ),
   );
@@ -270,16 +322,31 @@ test('failure closes a held branch before starting recovery', () => {
 });
 
 test('a failed fallback reaches the existing runner without retrying effects', () => {
-  const s = setup(orElse(action({ id: 'first', fail: 'NO ROUTE' }), action({ id: 'fallback', fail: 'BLOCKED' })));
+  const s = setup(
+    orElse(
+      action({ id: 'first', fail: 'NO ROUTE' }),
+      action({ id: 'fallback', fail: 'BLOCKED' }),
+    ),
+  );
   s.runner.do(s.world, s.script);
   assert.equal(s.acts.length, 2);
   assert.deepEqual(s.outcomes, ['BLOCKED']);
 });
 
 test('replacement actions retain the scene owner and its resources', () => {
-  const s = setup(holding(['shot'], action({ id: 'first', instead: { id: 'replacement', seconds: 1 } })));
+  const s = setup(
+    holding(
+      ['shot'],
+      action({ id: 'first', instead: { id: 'replacement', seconds: 1 } }),
+    ),
+  );
   s.runner.do(s.world, s.script);
-  assert.deepEqual(s.log, ['hold:shot', 'scene:first:0', 'stop:first', 'scene:replacement:0']);
+  assert.deepEqual(s.log, [
+    'hold:shot',
+    'scene:first:0',
+    'stop:first',
+    'scene:replacement:0',
+  ]);
   assert.ok(s.acts.every((step) => step.owner === s.script));
   s.runner.update(s.world, 1);
   assert.deepEqual(s.log.slice(-2), ['stop:replacement', 'release:shot']);
@@ -287,20 +354,31 @@ test('replacement actions retain the scene owner and its resources', () => {
 });
 
 test('an action exception still stops its work and releases the scene', () => {
-  const s = setup(holding(['shot'], action({ id: 'broken', throw: 'action failed' })));
+  const s = setup(
+    holding(['shot'], action({ id: 'broken', throw: 'action failed' })),
+  );
   assert.throws(() => s.runner.do(s.world, s.script), /action failed/);
-  assert.deepEqual(s.log, ['hold:shot', 'scene:broken:0', 'stop:broken', 'release:shot']);
+  assert.deepEqual(s.log, [
+    'hold:shot',
+    'scene:broken:0',
+    'stop:broken',
+    'release:shot',
+  ]);
 });
 
 test('a child cleanup exception does not prevent lease cleanup', () => {
-  const s = setup(holding(['shot'], action({ id: 'broken', seconds: 10, stopThrows: true })));
+  const s = setup(
+    holding(['shot'], action({ id: 'broken', seconds: 10, stopThrows: true })),
+  );
   s.runner.do(s.world, s.script);
   assert.throws(() => s.script.stop(), /stop failed/);
   assert.equal(s.log.at(-1), 'release:shot');
 });
 
 test('long immediate sequences yield to the frame loop without losing steps', () => {
-  const s = setup(sequence(Array.from({ length: 200 }, (_, id) => action({ id }))));
+  const s = setup(
+    sequence(Array.from({ length: 200 }, (_, id) => action({ id }))),
+  );
   s.runner.do(s.world, s.script);
   assert.deepEqual(s.outcomes, []);
 
@@ -349,12 +427,19 @@ test('a stop condition closes only its branch before advancing the parent', () =
   const s = setup(
     holding(
       ['attention'],
-      sequence([until(1, holding(['shot'], action({ id: 'walk', seconds: 10 }))), action({ id: 'next', seconds: 2 })]),
+      sequence([
+        until(1, holding(['shot'], action({ id: 'walk', seconds: 10 }))),
+        action({ id: 'next', seconds: 2 }),
+      ]),
     ),
   );
   s.runner.do(s.world, s.script);
   s.runner.update(s.world, 1);
-  assert.deepEqual(s.log.slice(-3), ['stop:walk', 'release:shot', 'scene:next:0']);
+  assert.deepEqual(s.log.slice(-3), [
+    'stop:walk',
+    'release:shot',
+    'scene:next:0',
+  ]);
   assert.ok(!s.log.includes('release:attention'));
   s.runner.update(s.world, 2);
   assert.deepEqual(s.log.slice(-2), ['stop:next', 'release:attention']);
@@ -362,9 +447,22 @@ test('a stop condition closes only its branch before advancing the parent', () =
 });
 
 test('cancellation from child cleanup does not stop the child twice or start the next step', () => {
-  const s = setup(holding(['shot'], sequence([action({ id: 'cancel', cancelOnStop: true }), action({ id: 'never' })])));
+  const s = setup(
+    holding(
+      ['shot'],
+      sequence([
+        action({ id: 'cancel', cancelOnStop: true }),
+        action({ id: 'never' }),
+      ]),
+    ),
+  );
   assert.deepEqual(s.runner.do(s.world, s.script), fail('cancelled'));
-  assert.deepEqual(s.log, ['hold:shot', 'scene:cancel:0', 'stop:cancel', 'release:shot']);
+  assert.deepEqual(s.log, [
+    'hold:shot',
+    'scene:cancel:0',
+    'stop:cancel',
+    'release:shot',
+  ]);
 });
 
 test('repeated completion polls neither resume the generator nor repeat cleanup', () => {
@@ -372,5 +470,10 @@ test('repeated completion polls neither resume the generator nor repeat cleanup'
   assert.deepEqual(s.script.perform(s.world, 0), done);
   s.script.stop();
   assert.deepEqual(s.script.perform(s.world, 1), done);
-  assert.deepEqual(s.log, ['hold:shot', 'scene:once:0', 'stop:once', 'release:shot']);
+  assert.deepEqual(s.log, [
+    'hold:shot',
+    'scene:once:0',
+    'stop:once',
+    'release:shot',
+  ]);
 });

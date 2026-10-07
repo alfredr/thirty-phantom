@@ -24,8 +24,9 @@ import type { V3 } from '@/engine/core/math';
 import { softInk, withCutaway } from '@/render/materials';
 
 /**
- * Describe parametric models as material specifications and part trees, then construct three.js objects with build(),
- * instanced(), or baked(). Box placement helpers express relationships between parts in model coordinates.
+ * Describe parametric models as material specifications and part trees, then
+ * construct three.js objects with build(), instanced(), or baked(). Box
+ * placement helpers express relationships between parts in model coordinates.
  */
 
 export type Face = '+x' | '-x' | '+y' | '-y' | '+z' | '-z';
@@ -37,7 +38,10 @@ export const SIDES = [-1, 1] as const;
 /** For small details (eyes, trim, lamps) that shouldn't cast shadows. */
 export const NO_CAST = { cast: false } as const;
 
-/** Axis-aligned model bounds. Placement and sizing methods return a new Box without modifying the original. */
+/**
+ * Axis-aligned model bounds. Placement and sizing methods return a new Box
+ * without modifying the original.
+ */
 export class Box {
   constructor(
     readonly size: V3,
@@ -45,11 +49,19 @@ export class Box {
   ) {}
 
   get min(): V3 {
-    return [this.center[0] - this.size[0] / 2, this.center[1] - this.size[1] / 2, this.center[2] - this.size[2] / 2];
+    return [
+      this.center[0] - this.size[0] / 2,
+      this.center[1] - this.size[1] / 2,
+      this.center[2] - this.size[2] / 2,
+    ];
   }
 
   get max(): V3 {
-    return [this.center[0] + this.size[0] / 2, this.center[1] + this.size[1] / 2, this.center[2] + this.size[2] / 2];
+    return [
+      this.center[0] + this.size[0] / 2,
+      this.center[1] + this.size[1] / 2,
+      this.center[2] + this.size[2] / 2,
+    ];
   }
 
   get top(): number {
@@ -77,7 +89,11 @@ export class Box {
   }
 
   move(dx: number, dy = 0, dz = 0): Box {
-    return new Box(this.size, [this.center[0] + dx, this.center[1] + dy, this.center[2] + dz]);
+    return new Box(this.size, [
+      this.center[0] + dx,
+      this.center[1] + dy,
+      this.center[2] + dz,
+    ]);
   }
 
   /** Return a box with the requested size and the same center. */
@@ -85,9 +101,15 @@ export class Box {
     return new Box([sx, sy, sz], this.center);
   }
 
-  /** Offset both faces of each axis by the corresponding delta, preserving the center. Negative deltas shrink. */
+  /**
+   * Offset both faces of each axis by the corresponding delta, preserving the
+   * center. Negative deltas shrink.
+   */
   grow(dx: number, dy: number, dz: number): Box {
-    return new Box([this.size[0] + dx * 2, this.size[1] + dy * 2, this.size[2] + dz * 2], this.center);
+    return new Box(
+      [this.size[0] + dx * 2, this.size[1] + dy * 2, this.size[2] + dz * 2],
+      this.center,
+    );
   }
 
   // The relational placements below only move along the named face's axis,
@@ -113,7 +135,10 @@ export class Box {
     return this.place(o, face, -1, -inset);
   }
 
-  /** Align the center with the selected face plane, offset by `out` along its normal. */
+  /**
+   * Align the center with the selected face plane, offset by `out` along its
+   * normal.
+   */
   onFace(o: Box, face: Face, out = 0): Box {
     return this.place(o, face, 0, out);
   }
@@ -122,19 +147,40 @@ export class Box {
     const axis = AXIS[face[1] as 'x' | 'y' | 'z'];
     const dir = face[0] === '+' ? 1 : -1;
     const c: V3 = [this.center[0], this.center[1], this.center[2]];
-    c[axis] = o.center[axis] + dir * (o.size[axis] / 2 + (side * this.size[axis]) / 2 + d);
+    c[axis] =
+      o.center[axis] +
+      dir * (o.size[axis] / 2 + (side * this.size[axis]) / 2 + d);
     return new Box(this.size, c);
   }
 }
 
-export const box = (sx: number, sy: number, sz: number): Box => new Box([sx, sy, sz]);
+export const box = (sx: number, sy: number, sz: number): Box =>
+  new Box([sx, sy, sz]);
 
 export type Shape =
   | { kind: 'box'; size: V3 }
-  /** `top` is the radius at the top when it differs from the bottom's (a cone or a taper). */
-  | { kind: 'cylinder'; radius: number; height: number; segments: number; top?: number }
-  | { kind: 'torus'; radius: number; tube: number; radial: number; tubular: number }
-  /** Ellipsoid with these radii along x, y, z; `segments` around and from pole to pole. */
+  /**
+   * `top` is the radius at the top when it differs from the bottom's (a cone
+   * or a taper).
+   */
+  | {
+      kind: 'cylinder';
+      radius: number;
+      height: number;
+      segments: number;
+      top?: number;
+    }
+  | {
+      kind: 'torus';
+      radius: number;
+      tube: number;
+      radial: number;
+      tubular: number;
+    }
+  /**
+   * Ellipsoid with these radii along x, y, z; `segments` around and from pole
+   * to pole.
+   */
   | { kind: 'sphere'; radius: V3; segments: [number, number] };
 
 /** Model-tree node with an optional shape, local transform, and children. */
@@ -153,7 +199,10 @@ export interface Part<M extends string = string> {
   children?: readonly Part<M>[];
 }
 
-export type PartOpts = Pick<Part, 'name' | 'at' | 'rot' | 'cast' | 'receive' | 'data'>;
+export type PartOpts = Pick<
+  Part,
+  'name' | 'at' | 'rot' | 'cast' | 'receive' | 'data'
+>;
 
 export type MatSpec = MeshStandardMaterialParameters & { softInk?: boolean };
 
@@ -162,19 +211,29 @@ export interface Model<M extends string = string> {
   parts: readonly Part<M>[];
 }
 
-export function model<M extends string>(mats: Record<M, MatSpec>, parts: readonly Part<NoInfer<M>>[]): Model<M> {
+export function model<M extends string>(
+  mats: Record<M, MatSpec>,
+  parts: readonly Part<NoInfer<M>>[],
+): Model<M> {
   return { mats, parts };
 }
 
-export function group<M extends string>(opts: PartOpts, children: readonly Part<M>[]): Part<M> {
+export function group<M extends string>(
+  opts: PartOpts,
+  children: readonly Part<M>[],
+): Part<M> {
   return { ...opts, children };
 }
 
 /**
- * Group at `at` (its rotation pivot) whose children are authored in the parent's frame, so Box relations keep working
- * across the pivot.
+ * Group at `at` (its rotation pivot) whose children are authored in the
+ * parent's frame, so Box relations keep working across the pivot.
  */
-export function pivot<M extends string>(name: string, at: V3, children: readonly Part<M>[]): Part<M> {
+export function pivot<M extends string>(
+  name: string,
+  at: V3,
+  children: readonly Part<M>[],
+): Part<M> {
   return {
     name,
     at,
@@ -186,7 +245,11 @@ export function pivot<M extends string>(name: string, at: V3, children: readonly
 }
 
 /** Mesh for a Box, placed at its center. */
-export function solid<M extends string>(b: Box, mat: M | readonly M[], opts: Omit<PartOpts, 'at'> = {}): Part<M> {
+export function solid<M extends string>(
+  b: Box,
+  mat: M | readonly M[],
+  opts: Omit<PartOpts, 'at'> = {},
+): Part<M> {
   return { ...opts, at: b.center, shape: { kind: 'box', size: b.size }, mat };
 }
 
@@ -198,10 +261,17 @@ export function cylinder<M extends string>(
   mat: M,
   opts: PartOpts = {},
 ): Part<M> {
-  return { ...opts, shape: { kind: 'cylinder', radius, height, segments }, mat };
+  return {
+    ...opts,
+    shape: { kind: 'cylinder', radius, height, segments },
+    mat,
+  };
 }
 
-/** Cone or tapered cylinder along Y: `radius` at the bottom, `top` at the top (0 for a point). */
+/**
+ * Cone or tapered cylinder along Y: `radius` at the bottom, `top` at the top
+ * (0 for a point).
+ */
 export function cone<M extends string>(
   radius: number,
   top: number,
@@ -210,7 +280,11 @@ export function cone<M extends string>(
   mat: M,
   opts: PartOpts = {},
 ): Part<M> {
-  return { ...opts, shape: { kind: 'cylinder', radius, height, segments, top }, mat };
+  return {
+    ...opts,
+    shape: { kind: 'cylinder', radius, height, segments, top },
+    mat,
+  };
 }
 
 /** Sphere, or with three radii an ellipsoid, centered on its `at`. */
@@ -233,7 +307,11 @@ export function torus<M extends string>(
   mat: M,
   opts: PartOpts = {},
 ): Part<M> {
-  return { ...opts, shape: { kind: 'torus', radius, tube, radial, tubular }, mat };
+  return {
+    ...opts,
+    shape: { kind: 'torus', radius, tube, radial, tubular },
+    mat,
+  };
 }
 
 export interface Built<M extends string> {
@@ -251,11 +329,20 @@ function geometry(s: Shape): BufferGeometry {
     case 'box':
       return new BoxGeometry(s.size[0], s.size[1], s.size[2]);
     case 'cylinder':
-      return new CylinderGeometry(s.top ?? s.radius, s.radius, s.height, s.segments);
+      return new CylinderGeometry(
+        s.top ?? s.radius,
+        s.radius,
+        s.height,
+        s.segments,
+      );
     case 'torus':
       return new TorusGeometry(s.radius, s.tube, s.radial, s.tubular);
     case 'sphere':
-      return new SphereGeometry(1, s.segments[0], s.segments[1]).scale(s.radius[0], s.radius[1], s.radius[2]);
+      return new SphereGeometry(1, s.segments[0], s.segments[1]).scale(
+        s.radius[0],
+        s.radius[1],
+        s.radius[2],
+      );
   }
 }
 
@@ -265,7 +352,9 @@ function materialOf(spec: MatSpec): MeshStandardMaterial {
   return soft ? softInk(mat) : mat;
 }
 
-function materialsOf<M extends string>(m: Model<M>): { mats: Record<M, MeshStandardMaterial>; materials: Material[] } {
+function materialsOf<M extends string>(
+  m: Model<M>,
+): { mats: Record<M, MeshStandardMaterial>; materials: Material[] } {
   const mats = {} as Record<M, MeshStandardMaterial>;
   const materials: Material[] = [];
   for (const key in m.mats) {
@@ -277,16 +366,23 @@ function materialsOf<M extends string>(m: Model<M>): { mats: Record<M, MeshStand
   return { mats, materials };
 }
 
-/** Resolve a shaped part’s material references. Throw if no material is specified. */
+/**
+ * Resolve a shaped part’s material references. Throw if no material is
+ * specified.
+ */
 function meshMats<M extends string>(
   p: Part<M>,
   mats: Record<M, MeshStandardMaterial>,
 ): MeshStandardMaterial | MeshStandardMaterial[] {
   if (p.mat === undefined) {
-    throw new Error(`part ${p.name ?? JSON.stringify(p.shape)} has a shape but no material`);
+    throw new Error(
+      `part ${p.name ?? JSON.stringify(p.shape)} has a shape but no material`,
+    );
   }
 
-  return typeof p.mat === 'string' ? mats[p.mat as M] : (p.mat as readonly M[]).map((k) => mats[k]);
+  return typeof p.mat === 'string'
+    ? mats[p.mat as M]
+    : (p.mat as readonly M[]).map((k) => mats[k]);
 }
 
 /** Turn a model into three.js objects. Identical shapes share one geometry. */
@@ -360,9 +456,10 @@ export function build<M extends string>(m: Model<M>): Built<M> {
 }
 
 /**
- * Render repeated model copies with one transform per copy. Merge single-material parts sharing material, inherited
- * name, and shadow flags into instanced meshes. Per-face material parts remain separate. Named parts can be hidden per
- * copy without changing its stored placement.
+ * Render repeated model copies with one transform per copy. Merge
+ * single-material parts sharing material, inherited name, and shadow flags
+ * into instanced meshes. Per-face material parts remain separate. Named parts
+ * can be hidden per copy without changing its stored placement.
  */
 export interface Instanced<M extends string> {
   root: Group;
@@ -381,7 +478,10 @@ const _local = new Matrix4();
 const _euler = new Euler();
 const HIDDEN = new Matrix4().makeScale(0, 0, 0);
 
-/** Flattened shaped part with its model transform and inherited shadow flags and name. */
+/**
+ * Flattened shaped part with its model transform and inherited shadow flags
+ * and name.
+ */
 interface PlacedPart<M extends string> {
   part: Part<M>;
   world: Matrix4;
@@ -391,9 +491,18 @@ interface PlacedPart<M extends string> {
 }
 
 /** Every shaped part of `m`, placed by `origin`. */
-function placeParts<M extends string>(m: Model<M>, origin: Matrix4): PlacedPart<M>[] {
+function placeParts<M extends string>(
+  m: Model<M>,
+  origin: Matrix4,
+): PlacedPart<M>[] {
   const out: PlacedPart<M>[] = [];
-  const walk = (p: Part<M>, parent: Matrix4, cast: boolean, receive: boolean, name: string | undefined): void => {
+  const walk = (
+    p: Part<M>,
+    parent: Matrix4,
+    cast: boolean,
+    receive: boolean,
+    name: string | undefined,
+  ): void => {
     cast = p.cast ?? cast;
     receive = p.receive ?? receive;
     name = p.name ?? name;
@@ -401,7 +510,11 @@ function placeParts<M extends string>(m: Model<M>, origin: Matrix4): PlacedPart<
     const rot = p.rot ?? [0, 0, 0];
     const world = parent
       .clone()
-      .multiply(_local.makeRotationFromEuler(_euler.set(rot[0], rot[1], rot[2])).setPosition(at[0], at[1], at[2]));
+      .multiply(
+        _local
+          .makeRotationFromEuler(_euler.set(rot[0], rot[1], rot[2]))
+          .setPosition(at[0], at[1], at[2]),
+      );
     if (p.shape) {
       out.push({ part: p, world, cast, receive, name });
     }
@@ -418,12 +531,23 @@ function placeParts<M extends string>(m: Model<M>, origin: Matrix4): PlacedPart<
   return out;
 }
 
-/** Merge compatible indexed geometries. Fall back to the first geometry if merging fails. */
+/**
+ * Merge compatible indexed geometries. Fall back to the first geometry if
+ * merging fails.
+ */
 const mergeAll = (geos: BufferGeometry[]): BufferGeometry =>
-  geos.length === 1 ? (geos[0] as BufferGeometry) : (mergeGeometries(geos) ?? (geos[0] as BufferGeometry));
+  geos.length === 1
+    ? (geos[0] as BufferGeometry)
+    : (mergeGeometries(geos) ?? (geos[0] as BufferGeometry));
 
-/** Turn a model into instanced meshes for `count` copies, all hidden until placed. */
-export function instanced<M extends string>(m: Model<M>, count: number): Instanced<M> {
+/**
+ * Turn a model into instanced meshes for `count` copies, all hidden until
+ * placed.
+ */
+export function instanced<M extends string>(
+  m: Model<M>,
+  count: number,
+): Instanced<M> {
   const { mats, materials } = materialsOf(m);
   const root = new Group();
   const meshes: { mesh: InstancedMesh; name: string | undefined }[] = [];
@@ -431,7 +555,10 @@ export function instanced<M extends string>(m: Model<M>, count: number): Instanc
   const alike = new Map<string, PlacedPart<M>[]>();
   for (const pp of placeParts(m, new Matrix4())) {
     const { part, name, cast, receive } = pp;
-    const key = typeof part.mat === 'string' ? `${part.mat}|${name ?? ''}|${cast}|${receive}` : `#${alike.size}`;
+    const key =
+      typeof part.mat === 'string'
+        ? `${part.mat}|${name ?? ''}|${cast}|${receive}`
+        : `#${alike.size}`;
     const list = alike.get(key);
     if (list) {
       list.push(pp);
@@ -442,7 +569,11 @@ export function instanced<M extends string>(m: Model<M>, count: number): Instanc
 
   for (const list of alike.values()) {
     const { part, cast, receive, name } = list[0] as PlacedPart<M>;
-    const geo = mergeAll(list.map((pp) => geometry(pp.part.shape as Shape).applyMatrix4(pp.world)));
+    const geo = mergeAll(
+      list.map((pp) =>
+        geometry(pp.part.shape as Shape).applyMatrix4(pp.world),
+      ),
+    );
     const mesh = new InstancedMesh(geo, meshMats(part, mats), count);
     mesh.instanceMatrix.setUsage(DynamicDrawUsage);
     mesh.castShadow = cast;
@@ -461,7 +592,11 @@ export function instanced<M extends string>(m: Model<M>, count: number): Instanc
   const placed = new Float32Array(count * 16);
   const hidden = new Map<string, Uint8Array>();
   const dirty = new Set<InstancedMesh>();
-  const write = (mesh: InstancedMesh, name: string | undefined, i: number): void => {
+  const write = (
+    mesh: InstancedMesh,
+    name: string | undefined,
+    i: number,
+  ): void => {
     const a = mesh.instanceMatrix.array as Float32Array;
     const off = name !== undefined && hidden.get(name)?.[i];
     for (let j = i * 16; j < i * 16 + 16; j++) {
@@ -520,26 +655,37 @@ export interface Placement<M extends string = string> {
 export interface Baked {
   root: Group;
   /**
-   * Created materials and their normalized specifications. Base color is stored in vertex colors; the remaining
-   * specification supports updates such as day/night emissive intensity.
+   * Created materials and their normalized specifications. Base color is
+   * stored in vertex colors; the remaining specification supports updates such
+   * as day/night emissive intensity.
    */
   materials: { spec: MatSpec; mat: MeshStandardMaterial }[];
   /**
-   * Set visibility by input-copy index. Hide geometry by collapsing each vertex range to a point, retaining the shared
-   * meshes. Restore saved positions when shown and upload only modified ranges.
+   * Set visibility by input-copy index. Hide geometry by collapsing each
+   * vertex range to a point, retaining the shared meshes. Restore saved
+   * positions when shown and upload only modified ranges.
    */
   show(i: number, on: boolean): void;
 }
 
 /**
- * Bake static model placements into shared meshes. Group parts by material specification excluding color, plus shadow
- * flags; preserve individual colors as vertex attributes. Each part must reference one valid material. Individual
- * copies may be hidden and restored, but their placement transforms cannot change.
+ * Bake static model placements into shared meshes. Group parts by material
+ * specification excluding color, plus shadow flags; preserve individual colors
+ * as vertex attributes. Each part must reference one valid material.
+ * Individual copies may be hidden and restored, but their placement transforms
+ * cannot change.
  */
 export function baked(copies: readonly Placement[]): Baked {
   const root = new Group();
   const shapes = new Map<string, BufferGeometry>();
-  type Batch = { spec: MatSpec; cast: boolean; receive: boolean; geos: BufferGeometry[]; verts: number; mesh?: Mesh };
+  type Batch = {
+    spec: MatSpec;
+    cast: boolean;
+    receive: boolean;
+    geos: BufferGeometry[];
+    verts: number;
+    mesh?: Mesh;
+  };
   const batches = new Map<string, Batch>();
   // Record vertex ranges so visibility changes can target individual copies.
   const ranges: { b: Batch; start: number; count: number }[][] = [];
@@ -550,7 +696,9 @@ export function baked(copies: readonly Placement[]): Baked {
 
     for (const { part, world, cast, receive } of placeParts(m, at)) {
       if (typeof part.mat !== 'string') {
-        throw new Error(`baked part ${part.name ?? JSON.stringify(part.shape)} needs one material`);
+        throw new Error(
+          `baked part ${part.name ?? JSON.stringify(part.shape)} needs one material`,
+        );
       }
 
       const spec = m.mats[part.mat];
@@ -564,7 +712,13 @@ export function baked(copies: readonly Placement[]): Baked {
       if (!b) {
         batches.set(
           key,
-          (b = { spec: { ...surface, color: '#ffffff', vertexColors: true }, cast, receive, geos: [], verts: 0 }),
+          (b = {
+            spec: { ...surface, color: '#ffffff', vertexColors: true },
+            cast,
+            receive,
+            geos: [],
+            verts: 0,
+          }),
         );
       }
 
@@ -623,7 +777,9 @@ export function baked(copies: readonly Placement[]): Baked {
 
     const keep = saved.get(i) ?? [];
     list.forEach(({ b, start, count }, k) => {
-      const pos = (b.mesh as Mesh).geometry.getAttribute('position') as BufferAttribute;
+      const pos = (b.mesh as Mesh).geometry.getAttribute(
+        'position',
+      ) as BufferAttribute;
       const a = pos.array as Float32Array;
       const s0 = start * 3;
       const s1 = (start + count) * 3;

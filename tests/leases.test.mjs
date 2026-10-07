@@ -3,7 +3,12 @@ import { test } from 'node:test';
 
 import { loadModules } from './modules.mjs';
 
-const [{ Leases }, { StoryCamera }, { Recovery }, { Disposables, releaseOnce }] = await loadModules(
+const [
+  { Leases },
+  { StoryCamera },
+  { Recovery },
+  { Disposables, releaseOnce },
+] = await loadModules(
   '/src/engine/sim/leases.ts',
   '/src/game/story/story-camera.ts',
   '/src/game/story/story-recovery.ts',
@@ -114,5 +119,8 @@ test('a resource scope releases every lease in reverse order even if cleanup thr
   );
   held[Symbol.dispose]();
   assert.deepEqual(log, ['pose', 'shot', 'attention']);
-  assert.throws(() => held.use(releaseOnce(() => undefined)), /already closed/);
+  assert.throws(
+    () => held.use(releaseOnce(() => undefined)),
+    /already closed/,
+  );
 });

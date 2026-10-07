@@ -26,9 +26,20 @@ import type { Drivers } from '@/game/driving/drivers';
 import type { Bodies } from '@/game/rules/bodies';
 import type { ClaimKind } from '@/game/rules/claim-kinds';
 import type { ValetDef, ZoneDef } from '@/world/level-data';
-import { NAV, type NavGrid, type NavJob, type NavPlanner } from '@/world/nav-grid';
+import {
+  NAV,
+  type NavGrid,
+  type NavJob,
+  type NavPlanner,
+} from '@/world/nav-grid';
 
-import { type Attention, type Job, VALET_ATTENTION, VALET_JOB, type ValetEvent } from './valet-mind';
+import {
+  type Attention,
+  type Job,
+  VALET_ATTENTION,
+  VALET_JOB,
+  type ValetEvent,
+} from './valet-mind';
 
 export type ValetState = Job['at'];
 
@@ -37,7 +48,10 @@ export interface ValetFrame {
   day: boolean;
   /** Dynamic obstacle avoidance for walkers; null disables avoidance. */
   avoid: Avoidance | null;
-  /** Report parking completion. `valet.badged` indicates whether the entry gate was crossed. */
+  /**
+   * Report parking completion. `valet.badged` indicates whether the entry gate
+   * was crossed.
+   */
   parked: (v: Vehicle, spot: SpotRuntime, valet: Valet) => void;
 }
 
@@ -46,7 +60,10 @@ const T = TUNING.valet;
 const MOVING = 0.2;
 /** Skin tones across the crew. */
 const SKINS = ['#d9a07a', '#8a5a3c', '#f0c8a8', '#c48a64'];
-/** Idle animation parameters. Rates use rad/s, vertical displacement uses meters, and arm angles use radians. */
+/**
+ * Idle animation parameters. Rates use rad/s, vertical displacement uses
+ * meters, and arm angles use radians.
+ */
 const ROCK_RATE = 2.2;
 const ROCK_HEIGHT = 0.03;
 const WAVE_RATE = 0.7;
@@ -57,7 +74,10 @@ const WAVE_FLAP_SIZE = 0.25;
 
 const _v = new Vector3();
 
-/** A valet’s walker, home position, parking job, and conversation attention. See valet-mind.ts for state transitions. */
+/**
+ * A valet’s walker, home position, parking job, and conversation attention.
+ * See valet-mind.ts for state transitions.
+ */
 export class Valet {
   readonly keys = new Keyring();
   readonly job: Mind<Valet, Job, ValetEvent>;
@@ -73,8 +93,14 @@ export class Valet {
     readonly home: Vector3,
     readonly homeYaw: number,
   ) {
-    this.job = new Mind<Valet, Job, ValetEvent>(VALET_JOB, this, { at: 'idle' });
-    this.attention = new Mind<Valet, Attention, ValetEvent>(VALET_ATTENTION, this, { at: 'free' });
+    this.job = new Mind<Valet, Job, ValetEvent>(VALET_JOB, this, {
+      at: 'idle',
+    });
+    this.attention = new Mind<Valet, Attention, ValetEvent>(
+      VALET_ATTENTION,
+      this,
+      { at: 'free' },
+    );
   }
 
   /** Current job state. */
@@ -85,10 +111,15 @@ export class Valet {
   /** Assigned car while approaching, boarding, or driving it. */
   get car(): Vehicle | null {
     const s = this.job.state;
-    return s.at === 'toCar' || s.at === 'boarding' || s.at === 'driving' ? s.car : null;
+    return s.at === 'toCar' || s.at === 'boarding' || s.at === 'driving'
+      ? s.car
+      : null;
   }
 
-  /** Send the event to both state machines and report whether either transitions. */
+  /**
+   * Send the event to both state machines and report whether either
+   * transitions.
+   */
   send(event: ValetEvent): boolean {
     const job = this.job.send(event);
     const attention = this.attention.send(event);
@@ -98,18 +129,23 @@ export class Valet {
   /** Animate a vertical weight shift and periodic wave. */
   idleAnim(): void {
     const rig = this.walker.rig;
-    rig.body.position.y = Math.max(0, Math.sin(this.t * ROCK_RATE)) * ROCK_HEIGHT;
-    const wave = Math.max(0, Math.sin(this.t * WAVE_RATE) - WAVE_SHARE) / (1 - WAVE_SHARE);
+    rig.body.position.y =
+      Math.max(0, Math.sin(this.t * ROCK_RATE)) * ROCK_HEIGHT;
+    const wave =
+      Math.max(0, Math.sin(this.t * WAVE_RATE) - WAVE_SHARE) /
+      (1 - WAVE_SHARE);
     rig.armR.rotation.z = wave * WAVE_LIFT;
-    rig.armR.rotation.x = -Math.sin(this.t * WAVE_FLAP) * WAVE_FLAP_SIZE * wave;
+    rig.armR.rotation.x =
+      -Math.sin(this.t * WAVE_FLAP) * WAVE_FLAP_SIZE * wave;
   }
 }
 
 type ValetStep = DriveStep | { readonly at: 'park'; readonly action: Park };
 
 /**
- * Drive through the entry gate to the assigned spot, then park. Avoid perceived threats and replan after crashes. If
- * driving or parking fails, place the car directly in its destination spot.
+ * Drive through the entry gate to the assigned spot, then park. Avoid
+ * perceived threats and replan after crashes. If driving or parking fails,
+ * place the car directly in its destination spot.
  */
 export class ValetDrive extends DriverJob<ValetStep> {
   /** Whether the parking job completed successfully. */
@@ -125,7 +161,11 @@ export class ValetDrive extends DriverJob<ValetStep> {
     this.next({ at: 'drive', action: this.toSpot() });
   }
 
-  protected drive(w: DriveWorld, dt: number, seen: Vector3 | null): Result<DriveAction> {
+  protected drive(
+    w: DriveWorld,
+    dt: number,
+    seen: Vector3 | null,
+  ): Result<DriveAction> {
     const { car, spot } = this.p;
     if (this.wreck > 0) {
       // Replan from the recovered position after a crash.
@@ -163,7 +203,10 @@ export class ValetDrive extends DriverJob<ValetStep> {
     }
 
     if (now.at === 'drive') {
-      this.next({ at: 'park', action: new Park({ car, berth: spotBerth(spot) }) });
+      this.next({
+        at: 'park',
+        action: new Park({ car, berth: spotBerth(spot) }),
+      });
       return running;
     }
 
@@ -171,7 +214,10 @@ export class ValetDrive extends DriverJob<ValetStep> {
     return done;
   }
 
-  /** Leave crash integration to the game and right the car after it rests long enough. */
+  /**
+   * Leave crash integration to the game and right the car after it rests long
+   * enough.
+   */
   protected crashed(w: DriveWorld, dt: number): Result<DriveAction> {
     const { car } = this.p;
     this.wreck += dt;
@@ -181,7 +227,12 @@ export class ValetDrive extends DriverJob<ValetStep> {
       // Reset the car upright on the nearest valid ground height.
       w.place(
         car,
-        _v.set(car.pos.x, w.nav.heightAt(car.pos.x, car.pos.y, car.pos.z, NAV.car) ?? car.pos.y, car.pos.z),
+        _v.set(
+          car.pos.x,
+          w.nav.heightAt(car.pos.x, car.pos.y, car.pos.z, NAV.car) ??
+            car.pos.y,
+          car.pos.z,
+        ),
         car.yaw,
         0,
       );
@@ -204,8 +255,9 @@ export class ValetDrive extends DriverJob<ValetStep> {
 }
 
 /**
- * Manage valet assignments, destination reservations, walking routes, and parking callbacks. ValetDrive runs vehicle
- * jobs through the shared driver system; valet-mind.ts controls each worker’s job and attention.
+ * Manage valet assignments, destination reservations, walking routes, and
+ * parking callbacks. ValetDrive runs vehicle jobs through the shared driver
+ * system; valet-mind.ts controls each worker’s job and attention.
  */
 export class ValetService {
   readonly root = new Group();
@@ -227,7 +279,11 @@ export class ValetService {
     for (const def of defs) {
       for (let i = 0; i < (def.crew ?? 2); i++) {
         const walker = new Walker(buildValet(SKINS[n++ % SKINS.length]));
-        const home = new Vector3(def.pos[0] - i * T.spacing, def.pos[1], def.pos[2]);
+        const home = new Vector3(
+          def.pos[0] - i * T.spacing,
+          def.pos[1],
+          def.pos[2],
+        );
         walker.place(home, def.yaw);
         this.root.add(walker.rig.root);
         this.crew.push(new Valet(this, walker, home, def.yaw));
@@ -245,7 +301,10 @@ export class ValetService {
     return this.frame.avoid;
   }
 
-  /** Return the nearest idle or returning valet within reach and level tolerance while service is open. */
+  /**
+   * Return the nearest idle or returning valet within reach and level
+   * tolerance while service is open.
+   */
   talkable(p: Vector3, reach: number, day: boolean): Valet | null {
     let best: Valet | null = null;
     let bd = reach;
@@ -288,11 +347,14 @@ export class ValetService {
   }
 
   /**
-   * Assign a car and reserve its destination. Return false if the spot is unavailable or the valet rejects the
-   * assignment.
+   * Assign a car and reserve its destination. Return false if the spot is
+   * unavailable or the valet rejects the assignment.
    */
   take(valet: Valet, car: Vehicle, spot: SpotRuntime): boolean {
-    if (!this.garage.isFree(spot, car) || !valet.send({ type: 'handedCar', car, spot })) {
+    if (
+      !this.garage.isFree(spot, car) ||
+      !valet.send({ type: 'handedCar', car, spot })
+    ) {
       return false;
     }
 
@@ -304,7 +366,10 @@ export class ValetService {
     return true;
   }
 
-  /** Cancel the assigned valet’s job and begin the return trip after Cody takes the car. */
+  /**
+   * Cancel the assigned valet’s job and begin the return trip after Cody takes
+   * the car.
+   */
   carjacked(car: Vehicle): Valet | null {
     const v = this.driverOf(car);
     if (!v) {
@@ -330,16 +395,25 @@ export class ValetService {
     }
   }
 
-  /** Return the driver-door position with its height adjusted to the navigation surface. */
+  /**
+   * Return the driver-door position with its height adjusted to the navigation
+   * surface.
+   */
   doorOf(car: Vehicle, out = new Vector3()): Vector3 {
     driverDoor(car, T.doorGap, out);
     out.y = this.nav.heightAt(out.x, out.y, out.z) ?? car.pos.y;
     return out;
   }
 
-  /** Plan a walking route around blocked regions, allowing elevator connections. */
+  /**
+   * Plan a walking route around blocked regions, allowing elevator
+   * connections.
+   */
   walkTo(v: Valet, to: Vector3): NavJob {
-    return this.planner.request(v.walker.pos, to, NAV.person, { blocks: this.walkBlocks(), elevators: true });
+    return this.planner.request(v.walker.pos, to, NAV.person, {
+      blocks: this.walkBlocks(),
+      elevators: true,
+    });
   }
 
   /** Start a parking drive and return null if its driver-seat claim fails. */
@@ -362,7 +436,10 @@ export class ValetService {
     this.frame.parked(car, spot, v);
   }
 
-  /** Leave an abandoned valet car parked unless another system has already changed its role. */
+  /**
+   * Leave an abandoned valet car parked unless another system has already
+   * changed its role.
+   */
   drop(car: Vehicle): void {
     if (car.role === 'valet') {
       car.role = 'parked';

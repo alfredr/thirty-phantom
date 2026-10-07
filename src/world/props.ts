@@ -15,7 +15,10 @@ export interface Pusher {
   readonly params: { readonly radius: number; readonly length: number };
 }
 
-/** Return the resting tilt in radians where a prop's widest part, `half` from its axis at `height`, touches the ground. */
+/**
+ * Return the resting tilt in radians where a prop's widest part, `half` from
+ * its axis at `height`, touches the ground.
+ */
 export function restTilt(half: number, height: number): number {
   return Math.PI / 2 - Math.atan2(half, height);
 }
@@ -24,24 +27,36 @@ export interface PropKind {
   /** Prop identifier used by effects such as impact sounds. */
   name: string;
   /**
-   * Instanced geometry, or null for shatter-only props. If `baked` is present, instances render only after a prop is
-   * knocked down.
+   * Instanced geometry, or null for shatter-only props. If `baked` is present,
+   * instances render only after a prop is knocked down.
    */
   draw: Instanced<string> | null;
-  /** Visibility controls for standing geometry in the static decor batch, indexed by slot. */
+  /**
+   * Visibility controls for standing geometry in the static decor batch,
+   * indexed by slot.
+   */
   baked?: { show(slot: number, on: boolean): void };
   height: number;
-  /** Half-width of the lying footprint across the original vertical axis, before scaling and stretching. */
+  /**
+   * Half-width of the lying footprint across the original vertical axis,
+   * before scaling and stretching.
+   */
   wide: number;
   /** Resting tilt in radians, measured from upright. */
   down: number;
   /** Restrict falling to the front or back of the prop's local orientation. */
   square: boolean;
-  /** Remove on impact and emit onBroken instead of toppling. Remain broken until repair(). */
+  /**
+   * Remove on impact and emit onBroken instead of toppling. Remain broken
+   * until repair().
+   */
   shatter?: boolean;
   /** Debris colors supplied to the game's break effect. */
   debris?: readonly Color[];
-  /** Fraction of vehicle speed retained after impact; undefined selects the game's vehicle default. */
+  /**
+   * Fraction of vehicle speed retained after impact; undefined selects the
+   * game's vehicle default.
+   */
   keep?: number;
 }
 
@@ -49,31 +64,50 @@ export interface PropSpec {
   kind: PropKind;
   /** Its copy in kind.draw. */
   slot: number;
-  /** Base, standing yaw, and stretch along its local X (fence panels fit their run). */
+  /**
+   * Base, standing yaw, and stretch along its local X (fence panels fit their
+   * run).
+   */
   x: number;
   y: number;
   z: number;
   yaw: number;
   stretch: number;
-  /** Rise per unit of local X, so a guardrail on a ramp follows the slope with its posts upright. */
+  /**
+   * Rise per unit of local X, so a guardrail on a ramp follows the slope with
+   * its posts upright.
+   */
   shear?: number;
   /** Uniform size (default 1): a smaller street tree. */
   scale?: number;
   solid: Solid;
-  /** Additional collision boxes belonging to the same prop. Hitting any box affects the whole prop. */
+  /**
+   * Additional collision boxes belonging to the same prop. Hitting any box
+   * affects the whole prop.
+   */
   parts?: Solid[];
   /** Visual occluders disabled with the prop, such as tree crowns. */
   sight?: Solid[];
-  /** Optional breakable support. Disable or topple the prop when this solid is removed. */
+  /**
+   * Optional breakable support. Disable or topple the prop when this solid is
+   * removed.
+   */
   support?: Solid;
-  /** Fallback horizontal fall direction when no impact direction is available; randomized if omitted. */
+  /**
+   * Fallback horizontal fall direction when no impact direction is available;
+   * randomized if omitted.
+   */
   fall?: [number, number];
   /**
-   * Owner-controlled pose while standing, used by gate arms. hold() changes tilt and release() detaches the prop. Held
-   * props do not topple automatically when their synthetic solid is disabled.
+   * Owner-controlled pose while standing, used by gate arms. hold() changes
+   * tilt and release() detaches the prop. Held props do not topple
+   * automatically when their synthetic solid is disabled.
    */
   held?: { heading: number; tilt: number };
-  /** Lamp emitter and first vertex of its four-vertex glow decal, disabled when the lamp lands. */
+  /**
+   * Lamp emitter and first vertex of its four-vertex glow decal, disabled when
+   * the lamp lands.
+   */
   light?: { emitter: { strength: number }; glow: number; color: Color };
 }
 
@@ -86,12 +120,18 @@ const BROKEN = 3;
 /** Sliding friction (m/s^2) and spin friction (rad/s^2) on the ground. */
 const FRICTION = 6;
 const SPIN_FRICTION = 5;
-/** Bounciness of a shove, and how much of a shove's momentum the vehicle gives up (props are light). */
+/**
+ * Bounciness of a shove, and how much of a shove's momentum the vehicle gives
+ * up (props are light).
+ */
 const RESTITUTION = 0.2;
 const RECOIL = 0.04;
 /** Props slide up a curb this high, not a wall. */
 const STEP = 0.3;
-/** Maximum positional separation per contact in meters, limiting sudden movement when a vehicle overlaps a loose prop. */
+/**
+ * Maximum positional separation per contact in meters, limiting sudden
+ * movement when a vehicle overlaps a loose prop.
+ */
 const SHOVE_MAX = 0.5;
 /** A lamp's ground glow: 4 vertices of rgb in the glow decal's color buffer. */
 const GLOW_FLOATS = 12;
@@ -106,9 +146,10 @@ const _q0: V3 = [0, 0, 0];
 const _q1: V3 = [0, 0, 0];
 
 /**
- * Alternative fall-heading offsets in radians, tested nearest to the impact direction first. If all are obstructed,
- * retain the impact direction. FALL_PROBE defines three horizontal clearance segments above the base, sized by prop
- * height and lying half-width.
+ * Alternative fall-heading offsets in radians, tested nearest to the impact
+ * direction first. If all are obstructed, retain the impact direction.
+ * FALL_PROBE defines three horizontal clearance segments above the base, sized
+ * by prop height and lying half-width.
  */
 const FALL_TURNS = [
   0,
@@ -139,19 +180,26 @@ function partsUp(p: PropSpec): boolean {
 }
 
 /**
- * Manage standing, falling, loose, and shattered props. Collision events or lost support trigger toppling; fallen props
- * interact with vehicles and terrain using friction, impacts, and gravity. Lamps flicker while falling and extinguish
- * on landing. repair() restores initial poses, collision, and lights. State uses typed arrays and shared transform
- * scratch space.
+ * Manage standing, falling, loose, and shattered props. Collision events or
+ * lost support trigger toppling; fallen props interact with vehicles and
+ * terrain using friction, impacts, and gravity. Lamps flicker while falling
+ * and extinguish on landing. repair() restores initial poses, collision, and
+ * lights. State uses typed arrays and shared transform scratch space.
  */
 export class Props {
   readonly root = new Group();
-  /** A lamp hit the ground, its head at `landed`; its light was `landedColor`, its kind `landedKind`. */
+  /**
+   * A lamp hit the ground, its head at `landed`; its light was `landedColor`,
+   * its kind `landedKind`.
+   */
   onLanded: (() => void) | null = null;
   readonly landed = new Vector3();
   readonly landedColor = new Color();
   landedKind: PropKind | null = null;
-  /** A prop shattered (PropKind.shatter): what it was, and the box its solids filled. */
+  /**
+   * A prop shattered (PropKind.shatter): what it was, and the box its solids
+   * filled.
+   */
   onBroken: (() => void) | null = null;
   brokenKind: PropKind | null = null;
   /** What broke it, if something knocked it (knock's `by`). */
@@ -173,7 +221,10 @@ export class Props {
   private readonly bz: Float32Array;
   private readonly cx: Float32Array;
   private readonly cz: Float32Array;
-  /** Heading it falls toward, tilt toward it, and its own yaw relative to that heading. */
+  /**
+   * Heading it falls toward, tilt toward it, and its own yaw relative to that
+   * heading.
+   */
   private readonly heading: Float32Array;
   private readonly tilt: Float32Array;
   private readonly tiltV: Float32Array;
@@ -185,7 +236,10 @@ export class Props {
   /** Lying footprint half-extents: along its old up axis, and across. */
   private readonly long: Float32Array;
   private readonly wide: Float32Array;
-  /** Fallback horizontal impact direction for unreported collisions or lost support. */
+  /**
+   * Fallback horizontal impact direction for unreported collisions or lost
+   * support.
+   */
   private readonly fallX: Float32Array;
   private readonly fallZ: Float32Array;
   private readonly strength: Float32Array;
@@ -254,14 +308,19 @@ export class Props {
     this.repair();
   }
 
-  /** Attach the shared glow color buffer and cache each lamp's original colors for restoration. */
+  /**
+   * Attach the shared glow color buffer and cache each lamp's original colors
+   * for restoration.
+   */
   attachGlow(color: BufferAttribute): void {
     this.glowColor = color;
     const a = color.array;
     this.props.forEach((p, i) => {
       if (p.light) {
         for (let j = 0; j < GLOW_FLOATS; j++) {
-          this.glowLit[i * GLOW_FLOATS + j] = a[p.light.glow * 3 + j] as number;
+          this.glowLit[i * GLOW_FLOATS + j] = a[
+            p.light.glow * 3 + j
+          ] as number;
         }
       }
     });
@@ -272,7 +331,10 @@ export class Props {
     return this.state[i] === UP;
   }
 
-  /** A held prop's tilt toward its heading while it stands (a gate lifting its arm). */
+  /**
+   * A held prop's tilt toward its heading while it stands (a gate lifting its
+   * arm).
+   */
   hold(i: number, tilt: number): void {
     if (this.state[i] !== UP || this.tilt[i] === tilt) {
       return;
@@ -283,8 +345,9 @@ export class Props {
   }
 
   /**
-   * Detach a standing prop into the loose state with the supplied velocity in meters per second. Return its kind, or
-   * null if the index is invalid or the prop is not standing.
+   * Detach a standing prop into the loose state with the supplied velocity in
+   * meters per second. Return its kind, or null if the index is invalid or the
+   * prop is not standing.
    */
   release(i: number, vx: number, vy: number, vz: number): PropKind | null {
     const p = this.props[i];
@@ -310,10 +373,16 @@ export class Props {
   }
 
   /**
-   * Topple or shatter the standing prop associated with `solidId`, using the supplied impact velocity and source.
-   * Return its kind, or null if no standing prop matches.
+   * Topple or shatter the standing prop associated with `solidId`, using the
+   * supplied impact velocity and source. Return its kind, or null if no
+   * standing prop matches.
    */
-  knock(solidId: number, vx: number, vz: number, by: object | null = null): PropKind | null {
+  knock(
+    solidId: number,
+    vx: number,
+    vz: number,
+    by: object | null = null,
+  ): PropKind | null {
     const i = this.bySolid.get(solidId);
     if (i === undefined || this.state[i] !== UP) {
       return null;
@@ -329,7 +398,12 @@ export class Props {
       if (st === UP) {
         // Handle externally disabled collision boxes and lost support.
         const p = this.props[i] as PropSpec;
-        if (!p.held && (!p.solid.enabled || !partsUp(p) || (p.support && !p.support.enabled))) {
+        if (
+          !p.held &&
+          (!p.solid.enabled ||
+            !partsUp(p) ||
+            (p.support && !p.support.enabled))
+        ) {
           this.topple(
             i,
             (this.fallX[i] as number) * TUNING.knockdown.speed,
@@ -424,7 +498,10 @@ export class Props {
     }
   }
 
-  /** Disable prop i's collision and visual occluders, hide its static geometry, and enable instances for its kind. */
+  /**
+   * Disable prop i's collision and visual occluders, hide its static geometry,
+   * and enable instances for its kind.
+   */
   private unstand(i: number): void {
     const p = this.props[i] as PropSpec;
     p.solid.enabled = false;
@@ -446,7 +523,10 @@ export class Props {
     }
   }
 
-  /** Mark prop i as shattered and publish its kind, impact source, and combined collision bounds through onBroken. */
+  /**
+   * Mark prop i as shattered and publish its kind, impact source, and combined
+   * collision bounds through onBroken.
+   */
   private shatter(i: number, by: object | null): void {
     const p = this.props[i] as PropSpec;
     this.unstand(i);
@@ -465,7 +545,12 @@ export class Props {
     this.onBroken?.();
   }
 
-  private topple(i: number, vx: number, vz: number, by: object | null = null): void {
+  private topple(
+    i: number,
+    vx: number,
+    vz: number,
+    by: object | null = null,
+  ): void {
     const p = this.props[i] as PropSpec;
     if (p.kind.shatter) {
       this.shatter(i, by);
@@ -514,7 +599,10 @@ export class Props {
     this.vz[i] = vz * drag;
   }
 
-  /** Test three horizontal clearance segments for a fall toward heading h. Return false if any intersects the world. */
+  /**
+   * Test three horizontal clearance segments for a fall toward heading h.
+   * Return false if any intersects the world.
+   */
   private clearFall(i: number, h: number): boolean {
     const p = this.props[i] as PropSpec;
     const reach = 2 * (this.long[i] as number) * FALL_PROBE.reach;
@@ -540,20 +628,28 @@ export class Props {
     return true;
   }
 
-  /** Integrate falling tilt and horizontal drift, then bounce or transition to the loose state at the resting angle. */
+  /**
+   * Integrate falling tilt and horizontal drift, then bounce or transition to
+   * the loose state at the resting angle.
+   */
   private fall(i: number, dt: number): void {
     const p = this.props[i] as PropSpec;
     const down = p.kind.down;
     let a = this.tilt[i] as number;
     const was = this.tiltV[i] as number;
-    let w = was + ((1.5 * TUNING.gravity) / (2 * (this.long[i] as number))) * Math.sin(a) * dt;
+    let w =
+      was +
+      ((1.5 * TUNING.gravity) / (2 * (this.long[i] as number))) *
+        Math.sin(a) *
+        dt;
     a += w * dt;
     this.friction(i, dt);
     this.bx[i] = (this.bx[i] as number) + (this.vx[i] as number) * dt;
     this.bz[i] = (this.bz[i] as number) + (this.vz[i] as number) * dt;
 
     if (p.light && !this.dark[i]) {
-      p.light.emitter.strength = Math.random() < 0.3 ? 0.15 : (this.strength[i] as number);
+      p.light.emitter.strength =
+        Math.random() < 0.3 ? 0.15 : (this.strength[i] as number);
     }
 
     if (a >= down) {
@@ -613,10 +709,16 @@ export class Props {
   }
 
   /**
-   * Reject horizontal movement when the prop centre crosses a solid between (ox, oz) and its new position. Reset
-   * horizontal velocity and restore the previous position.
+   * Reject horizontal movement when the prop centre crosses a solid between
+   * (ox, oz) and its new position. Reset horizontal velocity and restore the
+   * previous position.
    */
-  private keepOut(i: number, ox: number, oz: number, world: CollisionWorld): void {
+  private keepOut(
+    i: number,
+    ox: number,
+    oz: number,
+    world: CollisionWorld,
+  ): void {
     const x = this.cx[i] as number;
     const z = this.cz[i] as number;
     if (x === ox && z === oz) {
@@ -645,7 +747,10 @@ export class Props {
     this.place(i);
   }
 
-  /** Separate a loose prop from vehicle body circles and apply linear and angular impulses to both participants. */
+  /**
+   * Separate a loose prop from vehicle body circles and apply linear and
+   * angular impulses to both participants.
+   */
   private shove(i: number, pushers: readonly Pusher[]): void {
     const L = this.long[i] as number;
     const W = this.wide[i] as number;
@@ -720,7 +825,8 @@ export class Props {
         const pz = dz * qu + ez * qs;
         const w = this.spin[i] as number;
         const vn =
-          (v.vel.x - ((this.vx[i] as number) + w * pz)) * mx + (v.vel.z - ((this.vz[i] as number) - w * px)) * mz;
+          (v.vel.x - ((this.vx[i] as number) + w * pz)) * mx +
+          (v.vel.z - ((this.vz[i] as number) - w * px)) * mz;
         this.awake[i] = 1;
 
         if (vn <= 0) {
@@ -739,8 +845,9 @@ export class Props {
   }
 
   /**
-   * Integrate loose-prop motion with friction, terrain collision, curb stepping, and gravity. Sleep the prop once all
-   * movement stops on the ground.
+   * Integrate loose-prop motion with friction, terrain collision, curb
+   * stepping, and gravity. Sleep the prop once all movement stops on the
+   * ground.
    */
   private slide(i: number, dt: number, world: CollisionWorld): void {
     this.friction(i, dt);
@@ -779,7 +886,8 @@ export class Props {
       cx += mx;
       cz += mz;
       const m = Math.sqrt(mx * mx + mz * mz);
-      const vn = ((this.vx[i] as number) * mx + (this.vz[i] as number) * mz) / m;
+      const vn =
+        ((this.vx[i] as number) * mx + (this.vz[i] as number) * mz) / m;
       if (vn < 0) {
         this.vx[i] = (this.vx[i] as number) - (mx / m) * vn * 1.2;
         this.vz[i] = (this.vz[i] as number) - (mz / m) * vn * 1.2;
@@ -812,7 +920,13 @@ export class Props {
     this.bx[i] = cx - Math.sin(h) * r;
     this.bz[i] = cz - Math.cos(h) * r;
 
-    if (this.vx[i] === 0 && this.vz[i] === 0 && w === 0 && vy === 0 && ny === g) {
+    if (
+      this.vx[i] === 0 &&
+      this.vz[i] === 0 &&
+      w === 0 &&
+      vy === 0 &&
+      ny === g
+    ) {
       this.awake[i] = 0;
     }
 
@@ -829,8 +943,9 @@ export class Props {
   }
 
   /**
-   * Update prop i's instance transform from scale, shear, relative yaw, tilt, heading, and base position. Hide broken
-   * props and standing props represented by static geometry.
+   * Update prop i's instance transform from scale, shear, relative yaw, tilt,
+   * heading, and base position. Hide broken props and standing props
+   * represented by static geometry.
    */
   private place(i: number): void {
     const p = this.props[i] as PropSpec;
@@ -850,12 +965,20 @@ export class Props {
     _a.makeScale(p.stretch * size, size, size);
 
     if (p.shear) {
-      _a.premultiply(_b.set(1, 0, 0, 0, p.shear, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1));
+      _a.premultiply(
+        _b.set(1, 0, 0, 0, p.shear, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1),
+      );
     }
 
     _a.premultiply(_b.makeRotationY(this.sigma[i] as number));
-    _a.premultiply(_b.makeRotationX(this.tilt[i] as number)).premultiply(_b.makeRotationY(this.heading[i] as number));
-    _a.setPosition(this.bx[i] as number, this.by[i] as number, this.bz[i] as number);
+    _a.premultiply(_b.makeRotationX(this.tilt[i] as number)).premultiply(
+      _b.makeRotationY(this.heading[i] as number),
+    );
+    _a.setPosition(
+      this.bx[i] as number,
+      this.by[i] as number,
+      this.bz[i] as number,
+    );
     draw.place(p.slot, _a);
   }
 
@@ -868,7 +991,9 @@ export class Props {
 
     const a = c.array;
     for (let j = 0; j < GLOW_FLOATS; j++) {
-      a[light.glow * 3 + j] = on ? (this.glowLit[i * GLOW_FLOATS + j] as number) : 0;
+      a[light.glow * 3 + j] = on
+        ? (this.glowLit[i * GLOW_FLOATS + j] as number)
+        : 0;
     }
 
     c.needsUpdate = true;

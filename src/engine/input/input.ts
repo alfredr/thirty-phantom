@@ -2,7 +2,9 @@ import { type Release, releaseOnce } from '@/engine/core/disposable';
 import { clamp } from '@/engine/core/math';
 
 /** KeyboardEvent codes for each control. The first code supplies its HUD label. */
-export type KeyTable<C extends string> = Readonly<Record<C, readonly [string, ...string[]]>>;
+export type KeyTable<C extends string> = Readonly<
+  Record<C, readonly [string, ...string[]]>
+>;
 
 /** The controls a touch stick pushes, one per direction. */
 export interface StickControls<C extends string> {
@@ -13,7 +15,14 @@ export interface StickControls<C extends string> {
 }
 
 /** Keys whose browser default (scrolling, moving focus) the game never wants. */
-const BLOCKED = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'Tab']);
+const BLOCKED = new Set([
+  'ArrowUp',
+  'ArrowDown',
+  'ArrowLeft',
+  'ArrowRight',
+  'Space',
+  'Tab',
+]);
 /** The details of a key press that a focus layer may care about. */
 export interface KeyPress {
   readonly repeat: boolean;
@@ -21,15 +30,19 @@ export interface KeyPress {
 }
 
 /**
- * Reserve controls for a UI surface. The topmost layer accepting a key receives its press before world input is
- * updated. controls() may change with the layer’s current state.
+ * Reserve controls for a UI surface. The topmost layer accepting a key
+ * receives its press before world input is updated. controls() may change with
+ * the layer’s current state.
  */
 export interface FocusLayer<C extends string> {
   controls(): readonly C[];
   press(control: C, key: KeyPress): void;
 }
 
-/** The stack of focus layers, newest on top. Input offers every key press to it first. */
+/**
+ * The stack of focus layers, newest on top. Input offers every key press to it
+ * first.
+ */
 export class Focus<C extends string> {
   private readonly layers: { layer: FocusLayer<C> }[] = [];
 
@@ -53,11 +66,16 @@ export class Focus<C extends string> {
     return this.layers.some(({ layer }) => layer.controls().includes(control));
   }
 
-  /** Dispatch to the topmost layer accepting this key. Return whether the press was handled. */
+  /**
+   * Dispatch to the topmost layer accepting this key. Return whether the press
+   * was handled.
+   */
   route(code: string, key: KeyPress): boolean {
     for (let i = this.layers.length - 1; i >= 0; i--) {
       const layer = this.layers[i]?.layer;
-      const control = layer?.controls().find((c) => this.keys[c].some((k) => k === code));
+      const control = layer
+        ?.controls()
+        .find((c) => this.keys[c].some((k) => k === code));
       if (layer && control) {
         layer.press(control, key);
         return true;
@@ -69,14 +87,23 @@ export class Focus<C extends string> {
 }
 
 /** Display labels for key codes that need explicit mapping. */
-const CAPS: Readonly<Record<string, string>> = { Backquote: '~', Escape: 'ESC' };
+const CAPS: Readonly<Record<string, string>> = {
+  Backquote: '~',
+  Escape: 'ESC',
+};
 
-/** Convert a KeyboardEvent code into a display label, such as KeyF → F or ShiftLeft → SHIFT. */
+/**
+ * Convert a KeyboardEvent code into a display label, such as KeyF → F or
+ * ShiftLeft → SHIFT.
+ */
 export function keyCap(code: string): string {
   return CAPS[code] ?? code.replace(/^Key|Left$|Right$/g, '').toUpperCase();
 }
 
-/** Keyboard, pointer, wheel, and touch input with per-frame key press detection. */
+/**
+ * Keyboard, pointer, wheel, and touch input with per-frame key press
+ * detection.
+ */
 export class Input<C extends string> {
   private readonly down = new Set<string>();
   private readonly pressed = new Set<string>();
@@ -85,11 +112,17 @@ export class Input<C extends string> {
   private mouseY = 0;
   private lockEl: HTMLElement | null = null;
   private dragging = false;
-  /** Suppress world input reads while preserving focus-layer key dispatch, such as during cutscenes. */
+  /**
+   * Suppress world input reads while preserving focus-layer key dispatch, such
+   * as during cutscenes.
+   */
   muted = false;
   /** UI layers that receive key presses before world controls. */
   readonly focus: Focus<C>;
-  /** Analog stick (touch): x to the right, y forward, each -1..1. axis() adds it to the keys. */
+  /**
+   * Analog stick (touch): x to the right, y forward, each -1..1. axis() adds
+   * it to the keys.
+   */
   private stickX = 0;
   private stickY = 0;
 
@@ -154,7 +187,10 @@ export class Input<C extends string> {
     return clamp(keys + this.analog(pos) - this.analog(neg), -1, 1);
   }
 
-  /** Return the stick component for a direction, or zero for an unrelated control. */
+  /**
+   * Return the stick component for a direction, or zero for an unrelated
+   * control.
+   */
   private analog(c: C): number {
     const s = this.stick;
     if (c === s.right) {
@@ -176,7 +212,10 @@ export class Input<C extends string> {
     return 0;
   }
 
-  /** Set touch stick components in [-1, 1]: x points right and y points forward. Use (0, 0) on release. */
+  /**
+   * Set touch stick components in [-1, 1]: x points right and y points
+   * forward. Use (0, 0) on release.
+   */
   setStick(x: number, y: number): void {
     this.stickX = x;
     this.stickY = y;
@@ -194,8 +233,9 @@ export class Input<C extends string> {
   }
 
   /**
-   * Mouse look on `el`. A click captures the pointer while `wantLock()` holds (Esc releases it); dragging with the left
-   * button also looks, for browsers that refuse the capture.
+   * Mouse look on `el`. A click captures the pointer while `wantLock()` holds
+   * (Esc releases it); dragging with the left button also looks, for browsers
+   * that refuse the capture.
    */
   attachPointer(el: HTMLElement, wantLock: () => boolean): void {
     this.lockEl = el;
@@ -233,7 +273,9 @@ export class Input<C extends string> {
 
   /** Mouse movement in pixels since the last call. */
   consumeMouse(): [number, number] {
-    const m: [number, number] = this.muted ? [0, 0] : [this.mouseX, this.mouseY];
+    const m: [number, number] = this.muted
+      ? [0, 0]
+      : [this.mouseX, this.mouseY];
     this.mouseX = 0;
     this.mouseY = 0;
     return m;
@@ -250,8 +292,9 @@ export class Input<C extends string> {
   }
 
   /**
-   * Inject a key press through the focus stack. Accept a KeyboardEvent code such as 'KeyW', not a control name.
-   * Unconsumed presses last until endFrame() and do not change held-key state.
+   * Inject a key press through the focus stack. Accept a KeyboardEvent code
+   * such as 'KeyW', not a control name. Unconsumed presses last until
+   * endFrame() and do not change held-key state.
    */
   press(code: string): void {
     if (this.focus.route(code, { repeat: false, shift: false })) {

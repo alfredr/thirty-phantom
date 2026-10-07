@@ -1,6 +1,9 @@
 /** A small typed event emitter: `on` returns a function that unsubscribes. */
 export class Emitter<M extends Record<string, unknown>> {
-  private readonly handlers = new Map<keyof M, Set<(payload: never) => void>>();
+  private readonly handlers = new Map<
+    keyof M,
+    Set<(payload: never) => void>
+  >();
 
   on<K extends keyof M>(type: K, fn: (payload: M[K]) => void): () => void {
     let set = this.handlers.get(type);

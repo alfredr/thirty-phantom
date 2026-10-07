@@ -30,16 +30,29 @@ export interface FireP {
   /** Optional gains for low flame movement and high-frequency hissing. */
   lap?: number;
   hiss?: number;
-  /** Amount of variation in background tone, volume, and crackle density, from 0 to 1. */
+  /**
+   * Amount of variation in background tone, volume, and crackle density, from
+   * 0 to 1.
+   */
   wander?: number;
-  /** Probabilities of a crackle cluster or a shifting-log sound at each scheduled event. */
+  /**
+   * Probabilities of a crackle cluster or a shifting-log sound at each
+   * scheduled event.
+   */
   clusters?: number;
   shifts?: number;
 }
 
-/** Advance a random value that tends toward 0.5. `dt` is in seconds; the result is not clamped. */
+/**
+ * Advance a random value that tends toward 0.5. `dt` is in seconds; the result
+ * is not clamped.
+ */
 function drift(v: number, dt: number, rate: number): number {
-  return v + (0.5 - v) * rate * dt + Math.sqrt(dt * rate) * 0.5 * (Math.random() * 2 - 1);
+  return (
+    v +
+    (0.5 - v) * rate * dt +
+    Math.sqrt(dt * rate) * 0.5 * (Math.random() * 2 - 1)
+  );
 }
 
 /** Create a fire loop whose `roar` control adjusts intensity from 0 to 1. */
@@ -53,8 +66,18 @@ export function fire(k: Kit, out: AudioNode, t: number, p: FireP): Voice {
   const wander = p.wander ?? 0;
   // Modulate background pitch and gain at independent rates.
   if (wander > 0) {
-    wobble(k, osc(k, s, 'sine', 0.11 + Math.random() * 0.05, t), p.body[0] * 0.3 * wander, tone.frequency);
-    wobble(k, osc(k, s, 'sine', 0.23 + Math.random() * 0.07, t), 0.35 * wander, swell.gain);
+    wobble(
+      k,
+      osc(k, s, 'sine', 0.11 + Math.random() * 0.05, t),
+      p.body[0] * 0.3 * wander,
+      tone.frequency,
+    );
+    wobble(
+      k,
+      osc(k, s, 'sine', 0.23 + Math.random() * 0.07, t),
+      0.35 * wander,
+      swell.gain,
+    );
   }
 
   // Distort a narrow 30 Hz noise band to model low flame movement.
@@ -86,8 +109,17 @@ export function fire(k: Kit, out: AudioNode, t: number, p: FireP): Voice {
     const len = pop ? rand(0.03, 0.07) : rand(0.004, 0.02);
     const f = pop ? rand(350, 900) : rand(1500, 6000);
     const q = pop ? 2 : rand(0.8, 1.6);
-    const vol = p.vol * scale * (pop ? 0.9 : 0.1 + 0.5 * Math.random() ** 2) * loud(k, f / q);
-    chain(noise(k, null, at, at + len + 0.01), filter(k, 'bandpass', f, q), strike(k, at, vol, 0.0007, len), crackles);
+    const vol =
+      p.vol *
+      scale *
+      (pop ? 0.9 : 0.1 + 0.5 * Math.random() ** 2) *
+      loud(k, f / q);
+    chain(
+      noise(k, null, at, at + len + 0.01),
+      filter(k, 'bandpass', f, q),
+      strike(k, at, vol, 0.0007, len),
+      crackles,
+    );
   };
 
   let next = t;
@@ -103,7 +135,11 @@ export function fire(k: Kit, out: AudioNode, t: number, p: FireP): Voice {
 
     if (p.hiss) {
       hiss.gain.setTargetAtTime(
-        p.hiss * p.vol * Math.min(1, Math.max(0, surge) * 1.3) ** 4 * lerp(1, 2, roar) * loud(k, 20000),
+        p.hiss *
+          p.vol *
+          Math.min(1, Math.max(0, surge) * 1.3) ** 4 *
+          lerp(1, 2, roar) *
+          loud(k, 20000),
         at,
         0.08,
       );
@@ -143,7 +179,9 @@ export function fire(k: Kit, out: AudioNode, t: number, p: FireP): Voice {
 
       // Vary event density with activity, or use a steady rate when variation is disabled.
       const busy = wander > 0 ? 0.25 + 1.75 * clamp(activity, 0, 1) ** 2 : 1;
-      next += -Math.log(1 - Math.random()) / (lerp(p.rate[0], p.rate[1], roar) * busy);
+      next +=
+        -Math.log(1 - Math.random()) /
+        (lerp(p.rate[0], p.rate[1], roar) * busy);
     }
   };
 
@@ -156,8 +194,16 @@ export function fire(k: Kit, out: AudioNode, t: number, p: FireP): Voice {
       roar = c.roar ?? 0;
       const f = lerp(p.body[0], p.body[1], roar);
       tone.frequency.setTargetAtTime(f, at, 0.1);
-      rush.gain.setTargetAtTime(p.vol * lerp(0.5, 1.2, roar) * loud(k, f), at, 0.1);
-      lap.gain.setTargetAtTime((p.lap ?? 0) * p.vol * lerp(1, 1.8, roar), at, 0.1);
+      rush.gain.setTargetAtTime(
+        p.vol * lerp(0.5, 1.2, roar) * loud(k, f),
+        at,
+        0.1,
+      );
+      lap.gain.setTargetAtTime(
+        (p.lap ?? 0) * p.vol * lerp(1, 1.8, roar),
+        at,
+        0.1,
+      );
     },
   };
 }
@@ -176,7 +222,13 @@ export function town(k: Kit, out: AudioNode, t: number, p: TownP): Voice {
   const s = new Sources();
   const g = p.vol * loud(k, p.hum);
   const level = amp(k, g);
-  chain(noise(k, s, t), filter(k, 'lowpass', p.hum), filter(k, 'lowpass', p.hum), level, out);
+  chain(
+    noise(k, s, t),
+    filter(k, 'lowpass', p.hum),
+    filter(k, 'lowpass', p.hum),
+    level,
+    out,
+  );
   wobble(k, osc(k, s, 'sine', 0.06, t), g * 0.3, level.gain);
   const birds = amp(k, 1);
   birds.connect(out);
@@ -194,7 +246,10 @@ export function town(k: Kit, out: AudioNode, t: number, p: TownP): Voice {
       for (let i = 0; i < n; i++) {
         const len = rand(0.05, 0.09);
         const o = osc(k, null, 'sine', base, c, c + len + 0.01);
-        o.frequency.exponentialRampToValueAtTime(base * rand(1.3, 1.7), c + len);
+        o.frequency.exponentialRampToValueAtTime(
+          base * rand(1.3, 1.7),
+          c + len,
+        );
         chain(o, strike(k, c, p.birds * rand(0.5, 1), 0.008, len), birds);
         c += len + rand(0.04, 0.12);
       }
@@ -215,7 +270,10 @@ export interface NightP {
   chirp: readonly number[];
 }
 
-/** Create nighttime ambience with modulated wind noise and repeating cricket chirps. */
+/**
+ * Create nighttime ambience with modulated wind noise and repeating cricket
+ * chirps.
+ */
 export function night(k: Kit, out: AudioNode, t: number, p: NightP): Voice {
   const s = new Sources();
   const band = filter(k, 'bandpass', p.wind, 0.8);

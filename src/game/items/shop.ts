@@ -14,7 +14,10 @@ export interface Transfer {
   cost: number;
 }
 
-/** Shared stock and browsing behavior for a merchant kind. Ranges are in meters. */
+/**
+ * Shared stock and browsing behavior for a merchant kind. Ranges are in
+ * meters.
+ */
 export interface Merchant {
   readonly title: string;
   readonly stock: readonly StockItem[];
@@ -47,7 +50,10 @@ export class Shop {
     const selling = this.open;
     const npc = selling ? this.at : show;
     return npc?.breed.shop && npc.stock
-      ? { title: npc.breed.shop.title, slots: npc.stock.view(this.money.cash, selling) }
+      ? {
+          title: npc.breed.shop.title,
+          slots: npc.stock.view(this.money.cash, selling),
+        }
       : null;
   }
 
@@ -66,13 +72,25 @@ export class Shop {
     return slot ? this.transfer(slot, 1, 0) : null;
   }
 
-  /** Check payment before stock moves; observers see both sides of a completed transfer. */
-  private transfer(slot: StockSlot, requested: number, price: number): Transfer | null {
-    if (ITEM_BREEDS[slot.kind].unavailable || !Number.isFinite(requested) || requested < 1) {
+  /**
+   * Check payment before stock moves; observers see both sides of a completed
+   * transfer.
+   */
+  private transfer(
+    slot: StockSlot,
+    requested: number,
+    price: number,
+  ): Transfer | null {
+    if (
+      ITEM_BREEDS[slot.kind].unavailable ||
+      !Number.isFinite(requested) ||
+      requested < 1
+    ) {
       return null;
     }
 
-    const afford = price > 0 ? Math.floor(this.money.cash / price) : slot.count;
+    const afford =
+      price > 0 ? Math.floor(this.money.cash / price) : slot.count;
     const n = Math.min(Math.floor(requested), slot.count, afford);
     if (n <= 0) {
       return null;
@@ -89,7 +107,10 @@ export class Shop {
     return { kind: slot.kind, n, cost };
   }
 
-  /** Update browsing from Cody’s on-foot position; null ends browsing. Return the active shop NPC, if any. */
+  /**
+   * Update browsing from Cody’s on-foot position; null ends browsing. Return
+   * the active shop NPC, if any.
+   */
   update(cody: Vector3 | null): Npc | null {
     const at = this.at;
     if (at && !(cody && within(at, cody) && this.open)) {
@@ -118,6 +139,8 @@ export class Shop {
 function within(n: Npc, cody: Vector3): boolean {
   const shop = n.breed.shop;
   return (
-    !!shop && Math.hypot(n.pos.x - cody.x, n.pos.z - cody.z) < shop.reach && Math.abs(n.pos.y - cody.y) < shop.level
+    !!shop &&
+    Math.hypot(n.pos.x - cody.x, n.pos.z - cody.z) < shop.reach &&
+    Math.abs(n.pos.y - cody.y) < shop.level
   );
 }

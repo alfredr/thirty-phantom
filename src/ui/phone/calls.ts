@@ -87,7 +87,9 @@ export class Calls implements PhoneApp {
     }
 
     if (control === 'menuUp' || control === 'menuDown') {
-      this.select(clamp(this.pick + (control === 'menuUp' ? -1 : 1), 0, n - 1));
+      this.select(
+        clamp(this.pick + (control === 'menuUp' ? -1 : 1), 0, n - 1),
+      );
       return true;
     }
 

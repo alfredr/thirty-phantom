@@ -20,7 +20,14 @@ export interface Livery {
   cab: { map: CanvasTexture; emissive: CanvasTexture };
 }
 
-function splats(ctxs: Ctx[], w: number, h: number, rng: Rng, n: number, emissive?: Ctx): void {
+function splats(
+  ctxs: Ctx[],
+  w: number,
+  h: number,
+  rng: Rng,
+  n: number,
+  emissive?: Ctx,
+): void {
   for (let i = 0; i < n; i++) {
     const x = rng.range(0, w);
     const y = rng.range(h * 0.3, h);
@@ -43,8 +50,13 @@ export interface LiveryText {
 
 const cache = new Map<string, Livery>();
 
-/** Return cached color and emissive textures for the truck's side, hood, and cab, keyed by name and number. */
-export function truckLivery(text: LiveryText = { name: 'ROADIE', number: '30' }): Livery {
+/**
+ * Return cached color and emissive textures for the truck's side, hood, and
+ * cab, keyed by name and number.
+ */
+export function truckLivery(
+  text: LiveryText = { name: 'ROADIE', number: '30' },
+): Livery {
   const key = `${text.name}|${text.number}`;
   const hit = cache.get(key);
   if (hit) {
@@ -71,7 +83,12 @@ export function truckLivery(text: LiveryText = { name: 'ROADIE', number: '30' })
   const blobs: [number, number, number, number][] = [];
   for (let i = 0; i < 26; i++) {
     const y = rng.range(0, H * 0.75);
-    blobs.push([rng.range(0, W), y, rng.range(14, 46), Math.max(0, H - y - rng.range(0, 40))]);
+    blobs.push([
+      rng.range(0, W),
+      y,
+      rng.range(14, 46),
+      Math.max(0, H - y - rng.range(0, 40)),
+    ]);
   }
 
   for (const [pass, c] of [
@@ -79,13 +96,19 @@ export function truckLivery(text: LiveryText = { name: 'ROADIE', number: '30' })
     [1, a.ctx],
     [1, e.ctx],
   ] as const) {
-    c.fillStyle = pass === 0 ? PALETTE.ink : c === e.ctx ? SLIME_GLOW : PALETTE.slime;
+    c.fillStyle =
+      pass === 0 ? PALETTE.ink : c === e.ctx ? SLIME_GLOW : PALETTE.slime;
 
     for (const [x, y, r, len] of blobs) {
       c.beginPath();
       c.arc(x, y, r + (pass === 0 ? 4 : 0), 0, TAU);
       c.fill();
-      c.fillRect(x - r * 0.35 - (pass === 0 ? 4 : 0), y, r * 0.7 + (pass === 0 ? 8 : 0), len);
+      c.fillRect(
+        x - r * 0.35 - (pass === 0 ? 4 : 0),
+        y,
+        r * 0.7 + (pass === 0 ? 8 : 0),
+        len,
+      );
     }
   }
 
@@ -149,7 +172,14 @@ export function truckLivery(text: LiveryText = { name: 'ROADIE', number: '30' })
     c.save();
     c.shadowColor = PALETTE.slime;
     c.shadowBlur = em ? 12 : 0;
-    drawSkull(c, S / 2, S / 2, S * 0.62, em ? '#5cd60f' : PALETTE.slime, em ? '#000' : BODY);
+    drawSkull(
+      c,
+      S / 2,
+      S / 2,
+      S * 0.62,
+      em ? '#5cd60f' : PALETTE.slime,
+      em ? '#000' : BODY,
+    );
     c.restore();
   }
 

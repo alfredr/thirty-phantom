@@ -5,7 +5,12 @@ import { Gait } from '@/actors/models/person';
 import type { CharacterRig } from '@/actors/models/rig';
 import { Mind } from '@/engine/sim/mind';
 
-import { Following, SKELETON_MIND, type Undead, type UndeadEvent } from './behaviors';
+import {
+  Following,
+  SKELETON_MIND,
+  type Undead,
+  type UndeadEvent,
+} from './behaviors';
 import type { SkeletonBreed } from './breeds';
 import { Pursuit, type PursuitWorld } from './pursuit';
 
@@ -14,7 +19,11 @@ export interface SkeletonCrusher {
   readonly pos: Vector3;
   readonly vel: Vector3;
   readonly yaw: number;
-  readonly params: { readonly radius: number; readonly length: number; readonly height: number };
+  readonly params: {
+    readonly radius: number;
+    readonly length: number;
+    readonly height: number;
+  };
   readonly gone: boolean;
 }
 
@@ -23,7 +32,10 @@ export interface SkeletonWorld extends PursuitWorld, HuntWorld {
   risen(at: Vector3): void;
 }
 
-/** A breed supplies shared definitions; a skeleton owns its rig, health, and capability state. */
+/**
+ * A breed supplies shared definitions; a skeleton owns its rig, health, and
+ * capability state.
+ */
 export class Skeleton {
   readonly rig: CharacterRig;
   readonly mind: Mind<Skeleton, Undead, UndeadEvent>;
@@ -46,7 +58,9 @@ export class Skeleton {
     this.rig.root.rotation.y = yaw;
     this.hp = breed.health;
     this.movement = new Pursuit(breed.movement, this, world);
-    this.hunting = breed.hunting ? new Hunting(breed.hunting, this, world) : null;
+    this.hunting = breed.hunting
+      ? new Hunting(breed.hunting, this, world)
+      : null;
     this.following = breed.following ? new Following(breed.following) : null;
     this.mind = new Mind<Skeleton, Undead, UndeadEvent>(SKELETON_MIND, this, {
       at: 'rising',
@@ -54,11 +68,22 @@ export class Skeleton {
     });
   }
 
-  /** Return false after a fatal impact or when too far from the summoner. Rising skeletons cannot be run over. */
-  update(dt: number, master: Vector3 | null, cars: readonly SkeletonCrusher[]): boolean {
+  /**
+   * Return false after a fatal impact or when too far from the summoner.
+   * Rising skeletons cannot be run over.
+   */
+  update(
+    dt: number,
+    master: Vector3 | null,
+    cars: readonly SkeletonCrusher[],
+  ): boolean {
     this.master = master;
 
-    if (master && this.following && this.pos.distanceTo(master) > this.following.spec.stray) {
+    if (
+      master &&
+      this.following &&
+      this.pos.distanceTo(master) > this.following.spec.stray
+    ) {
       return false;
     }
 
@@ -79,7 +104,10 @@ export class Skeleton {
     this.world.claims?.release(this);
   }
 
-  /** Apply damage, knockback, and stagger for the first qualifying vehicle-circle impact. */
+  /**
+   * Apply damage, knockback, and stagger for the first qualifying
+   * vehicle-circle impact.
+   */
   private runOver(cars: readonly SkeletonCrusher[]): void {
     const impactSpec = this.breed.impact;
     if (!impactSpec) {

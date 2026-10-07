@@ -3,13 +3,14 @@ import { test } from 'node:test';
 
 import { loadModules } from './modules.mjs';
 
-const [{ Relation }, { Claims }, action, { Space, _ }, { Mind, mind }] = await loadModules(
-  '/src/engine/sim/relation.ts',
-  '/src/engine/sim/claims.ts',
-  '/src/engine/sim/action.ts',
-  '/src/engine/sim/space.ts',
-  '/src/engine/sim/mind.ts',
-);
+const [{ Relation }, { Claims }, action, { Space, _ }, { Mind, mind }] =
+  await loadModules(
+    '/src/engine/sim/relation.ts',
+    '/src/engine/sim/claims.ts',
+    '/src/engine/sim/action.ts',
+    '/src/engine/sim/space.ts',
+    '/src/engine/sim/mind.ts',
+  );
 const { Action, Doing, done, running, fail, instead } = action;
 
 test('a relation refuses, evicts or merges when a key is full, and ends rows with their owner', () => {
@@ -22,18 +23,33 @@ test('a relation refuses, evicts or merges when a key is full, and ends rows wit
     empty: ({ n }) => n === 0,
   });
   const cody = {};
-  assert.equal(has.insert({ actor: cody, item: 'tire', n: -1 }), null, "can't take what isn't there");
+  assert.equal(
+    has.insert({ actor: cody, item: 'tire', n: -1 }),
+    null,
+    "can't take what isn't there",
+  );
   has.insert({ actor: cody, item: 'tire', n: 2 });
   has.insert({ actor: cody, item: 'tire', n: 1 });
   assert.equal(has.where({ actor: cody, item: 'tire' })[0].n, 3);
-  assert.equal(has.insert({ actor: cody, item: 'tire', n: -4 }), null, 'never below zero');
+  assert.equal(
+    has.insert({ actor: cody, item: 'tire', n: -4 }),
+    null,
+    'never below zero',
+  );
   has.insert({ actor: cody, item: 'tire', n: -3 });
   assert.equal(has.size, 0, 'a count of zero is deleted');
 
   const job = {};
-  const spot = new Relation({ keys: [{ on: ['spot'] }], evicted: (row) => evicted.push(row) });
+  const spot = new Relation({
+    keys: [{ on: ['spot'] }],
+    evicted: (row) => evicted.push(row),
+  });
   const first = spot.insert({ spot: 12, car: 'a', owner: job });
-  assert.equal(spot.insert({ spot: 12, car: 'b', owner: {} }), null, 'refused by default');
+  assert.equal(
+    spot.insert({ spot: 12, car: 'b', owner: {} }),
+    null,
+    'refused by default',
+  );
   spot.insert({ spot: 12, car: 'c', owner: {} }, 'evict');
   assert.deepEqual(evicted, [first]);
   assert.equal(spot.lostBy(job), true);
@@ -54,39 +70,74 @@ test('a relation refuses, evicts or merges when a key is full, and ends rows wit
 test('claims hold per target and per holder, preempt with a lost mark, and hand on to a new owner', () => {
   const lost = [];
   const claims = new Claims(
-    { driverSeat: { perTarget: 1, perHolder: 1 }, hunter: { perTarget: 2, perHolder: 1 } },
+    {
+      driverSeat: { perTarget: 1, perHolder: 1 },
+      hunter: { perTarget: 2, perHolder: 1 },
+    },
     (c) => lost.push(c),
   );
   const [car, car2, valet, cody] = [{}, {}, {}, {}];
   const [valetJob, codyJob] = [{}, {}];
-  assert.equal(claims.take('driverSeat', valet, car, { owner: valetJob }), true);
-  assert.equal(claims.take('driverSeat', cody, car, { owner: codyJob }), false, 'the seat is taken');
-  assert.equal(claims.take('driverSeat', cody, car, { owner: codyJob, preempt: true }), true, 'a carjack');
+  assert.equal(
+    claims.take('driverSeat', valet, car, { owner: valetJob }),
+    true,
+  );
+  assert.equal(
+    claims.take('driverSeat', cody, car, { owner: codyJob }),
+    false,
+    'the seat is taken',
+  );
+  assert.equal(
+    claims.take('driverSeat', cody, car, { owner: codyJob, preempt: true }),
+    true,
+    'a carjack',
+  );
   assert.equal(claims.holder('driverSeat', car), cody);
   assert.equal(claims.lostBy(valetJob), true);
   assert.equal(lost[0].holder, valet);
 
   // Taking another car releases the driver’s previous seat.
-  assert.equal(claims.take('driverSeat', cody, car2, { owner: codyJob, preempt: true }), true);
+  assert.equal(
+    claims.take('driverSeat', cody, car2, { owner: codyJob, preempt: true }),
+    true,
+  );
   assert.equal(claims.holder('driverSeat', car), null);
 
   const [victim, s1, s2, s3] = [{}, {}, {}, {}];
   assert.equal(claims.take('hunter', s1, victim, { owner: s1 }), true);
   assert.equal(claims.take('hunter', s2, victim, { owner: s2 }), true);
-  assert.equal(claims.take('hunter', s3, victim, { owner: s3 }), false, 'two hunters per victim');
-  assert.deepEqual([claims.slotOf('hunter', s1, victim), claims.slotOf('hunter', s2, victim)], [0, 1]);
+  assert.equal(
+    claims.take('hunter', s3, victim, { owner: s3 }),
+    false,
+    'two hunters per victim',
+  );
+  assert.deepEqual(
+    [claims.slotOf('hunter', s1, victim), claims.slotOf('hunter', s2, victim)],
+    [0, 1],
+  );
   claims.release(s1);
   assert.equal(claims.free('hunter', victim), true);
   assert.equal(claims.take('hunter', s3, victim, { owner: s3 }), true);
-  assert.equal(claims.slotOf('hunter', s3, victim), 0, 'the freed slot is reused');
+  assert.equal(
+    claims.slotOf('hunter', s3, victim),
+    0,
+    'the freed slot is reused',
+  );
 
   const parked = {};
   claims.handOn(codyJob, parked, 'driverSeat', car2);
   claims.release(codyJob);
-  assert.equal(claims.holder('driverSeat', car2), cody, 'the claim outlived the job that took it');
+  assert.equal(
+    claims.holder('driverSeat', car2),
+    cody,
+    'the claim outlived the job that took it',
+  );
 });
 
-/** Wait for the requested number of frames, optionally holding a claim, then finish. */
+/**
+ * Wait for the requested number of frames, optionally holding a claim, then
+ * finish.
+ */
 class Wait extends Action {
   constructor(p) {
     super();
@@ -102,7 +153,14 @@ class Wait extends Action {
   perform(w) {
     if (
       this.p.claim &&
-      !w.claims.take(this.p.claim.kind, this.p.claim.holder, this.p.claim.target, { owner: this.owner })
+      !w.claims.take(
+        this.p.claim.kind,
+        this.p.claim.holder,
+        this.p.claim.target,
+        {
+          owner: this.owner,
+        },
+      )
     ) {
       return this.p.otherwise ? instead(this.p.otherwise) : fail('TAKEN');
     }
@@ -132,16 +190,33 @@ test('the runner resolves, hands off, keeps running actions going, and ends thei
   const car = {};
 
   // Resolution replaces the candidate before perform() runs.
-  doing.do(w, new Wait({ label: 'INTERACT', resolveTo: () => new Wait({ label: 'POSSESS' }) }));
+  doing.do(
+    w,
+    new Wait({
+      label: 'INTERACT',
+      resolveTo: () => new Wait({ label: 'POSSESS' }),
+    }),
+  );
   assert.deepEqual(outcomes.pop(), ['done', 'POSSESS']);
 
   // The running action retains its claim across frames and releases it when finished.
-  doing.do(w, new Wait({ label: 'PARK', frames: 2, claim: { kind: 'spot', holder: car, target: spot12 } }));
+  doing.do(
+    w,
+    new Wait({
+      label: 'PARK',
+      frames: 2,
+      claim: { kind: 'spot', holder: car, target: spot12 },
+    }),
+  );
   assert.equal(claims.holder('spot', spot12), car);
   doing.update(w, 1 / 30);
   doing.update(w, 1 / 30);
   assert.deepEqual(outcomes.pop(), ['done', 'PARK']);
-  assert.equal(claims.holder('spot', spot12), null, 'the claim ended with the action');
+  assert.equal(
+    claims.holder('spot', spot12),
+    null,
+    'the claim ended with the action',
+  );
 
   // A failed claim can replace the running action with a different destination.
   claims.take('spot', {}, spot12, { owner: {} });
@@ -150,7 +225,10 @@ test('the runner resolves, hands off, keeps running actions going, and ends thei
     new Wait({
       label: 'PARK 12',
       claim: { kind: 'spot', holder: car, target: spot12 },
-      otherwise: new Wait({ label: 'PARK 13', claim: { kind: 'spot', holder: car, target: spot13 } }),
+      otherwise: new Wait({
+        label: 'PARK 13',
+        claim: { kind: 'spot', holder: car, target: spot13 },
+      }),
     }),
   );
   assert.deepEqual(outcomes.pop(), ['done', 'PARK 13']);
@@ -160,7 +238,14 @@ test('an action that loses its claim stops before acting', () => {
   const { w, claims, doing, outcomes } = world();
   const seat = {};
   const valet = {};
-  doing.do(w, new Wait({ label: 'DRIVE', frames: 5, claim: { kind: 'spot', holder: valet, target: seat } }));
+  doing.do(
+    w,
+    new Wait({
+      label: 'DRIVE',
+      frames: 5,
+      claim: { kind: 'spot', holder: valet, target: seat },
+    }),
+  );
   doing.update(w, 1 / 30);
   assert.equal(claims.holder('spot', seat), valet);
 
@@ -168,7 +253,11 @@ test('an action that loses its claim stops before acting', () => {
   claims.take('spot', {}, seat, { owner: {}, preempt: true });
   const before = w.log.length;
   doing.update(w, 1 / 30);
-  assert.equal(w.log.length, before, 'it did nothing with what it no longer holds');
+  assert.equal(
+    w.log.length,
+    before,
+    'it did nothing with what it no longer holds',
+  );
   assert.equal(outcomes.pop()[2], 'lost');
   assert.equal(
     doing.isRunning(() => true),
@@ -185,7 +274,10 @@ test('a hand-off to something impossible ends the old action once, and says why 
     end: (owner) => ends.push(owner),
     failed: (a, reason) => outcomes.push(['fail', a.label(w), reason]),
   });
-  const refused = new Wait({ label: 'GET IN', resolveTo: () => fail('SEAT TAKEN') });
+  const refused = new Wait({
+    label: 'GET IN',
+    resolveTo: () => fail('SEAT TAKEN'),
+  });
   const old = new Wait({ label: 'WALK' });
   old.perform = () => instead(refused);
   old.stop = () => stops++;
@@ -210,19 +302,31 @@ test('the space finds what is near, never across levels, in all three query shap
   space.rebuild([cody, randy, valet, upstairs, onRamp]);
   assert.equal(space.near(cody, randy, 3), true);
   assert.equal(space.near(cody, upstairs, 3), false, 'a deck floor apart');
-  assert.equal(space.near(cody, onRamp, 3), true, 'partway up a ramp still counts');
+  assert.equal(
+    space.near(cody, onRamp, 3),
+    true,
+    'partway up a ramp still counts',
+  );
   assert.deepEqual(space.near(cody, _, 3), [randy, onRamp]);
   assert.deepEqual(space.near(_, cody, 3), [randy, onRamp]);
   const pairs = space.near(_, _, 3);
   assert.equal(pairs.length, 6, 'both orders of each close pair');
   assert.equal(space.near(_, _, 3), pairs, 'answered once per frame');
-  assert.equal(space.near(_, _, 3, 1).length, 2, 'a tighter level tolerance is its own answer');
+  assert.equal(
+    space.near(_, _, 3, 1).length,
+    2,
+    'a tighter level tolerance is its own answer',
+  );
   assert.equal(
     space.nearest(cody, 50, (b) => b !== randy && b !== onRamp),
     valet,
   );
   space.rebuild([cody, valet]);
-  assert.deepEqual(space.near(_, _, 3), [], 'the rebuild dropped the old answers');
+  assert.deepEqual(
+    space.near(_, _, 3),
+    [],
+    'the rebuild dropped the old answers',
+  );
 });
 
 test('a mind moves on events and ticks, and holds its own state data', () => {
@@ -234,10 +338,13 @@ test('a mind moves on events and ticks, and holds its own state data', () => {
     fetching: {
       enter: (_v, s) => log.push(['enter', s.car]),
       exit: (_v, s) => log.push(['exit', s.car]),
-      tick: (_v, s, dt) => ((s.t = (s.t ?? 0) + dt) >= 1 ? { at: 'returning' } : null),
+      tick: (_v, s, dt) =>
+        (s.t = (s.t ?? 0) + dt) >= 1 ? { at: 'returning' } : null,
       on: { failed: () => ({ at: 'returning' }) },
     },
-    returning: { on: { handed: (_v, _s, e) => ({ at: 'fetching', car: e.car }) } },
+    returning: {
+      on: { handed: (_v, _s, e) => ({ at: 'fetching', car: e.car }) },
+    },
   });
   const valet = { job: null };
   const m = new Mind(VALET, valet, { at: 'atStand' });
@@ -252,7 +359,11 @@ test('a mind moves on events and ticks, and holds its own state data', () => {
   assert.equal(m.tick(0.5), false);
   assert.equal(m.tick(0.5), true, 'tick returned the next state');
   assert.equal(m.state.at, 'returning');
-  assert.equal(m.send({ type: 'handed', car: 'blue' }), true, 'on the way back, a hand-over turns it round');
+  assert.equal(
+    m.send({ type: 'handed', car: 'blue' }),
+    true,
+    'on the way back, a hand-over turns it round',
+  );
   assert.equal(m.in('fetching')?.car, 'blue');
   assert.deepEqual(log, [
     ['enter', 'red'],
@@ -327,7 +438,9 @@ test('cancelling another action during an update prevents its turn and defers ne
 
 test('cancelling the current action during update suppresses its replacement', () => {
   const { w, doing, outcomes } = world();
-  const next = new Step(() => assert.fail('cancelled action started its replacement'));
+  const next = new Step(() =>
+    assert.fail('cancelled action started its replacement'),
+  );
   let stops = 0;
   const act = new Step(
     (_w, dt) => {
@@ -460,7 +573,9 @@ test('errors in an action and its cleanup both remain available to the caller', 
 test('replacement resolution sees the old action claims already released', () => {
   const { w, claims, doing } = world();
   const spot = {};
-  const next = new Wait({ resolveTo: () => (claims.free('spot', spot) ? next : fail('TAKEN')) });
+  const next = new Wait({
+    resolveTo: () => (claims.free('spot', spot) ? next : fail('TAKEN')),
+  });
   const first = new Step(() => {
     claims.take('spot', first, spot, { owner: first });
     return instead(next);

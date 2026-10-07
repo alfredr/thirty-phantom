@@ -1,9 +1,21 @@
-import { Action, done, fail, type Outcome, resolveFully, type Result, running } from './action';
+import {
+  Action,
+  done,
+  fail,
+  type Outcome,
+  resolveFully,
+  type Result,
+  running,
+} from './action';
 
 const STEPS_PER_FRAME = 64;
 const MAX_HOPS = 8;
 
-export type ActionSteps<S, W extends S> = Generator<Action<S, W>, Outcome, Outcome>;
+export type ActionSteps<S, W extends S> = Generator<
+  Action<S, W>,
+  Outcome,
+  Outcome
+>;
 
 export class Sequence<S, W extends S> extends Action<S, W> {
   private routine: ActionSteps<S, W> | null = null;
@@ -218,6 +230,9 @@ export class WaitUntil<S, W extends S> extends Action<S, W> {
   perform(world: W, dt: number): Result<Action<S, W>> {
     this.elapsed += dt;
     this.options.update?.(world, dt);
-    return this.ready(world) || this.elapsed >= (this.options.timeoutSeconds ?? Infinity) ? done : running;
+    return this.ready(world) ||
+      this.elapsed >= (this.options.timeoutSeconds ?? Infinity)
+      ? done
+      : running;
   }
 }

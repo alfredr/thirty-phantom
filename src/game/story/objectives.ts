@@ -1,8 +1,8 @@
 import type { Vector3 } from 'three';
 
 /**
- * Primary objectives use the large arrow; optional objectives use smaller arrows and an optional label. Pins appear
- * only on the minimap.
+ * Primary objectives use the large arrow; optional objectives use smaller
+ * arrows and an optional label. Pins appear only on the minimap.
  */
 export type ObjectiveKind = 'primary' | 'optional' | 'pin';
 
@@ -17,8 +17,8 @@ export interface Objective {
 }
 
 /**
- * Combine marker sources into at most one primary objective and any number of optional objectives. Each source replaces
- * only its own entries.
+ * Combine marker sources into at most one primary objective and any number of
+ * optional objectives. Each source replaces only its own entries.
  */
 export class Objectives {
   /** The current task, shared by the HUD and the phone's task list. */
@@ -36,7 +36,10 @@ export class Objectives {
     return this.pinned;
   }
 
-  /** Replace this source's markers. An empty list clears only that source. The first primary wins. */
+  /**
+   * Replace this source's markers. An empty list clears only that source. The
+   * first primary wins.
+   */
   replace(source: object, list: readonly Objective[]): void {
     if (list.length) {
       this.sources.set(source, list);

@@ -1,7 +1,8 @@
 /**
- * Dubins paths: the shortest ways for a car that can only drive forward with a minimum turning radius to get from one
- * pose to another, built from Left / Right arcs and Straights (LSL, RSR, LSR, RSL, RLR, LRL). Poses use the game's yaw
- * convention: forward = (sin yaw, cos yaw) in (x, z).
+ * Dubins paths: the shortest ways for a car that can only drive forward with a
+ * minimum turning radius to get from one pose to another, built from Left /
+ * Right arcs and Straights (LSL, RSR, LSR, RSL, RLR, LRL). Poses use the
+ * game's yaw convention: forward = (sin yaw, cos yaw) in (x, z).
  */
 
 import { mod, TAU } from '@/engine/core/math';
@@ -23,10 +24,16 @@ export interface DubinsPath {
 
 const mod2pi = (a: number): number => mod(a, TAU);
 
-/** Standard math frame: x right, y = game z, heading angle counterclockwise from +x. */
+/**
+ * Standard math frame: x right, y = game z, heading angle counterclockwise
+ * from +x.
+ */
 const toTheta = (yaw: number): number => Math.PI / 2 - yaw;
 
-/** Every feasible Dubins path between two poses for turning radius r, shortest first. */
+/**
+ * Every feasible Dubins path between two poses for turning radius r, shortest
+ * first.
+ */
 export function dubins(a: Pose, b: Pose, r: number): DubinsPath[] {
   const dx = b.x - a.x;
   const dy = b.z - a.z;
@@ -105,8 +112,16 @@ export function dubins(a: Pose, b: Pose, r: number): DubinsPath[] {
   return out.sort((x, y) => x.total - y.total);
 }
 
-/** Sample each Dubins segment at intervals no greater than `step` meters. Exclude the start and include the end. */
-export function sampleDubins(a: Pose, path: DubinsPath, r: number, step: number): Pose[] {
+/**
+ * Sample each Dubins segment at intervals no greater than `step` meters.
+ * Exclude the start and include the end.
+ */
+export function sampleDubins(
+  a: Pose,
+  path: DubinsPath,
+  r: number,
+  step: number,
+): Pose[] {
   const out: Pose[] = [];
   let x = a.x;
   let y = a.z;

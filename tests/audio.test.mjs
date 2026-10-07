@@ -4,7 +4,10 @@ import { setImmediate } from 'node:timers/promises';
 
 import { loadModules } from './modules.mjs';
 
-const [{ Mixer }, { CUES }] = await loadModules('/src/audio/mixer.ts', '/src/audio/cues.ts');
+const [{ Mixer }, { CUES }] = await loadModules(
+  '/src/audio/mixer.ts',
+  '/src/audio/cues.ts',
+);
 const source = CUES.engine.sounds['engine-sedan'];
 
 test('invalid engine metadata skips playback and is not fetched again', async (t) => {
@@ -20,7 +23,10 @@ test('invalid engine metadata skips playback and is not fetched again', async (t
 
   for (const [name, payload] of invalid) {
     await t.test(name, async (t) => {
-      const fetch = t.mock.method(globalThis, 'fetch', async () => ({ ok: true, json: async () => payload }));
+      const fetch = t.mock.method(globalThis, 'fetch', async () => ({
+        ok: true,
+        json: async () => payload,
+      }));
       const warn = t.mock.method(console, 'warn', () => {});
       const mixer = new Mixer();
       const ctx = {
@@ -33,11 +39,19 @@ test('invalid engine metadata skips playback and is not fetched again', async (t
       mixer.buses = {};
       mixer.files.set(source.file, { state: 'ready', value: {} });
 
-      assert.equal(mixer.loop('engine', 'engine-sedan', null), null, 'skip playback while metadata loads');
+      assert.equal(
+        mixer.loop('engine', 'engine-sedan', null),
+        null,
+        'skip playback while metadata loads',
+      );
       await setImmediate();
 
       for (let attempt = 0; attempt < 2; attempt++) {
-        assert.equal(mixer.loop('engine', 'engine-sedan', null), null, 'skip playback after validation fails');
+        assert.equal(
+          mixer.loop('engine', 'engine-sedan', null),
+          null,
+          'skip playback after validation fails',
+        );
       }
 
       assert.deepEqual(mixer.marks.get(source.marks), { state: 'failed' });
@@ -56,14 +70,20 @@ test('engine metadata is fetched once and cached, including an empty cycle list'
     ],
   ]) {
     await t.test(`${marks.length} cycles`, async (t) => {
-      const fetch = t.mock.method(globalThis, 'fetch', async () => ({ ok: true, json: async () => ({ marks }) }));
+      const fetch = t.mock.method(globalThis, 'fetch', async () => ({
+        ok: true,
+        json: async () => ({ marks }),
+      }));
       const mixer = new Mixer();
       mixer.loadMarks(source.marks);
       mixer.loadMarks(source.marks);
       assert.deepEqual(mixer.marks.get(source.marks), { state: 'loading' });
       await setImmediate();
 
-      assert.deepEqual(mixer.marks.get(source.marks), { state: 'ready', value: marks });
+      assert.deepEqual(mixer.marks.get(source.marks), {
+        state: 'ready',
+        value: marks,
+      });
       mixer.loadMarks(source.marks);
       assert.equal(fetch.mock.callCount(), 1);
     });

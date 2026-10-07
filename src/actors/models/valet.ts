@@ -3,7 +3,10 @@ import { PALETTE } from '@/render/palette';
 import { buildPerson, type Outfit } from './person';
 import type { CharacterRig } from './rig';
 
-/** Foxy's uniform: red jacket with orange piping, black slacks, bellhop cap, bow tie. */
+/**
+ * Foxy's uniform: red jacket with orange piping, black slacks, bellhop cap,
+ * bow tie.
+ */
 export const VALET_OUTFIT: Outfit = {
   top: '#c23a2e',
   trim: PALETTE.foxy,

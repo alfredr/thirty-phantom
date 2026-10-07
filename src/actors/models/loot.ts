@@ -16,10 +16,18 @@ export function cash() {
   const stack = box(0.16, 0.07, 0.3).on(0);
   return model(
     {
-      bill: { color: BILL, emissive: BILL, emissiveIntensity: BILL_GLOW, roughness: 0.85 },
+      bill: {
+        color: BILL,
+        emissive: BILL,
+        emissiveIntensity: BILL_GLOW,
+        roughness: 0.85,
+      },
       band: { color: BAND, roughness: 0.8 },
     },
-    [solid(stack, 'bill'), solid(stack.sized(0.17, 0.075, 0.06), 'band', NO_CAST)],
+    [
+      solid(stack, 'bill'),
+      solid(stack.sized(0.17, 0.075, 0.06), 'band', NO_CAST),
+    ],
   );
 }
 
@@ -29,7 +37,12 @@ export function wallet() {
   return model(
     {
       leather: { color: LEATHER, roughness: 0.65 },
-      bill: { color: BILL, emissive: BILL, emissiveIntensity: BILL_GLOW, roughness: 0.85 },
+      bill: {
+        color: BILL,
+        emissive: BILL,
+        emissiveIntensity: BILL_GLOW,
+        roughness: 0.85,
+      },
     },
     [
       solid(body, 'leather'),

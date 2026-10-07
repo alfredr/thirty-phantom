@@ -6,8 +6,9 @@ import { Doing } from '@/engine/sim/action';
 import type { DriverJob, DriveWorld } from './drive-actions';
 
 /**
- * Run AI driving jobs through a shared action runner. Track active jobs for perception delivery and completion checks;
- * release their claims when they end.
+ * Run AI driving jobs through a shared action runner. Track active jobs for
+ * perception delivery and completion checks; release their claims when they
+ * end.
  */
 export class Drivers {
   private readonly doing: Doing<DriveWorld, DriveWorld>;
@@ -44,7 +45,10 @@ export class Drivers {
     return this.jobs.find((j) => j.car === car) ?? null;
   }
 
-  /** Deliver a sighting to the car’s active job. Return false when no job owns the car. */
+  /**
+   * Deliver a sighting to the car’s active job. Return false when no job owns
+   * the car.
+   */
   sees(car: Vehicle, at: Vector3): boolean {
     const job = this.of(car);
     job?.sees(at);

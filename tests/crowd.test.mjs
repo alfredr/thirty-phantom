@@ -5,7 +5,15 @@ import { Vector3 } from 'three';
 
 import { loadModules } from './modules.mjs';
 
-const [{ Crowd }, { Rng }, { NavJob, NAV }, { Polyline }, { Ignition }, { Casualties }, { TUNING }] = await loadModules(
+const [
+  { Crowd },
+  { Rng },
+  { NavJob, NAV },
+  { Polyline },
+  { Ignition },
+  { Casualties },
+  { TUNING },
+] = await loadModules(
   '/src/game/town/crowd.ts',
   '/src/engine/core/rng.ts',
   '/src/world/nav-grid.ts',
@@ -73,16 +81,30 @@ test('a driver takes the car keys on exit and drops that same set on death', () 
   assert.equal(keys.ready, false);
   const drops = [];
   crowd.onKeysDropped = (key) => drops.push(key);
-  p.mind.send({ type: 'felled', from: new Vector3(), vx: 0, vz: 0, harm: 'dead' });
+  p.mind.send({
+    type: 'felled',
+    from: new Vector3(),
+    vx: 0,
+    vz: 0,
+    harm: 'dead',
+  });
   assert.equal(keys.heldBy('ground'), true);
   assert.equal(p.keys.held.size, 0);
   crowd.dropKeys(p, p.walker.pos);
-  assert.deepEqual(drops, [keys], 'repeated death processing cannot duplicate keys');
+  assert.deepEqual(
+    drops,
+    [keys],
+    'repeated death processing cannot duplicate keys',
+  );
 });
 
 test('fleeing rolls for a key drop once per run, and only while actually running', () => {
   for (const dropsKeys of [true, false]) {
-    const nav = { spotNear: () => null, standable: () => 0, heightAt: () => 0 };
+    const nav = {
+      spotNear: () => null,
+      standable: () => 0,
+      heightAt: () => 0,
+    };
     const { crowd } = onePerson({ nav });
     const [p] = crowd.living();
     const keys = p.car.ignition;
@@ -104,8 +126,15 @@ test('fleeing rolls for a key drop once per run, and only while actually running
 for (const route of ['pending', 'ready', 'following']) {
   test(`a car brushing a fleeing person preserves their ${route} route`, () => {
     let job;
-    const nav = { spotNear: (_rng, x, z) => new Vector3(x + 20, 0, z), standable: () => 0, heightAt: () => 0 };
-    const planner = { request: (from, to) => (job = new NavJob(from.clone(), to.clone(), NAV.person)) };
+    const nav = {
+      spotNear: (_rng, x, z) => new Vector3(x + 20, 0, z),
+      standable: () => 0,
+      heightAt: () => 0,
+    };
+    const planner = {
+      request: (from, to) =>
+        (job = new NavJob(from.clone(), to.clone(), NAV.person)),
+    };
     const { crowd, frights } = onePerson({ nav, planner });
     const [person] = crowd.living();
     const walker = person.walker;
@@ -137,22 +166,42 @@ for (const route of ['pending', 'ready', 'following']) {
       avoid: null,
       visitors: { incoming: Infinity, waiting: () => true },
     });
-    assert.ok(walker.pos.distanceTo(before) > 1, 'the car actually shoved the person');
+    assert.ok(
+      walker.pos.distanceTo(before) > 1,
+      'the car actually shoved the person',
+    );
     assert.equal(job.status, route === 'pending' ? 'queued' : 'done');
     assert.equal(walker.goal, goal, 'the current run survives the shove');
     assert.equal(walker.planning, route !== 'following');
     assert.equal(person.mind.state.at, 'flee');
-    assert.equal(frights(), 1, 'a shove from the same side does not start another flight');
+    assert.equal(
+      frights(),
+      1,
+      'a shove from the same side does not start another flight',
+    );
     const afterShove = walker.pos.clone();
     person.mind.tick(1 / 30);
-    assert.ok(walker.pos.distanceTo(afterShove) > 0, 'they keep moving after the shove');
+    assert.ok(
+      walker.pos.distanceTo(afterShove) > 0,
+      'they keep moving after the shove',
+    );
   });
 }
 
 function killings(seed, kills, how) {
-  const casualties = new Casualties({ groundAt: () => 0 }, { spray() {}, drip() {} });
+  const casualties = new Casualties(
+    { groundAt: () => 0 },
+    { spray() {}, drip() {} },
+  );
   const nav = { spotNear: () => null, standable: () => 0, heightAt: () => 0 };
-  const crowd = new Crowd({ add() {} }, { request: () => null }, nav, new Rng(seed), () => {}, casualties);
+  const crowd = new Crowd(
+    { add() {} },
+    { request: () => null },
+    nav,
+    new Rng(seed),
+    () => {},
+    casualties,
+  );
   const raised = [];
   let dead = 0;
   let kill = 0;
@@ -208,7 +257,10 @@ for (const [name, how] of [
     assert.equal(first.dead, kills, 'every hit is fatal');
     const rate = first.raised.length / kills;
     const chance = TUNING.ghosts.carKillChance;
-    assert.ok(Math.abs(rate - chance) < 0.06, `rate ${rate} is near ${chance}`);
+    assert.ok(
+      Math.abs(rate - chance) < 0.06,
+      `rate ${rate} is near ${chance}`,
+    );
     assert.deepEqual(killings(7, kills, how).raised, first.raised);
     assert.notDeepEqual(killings(8, kills, how).raised, first.raised);
   });

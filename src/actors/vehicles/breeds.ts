@@ -7,7 +7,10 @@ import type { VehicleRig } from '@/actors/models/rig';
 import type { AssetRegistry } from '@/assets/asset-registry';
 import type { SoundOf } from '@/audio/cues';
 import { TUNING } from '@/config';
-import { bodyOffsets, type VehicleParams } from '@/engine/physics/vehicle-params';
+import {
+  bodyOffsets,
+  type VehicleParams,
+} from '@/engine/physics/vehicle-params';
 import { NAV, type NavProfile } from '@/world/nav-grid';
 
 import {
@@ -32,13 +35,22 @@ export interface VehicleBreed {
   readonly params: VehicleParams;
   /** Collision circle offsets along the body (see bodyOffsets). */
   readonly body: readonly number[];
-  /** Navigation profile. Civilian models share NAV.car; see the pickup note in TUNING. */
+  /**
+   * Navigation profile. Civilian models share NAV.car; see the pickup note in
+   * TUNING.
+   */
   readonly nav: NavProfile;
-  /** Wall-normal impact speed above which rigid-body crash physics begins, in m/s. */
+  /**
+   * Wall-normal impact speed above which rigid-body crash physics begins, in
+   * m/s.
+   */
   readonly crashAt: number;
   /** Maximum interaction distance for Cody to enter, in meters. */
   readonly enterReach: number;
-  /** Speed fraction retained after knockdown unless overridden by PropKind.keep. */
+  /**
+   * Speed fraction retained after knockdown unless overridden by
+   * PropKind.keep.
+   */
   readonly knockKeep: number;
   /** Amplitude and frequency multipliers for TUNING.vehicle.idleShake. */
   readonly shake: readonly [size: number, pace: number];
@@ -46,10 +58,15 @@ export interface VehicleBreed {
   readonly engine: SoundOf<'engine'>;
   readonly gears: number;
   /** Calm and angry horn cues, or null to disable honking. */
-  readonly horn: readonly [calm: SoundOf<'honk'>, angry: SoundOf<'honk'>] | null;
+  readonly horn:
+    | readonly [calm: SoundOf<'honk'>, angry: SoundOf<'honk'>]
+    | null;
   /** Dashboard label while Cody drives this model. */
   readonly label: string;
-  /** Spawn probability for civilian parked and traffic vehicles; civilian shares sum to one. */
+  /**
+   * Spawn probability for civilian parked and traffic vehicles; civilian
+   * shares sum to one.
+   */
   readonly share: number;
   readonly crushable: boolean;
   readonly crush?: Crush;
@@ -58,11 +75,15 @@ export interface VehicleBreed {
   readonly exhaust?: VehicleExhaust;
   readonly drops?: PartDrops;
   /**
-   * An unlogged exit makes a phantom: the garage keeps its imprint, and the vehicle disappears on the ground this many
-   * seconds later. Omit for vehicles whose unlogged exit only frees their spot.
+   * An unlogged exit makes a phantom: the garage keeps its imprint, and the
+   * vehicle disappears on the ground this many seconds later. Omit for
+   * vehicles whose unlogged exit only frees their spot.
    */
   readonly phantom?: PhantomEscape;
-  /** Downward landing speed in m/s above which the vehicle is wrecked. Omit for vehicles that survive any fall. */
+  /**
+   * Downward landing speed in m/s above which the vehicle is wrecked. Omit for
+   * vehicles that survive any fall.
+   */
   readonly landingTolerance?: number;
   /** Builds its model in `color`. */
   model(assets: AssetRegistry, color: string): VehicleRig;
@@ -77,7 +98,10 @@ const CIVILIAN = {
   crushable: true,
   landingTolerance: 22,
   exhaust: { kind: 'smoke', smoke: TUNING.vehicle.exhaust },
-  drops: { ...TUNING.junk, parts: PART_KINDS.filter((kind) => kind !== 'tire') },
+  drops: {
+    ...TUNING.junk,
+    parts: PART_KINDS.filter((kind) => kind !== 'tire'),
+  },
 } as const;
 
 export const VEHICLE_BREEDS: Readonly<Record<VehicleBuild, VehicleBreed>> = {
@@ -126,8 +150,16 @@ export const VEHICLE_BREEDS: Readonly<Record<VehicleBuild, VehicleBreed>> = {
       recoil: 2.5,
       when: (target) => target.breed.crushable && !target.insideDeck,
     }),
-    intake: { at: [0, 2.6, 1.4], reach: TUNING.ghast.reach, perGhost: TUNING.ghast.perGhost },
-    boost: { burn: TUNING.ghast.burn, push: TUNING.ghast.push, top: TUNING.ghast.top },
+    intake: {
+      at: [0, 2.6, 1.4],
+      reach: TUNING.ghast.reach,
+      perGhost: TUNING.ghast.perGhost,
+    },
+    boost: {
+      burn: TUNING.ghast.burn,
+      push: TUNING.ghast.push,
+      top: TUNING.ghast.top,
+    },
     exhaust: {
       kind: 'spectral',
       ports: [

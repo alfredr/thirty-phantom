@@ -1,6 +1,9 @@
 import { TUNING } from '@/config';
 
-/** Horizontal perception ranges in meters. Pedestrians and drivers use separate tuning values. */
+/**
+ * Horizontal perception ranges in meters. Pedestrians and drivers use separate
+ * tuning values.
+ */
 export const REACH = {
   /** Pedestrian fright range for phantom Cody, phantom trucks, and skeletons. */
   fright: TUNING.crowd.ghostReach,

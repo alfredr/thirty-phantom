@@ -22,14 +22,16 @@ import { restTilt } from './props';
 export { DECOR_KINDS, type DecorKind } from './level-kinds';
 
 /**
- * Decor models use a base at the origin and face +Z. build-decor.ts batches their render geometry by material.
- * Generators append static collision from DECOR.solids; breakable decor receives runtime collision and prop state
+ * Decor models use a base at the origin and face +Z. build-decor.ts batches
+ * their render geometry by material. Generators append static collision from
+ * DECOR.solids; breakable decor receives runtime collision and prop state
  * instead.
  */
 
 /**
- * Stone, timber, and roofing share foliage roughness so they can batch with vertex colors. Fountain water uses a
- * separate reflective, emissive material.
+ * Stone, timber, and roofing share foliage roughness so they can batch with
+ * vertex colors. Fountain water uses a separate reflective, emissive
+ * material.
  */
 const STONE: MatSpec = { color: '#6e677f', roughness: 0.9 };
 const TIMBER: MatSpec = { color: '#5c3d4c', roughness: 0.9 };
@@ -41,7 +43,10 @@ const WATER: MatSpec = {
   roughness: 0.1,
   metalness: 0.3,
 };
-/** Reflective bus-shelter panes use a lighter tint than building glass for visibility. */
+/**
+ * Reflective bus-shelter panes use a lighter tint than building glass for
+ * visibility.
+ */
 const PANE: MatSpec = { color: '#4a3d6e', roughness: 0.15, metalness: 0.5 };
 
 /** A box part from its min and max corners. */
@@ -56,13 +61,23 @@ const slab = <M extends string>(min: V3, max: V3, mat: M): Part<M> =>
   );
 
 /** Upright cylinder standing on y0. */
-const column = <M extends string>(r: number, y0: number, h: number, seg: number, mat: M, x = 0, z = 0): Part<M> =>
-  cylinder(r, h, seg, mat, { at: [x, y0 + h / 2, z] });
+const column = <M extends string>(
+  r: number,
+  y0: number,
+  h: number,
+  seg: number,
+  mat: M,
+  x = 0,
+  z = 0,
+): Part<M> => cylinder(r, h, seg, mat, { at: [x, y0 + h / 2, z] });
 
 export const TREE = {
   /** Trunk: radius at the foot and under the crown, its height, sides. */
   trunk: { r0: 0.2, r1: 0.13, h: 3.3, seg: 7 },
-  /** Crown spheres as (centre X, centre Y, centre Z, radius), largest first. Dimensions are in meters. */
+  /**
+   * Crown spheres as (centre X, centre Y, centre Z, radius), largest first.
+   * Dimensions are in meters.
+   */
   crown: [
     [0, 4.0, 0, 1.35],
     [0.85, 3.6, 0.3, 0.85],
@@ -80,7 +95,9 @@ export function roundTree(p = TREE): Model<'bark' | 'leaf'> {
   const t = p.trunk;
   return model({ bark: BARK, leaf: FOLIAGE }, [
     cone(t.r0, t.r1, t.h, t.seg, 'bark', { at: [0, t.h / 2, 0] }),
-    ...p.crown.map(([x, y, z, r]) => sphere(r, p.seg, 'leaf', { at: [x, y, z] })),
+    ...p.crown.map(([x, y, z, r]) =>
+      sphere(r, p.seg, 'leaf', { at: [x, y, z] }),
+    ),
   ]);
 }
 
@@ -101,14 +118,19 @@ export function pine(p = PINE): Model<'bark' | 'needles'> {
   const t = p.trunk;
   return model({ bark: BARK, needles: NEEDLES }, [
     cone(t.r0, t.r1, t.h, t.seg, 'bark', { at: [0, t.h / 2, 0] }),
-    ...p.tiers.map(([y, r, h]) => cone(r, 0, h, p.seg, 'needles', { at: [0, y + h / 2, 0] })),
+    ...p.tiers.map(([y, r, h]) =>
+      cone(r, 0, h, p.seg, 'needles', { at: [0, y + h / 2, 0] }),
+    ),
   ]);
 }
 
 export const CYPRESS = {
   /** Trunk stub: radius, height, sides. */
   trunk: { r: 0.14, h: 0.8, seg: 6 },
-  /** The column (radii, middle height) and the tip on top of it; segments around and down both. */
+  /**
+   * The column (radii, middle height) and the tip on top of it; segments
+   * around and down both.
+   */
   body: { r: [0.75, 2.4, 0.75] as V3, y: 3.0 },
   tip: { r: [0.42, 1.0, 0.42] as V3, y: 5.2 },
   seg: [8, 8] as [number, number],
@@ -134,7 +156,10 @@ export const BUSH = {
   seg: [6, 4] as [number, number],
 };
 
-/** Build a shrub from overlapping foliage spheres. Collision is defined separately in DECOR. */
+/**
+ * Build a shrub from overlapping foliage spheres. Collision is defined
+ * separately in DECOR.
+ */
 export function bush(p = BUSH): Model<'leaf'> {
   return model(
     { leaf: FOLIAGE },
@@ -143,11 +168,17 @@ export function bush(p = BUSH): Model<'leaf'> {
 }
 
 export const HEDGE = {
-  /** One module along x (runs stretch modules to fit), its depth, and the trimmed body's height. */
+  /**
+   * One module along x (runs stretch modules to fit), its depth, and the
+   * trimmed body's height.
+   */
   len: 2,
   depth: 0.8,
   body: 0.75,
-  /** Rounded lumps along the top: radii, how many, and segments around and down each. */
+  /**
+   * Rounded lumps along the top: radii, how many, and segments around and down
+   * each.
+   */
   lump: [0.5, 0.3, 0.44] as V3,
   lumps: 3,
   seg: [6, 3] as [number, number],
@@ -159,7 +190,9 @@ export function hedge(p = HEDGE): Model<'leaf'> {
   return model({ leaf: FOLIAGE }, [
     solid(box(p.len, p.body, p.depth).on(0), 'leaf'),
     ...Array.from({ length: p.lumps }, (_, i) =>
-      sphere(p.lump, p.seg, 'leaf', { at: [-p.len / 2 + step * (i + 0.5), p.body, 0] }),
+      sphere(p.lump, p.seg, 'leaf', {
+        at: [-p.len / 2 + step * (i + 0.5), p.body, 0],
+      }),
     ),
   ]);
 }
@@ -168,45 +201,80 @@ export function hedge(p = HEDGE): Model<'leaf'> {
 export const hedgeHeight = (p = HEDGE): number => p.body + p.lump[1];
 
 export const FLOWERS = {
-  /** The leafy mound they grow from (radii, middle height: half sunk in the bed). */
-  mound: { r: [0.5, 0.25, 0.5] as V3, y: 0.08, seg: [6, 3] as [number, number] },
-  /** Flower heads: size, how far out the ring of them stands, how high it and the one in the middle sit. */
+  /**
+   * The leafy mound they grow from (radii, middle height: half sunk in the
+   * bed).
+   */
+  mound: {
+    r: [0.5, 0.25, 0.5] as V3,
+    y: 0.08,
+    seg: [6, 3] as [number, number],
+  },
+  /**
+   * Flower heads: size, how far out the ring of them stands, how high it and
+   * the one in the middle sit.
+   */
   head: 0.15,
   ring: 0.3,
   heads: 6,
   y: [0.3, 0.38] as [number, number],
-  /** The ring is turned this far (radians) so its heads don't line up with the paths' axes. */
+  /**
+   * The ring is turned this far (radians) so its heads don't line up with the
+   * paths' axes.
+   */
   twist: 0.4,
 };
 
-/** Build a foliage mound with rotated box-shaped flower heads using the supplied petal material. */
-export function flowers(petals: MatSpec, p = FLOWERS): Model<'leaf' | 'petal'> {
+/**
+ * Build a foliage mound with rotated box-shaped flower heads using the
+ * supplied petal material.
+ */
+export function flowers(
+  petals: MatSpec,
+  p = FLOWERS,
+): Model<'leaf' | 'petal'> {
   const head = (x: number, y: number, z: number): Part<'petal'> =>
-    solid(box(p.head, p.head, p.head).at(x, y, z), 'petal', { rot: [Math.PI / 4, Math.PI / 4, 0], ...NO_CAST });
+    solid(box(p.head, p.head, p.head).at(x, y, z), 'petal', {
+      rot: [Math.PI / 4, Math.PI / 4, 0],
+      ...NO_CAST,
+    });
   return model({ leaf: FOLIAGE, petal: { ...petals, softInk: true } }, [
     sphere(p.mound.r, p.mound.seg, 'leaf', { at: [0, p.mound.y, 0] }),
     head(0, p.y[1], 0),
     ...Array.from({ length: p.heads }, (_, i) => {
       const a = (i / p.heads) * Math.PI * 2 + p.twist;
-      return head(Math.sin(a) * p.ring, i % 2 ? p.y[1] : p.y[0], Math.cos(a) * p.ring);
+      return head(
+        Math.sin(a) * p.ring,
+        i % 2 ? p.y[1] : p.y[0],
+        Math.cos(a) * p.ring,
+      );
     }),
   ]);
 }
 
 export const FOUNTAIN = {
-  /** Basin: radius, height of its stone drum, the rounded lip round it (tube radius), the water's surface. */
+  /**
+   * Basin: radius, height of its stone drum, the rounded lip round it (tube
+   * radius), the water's surface.
+   */
   basin: { r: 2.6, h: 0.38, lip: 0.18, water: 0.42 },
-  /** The center column, the bowl on it (radius at the foot and the brim, depth), the top tier on a stem, and the jet. */
+  /**
+   * The center column, the bowl on it (radius at the foot and the brim,
+   * depth), the top tier on a stem, and the jet.
+   */
   column: { r: 0.32, h: 1.5 },
   bowl: { foot: 0.45, r: 1.2, h: 0.35 },
   stem: { r: 0.18, h: 0.6 },
   top: { foot: 0.22, r: 0.55, h: 0.25 },
   jet: { r: 0.07, h: 0.5 },
-  /** Water-disc thickness, vertical offset above stone to prevent z-fighting, and exposed brim widths for the two bowls. */
+  /**
+   * Water-disc thickness, vertical offset above stone to prevent z-fighting,
+   * and exposed brim widths for the two bowls.
+   */
   sheet: { t: 0.03, lift: 0.02, brim: [0.1, 0.06] as [number, number] },
   /**
-   * Sides round the basin and bowls (columns get half), round the lip's tube and the jet; the jet's head is this many
-   * times its radius.
+   * Sides round the basin and bowls (columns get half), round the lip's tube
+   * and the jet; the jet's head is this many times its radius.
    */
   seg: 16,
   lipSeg: 6,
@@ -215,8 +283,8 @@ export const FOUNTAIN = {
 };
 
 /**
- * A tiered park fountain: a round stone basin with a lip, a column, two bowls and a jet, all brimming with glowing
- * water.
+ * A tiered park fountain: a round stone basin with a lip, a column, two bowls
+ * and a jet, all brimming with glowing water.
  */
 export function fountain(p = FOUNTAIN): Model<'stone' | 'water'> {
   const b = p.basin;
@@ -225,25 +293,44 @@ export function fountain(p = FOUNTAIN): Model<'stone' | 'water'> {
   const topY = stemY + p.stem.h;
   const { t, lift, brim } = p.sheet;
   // Let the stone supply shadows; omit shadow casting for water surfaces.
-  const disc = (r: number, y: number): Part<'water'> => ({ ...column(r, y + lift, t, p.seg, 'water'), ...NO_CAST });
+  const disc = (r: number, y: number): Part<'water'> => ({
+    ...column(r, y + lift, t, p.seg, 'water'),
+    ...NO_CAST,
+  });
   const jetTop = topY + p.top.h + p.jet.h;
   return model({ stone: STONE, water: WATER }, [
     column(b.r, 0, b.h, p.seg, 'stone'),
     // Raise the lip above the water surface to prevent overlap.
-    torus(b.r - b.lip, b.lip, p.lipSeg, p.seg * 2, 'stone', { at: [0, b.water + lift, 0], rot: [Math.PI / 2, 0, 0] }),
+    torus(b.r - b.lip, b.lip, p.lipSeg, p.seg * 2, 'stone', {
+      at: [0, b.water + lift, 0],
+      rot: [Math.PI / 2, 0, 0],
+    }),
     disc(b.r - b.lip, b.h),
     column(p.column.r, b.h, p.column.h, p.seg / 2, 'stone'),
-    cone(p.bowl.foot, p.bowl.r, p.bowl.h, p.seg, 'stone', { at: [0, bowlY + p.bowl.h / 2, 0] }),
+    cone(p.bowl.foot, p.bowl.r, p.bowl.h, p.seg, 'stone', {
+      at: [0, bowlY + p.bowl.h / 2, 0],
+    }),
     disc(p.bowl.r - brim[0], stemY),
     column(p.stem.r, stemY, p.stem.h, p.seg / 2, 'stone'),
-    cone(p.top.foot, p.top.r, p.top.h, p.seg, 'stone', { at: [0, topY + p.top.h / 2, 0] }),
+    cone(p.top.foot, p.top.r, p.top.h, p.seg, 'stone', {
+      at: [0, topY + p.top.h / 2, 0],
+    }),
     disc(p.top.r - brim[1], topY + p.top.h),
-    { ...column(p.jet.r, topY + p.top.h, p.jet.h, p.jetSeg, 'water'), ...NO_CAST },
-    sphere(p.jet.r * p.head, [p.jetSeg, p.jetSeg / 2 + 1], 'water', { at: [0, jetTop, 0], ...NO_CAST }),
+    {
+      ...column(p.jet.r, topY + p.top.h, p.jet.h, p.jetSeg, 'water'),
+      ...NO_CAST,
+    },
+    sphere(p.jet.r * p.head, [p.jetSeg, p.jetSeg / 2 + 1], 'water', {
+      at: [0, jetTop, 0],
+      ...NO_CAST,
+    }),
   ]);
 }
 
-/** Height from the fountain base to the jet endpoint, excluding its spherical cap. */
+/**
+ * Height from the fountain base to the jet endpoint, excluding its spherical
+ * cap.
+ */
 export const fountainHeight = (p = FOUNTAIN): number =>
   p.basin.h + p.column.h + p.bowl.h + p.stem.h + p.top.h + p.jet.h;
 
@@ -254,35 +341,69 @@ export const GAZEBO = {
   post: { w: 0.2, h: 2.5 },
   /** Floor: its height and corner radius. */
   floor: { h: 0.3, r: 2.75 },
-  /** Rail between posts: height of its top, its section; the sides left open (doorways), counted round from +z. */
+  /**
+   * Rail between posts: height of its top, its section; the sides left open
+   * (doorways), counted round from +z.
+   */
   rail: { y: 0.9, h: 0.1, t: 0.08 },
   open: [0, 4],
-  /** The roof: corner radius, height of the cone, the fascia band under it, the ball on top (and its segments). */
-  roof: { r: 3.25, h: 1.7, band: 0.28, ball: 0.22, ballSeg: [8, 6] as [number, number] },
+  /**
+   * The roof: corner radius, height of the cone, the fascia band under it, the
+   * ball on top (and its segments).
+   */
+  roof: {
+    r: 3.25,
+    h: 1.7,
+    band: 0.28,
+    ball: 0.22,
+    ballSeg: [8, 6] as [number, number],
+  },
 };
 
-/** Corner `i` of a regular polygon with `n` sides, one side facing +z, at radius r. */
+/**
+ * Corner `i` of a regular polygon with `n` sides, one side facing +z, at
+ * radius r.
+ */
 function corner(i: number, n: number, r: number): [number, number] {
   const a = ((i + 0.5) / n) * Math.PI * 2;
   return [Math.sin(a) * r, Math.cos(a) * r];
 }
 
-/** An open octagonal gazebo: a timber floor, posts, low rails with two doorways, and a purple pointed roof. */
+/**
+ * An open octagonal gazebo: a timber floor, posts, low rails with two
+ * doorways, and a purple pointed roof.
+ */
 export function gazebo(p = GAZEBO): Model<'timber' | 'roof'> {
   const n = p.sides;
   const turn = Math.PI / n;
   const top = p.floor.h + p.post.h;
   const parts: Part<'timber' | 'roof'>[] = [
-    cylinder(p.floor.r, p.floor.h, n, 'timber', { at: [0, p.floor.h / 2, 0], rot: [0, turn, 0] }),
-    cylinder(p.roof.r, p.roof.band, n, 'roof', { at: [0, top + p.roof.band / 2, 0], rot: [0, turn, 0] }),
-    cone(p.roof.r, 0, p.roof.h, n, 'roof', { at: [0, top + p.roof.band + p.roof.h / 2, 0], rot: [0, turn, 0] }),
-    sphere(p.roof.ball, p.roof.ballSeg, 'roof', { at: [0, top + p.roof.band + p.roof.h, 0] }),
+    cylinder(p.floor.r, p.floor.h, n, 'timber', {
+      at: [0, p.floor.h / 2, 0],
+      rot: [0, turn, 0],
+    }),
+    cylinder(p.roof.r, p.roof.band, n, 'roof', {
+      at: [0, top + p.roof.band / 2, 0],
+      rot: [0, turn, 0],
+    }),
+    cone(p.roof.r, 0, p.roof.h, n, 'roof', {
+      at: [0, top + p.roof.band + p.roof.h / 2, 0],
+      rot: [0, turn, 0],
+    }),
+    sphere(p.roof.ball, p.roof.ballSeg, 'roof', {
+      at: [0, top + p.roof.band + p.roof.h, 0],
+    }),
   ];
   const side = 2 * p.r * Math.sin(Math.PI / n);
   const apothem = p.r * Math.cos(Math.PI / n);
   for (let i = 0; i < n; i++) {
     const [x, z] = corner(i, n, p.r);
-    parts.push(solid(box(p.post.w, p.post.h, p.post.w).at(x, p.floor.h + p.post.h / 2, z), 'timber'));
+    parts.push(
+      solid(
+        box(p.post.w, p.post.h, p.post.w).at(x, p.floor.h + p.post.h / 2, z),
+        'timber',
+      ),
+    );
 
     if (p.open.includes(i)) {
       continue;
@@ -306,7 +427,10 @@ export function gazebo(p = GAZEBO): Model<'timber' | 'roof'> {
 }
 
 export const SHELTER = {
-  /** Width (x), depth (z) and the roof's underside; it opens toward +z, its back on the -z side. */
+  /**
+   * Width (x), depth (z) and the roof's underside; it opens toward +z, its
+   * back on the -z side.
+   */
   w: 3.6,
   d: 1.5,
   h: 2.5,
@@ -316,20 +440,34 @@ export const SHELTER = {
   /** Glass panes: thickness, gaps under them and under the roof. */
   pane: { t: 0.04, y: 0.15, top: 0.1 },
   /**
-   * Bench along the back: seat height, depth, slab thickness, set in from the ends and off the back pane; its two legs
-   * (section, in from the ends, depth).
+   * Bench along the back: seat height, depth, slab thickness, set in from the
+   * ends and off the back pane; its two legs (section, in from the ends,
+   * depth).
    */
-  bench: { y: 0.45, d: 0.4, t: 0.06, end: 0.3, back: 0.08, leg: { w: 0.08, end: 0.5, d: 0.3 } },
-  /** The lit ad panel that closes the +x end, and the lit strip along the roof's front edge (its height and depth). */
+  bench: {
+    y: 0.45,
+    d: 0.4,
+    t: 0.06,
+    end: 0.3,
+    back: 0.08,
+    leg: { w: 0.08, end: 0.5, d: 0.3 },
+  },
+  /**
+   * The lit ad panel that closes the +x end, and the lit strip along the
+   * roof's front edge (its height and depth).
+   */
   ad: { t: 0.14, y: 0.25, h: 1.9 },
   strip: { h: 0.08, d: 0.12 },
 };
 
 /**
- * A bus shelter: posts, a flat roof with a lit strip under its front edge, glass back and end, a bench inside, and a
- * glowing ad panel at the other end.
+ * A bus shelter: posts, a flat roof with a lit strip under its front edge,
+ * glass back and end, a bench inside, and a glowing ad panel at the other
+ * end.
  */
-export function shelter(p = SHELTER): Model<'iron' | 'glass' | 'timber' | 'ad'> {
+export function shelter(
+  p = SHELTER,
+): Model<'iron' | 'glass' | 'timber' | 'ad'> {
   const hw = p.w / 2;
   const hd = p.d / 2;
   const b = p.bench;
@@ -340,29 +478,62 @@ export function shelter(p = SHELTER): Model<'iron' | 'glass' | 'timber' | 'ad'> 
     [hw, hd],
   ];
   // Share the purple-petal material settings so emissive ad surfaces can batch with flowers.
-  return model({ iron: METAL, glass: PANE, timber: TIMBER, ad: { ...PETALS.purple, softInk: true } }, [
-    ...posts.map(([x, z]) => slab([x - p.post / 2, 0, z - p.post / 2], [x + p.post / 2, p.h, z + p.post / 2], 'iron')),
-    slab([-hw - p.roof.over, p.h, -hd - p.roof.over], [hw + p.roof.over, p.h + p.roof.t, hd + p.roof.over], 'iron'),
-    { ...slab([-hw, p.h - p.strip.h, hd - p.strip.d], [hw, p.h, hd], 'ad'), ...NO_CAST },
-    slab(
-      [-hw + p.post / 2, p.pane.y, -hd - p.pane.t / 2],
-      [hw - p.post / 2, p.h - p.pane.top, -hd + p.pane.t / 2],
-      'glass',
-    ),
-    slab(
-      [-hw - p.pane.t / 2, p.pane.y, -hd + p.post / 2],
-      [-hw + p.pane.t / 2, p.h - p.pane.top, hd - p.post / 2],
-      'glass',
-    ),
+  return model(
     {
-      ...slab([hw - p.ad.t / 2, p.ad.y, -hd + p.post / 2], [hw + p.ad.t / 2, p.ad.y + p.ad.h, hd - p.post / 2], 'ad'),
-      ...NO_CAST,
+      iron: METAL,
+      glass: PANE,
+      timber: TIMBER,
+      ad: { ...PETALS.purple, softInk: true },
     },
-    slab([-hw + b.end, b.y - b.t, -hd + b.back], [hw - b.end, b.y, -hd + b.back + b.d], 'timber'),
-    ...[-hw + b.leg.end, hw - b.leg.end].map((x) =>
-      slab([x - b.leg.w / 2, 0, -hd + b.back], [x + b.leg.w / 2, b.y - b.t, -hd + b.back + b.leg.d], 'iron'),
-    ),
-  ]);
+    [
+      ...posts.map(([x, z]) =>
+        slab(
+          [x - p.post / 2, 0, z - p.post / 2],
+          [x + p.post / 2, p.h, z + p.post / 2],
+          'iron',
+        ),
+      ),
+      slab(
+        [-hw - p.roof.over, p.h, -hd - p.roof.over],
+        [hw + p.roof.over, p.h + p.roof.t, hd + p.roof.over],
+        'iron',
+      ),
+      {
+        ...slab([-hw, p.h - p.strip.h, hd - p.strip.d], [hw, p.h, hd], 'ad'),
+        ...NO_CAST,
+      },
+      slab(
+        [-hw + p.post / 2, p.pane.y, -hd - p.pane.t / 2],
+        [hw - p.post / 2, p.h - p.pane.top, -hd + p.pane.t / 2],
+        'glass',
+      ),
+      slab(
+        [-hw - p.pane.t / 2, p.pane.y, -hd + p.post / 2],
+        [-hw + p.pane.t / 2, p.h - p.pane.top, hd - p.post / 2],
+        'glass',
+      ),
+      {
+        ...slab(
+          [hw - p.ad.t / 2, p.ad.y, -hd + p.post / 2],
+          [hw + p.ad.t / 2, p.ad.y + p.ad.h, hd - p.post / 2],
+          'ad',
+        ),
+        ...NO_CAST,
+      },
+      slab(
+        [-hw + b.end, b.y - b.t, -hd + b.back],
+        [hw - b.end, b.y, -hd + b.back + b.d],
+        'timber',
+      ),
+      ...[-hw + b.leg.end, hw - b.leg.end].map((x) =>
+        slab(
+          [x - b.leg.w / 2, 0, -hd + b.back],
+          [x + b.leg.w / 2, b.y - b.t, -hd + b.back + b.leg.d],
+          'iron',
+        ),
+      ),
+    ],
+  );
 }
 
 export const BENCH = {
@@ -371,7 +542,10 @@ export const BENCH = {
   seat: 0.45,
   depth: 0.5,
   back: 0.88,
-  /** Seat slats (thickness, width, count) and back slats (thickness, height, heights of their middles). */
+  /**
+   * Seat slats (thickness, width, count) and back slats (thickness, height,
+   * heights of their middles).
+   */
   slat: { t: 0.05, w: 0.13, n: 3 },
   backSlat: { t: 0.04, h: 0.12, ys: [0.62, 0.8] },
   /** The iron end frames: section, how far in from the ends, armrest height. */
@@ -388,14 +562,24 @@ export function bench(p = BENCH): Model<'iron' | 'timber'> {
       slab([x - f / 2, 0, hd - f], [x + f / 2, p.seat, hd], 'iron'),
       slab([x - f / 2, 0, -hd], [x + f / 2, p.back, -hd + f], 'iron'),
       slab([x - f / 2, p.seat - f, -hd], [x + f / 2, p.seat, hd], 'iron'),
-      slab([x - f / 2, p.frame.arm - f, -hd], [x + f / 2, p.frame.arm, hd], 'iron'),
+      slab(
+        [x - f / 2, p.frame.arm - f, -hd],
+        [x + f / 2, p.frame.arm, hd],
+        'iron',
+      ),
     );
   }
 
   const gap = (p.depth - p.slat.n * p.slat.w) / (p.slat.n - 1);
   for (let i = 0; i < p.slat.n; i++) {
     const z0 = -hd + i * (p.slat.w + gap);
-    parts.push(slab([-p.len / 2, p.seat, z0], [p.len / 2, p.seat + p.slat.t, z0 + p.slat.w], 'timber'));
+    parts.push(
+      slab(
+        [-p.len / 2, p.seat, z0],
+        [p.len / 2, p.seat + p.slat.t, z0 + p.slat.w],
+        'timber',
+      ),
+    );
   }
 
   for (const y of p.backSlat.ys) {
@@ -431,7 +615,11 @@ export function deadTree(p = DEAD_TREE): Model<'bark'> {
     ...p.branches.map(([turn, y, len, tilt, r]) => {
       const out = (Math.sin(tilt) * len) / 2;
       return cone(r, r * p.taper, len, p.seg, 'bark', {
-        at: [Math.cos(turn) * out, y + (Math.cos(tilt) * len) / 2, -Math.sin(turn) * out],
+        at: [
+          Math.cos(turn) * out,
+          y + (Math.cos(tilt) * len) / 2,
+          -Math.sin(turn) * out,
+        ],
         rot: [0, turn, -tilt],
       });
     }),
@@ -443,7 +631,10 @@ export const HEADSTONE = { w: 1, h: 1.05, d: 0.3, seg: 12 };
 export function headstone(p = HEADSTONE): Model<'stone'> {
   return model({ stone: STONE }, [
     slab([-p.w / 2, 0, -p.d / 2], [p.w / 2, p.h, p.d / 2], 'stone'),
-    cylinder(p.w / 2, p.d, p.seg, 'stone', { at: [0, p.h, 0], rot: [Math.PI / 2, 0, 0] }),
+    cylinder(p.w / 2, p.d, p.seg, 'stone', {
+      at: [0, p.h, 0],
+      rot: [Math.PI / 2, 0, 0],
+    }),
   ]);
 }
 
@@ -453,11 +644,19 @@ export function cross(p = CROSS): Model<'stone'> {
   const t = p.post / 2;
   return model({ stone: STONE }, [
     slab([-t, 0, -t], [t, p.h, t], 'stone'),
-    slab([-p.arm.w / 2, p.arm.y, -t], [p.arm.w / 2, p.arm.y + p.post, t], 'stone'),
+    slab(
+      [-p.arm.w / 2, p.arm.y, -t],
+      [p.arm.w / 2, p.arm.y + p.post, t],
+      'stone',
+    ),
   ]);
 }
 
-export const OBELISK = { base: { w: 0.9, h: 0.3 }, shaft: { w: 0.5, h: 2.2 }, tip: { r: 0.22, h: 0.4 } };
+export const OBELISK = {
+  base: { w: 0.9, h: 0.3 },
+  shaft: { w: 0.5, h: 2.2 },
+  tip: { r: 0.22, h: 0.4 },
+};
 
 export function obelisk(p = OBELISK): Model<'stone'> {
   const b = p.base.w / 2;
@@ -466,26 +665,48 @@ export function obelisk(p = OBELISK): Model<'stone'> {
   return model({ stone: STONE }, [
     slab([-b, 0, -b], [b, p.base.h, b], 'stone'),
     slab([-s, p.base.h, -s], [s, top, s], 'stone'),
-    cone(p.tip.r, 0, p.tip.h, 4, 'stone', { at: [0, top + p.tip.h / 2, 0], rot: [0, Math.PI / 4, 0] }),
+    cone(p.tip.r, 0, p.tip.h, 4, 'stone', {
+      at: [0, top + p.tip.h / 2, 0],
+      rot: [0, Math.PI / 4, 0],
+    }),
   ]);
 }
 
-export const TOMB = { slab: { w: 1.4, h: 0.5, d: 2.2 }, stone: { w: 1, h: 1, d: 0.3, z: -0.9 } };
+export const TOMB = {
+  slab: { w: 1.4, h: 0.5, d: 2.2 },
+  stone: { w: 1, h: 1, d: 0.3, z: -0.9 },
+};
 
 export function tomb(p = TOMB): Model<'stone'> {
   const { w, h, d } = p.slab;
   const s = p.stone;
   return model({ stone: STONE }, [
     slab([-w / 2, 0, -d / 2], [w / 2, h, d / 2], 'stone'),
-    slab([-s.w / 2, h, s.z - s.d / 2], [s.w / 2, h + s.h, s.z + s.d / 2], 'stone'),
+    slab(
+      [-s.w / 2, h, s.z - s.d / 2],
+      [s.w / 2, h + s.h, s.z + s.d / 2],
+      'stone',
+    ),
   ]);
 }
 
-/** A box in a piece's own frame (before its yaw and scale): min and max corners. */
+/**
+ * A box in a piece's own frame (before its yaw and scale): min and max
+ * corners.
+ */
 export type LocalBox = [V3, V3];
 
-/** Return world-axis-aligned bounds after applying uniform scale, local-X stretch, yaw, and translation to a local box. */
-export function worldBox(b: LocalBox, pos: V3, yaw: number, s: number, stretch: number): LocalBox {
+/**
+ * Return world-axis-aligned bounds after applying uniform scale, local-X
+ * stretch, yaw, and translation to a local box.
+ */
+export function worldBox(
+  b: LocalBox,
+  pos: V3,
+  yaw: number,
+  s: number,
+  stretch: number,
+): LocalBox {
   const [lo, hi] = b;
   const c = Math.cos(yaw);
   const n = Math.sin(yaw);
@@ -514,8 +735,9 @@ export function worldBox(b: LocalBox, pos: V3, yaw: number, s: number, stretch: 
 }
 
 /**
- * Break behavior for decor props: topple or shatter, then remain displaced until repair. `by` selects ordinary
- * knockdown or truck-only smash eligibility. build-decor.ts creates breakable collision from DECOR.solids.
+ * Break behavior for decor props: topple or shatter, then remain displaced
+ * until repair. `by` selects ordinary knockdown or truck-only smash
+ * eligibility. build-decor.ts creates breakable collision from DECOR.solids.
  */
 export type DecorHit = {
   by: 'any' | 'truck';
@@ -523,38 +745,61 @@ export type DecorHit = {
   maxScale?: number;
   /** Debris colors supplied to the game's break effect. */
   debris: readonly string[];
-  /** Fraction of vehicle speed retained after impact; undefined uses the vehicle default. */
+  /**
+   * Fraction of vehicle speed retained after impact; undefined uses the
+   * vehicle default.
+   */
   keep?: number;
   boost?: { above: number; momentum: number };
 } & (
   | { as: 'shatter' }
-  /** Toppling (PropKind): its height, half its lying width across its old up axis, the tilt it comes to rest at. */
+  /**
+   * Toppling (PropKind): its height, half its lying width across its old up
+   * axis, the tilt it comes to rest at.
+   */
   | { as: 'topple'; height: number; wide: number; down: number }
 );
 
 export interface DecorSpec {
   model: () => Model<string>;
-  /** Local-space reservation boxes used by the generator to keep other decor clear, including elevated foliage. */
+  /**
+   * Local-space reservation boxes used by the generator to keep other decor
+   * clear, including elevated foliage.
+   */
   space: LocalBox[];
-  /** Local collision boxes. Generators append these for static decor; build-decor.ts creates them for breakable props. */
+  /**
+   * Local collision boxes. Generators append these for static decor;
+   * build-decor.ts creates them for breakable props.
+   */
   solids: LocalBox[];
-  /** Vehicles knock it over or smash it (hitOf()); otherwise it's static and its solids stop them. */
+  /**
+   * Vehicles knock it over or smash it (hitOf()); otherwise it's static and
+   * its solids stop them.
+   */
   hit?: DecorHit;
-  /** Ignore yaw when transforming reservation and collision boxes for approximately round decor. */
+  /**
+   * Ignore yaw when transforming reservation and collision boxes for
+   * approximately round decor.
+   */
   round?: boolean;
-  /** Local visual-occlusion boxes, such as foliage, used by cutaway probes without blocking movement. */
+  /**
+   * Local visual-occlusion boxes, such as foliage, used by cutaway probes
+   * without blocking movement.
+   */
   sight?: LocalBox[];
 }
 
 /**
- * Roof collision thickness exceeds THIN_SLAB so it blocks cutaway sightline probes. Glass-wall collision extends `wall`
- * meters to either side of the pane.
+ * Roof collision thickness exceeds THIN_SLAB so it blocks cutaway sightline
+ * probes. Glass-wall collision extends `wall` meters to either side of the
+ * pane.
  */
 const SOLID = { roof: 0.35, wall: 0.08 };
 
 /**
- * Collision boxes for a gazebo: its floor (a cross over a square inside the octagon), each post, the rails, and its
- * roof (a sightline blocker, for the cut-away view).
+ * Collision boxes for a gazebo: its floor (a cross over a square inside the
+ * octagon), each post, the rails, and its roof (a sightline blocker, for the
+ * cut-away view).
  */
 function gazeboSolids(p = GAZEBO): LocalBox[] {
   const n = p.sides;
@@ -611,8 +856,9 @@ function gazeboSolids(p = GAZEBO): LocalBox[] {
 }
 
 /**
- * Approximate the round fountain basin with two crossing rectangles and a central square. Values are fractions of basin
- * radius; a separate box covers the central column.
+ * Approximate the round fountain basin with two crossing rectangles and a
+ * central square. Values are fractions of basin radius; a separate box covers
+ * the central column.
  */
 const ROUND_BASIN = { arm: 0.4, square: 0.75 };
 
@@ -641,7 +887,10 @@ function fountainSolids(p = FOUNTAIN): LocalBox[] {
   ];
 }
 
-/** Collision boxes for a bus shelter: its back, its two ends, the bench, and the roof (a sightline blocker). */
+/**
+ * Collision boxes for a bus shelter: its back, its two ends, the bench, and
+ * the roof (a sightline blocker).
+ */
 function shelterSolids(p = SHELTER): LocalBox[] {
   const hw = p.w / 2;
   const hd = p.d / 2;
@@ -671,23 +920,42 @@ function shelterSolids(p = SHELTER): LocalBox[] {
   ];
 }
 
-/** A box centered over a piece's base: half extents along x and z, from y0 up to y1. */
+/**
+ * A box centered over a piece's base: half extents along x and z, from y0 up
+ * to y1.
+ */
 const around = (hx: number, y0: number, y1: number, hz = hx): LocalBox => [
   [-hx, y0, -hz],
   [hx, y1, hz],
 ];
 
-/** Room round a bench or shelter seat for sitting: legs stretched out in front of it. */
+/**
+ * Room round a bench or shelter seat for sitting: legs stretched out in front
+ * of it.
+ */
 const LEGROOM = 0.5;
-/** Reservation margin around decor, with a separate bare-ground margin around tree trunks. */
+/**
+ * Reservation margin around decor, with a separate bare-ground margin around
+ * tree trunks.
+ */
 const MARGIN = { piece: 0.1, trunk: 0.15 };
-/** Fraction of crown radius treated as a visual occluder, excluding the irregular outer edge. */
+/**
+ * Fraction of crown radius treated as a visual occluder, excluding the
+ * irregular outer edge.
+ */
 const SIGHT = 0.75;
 
 type Blob = readonly [number, number, number, number];
 
-/** How far a cluster of blobs (x, y, z, radius) reaches out from the trunk's axis, and its bottom and top. */
-function reach(blobs: readonly Blob[]): { out: number; y0: number; y1: number } {
+/**
+ * How far a cluster of blobs (x, y, z, radius) reaches out from the trunk's
+ * axis, and its bottom and top.
+ */
+function reach(blobs: readonly Blob[]): {
+  out: number;
+  y0: number;
+  y1: number;
+} {
   let out = 0;
   let y0 = Infinity;
   let y1 = -Infinity;
@@ -714,7 +982,9 @@ const CYPRESS_BODY = {
 const BUSH_REACH = reach(BUSH.blobs);
 const FLOWER_TOP = FLOWERS.y[1] + FLOWERS.head;
 const DEAD_REACH = {
-  out: Math.max(...DEAD_TREE.branches.map(([, , len, tilt]) => Math.sin(tilt) * len)),
+  out: Math.max(
+    ...DEAD_TREE.branches.map(([, , len, tilt]) => Math.sin(tilt) * len),
+  ),
   y0: Math.min(...DEAD_TREE.branches.map(([, y]) => y)),
 };
 const HEADSTONE_TOP = HEADSTONE.h + HEADSTONE.w / 2;
@@ -731,11 +1001,18 @@ const TOMB_BOXES: LocalBox[] = [
   around(TOMB.slab.w / 2, 0, TOMB.slab.h, TOMB.slab.d / 2),
   [
     [-TOMB.stone.w / 2, TOMB.slab.h, TOMB.stone.z - TOMB.stone.d / 2],
-    [TOMB.stone.w / 2, TOMB.slab.h + TOMB.stone.h, TOMB.stone.z + TOMB.stone.d / 2],
+    [
+      TOMB.stone.w / 2,
+      TOMB.slab.h + TOMB.stone.h,
+      TOMB.stone.z + TOMB.stone.d / 2,
+    ],
   ],
 ];
 
-/** Debris colors are lighter than source surfaces to remain visible against the ground. */
+/**
+ * Debris colors are lighter than source surfaces to remain visible against the
+ * ground.
+ */
 const DEBRIS = {
   leaf: '#4f7a52',
   bark: '#5a4048',
@@ -746,13 +1023,17 @@ const DEBRIS = {
 };
 
 /**
- * Model, placement reservations, collision, and break behavior by decor kind. Benches topple for any vehicle. Trucks
- * can topple trees and grave markers and shatter hedges, tombs, and shelters; other solid decor remains static.
+ * Model, placement reservations, collision, and break behavior by decor kind.
+ * Benches topple for any vehicle. Trucks can topple trees and grave markers
+ * and shatter hedges, tombs, and shelters; other solid decor remains static.
  */
 export const DECOR: Readonly<Record<DecorKind, DecorSpec>> = {
   tree: {
     model: () => roundTree(),
-    space: [around(TREE.trunk.r0 + MARGIN.trunk, 0, CROWN.y0), around(CROWN.out, CROWN.y0, CROWN.y1 + MARGIN.piece)],
+    space: [
+      around(TREE.trunk.r0 + MARGIN.trunk, 0, CROWN.y0),
+      around(CROWN.out, CROWN.y0, CROWN.y1 + MARGIN.piece),
+    ],
     solids: [around(TREE.trunk.r0, 0, TREE.trunk.h)],
     sight: [around(CROWN.out * SIGHT, CROWN.y0, CROWN.y1)],
     round: true,
@@ -790,10 +1071,18 @@ export const DECOR: Readonly<Record<DecorKind, DecorSpec>> = {
   },
   cypress: {
     model: () => cypress(),
-    space: [around(CYPRESS_BODY.out + MARGIN.piece, 0, CYPRESS_BODY.y1 + MARGIN.piece)],
+    space: [
+      around(
+        CYPRESS_BODY.out + MARGIN.piece,
+        0,
+        CYPRESS_BODY.y1 + MARGIN.piece,
+      ),
+    ],
     // End solid collision at the centre of the broad foliage body.
     solids: [around(CYPRESS_BODY.out * SIGHT, 0, CYPRESS.body.y)],
-    sight: [around(CYPRESS_BODY.out * SIGHT, CYPRESS_BODY.y0, CYPRESS_BODY.y1)],
+    sight: [
+      around(CYPRESS_BODY.out * SIGHT, CYPRESS_BODY.y0, CYPRESS_BODY.y1),
+    ],
     round: true,
     hit: {
       as: 'topple',
@@ -805,10 +1094,17 @@ export const DECOR: Readonly<Record<DecorKind, DecorSpec>> = {
       keep: 0.75,
     },
   },
-  bush: { model: () => bush(), space: [around(BUSH_REACH.out, 0, BUSH_REACH.y1)], solids: [], round: true },
+  bush: {
+    model: () => bush(),
+    space: [around(BUSH_REACH.out, 0, BUSH_REACH.y1)],
+    solids: [],
+    round: true,
+  },
   hedge: {
     model: () => hedge(),
-    space: [around(HEDGE.len / 2, 0, hedgeHeight(), HEDGE.depth / 2 + MARGIN.piece)],
+    space: [
+      around(HEDGE.len / 2, 0, hedgeHeight(), HEDGE.depth / 2 + MARGIN.piece),
+    ],
     solids: [around(HEDGE.len / 2, 0, hedgeHeight(), HEDGE.depth / 2)],
     hit: { as: 'shatter', by: 'truck', debris: [DEBRIS.leaf], keep: 0.85 },
   },
@@ -826,25 +1122,50 @@ export const DECOR: Readonly<Record<DecorKind, DecorSpec>> = {
   },
   fountain: {
     model: () => fountain(),
-    space: [around(FOUNTAIN.basin.r + 2 * MARGIN.piece, 0, fountainHeight() + FOUNTAIN.jet.r * FOUNTAIN.head)],
+    space: [
+      around(
+        FOUNTAIN.basin.r + 2 * MARGIN.piece,
+        0,
+        fountainHeight() + FOUNTAIN.jet.r * FOUNTAIN.head,
+      ),
+    ],
     solids: fountainSolids(),
     round: true,
   },
   gazebo: {
     model: () => gazebo(),
-    space: [around(GAZEBO.roof.r, 0, GAZEBO.floor.h + GAZEBO.post.h + GAZEBO.roof.band + GAZEBO.roof.h)],
+    space: [
+      around(
+        GAZEBO.roof.r,
+        0,
+        GAZEBO.floor.h + GAZEBO.post.h + GAZEBO.roof.band + GAZEBO.roof.h,
+      ),
+    ],
     solids: gazeboSolids(),
   },
   shelter: {
     model: () => shelter(),
     space: [
       [
-        [-SHELTER.w / 2 - SHELTER.roof.over, 0, -SHELTER.d / 2 - SHELTER.roof.over],
-        [SHELTER.w / 2 + SHELTER.roof.over, SHELTER.h + SHELTER.roof.t, SHELTER.d / 2 + LEGROOM],
+        [
+          -SHELTER.w / 2 - SHELTER.roof.over,
+          0,
+          -SHELTER.d / 2 - SHELTER.roof.over,
+        ],
+        [
+          SHELTER.w / 2 + SHELTER.roof.over,
+          SHELTER.h + SHELTER.roof.t,
+          SHELTER.d / 2 + LEGROOM,
+        ],
       ],
     ],
     solids: shelterSolids(),
-    hit: { as: 'shatter', by: 'truck', debris: [DEBRIS.glass, DEBRIS.glass, DEBRIS.iron], keep: 0.8 },
+    hit: {
+      as: 'shatter',
+      by: 'truck',
+      debris: [DEBRIS.glass, DEBRIS.glass, DEBRIS.iron],
+      keep: 0.8,
+    },
   },
   bench: {
     model: () => bench(),
@@ -928,11 +1249,19 @@ export const DECOR: Readonly<Record<DecorKind, DecorSpec>> = {
     model: () => tomb(),
     space: TOMB_BOXES,
     solids: TOMB_BOXES,
-    hit: { as: 'shatter', by: 'truck', debris: [DEBRIS.stone, DEBRIS.stone, DEBRIS.iron], keep: 0.8 },
+    hit: {
+      as: 'shatter',
+      by: 'truck',
+      debris: [DEBRIS.stone, DEBRIS.stone, DEBRIS.iron],
+      keep: 0.8,
+    },
   },
 };
 
-/** Return the break specification for this kind and scale, or null when it has no break behavior or exceeds maxScale. */
+/**
+ * Return the break specification for this kind and scale, or null when it has
+ * no break behavior or exceeds maxScale.
+ */
 export function hitOf(kind: DecorKind, scale = 1): DecorHit | null {
   const h = DECOR[kind].hit;
   return h && scale <= (h.maxScale ?? Infinity) ? h : null;

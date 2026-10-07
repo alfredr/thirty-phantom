@@ -11,13 +11,20 @@ import {
   walkTo,
 } from '@/actors/npcs/npc-actions';
 import type { Npc, NpcWorld } from '@/actors/npcs/npcs';
-import { playScene, type Scene, type SceneBindings, scenes } from '@/engine/sim/scene';
+import {
+  playScene,
+  type Scene,
+  type SceneBindings,
+  scenes,
+} from '@/engine/sim/scene';
 import type { Cutscene, Game } from '@/game/game';
 import type { ItemKind } from '@/game/items/item-breeds';
 
 import type { StoryCamera } from './story-camera';
 
-type Target<P extends string> = { readonly kind: 'player' } | { readonly kind: 'point'; readonly name: P };
+type Target<P extends string> =
+  | { readonly kind: 'player' }
+  | { readonly kind: 'point'; readonly name: P };
 
 export const player = { kind: 'player' } as const;
 
@@ -29,8 +36,18 @@ interface WalkOptions<P extends string> {
 
 type Command<A extends string, P extends string, X extends string> =
   | { readonly kind: 'face'; readonly actor: A; readonly target: Target<P> }
-  | { readonly kind: 'walkTo'; readonly actor: A; readonly target: P; readonly options: WalkOptions<P> }
-  | { readonly kind: 'gesture'; readonly actor: A; readonly pose: GesturePose; readonly seconds: number }
+  | {
+      readonly kind: 'walkTo';
+      readonly actor: A;
+      readonly target: P;
+      readonly options: WalkOptions<P>;
+    }
+  | {
+      readonly kind: 'gesture';
+      readonly actor: A;
+      readonly pose: GesturePose;
+      readonly seconds: number;
+    }
   | { readonly kind: 'custom'; readonly name: X }
   | {
       readonly kind: 'handOver';
@@ -43,12 +60,25 @@ type Command<A extends string, P extends string, X extends string> =
   | { readonly kind: 'wait'; readonly seconds: number };
 
 type Resource<A extends string, P extends string, S extends string> =
-  | { readonly kind: 'attention'; readonly actor: A; readonly target: Target<P> }
+  | {
+      readonly kind: 'attention';
+      readonly actor: A;
+      readonly target: Target<P>;
+    }
   | { readonly kind: 'camera'; readonly shot: S };
 
-type Offscreen<A extends string> = { readonly actor: A; readonly after: number; readonly timeout: number };
+type Offscreen<A extends string> = {
+  readonly actor: A;
+  readonly after: number;
+  readonly timeout: number;
+};
 
-export interface NpcSceneBindings<A extends string, P extends string, S extends string, X extends string = never> {
+export interface NpcSceneBindings<
+  A extends string,
+  P extends string,
+  S extends string,
+  X extends string = never,
+> {
   readonly actors: Readonly<Record<A, Npc>>;
   readonly points: Readonly<Record<P, Vector3>>;
   readonly shots: Readonly<Record<S, Cutscene>>;
@@ -63,14 +93,26 @@ export interface NpcSceneBindings<A extends string, P extends string, S extends 
 
 export function inView(game: Pick<Game, 'toScreen'>, at: Vector3): boolean {
   const p = game.toScreen(at);
-  return !!p && p.x >= 0 && p.y >= 0 && p.x <= window.innerWidth && p.y <= window.innerHeight;
+  return (
+    !!p &&
+    p.x >= 0 &&
+    p.y >= 0 &&
+    p.x <= window.innerWidth &&
+    p.y <= window.innerHeight
+  );
 }
 
-export function npcScenes<A extends string, P extends string, S extends string, X extends string = never>() {
+export function npcScenes<
+  A extends string,
+  P extends string,
+  S extends string,
+  X extends string = never,
+>() {
   type Bindings = NpcSceneBindings<A, P, S, X>;
   type Definition = Scene<Command<A, P, X>, Resource<A, P, S>, Offscreen<A>>;
   const build = scenes<Command<A, P, X>, Resource<A, P, S>, Offscreen<A>>();
-  const target = (c: Bindings, at: Target<P>): Vector3 | null => (at.kind === 'player' ? null : c.points[at.name]);
+  const target = (c: Bindings, at: Target<P>): Vector3 | null =>
+    at.kind === 'player' ? null : c.points[at.name];
   const give = (c: Bindings, actor: A, item: ItemKind): void => {
     if (!c.items) {
       throw new Error('Scene item transfer is not bound');
@@ -81,7 +123,14 @@ export function npcScenes<A extends string, P extends string, S extends string, 
     }
   };
 
-  const interpreter: SceneBindings<Bindings, NpcWorld, NpcWorld, Command<A, P, X>, Resource<A, P, S>, Offscreen<A>> = {
+  const interpreter: SceneBindings<
+    Bindings,
+    NpcWorld,
+    NpcWorld,
+    Command<A, P, X>,
+    Resource<A, P, S>,
+    Offscreen<A>
+  > = {
     action: (c, command) => {
       switch (command.kind) {
         case 'face':
@@ -89,10 +138,16 @@ export function npcScenes<A extends string, P extends string, S extends string, 
         case 'walkTo':
           return walkTo(c.actors[command.actor], c.points[command.target], {
             ...command.options,
-            face: command.options.face ? target(c, command.options.face) : undefined,
+            face: command.options.face
+              ? target(c, command.options.face)
+              : undefined,
           });
         case 'gesture':
-          return gesture(c.actors[command.actor], command.pose, command.seconds);
+          return gesture(
+            c.actors[command.actor],
+            command.pose,
+            command.seconds,
+          );
         case 'custom':
           return c.actions[command.name]();
         case 'handOver':
@@ -112,7 +167,9 @@ export function npcScenes<A extends string, P extends string, S extends string, 
     acquire: (c, resource) => {
       switch (resource.kind) {
         case 'attention':
-          return c.actors[resource.actor].attention.take({ face: target(c, resource.target) });
+          return c.actors[resource.actor].attention.take({
+            face: target(c, resource.target),
+          });
         case 'camera':
           if (!c.camera) {
             throw new Error('Scene camera is not bound');
@@ -126,7 +183,10 @@ export function npcScenes<A extends string, P extends string, S extends string, 
         throw new Error('Scene visibility is not bound');
       }
 
-      return elapsed >= condition.timeout || (elapsed > condition.after && !c.visible(c.actors[condition.actor]));
+      return (
+        elapsed >= condition.timeout ||
+        (elapsed > condition.after && !c.visible(c.actors[condition.actor]))
+      );
     },
   };
 
@@ -135,19 +195,36 @@ export function npcScenes<A extends string, P extends string, S extends string, 
     holding: build.holding,
     orElse: build.orElse,
     until: build.until,
-    face: (actor: A, at: Target<P>) => build.action({ kind: 'face', actor, target: at }),
+    face: (actor: A, at: Target<P>) =>
+      build.action({ kind: 'face', actor, target: at }),
     walkTo: (actor: A, at: P, options: WalkOptions<P> = {}) =>
       build.action({ kind: 'walkTo', actor, target: at, options }),
-    gesture: (actor: A, pose: GesturePose, seconds: number) => build.action({ kind: 'gesture', actor, pose, seconds }),
+    gesture: (actor: A, pose: GesturePose, seconds: number) =>
+      build.action({ kind: 'gesture', actor, pose, seconds }),
     custom: (name: X) => build.action({ kind: 'custom', name }),
-    handOver: (actor: A, item: ItemKind, timing: { seconds: number; at: number }) =>
-      build.action({ kind: 'handOver', actor, item, ...timing }),
-    give: (actor: A, item: ItemKind) => build.action({ kind: 'give', actor, item }),
+    handOver: (
+      actor: A,
+      item: ItemKind,
+      timing: { seconds: number; at: number },
+    ) => build.action({ kind: 'handOver', actor, item, ...timing }),
+    give: (actor: A, item: ItemKind) =>
+      build.action({ kind: 'give', actor, item }),
     wait: (seconds: number) => build.action({ kind: 'wait', seconds }),
-    attention: (actor: A, at: Target<P>): Resource<A, P, S> => ({ kind: 'attention', actor, target: at }),
+    attention: (actor: A, at: Target<P>): Resource<A, P, S> => ({
+      kind: 'attention',
+      actor,
+      target: at,
+    }),
     camera: (shot: S): Resource<A, P, S> => ({ kind: 'camera', shot }),
     point: (name: P): Target<P> => ({ kind: 'point', name }),
-    offscreen: (actor: A, timing: { after: number; timeout: number }): Offscreen<A> => ({ actor, ...timing }),
-    play: (definition: Definition, bindings: Bindings): NpcAction => playScene(definition, bindings, interpreter),
+    offscreen: (
+      actor: A,
+      timing: { after: number; timeout: number },
+    ): Offscreen<A> => ({
+      actor,
+      ...timing,
+    }),
+    play: (definition: Definition, bindings: Bindings): NpcAction =>
+      playScene(definition, bindings, interpreter),
   };
 }

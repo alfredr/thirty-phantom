@@ -27,7 +27,11 @@ const [
 
 function world(overrides = {}) {
   return {
-    collision: { segmentBlocked: () => false, resolveCircle() {}, groundAt: () => 0 },
+    collision: {
+      segmentBlocked: () => false,
+      resolveCircle() {},
+      groundAt: () => 0,
+    },
     nav: { heightAt: () => 0, standable: () => 0 },
     planner: { request: () => assert.fail('unexpected route request') },
     targets: null,
@@ -51,10 +55,18 @@ function crowd(...people) {
   };
 }
 
-const person = (x, y = 0) => ({ walker: { pos: new Vector3(x, y, 0) }, hurt: null });
+const person = (x, y = 0) => ({
+  walker: { pos: new Vector3(x, y, 0) },
+  hurt: null,
+});
 
 test('target queries choose a particular eligible person and follow their standing or fallen position', () => {
-  const [far, near, upstairs, dead] = [person(8), person(2), person(1, 4), person(0.5)];
+  const [far, near, upstairs, dead] = [
+    person(8),
+    person(2),
+    person(1, 4),
+    person(0.5),
+  ];
   dead.hurt = { harm: 'dead', at: new Vector3() };
   const source = crowd(far, near, upstairs, dead);
   const at = new Vector3();
@@ -82,8 +94,15 @@ test('hunting works without a Skeleton and respects quarry capacity, retarget ti
   const next = person(4);
   const source = crowd(first, next);
   const w = world({ targets: source });
-  const actors = Array.from({ length: 4 }, () => ({ pos: new Vector3(), yaw: 0, speed: 0, movement: { cancel() {} } }));
-  const hunters = actors.map((actor) => new Hunting(SKELETON_BREED.hunting, actor, w));
+  const actors = Array.from({ length: 4 }, () => ({
+    pos: new Vector3(),
+    yaw: 0,
+    speed: 0,
+    movement: { cancel() {} },
+  }));
+  const hunters = actors.map(
+    (actor) => new Hunting(SKELETON_BREED.hunting, actor, w),
+  );
   for (const hunt of hunters) {
     hunt.update(0.01);
   }
@@ -95,7 +114,11 @@ test('hunting works without a Skeleton and respects quarry capacity, retarget ti
   assert.equal(w.claims.holders('quarry', first).length, 3);
   next.walker.pos.x = 1;
   hunters[0].update(0.2);
-  assert.equal(hunters[0].target, first, 'a closer candidate waits for the retarget interval');
+  assert.equal(
+    hunters[0].target,
+    first,
+    'a closer candidate waits for the retarget interval',
+  );
   hunters[0].update(0.4);
   assert.equal(hunters[0].target, next);
   assert.equal(w.claims.holders('quarry', first).length, 2);
@@ -127,8 +150,16 @@ test('attack definitions share rules while hunters keep separate cooldowns and r
     },
     killed: (at) => log.push(at.toArray()),
   });
-  const spec = { ...SKELETON_BREED.hunting, attack: maul({ reach: 1, every: 2, damage: [7, 7] }) };
-  const make = () => new Hunting(spec, { pos: new Vector3(), yaw: 0, speed: 0, movement: { cancel() {} } }, w);
+  const spec = {
+    ...SKELETON_BREED.hunting,
+    attack: maul({ reach: 1, every: 2, damage: [7, 7] }),
+  };
+  const make = () =>
+    new Hunting(
+      spec,
+      { pos: new Vector3(), yaw: 0, speed: 0, movement: { cancel() {} } },
+      w,
+    );
   const a = make();
   const b = make();
   a.strike(a.update(0.01), 0.01);
@@ -166,7 +197,13 @@ test('skeleton breeds share definitions, isolate mutable state, and can omit hun
   a.hp = 1;
   assert.equal(b.hp, 100);
 
-  const breed = { ...SKELETON_BREED, health: 20, hunting: undefined, following: undefined, impact: undefined };
+  const breed = {
+    ...SKELETON_BREED,
+    health: 20,
+    hunting: undefined,
+    following: undefined,
+    impact: undefined,
+  };
   const c = new Skeleton(breed, w, new Vector3(1, 0, 0), 0);
   c.mind.go({ at: 'hunting' });
   assert.equal(c.hunting, null);
@@ -189,7 +226,12 @@ function car(speed) {
 test('rising blocks impacts, surviving impacts stagger, and hunting resumes after the pause', (t) => {
   t.mock.method(Math, 'random', () => 0.5);
   let rises = 0;
-  const s = new Skeleton(SKELETON_BREED, world({ risen: () => rises++ }), new Vector3(1, 0, 0), 0);
+  const s = new Skeleton(
+    SKELETON_BREED,
+    world({ risen: () => rises++ }),
+    new Vector3(1, 0, 0),
+    0,
+  );
   s.update(0.2, null, [car(4)]);
   assert.equal(s.hp, 100);
   assert.equal(rises, 1);

@@ -5,8 +5,9 @@ import type { Synth } from './synth';
 export type Bus = 'sfx' | 'ambience';
 
 /**
- * A synthesized recipe, a recorded sound, or a recording with engine-cycle metadata. Paths are relative to
- * public/audio/. `vol` scales the cue gain; `vary` sets the maximum fractional playback-rate variation. Engine
+ * A synthesized recipe, a recorded sound, or a recording with engine-cycle
+ * metadata. Paths are relative to public/audio/. `vol` scales the cue gain;
+ * `vary` sets the maximum fractional playback-rate variation. Engine
  * recordings are resynthesized from RPM and load.
  *
  * Recorded assets are CC0; credits are in public/audio/CREDITS.md.
@@ -31,8 +32,9 @@ export interface Cue {
 }
 
 /**
- * Audio definitions grouped by cue and variant. sound.ts maps game events to one-shots; loops.ts controls continuous
- * playback. With ?sound, console logs identify the cue and variant to tune here.
+ * Audio definitions grouped by cue and variant. sound.ts maps game events to
+ * one-shots; loops.ts controls continuous playback. With ?sound, console logs
+ * identify the cue and variant to tune here.
  */
 export const CUES = {
   /** Vehicle horn variants; angry variants are longer or more distorted. */
@@ -42,25 +44,64 @@ export const CUES = {
     range: 90,
     max: 3,
     sounds: {
-      'horn-sedan': { synth: 'horn', p: { f: [415, 523], dur: 0.42, wave: 'sawtooth', tone: 2200 } },
-      'horn-sedan-angry': { synth: 'horn', p: { f: [415, 523], dur: 1.1, wave: 'sawtooth', tone: 2400, drive: 2.5 } },
-      'horn-pickup': { synth: 'horn', p: { f: [330, 415], dur: 0.55, wave: 'sawtooth', tone: 1700 } },
-      'horn-pickup-angry': { synth: 'horn', p: { f: [330, 415], dur: 1.3, wave: 'sawtooth', tone: 1900, drive: 2.5 } },
+      'horn-sedan': {
+        synth: 'horn',
+        p: { f: [415, 523], dur: 0.42, wave: 'sawtooth', tone: 2200 },
+      },
+      'horn-sedan-angry': {
+        synth: 'horn',
+        p: {
+          f: [415, 523],
+          dur: 1.1,
+          wave: 'sawtooth',
+          tone: 2400,
+          drive: 2.5,
+        },
+      },
+      'horn-pickup': {
+        synth: 'horn',
+        p: { f: [330, 415], dur: 0.55, wave: 'sawtooth', tone: 1700 },
+      },
+      'horn-pickup-angry': {
+        synth: 'horn',
+        p: {
+          f: [330, 415],
+          dur: 1.3,
+          wave: 'sawtooth',
+          tone: 1900,
+          drive: 2.5,
+        },
+      },
       'horn-bike': {
         synth: 'horn',
-        p: { f: [622], dur: 0.12, beeps: 2, gap: 0.07, wave: 'square', tone: 2600 },
+        p: {
+          f: [622],
+          dur: 0.12,
+          beeps: 2,
+          gap: 0.07,
+          wave: 'square',
+          tone: 2600,
+        },
         vol: 0.5,
       },
       'horn-bike-angry': {
         synth: 'horn',
-        p: { f: [622], dur: 0.12, beeps: 5, gap: 0.05, wave: 'square', tone: 2800, drive: 2 },
+        p: {
+          f: [622],
+          dur: 0.12,
+          beeps: 5,
+          gap: 0.05,
+          wave: 'square',
+          tone: 2800,
+          drive: 2,
+        },
         vol: 0.7,
       },
     },
   },
   /**
-   * Recorded engine cycles for the player vehicle and nearby traffic. grains.ts renders them using the RPM and load
-   * from engine-state.ts.
+   * Recorded engine cycles for the player vehicle and nearby traffic.
+   * grains.ts renders them using the RPM and load from engine-state.ts.
    */
   engine: {
     bus: 'sfx',
@@ -132,7 +173,12 @@ export const CUES = {
     range: 60,
     max: 1,
     loop: true,
-    sounds: { 'boost-roar': { synth: 'fire', p: { rate: [70, 70], body: [1600, 1600], vol: 0.6 } } },
+    sounds: {
+      'boost-roar': {
+        synth: 'fire',
+        p: { rate: [70, 70], body: [1600, 1600], vol: 0.6 },
+      },
+    },
   },
   /** Ignition sound when a GhASt boost starts. */
   ignite: {
@@ -141,7 +187,17 @@ export const CUES = {
     range: 60,
     max: 1,
     sounds: {
-      'boost-ignite': { synth: 'whoosh', p: { f: [200, 1400, 600], q: 0.9, len: 0.7, peak: 0.25, vol: 1, boom: 60 } },
+      'boost-ignite': {
+        synth: 'whoosh',
+        p: {
+          f: [200, 1400, 600],
+          q: 0.9,
+          len: 0.7,
+          peak: 0.25,
+          vol: 1,
+          boom: 60,
+        },
+      },
     },
   },
   /** Low-speed impacts against cars or walls. */
@@ -267,7 +323,10 @@ export const CUES = {
       },
     },
   },
-  /** Prop impacts selected by material and object type, including a separate sound for a falling lamp landing. */
+  /**
+   * Prop impacts selected by material and object type, including a separate
+   * sound for a falling lamp landing.
+   */
   prop: {
     bus: 'sfx',
     vol: 1,
@@ -387,7 +446,16 @@ export const CUES = {
     sounds: {
       'fire-crackle': {
         synth: 'fire',
-        p: { rate: [9, 40], body: [450, 1600], vol: 1, lap: 0.13, hiss: 0.25, wander: 1, clusters: 0.1, shifts: 0.025 },
+        p: {
+          rate: [9, 40],
+          body: [450, 1600],
+          vol: 1,
+          lap: 0.13,
+          hiss: 0.25,
+          wander: 1,
+          clusters: 0.1,
+          shifts: 0.025,
+        },
       },
     },
   },
@@ -399,13 +467,33 @@ export const CUES = {
     sounds: {
       'keys-clink': {
         synth: 'chime',
-        p: { notes: [2900, 3700, 3300], step: 0.05, decay: 0.12, wave: 'triangle', bell: 2.7, vol: 0.5 },
+        p: {
+          notes: [2900, 3700, 3300],
+          step: 0.05,
+          decay: 0.12,
+          wave: 'triangle',
+          bell: 2.7,
+          vol: 0.5,
+        },
       },
       'gas-glug': {
         synth: 'foley',
-        p: { thump: { from: 190, to: 95, len: 0.16, vol: 0.6 }, rattle: { n: 3, f: 320, q: 3, len: 0.35, vol: 0.5 } },
+        p: {
+          thump: { from: 190, to: 95, len: 0.16, vol: 0.6 },
+          rattle: { n: 3, f: 320, q: 3, len: 0.35, vol: 0.5 },
+        },
       },
-      'fire-flare': { synth: 'whoosh', p: { f: [110, 760, 180], q: 0.6, len: 2.6, peak: 0.12, vol: 1.6, boom: 38 } },
+      'fire-flare': {
+        synth: 'whoosh',
+        p: {
+          f: [110, 760, 180],
+          q: 0.6,
+          len: 2.6,
+          peak: 0.12,
+          vol: 1.6,
+          boom: 38,
+        },
+      },
     },
   },
   start: {
@@ -414,14 +502,31 @@ export const CUES = {
     range: 45,
     max: 4,
     sounds: {
-      'wire-sparks': { synth: 'spark', p: { n: 7, len: 0.35, f: [2500, 6000], vol: 0.5 } },
+      'wire-sparks': {
+        synth: 'spark',
+        p: { n: 7, len: 0.35, f: [2500, 6000], vol: 0.5 },
+      },
       'starter-crank': {
         synth: 'crank',
-        p: { len: 0.55, rate: [10, 12], f: [150, 190], misfires: 0, caught: 0.8, vol: 0.55 },
+        p: {
+          len: 0.55,
+          rate: [10, 12],
+          f: [150, 190],
+          misfires: 0,
+          caught: 0.8,
+          vol: 0.55,
+        },
       },
       'starter-strain': {
         synth: 'crank',
-        p: { len: 1.4, rate: [7, 3.5], f: [170, 105], misfires: 2, caught: 1, vol: 0.6 },
+        p: {
+          len: 1.4,
+          rate: [7, 3.5],
+          f: [170, 105],
+          misfires: 2,
+          caught: 1,
+          vol: 0.6,
+        },
       },
       'engine-cough': {
         synth: 'foley',
@@ -431,7 +536,17 @@ export const CUES = {
           rattle: { n: 4, f: 260, q: 2, len: 0.4, vol: 0.45, at: 0.08 },
         },
       },
-      'engine-roar': { synth: 'whoosh', p: { f: [60, 340, 120], q: 1.2, len: 1.8, peak: 0.25, vol: 1.4, boom: 45 } },
+      'engine-roar': {
+        synth: 'whoosh',
+        p: {
+          f: [60, 340, 120],
+          q: 1.2,
+          len: 1.8,
+          peak: 0.25,
+          vol: 1.4,
+          boom: 45,
+        },
+      },
     },
   },
   /** Fire burst when a tire is added. */
@@ -441,7 +556,17 @@ export const CUES = {
     range: 40,
     max: 2,
     sounds: {
-      'fire-whoomph': { synth: 'whoosh', p: { f: [150, 900, 300], q: 0.8, len: 1.1, peak: 0.2, vol: 1, boom: 55 } },
+      'fire-whoomph': {
+        synth: 'whoosh',
+        p: {
+          f: [150, 900, 300],
+          q: 0.8,
+          len: 1.1,
+          peak: 0.2,
+          vol: 1,
+          boom: 55,
+        },
+      },
     },
   },
   /** Intake sound when the monster truck collects ghosts. */
@@ -475,7 +600,17 @@ export const CUES = {
     range: 50,
     max: 2,
     sounds: {
-      'puff-smoke': { synth: 'whoosh', p: { f: [500, 1200, 250], q: 0.7, len: 0.6, peak: 0.12, vol: 1, boom: 90 } },
+      'puff-smoke': {
+        synth: 'whoosh',
+        p: {
+          f: [500, 1200, 250],
+          q: 0.7,
+          len: 0.6,
+          peak: 0.12,
+          vol: 1,
+          boom: 90,
+        },
+      },
     },
   },
   /** Cash, wallet, and glovebox collection sounds. */
@@ -487,15 +622,36 @@ export const CUES = {
     sounds: {
       'coin-cash': {
         synth: 'chime',
-        p: { notes: [1319, 1760], step: 0.07, decay: 0.25, wave: 'triangle', bell: 2.76, vol: 1 },
+        p: {
+          notes: [1319, 1760],
+          step: 0.07,
+          decay: 0.25,
+          wave: 'triangle',
+          bell: 2.76,
+          vol: 1,
+        },
       },
       'coin-wallet': {
         synth: 'chime',
-        p: { notes: [1047, 1319, 1568, 2093], step: 0.06, decay: 0.3, wave: 'triangle', bell: 2.76, vol: 1 },
+        p: {
+          notes: [1047, 1319, 1568, 2093],
+          step: 0.06,
+          decay: 0.3,
+          wave: 'triangle',
+          bell: 2.76,
+          vol: 1,
+        },
       },
       'coin-glovebox': {
         synth: 'chime',
-        p: { notes: [1568, 2093], step: 0.09, decay: 0.3, wave: 'triangle', bell: 2.76, vol: 1 },
+        p: {
+          notes: [1568, 2093],
+          step: 0.09,
+          decay: 0.3,
+          wave: 'triangle',
+          bell: 2.76,
+          vol: 1,
+        },
       },
     },
   },
@@ -506,14 +662,33 @@ export const CUES = {
     range: null,
     max: 3,
     sounds: {
-      'item-part': { synth: 'chime', p: { notes: [523, 784], step: 0.06, decay: 0.12, wave: 'square', vol: 0.72 } },
+      'item-part': {
+        synth: 'chime',
+        p: {
+          notes: [523, 784],
+          step: 0.06,
+          decay: 0.12,
+          wave: 'square',
+          vol: 0.72,
+        },
+      },
       'item-tire': {
         synth: 'foley',
-        p: { thump: { from: 180, to: 90, len: 0.15, vol: 1.1 }, rattle: { n: 2, f: 600, len: 0.12, vol: 0.44, q: 4 } },
+        p: {
+          thump: { from: 180, to: 90, len: 0.15, vol: 1.1 },
+          rattle: { n: 2, f: 600, len: 0.12, vol: 0.44, q: 4 },
+        },
       },
       'item-gift': {
         synth: 'chime',
-        p: { notes: [784, 988, 1175, 1568], step: 0.07, decay: 0.35, wave: 'triangle', bell: 2, vol: 0.9 },
+        p: {
+          notes: [784, 988, 1175, 1568],
+          step: 0.07,
+          decay: 0.35,
+          wave: 'triangle',
+          bell: 2,
+          vol: 0.9,
+        },
         vol: 0.84,
       },
     },
@@ -525,7 +700,12 @@ export const CUES = {
     range: null,
     max: 1,
     loop: true,
-    sounds: { 'phone-ring': { synth: 'ring', p: { f: [1320, 1660], trill: 20, pattern: [0.4, 0.2, 0.4, 2], vol: 1 } } },
+    sounds: {
+      'phone-ring': {
+        synth: 'ring',
+        p: { f: [1320, 1660], trill: 20, pattern: [0.4, 0.2, 0.4, 2], vol: 1 },
+      },
+    },
   },
   /** Phone vibration and message tone. */
   text: {
@@ -536,7 +716,15 @@ export const CUES = {
     sounds: {
       'phone-text': {
         synth: 'buzz',
-        p: { f: 170, pulses: 2, len: 0.14, gap: 0.1, ding: [1760, 2637], step: 0.1, vol: 1 },
+        p: {
+          f: 170,
+          pulses: 2,
+          len: 0.14,
+          gap: 0.1,
+          ding: [1760, 2637],
+          step: 0.1,
+          vol: 1,
+        },
       },
     },
   },
@@ -549,7 +737,13 @@ export const CUES = {
     sounds: {
       'stinger-moonrise': {
         synth: 'stinger',
-        p: { gong: 82, chord: [146.8, 174.6, 220, 277.2], swell: 1.2, len: 5, vol: 1 },
+        p: {
+          gong: 82,
+          chord: [146.8, 174.6, 220, 277.2],
+          swell: 1.2,
+          len: 5,
+          vol: 1,
+        },
       },
     },
   },
@@ -562,7 +756,13 @@ export const CUES = {
     sounds: {
       'stinger-dawn': {
         synth: 'stinger',
-        p: { gong: 196, chord: [261.6, 329.6, 392, 523.3], swell: 0.8, len: 3.5, vol: 1 },
+        p: {
+          gong: 196,
+          chord: [261.6, 329.6, 392, 523.3],
+          swell: 0.8,
+          len: 3.5,
+          vol: 1,
+        },
       },
     },
   },
@@ -590,20 +790,36 @@ export const CUES = {
       },
       'outfit-day': {
         synth: 'chime',
-        p: { notes: [1568, 1976, 2349, 3136], step: 0.05, decay: 0.4, wave: 'sine', bell: 2, vol: 0.7 },
+        p: {
+          notes: [1568, 1976, 2349, 3136],
+          step: 0.05,
+          decay: 0.4,
+          wave: 'sine',
+          bell: 2,
+          vol: 0.7,
+        },
         vol: 0.87,
       },
     },
   },
-  /** Vehicle transformation sounds for possession and the return to car form at sunrise. */
+  /**
+   * Vehicle transformation sounds for possession and the return to car form at
+   * sunrise.
+   */
   morph: {
     bus: 'sfx',
     vol: 0.51,
     range: 70,
     max: 2,
     sounds: {
-      'morph-truck': { synth: 'morph', p: { shudder: 0.55, from: 45, to: 110, blorp: [420, 70], vol: 1 } },
-      'morph-car': { synth: 'morph', p: { shudder: 0.55, from: 110, to: 50, blorp: [160, 420], vol: 0.8 } },
+      'morph-truck': {
+        synth: 'morph',
+        p: { shudder: 0.55, from: 45, to: 110, blorp: [420, 70], vol: 1 },
+      },
+      'morph-car': {
+        synth: 'morph',
+        p: { shudder: 0.55, from: 110, to: 50, blorp: [160, 420], vol: 0.8 },
+      },
     },
   },
   /** Cue for a successful escape that leaves a phantom imprint. */
@@ -630,7 +846,10 @@ export const CUES = {
       },
     },
   },
-  /** Recorded screams when pedestrians are frightened. See public/audio/CREDITS.md for CC0 sources. */
+  /**
+   * Recorded screams when pedestrians are frightened. See
+   * public/audio/CREDITS.md for CC0 sources.
+   */
   scream: {
     bus: 'sfx',
     vol: 0.62,
@@ -649,20 +868,46 @@ export const CUES = {
     range: 35,
     max: 2,
     loop: true,
-    sounds: { 'gate-motor': { synth: 'motor', p: { f: [70, 140], tone: 500, vol: 1 } } },
+    sounds: {
+      'gate-motor': { synth: 'motor', p: { f: [70, 140], tone: 500, vol: 1 } },
+    },
   },
-  /** Gate sounds for a logged entry or exit, or entry without a badge ('crossing'). */
+  /**
+   * Gate sounds for a logged entry or exit, or entry without a badge
+   * ('crossing').
+   */
   badge: {
     bus: 'sfx',
     vol: 0.75,
     range: 40,
     max: 2,
     sounds: {
-      'badge-beep': { synth: 'chime', p: { notes: [1568, 2093], step: 0.09, decay: 0.09, wave: 'square', vol: 0.5 } },
-      'badge-buzz': { synth: 'chime', p: { notes: [196, 196], step: 0.18, decay: 0.16, wave: 'sawtooth', vol: 0.87 } },
+      'badge-beep': {
+        synth: 'chime',
+        p: {
+          notes: [1568, 2093],
+          step: 0.09,
+          decay: 0.09,
+          wave: 'square',
+          vol: 0.5,
+        },
+      },
+      'badge-buzz': {
+        synth: 'chime',
+        p: {
+          notes: [196, 196],
+          step: 0.18,
+          decay: 0.16,
+          wave: 'sawtooth',
+          vol: 0.87,
+        },
+      },
     },
   },
-  /** Daytime town ambience and nighttime wind and crickets, crossfaded at dawn and dusk. */
+  /**
+   * Daytime town ambience and nighttime wind and crickets, crossfaded at dawn
+   * and dusk.
+   */
   ambience: {
     bus: 'ambience',
     vol: 0.5,
@@ -670,8 +915,14 @@ export const CUES = {
     max: 2,
     loop: true,
     sounds: {
-      'day-town': { synth: 'town', p: { hum: 300, vol: 0.6, birds: 0.25, every: [3, 9] } },
-      'night-wind': { synth: 'night', p: { wind: 420, vol: 0.65, crickets: 0.065, chirp: [4300, 4750] } },
+      'day-town': {
+        synth: 'town',
+        p: { hum: 300, vol: 0.6, birds: 0.25, every: [3, 9] },
+      },
+      'night-wind': {
+        synth: 'night',
+        p: { wind: 420, vol: 0.65, crickets: 0.065, chirp: [4300, 4750] },
+      },
     },
   },
   /** Periodic nighttime moan. */
@@ -702,4 +953,5 @@ export const CUES = {
 
 export type CueName = keyof typeof CUES;
 /** Variant names available for a given cue. */
-export type SoundOf<C extends CueName> = keyof (typeof CUES)[C]['sounds'] & string;
+export type SoundOf<C extends CueName> = keyof (typeof CUES)[C]['sounds'] &
+  string;

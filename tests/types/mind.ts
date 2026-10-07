@@ -1,4 +1,10 @@
-import { type Mind, mind, type MindEvent, type MindOptions, type State } from '@/engine/sim/mind';
+import {
+  type Mind,
+  mind,
+  type MindEvent,
+  type MindOptions,
+  type State,
+} from '@/engine/sim/mind';
 
 // Compile-time checks: npm run typecheck also verifies every @ts-expect-error below.
 type TestState = State<'idle'> | State<'waiting', { seconds: number }>;
@@ -66,7 +72,9 @@ export function checkDefinitions(): void {
   });
 }
 
-export function checkTransitions(machine: Mind<void, TestState, TestEvent>): void {
+export function checkTransitions(
+  machine: Mind<void, TestState, TestEvent>,
+): void {
   machine.go({ at: 'idle' });
   machine.go({ at: 'waiting', seconds: 2 });
   machine.send({ type: 'start', seconds: 2 });

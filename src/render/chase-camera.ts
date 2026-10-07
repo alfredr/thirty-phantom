@@ -14,23 +14,36 @@ export interface ChaseSubject {
   kind: ChaseKind;
   pos: Vector3;
   vel: Vector3;
-  /** Vehicle heading in radians. Use null on foot to follow the direction of movement. */
+  /**
+   * Vehicle heading in radians. Use null on foot to follow the direction of
+   * movement.
+   */
   yaw: number | null;
 }
 
 /**
- * Follow a subject with a perspective camera mounted behind a head-height pivot. Shorten the camera boom against
- * collision geometry and lower it under ceilings so the camera can enter enclosed spaces.
+ * Follow a subject with a perspective camera mounted behind a head-height
+ * pivot. Shorten the camera boom against collision geometry and lower it under
+ * ceilings so the camera can enter enclosed spaces.
  */
 export class ChaseCamera {
   readonly camera: PerspectiveCamera;
-  /** Boom pivot at the subject's head; other systems use it as the view's focus. */
+  /**
+   * Boom pivot at the subject's head; other systems use it as the view's
+   * focus.
+   */
   readonly target = new Vector3();
   /** Unit vector from the pivot toward the camera. */
   readonly viewDir = new Vector3(0, 0.3, -1).normalize();
-  /** Heading the camera looks along (actor yaw convention: forward = (sin, cos)). */
+  /**
+   * Heading the camera looks along (actor yaw convention: forward = (sin,
+   * cos)).
+   */
   yaw = 0;
-  /** Q/E and mouse look-around while driving; springs back behind the vehicle when released. */
+  /**
+   * Q/E and mouse look-around while driving; springs back behind the vehicle
+   * when released.
+   */
   private offset = 0;
   /** Mouse tilt added to the rig's boom pitch. */
   private pitchOffset = 0;
@@ -66,14 +79,21 @@ export class ChaseCamera {
   }
 
   zoomBy(steps: number): void {
-    this.zoomScale = clamp(this.zoomScale * Math.pow(ZOOM_STEP, steps), 0.5, 2.2);
+    this.zoomScale = clamp(
+      this.zoomScale * Math.pow(ZOOM_STEP, steps),
+      0.5,
+      2.2,
+    );
   }
 
   addTrauma(t: number): void {
     this.shaker.add(t);
   }
 
-  /** Reset the view offsets and place the camera behind `yaw` on the next update without easing. */
+  /**
+   * Reset the view offsets and place the camera behind `yaw` on the next
+   * update without easing.
+   */
   snapBehind(yaw: number): void {
     this.yaw = yaw;
     this.offset = 0;
@@ -99,13 +119,24 @@ export class ChaseCamera {
     return out.set(-f.z, 0, f.x);
   }
 
-  /** Center for the sun's shadow box: ahead of the camera, where most of the view is. */
+  /**
+   * Center for the sun's shadow box: ahead of the camera, where most of the
+   * view is.
+   */
   shadowFocus(out: Vector3): Vector3 {
     return this.screenUp(out).multiplyScalar(30).add(this.target);
   }
 
-  /** `orbit` is the Q/E axis: -1 looks left, 1 looks right. Mouse movement comes in through look(). */
-  update(dt: number, s: ChaseSubject, orbit: number, world: CollisionWorld): void {
+  /**
+   * `orbit` is the Q/E axis: -1 looks left, 1 looks right. Mouse movement
+   * comes in through look().
+   */
+  update(
+    dt: number,
+    s: ChaseSubject,
+    orbit: number,
+    world: CollisionWorld,
+  ): void {
     const C = TUNING.camera.chase;
     const R = C[s.kind];
     const snap = this.snap;
@@ -113,20 +144,32 @@ export class ChaseCamera {
 
     // Match the subject's horizontal position so the boom starts in clear space; ease vertical movement over steps.
     const py = s.pos.y + R.pivot;
-    this.target.set(s.pos.x, snap ? py : damp(this.target.y, py, 10, dt), s.pos.z);
+    this.target.set(
+      s.pos.x,
+      snap ? py : damp(this.target.y, py, 10, dt),
+      s.pos.z,
+    );
 
     const mx = this.mouseX * C.mouseSens;
     const my = this.mouseY * C.mouseSens;
     this.mouseX = 0;
     this.mouseY = 0;
     this.idle = mx || my ? 0 : this.idle + dt;
-    this.pitchOffset = clamp(this.pitchOffset + my, C.pitchMin - R.pitch, C.pitchMax - R.pitch);
+    this.pitchOffset = clamp(
+      this.pitchOffset + my,
+      C.pitchMin - R.pitch,
+      C.pitchMax - R.pitch,
+    );
     const settled = !orbit && this.idle > C.recenterDelay;
 
     const hs = Math.hypot(s.vel.x, s.vel.z);
     if (s.yaw !== null) {
       this.yaw = snap ? s.yaw : dampAngle(this.yaw, s.yaw, 3.2, dt);
-      this.offset = clamp(this.offset - orbit * C.orbitRate * dt - mx, -Math.PI, Math.PI);
+      this.offset = clamp(
+        this.offset - orbit * C.orbitRate * dt - mx,
+        -Math.PI,
+        Math.PI,
+      );
 
       // Recenter behind the vehicle after orbit and mouse input stop.
       if (settled) {
@@ -140,8 +183,10 @@ export class ChaseCamera {
 
       if (hs > 0.5 && this.idle > C.recenterDelay) {
         // Recenter only for forward movement; strafing and reversing should preserve the view direction.
-        const along = (s.vel.x * Math.sin(this.yaw) + s.vel.z * Math.cos(this.yaw)) / hs;
-        const rate = 2.4 * Math.max(0, along) * Math.min(1, hs / TUNING.player.walk);
+        const along =
+          (s.vel.x * Math.sin(this.yaw) + s.vel.z * Math.cos(this.yaw)) / hs;
+        const rate =
+          2.4 * Math.max(0, along) * Math.min(1, hs / TUNING.player.walk);
         this.yaw = dampAngle(this.yaw, Math.atan2(s.vel.x, s.vel.z), rate, dt);
       }
     }
@@ -159,7 +204,10 @@ export class ChaseCamera {
     w[1] = p[1] + Math.sin(pitch) * len;
     w[2] = p[2] - Math.cos(yaw) * flat;
     // Lower the desired camera position to fit beneath a ceiling before testing the boom for obstructions.
-    const ceil = Math.min(world.ceilingAt(p[0], p[2], 0.3, p[1]), world.ceilingAt(w[0], w[2], 0.3, p[1]));
+    const ceil = Math.min(
+      world.ceilingAt(p[0], p[2], 0.3, p[1]),
+      world.ceilingAt(w[0], w[2], 0.3, p[1]),
+    );
     if (w[1] > ceil - C.pad) {
       w[1] = Math.max(p[1], ceil - C.pad);
     }
@@ -174,7 +222,8 @@ export class ChaseCamera {
     const k = full > 1e-6 ? this.boom / full : 0;
     const cam = this.camera;
     cam.position.set(p[0] + dx * k, p[1] + dy * k, p[2] + dz * k);
-    const floor = world.groundAt(cam.position.x, cam.position.z, cam.position.y, 0) + 0.3;
+    const floor =
+      world.groundAt(cam.position.x, cam.position.z, cam.position.y, 0) + 0.3;
     if (cam.position.y < floor) {
       cam.position.y = floor;
     }
@@ -183,10 +232,15 @@ export class ChaseCamera {
 
     // Aim beyond the pivot to leave more of the road visible above the subject.
     const ahead = s.yaw !== null ? 3 : 1;
-    this.aim.set(p[0] + Math.sin(yaw) * ahead, p[1] + 0.4, p[2] + Math.cos(yaw) * ahead);
+    this.aim.set(
+      p[0] + Math.sin(yaw) * ahead,
+      p[1] + 0.4,
+      p[2] + Math.cos(yaw) * ahead,
+    );
     cam.lookAt(this.aim);
 
-    const speedK = s.yaw !== null ? clamp(hs / TUNING.truck.maxSpeed, 0, 1) : 0;
+    const speedK =
+      s.yaw !== null ? clamp(hs / TUNING.truck.maxSpeed, 0, 1) : 0;
     this.fovBoost = damp(this.fovBoost, speedK * C.fovBoost, 3, dt);
     cam.fov = this.verticalFov();
     cam.updateProjectionMatrix();
@@ -195,8 +249,9 @@ export class ChaseCamera {
   }
 
   /**
-   * Return the vertical field of view in degrees. Apply viewport scaling to the configured short-side field of view,
-   * cap its horizontal extent, then apply the speed-dependent increase.
+   * Return the vertical field of view in degrees. Apply viewport scaling to
+   * the configured short-side field of view, cap its horizontal extent, then
+   * apply the speed-dependent increase.
    */
   private verticalFov(): number {
     const C = TUNING.camera.chase;

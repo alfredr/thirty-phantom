@@ -8,27 +8,39 @@ import type { Vehicle } from '@/actors/vehicles/vehicle';
 export type CodyAbility = 'steal' | 'possess' | 'truck' | 'summon' | 'intake';
 
 /**
- * Daytime Cody can steal cars. Phantom Cody can possess cars, drive the monster truck, collect ghosts with its intake,
- * and summon skeletons. CodyRide.possessable restricts possession to cars inside the deck at night.
+ * Daytime Cody can steal cars. Phantom Cody can possess cars, drive the
+ * monster truck, collect ghosts with its intake, and summon skeletons.
+ * CodyRide.possessable restricts possession to cars inside the deck at night.
  */
 const ABILITIES: Readonly<Record<CodyForm, readonly CodyAbility[]>> = {
   day: ['steal'],
   night: ['possess', 'truck', 'summon', 'intake'],
 };
 
-/** How NPCs perceive Cody: his form on foot, or the phantom truck while he drives it. */
+/**
+ * How NPCs perceive Cody: his form on foot, or the phantom truck while he
+ * drives it.
+ */
 export type Presence = 'cody' | 'phantom' | 'phantomTruck';
 
 /** Forms of presence that frighten pedestrians and drivers. */
-export const FRIGHTENING: ReadonlySet<Presence> = new Set(['phantom', 'phantomTruck']);
+export const FRIGHTENING: ReadonlySet<Presence> = new Set([
+  'phantom',
+  'phantomTruck',
+]);
 
 /**
- * Determines Cody's abilities and how NPCs perceive him from his current form. The day/night cycle changes his form at
- * moonrise and sunrise. Scripts can hold his form and grant extra abilities. For example, the tutorial keeps him in his
- * daytime form while allowing him to possess cars and drive the monster truck.
+ * Determines Cody's abilities and how NPCs perceive him from his current form.
+ * The day/night cycle changes his form at moonrise and sunrise. Scripts can
+ * hold his form and grant extra abilities. For example, the tutorial keeps him
+ * in his daytime form while allowing him to possess cars and drive the monster
+ * truck.
  */
 export class CodyState {
-  /** Whether a script controls Cody's form instead of the normal day/night cycle. */
+  /**
+   * Whether a script controls Cody's form instead of the normal day/night
+   * cycle.
+   */
   holdForm = false;
   private readonly granted = new Set<CodyAbility>();
 
@@ -46,7 +58,10 @@ export class CodyState {
     return this.granted.has(a) || ABILITIES[this.player.form].includes(a);
   }
 
-  /** Hold Cody's current form and grant extra abilities until release() is called. */
+  /**
+   * Hold Cody's current form and grant extra abilities until release() is
+   * called.
+   */
   hold(...abilities: CodyAbility[]): void {
     this.holdForm = true;
 
@@ -63,23 +78,32 @@ export class CodyState {
     }
   }
 
-  /** Remove granted abilities and resume normal form changes at moonrise and sunrise. */
+  /**
+   * Remove granted abilities and resume normal form changes at moonrise and
+   * sunrise.
+   */
   release(): void {
     this.holdForm = false;
     this.granted.clear();
   }
 
   /**
-   * Return Cody's visible presence and position: his current form on foot, or the phantom truck while driving. Return
-   * null inside an ordinary car or during a vehicle transformation.
+   * Return Cody's visible presence and position: his current form on foot, or
+   * the phantom truck while driving. Return null inside an ordinary car or
+   * during a vehicle transformation.
    */
-  presence(driving: Vehicle | null, transforming: boolean): { kind: Presence; at: Vector3 } | null {
+  presence(
+    driving: Vehicle | null,
+    transforming: boolean,
+  ): { kind: Presence; at: Vector3 } | null {
     if (transforming) {
       return null;
     }
 
     if (driving) {
-      return driving.form === 'truck' ? { kind: 'phantomTruck', at: driving.pos } : null;
+      return driving.form === 'truck'
+        ? { kind: 'phantomTruck', at: driving.pos }
+        : null;
     }
 
     return { kind: this.phantom ? 'phantom' : 'cody', at: this.player.pos };

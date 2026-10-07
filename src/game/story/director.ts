@@ -11,9 +11,17 @@ export type Beat<C, Ev extends MindEvent<string>, Id extends string> = {
   readonly next: Next<C, Id>;
 };
 
-export type Beats<C, Ev extends MindEvent<string>, Id extends string> = Readonly<Record<Id, Beat<C, Ev, Id>>>;
+export type Beats<
+  C,
+  Ev extends MindEvent<string>,
+  Id extends string,
+> = Readonly<Record<Id, Beat<C, Ev, Id>>>;
 
-class Run<C, Ev extends MindEvent<string>, Id extends string> implements Scope<Id> {
+class Run<
+  C,
+  Ev extends MindEvent<string>,
+  Id extends string,
+> implements Scope<Id> {
   t = 0;
   idle = 0;
   stuck = false;
@@ -167,8 +175,13 @@ export class Director<C, Ev extends MindEvent<string>, Id extends string> {
       ? { at: 'over' }
       : {
           at: 'beat',
-          run: new Run(id, `${this.options.prefix}:${id}`, this, this.beats[id], this.c, () =>
-            this.while(() => undefined),
+          run: new Run(
+            id,
+            `${this.options.prefix}:${id}`,
+            this,
+            this.beats[id],
+            this.c,
+            () => this.while(() => undefined),
           ),
         };
   }

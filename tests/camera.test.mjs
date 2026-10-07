@@ -3,9 +3,14 @@ import { test } from 'node:test';
 
 import { loadModules } from './modules.mjs';
 
-const [{ CameraController }] = await loadModules('/src/game/camera-controller.ts');
+const [{ CameraController }] = await loadModules(
+  '/src/game/camera-controller.ts',
+);
 
-function setup(t, { saved = null, touch = false, override = null, blocked = false } = {}) {
+function setup(
+  t,
+  { saved = null, touch = false, override = null, blocked = false } = {},
+) {
   const original = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
   const writes = [];
   Object.defineProperty(globalThis, 'localStorage', {
@@ -36,12 +41,15 @@ function setup(t, { saved = null, touch = false, override = null, blocked = fals
   });
   const calls = [];
   const effects = Object.fromEntries(
-    ['snapBehind', 'releasePointer', 'setView', 'showMode', 'changed'].map((name) => [
-      name,
-      (...args) => calls.push([name, ...args]),
-    ]),
+    ['snapBehind', 'releasePointer', 'setView', 'showMode', 'changed'].map(
+      (name) => [name, (...args) => calls.push([name, ...args])],
+    ),
   );
-  return { camera: new CameraController(effects, touch, override), calls, writes };
+  return {
+    camera: new CameraController(effects, touch, override),
+    calls,
+    writes,
+  };
 }
 
 test('auto camera follows driving and cutscenes, with one first-use hint', (t) => {
@@ -58,7 +66,11 @@ test('auto camera follows driving and cutscenes, with one first-use hint', (t) =
     ['showMode', 'auto', true],
   ]);
   camera.sync(true, false, { yaw: 3 }, 1);
-  assert.equal(calls.length, 3, 'no repeated transition while the view stays the same');
+  assert.equal(
+    calls.length,
+    3,
+    'no repeated transition while the view stays the same',
+  );
   camera.sync(true, true, { yaw: 2 }, 1);
   assert.equal(camera.view, 'iso');
   assert.deepEqual(calls.slice(-2), [['releasePointer'], ['setView', 'iso']]);
@@ -73,7 +85,10 @@ test('auto camera follows driving and cutscenes, with one first-use hint', (t) =
 });
 
 test('URL overrides win over saved modes; only player cycling saves and emits', (t) => {
-  const { camera, calls, writes } = setup(t, { saved: 'iso', override: 'chase' });
+  const { camera, calls, writes } = setup(t, {
+    saved: 'iso',
+    override: 'chase',
+  });
   assert.equal(camera.mode, 'chase');
   camera.sync(true, false, null, 1.5);
   assert.deepEqual(calls, [

@@ -8,16 +8,20 @@ import { readdirSync } from 'node:fs';
 
 import { chromium } from 'playwright-core';
 
-const BASE = process.argv[2]?.startsWith('http') ? process.argv[2] : 'http://localhost:5173/';
+const BASE = process.argv[2]?.startsWith('http')
+  ? process.argv[2]
+  : 'http://localhost:5173/';
 const only = process.argv.slice(2).filter((a) => !a.startsWith('http'));
-const CHROME = process.env.CHROME ?? '/Applications/Chromium.app/Contents/MacOS/Chromium';
+const CHROME =
+  process.env.CHROME ?? '/Applications/Chromium.app/Contents/MacOS/Chromium';
 const LIVE = new URL('../tests/live/', import.meta.url);
 const JOBS = Math.max(1, Number(process.env.JOBS ?? 3));
 
 /**
- * Discover exported scenario functions in filename order. The optional `steps` export supplies browser helpers under
- * window.__sim; `tutorial = true` enables the tutorial. A `cases` table defines parameterized scenarios as { run,
- * inputs }, with each input run on a separate page.
+ * Discover exported scenario functions in filename order. The optional `steps`
+ * export supplies browser helpers under window.__sim; `tutorial = true`
+ * enables the tutorial. A `cases` table defines parameterized scenarios as {
+ * run, inputs }, with each input run on a separate page.
  */
 const cases = [];
 for (const file of readdirSync(LIVE)
@@ -34,7 +38,11 @@ for (const file of readdirSync(LIVE)
     const id = `${set}/${name}`;
     const wanted =
       !only.length ||
-      only.some((filter) => [id, name].some((path) => path === filter || path.startsWith(`${filter}/`)));
+      only.some((filter) =>
+        [id, name].some(
+          (path) => path === filter || path.startsWith(`${filter}/`),
+        ),
+      );
     if (wanted) {
       cases.push({ id, run, input, steps, tutorial });
     }
@@ -60,14 +68,23 @@ if (!cases.length) {
 
 const browser = await chromium.launch({
   executablePath: CHROME,
-  args: ['--headless=new', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
+  args: [
+    '--headless=new',
+    '--use-angle=swiftshader',
+    '--enable-unsafe-swiftshader',
+  ],
 });
 let failed = 0;
 const queue = [...cases];
-/** Run one scenario in an isolated page and report its result, uncaught browser errors, and excessive movement. */
+/**
+ * Run one scenario in an isolated page and report its result, uncaught browser
+ * errors, and excessive movement.
+ */
 async function runCase({ id, run, input, steps, tutorial }) {
   const started = Date.now();
-  const page = await browser.newPage({ viewport: { width: 640, height: 400 } });
+  const page = await browser.newPage({
+    viewport: { width: 640, height: 400 },
+  });
   page.setDefaultTimeout(600000);
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -76,8 +93,12 @@ async function runCase({ id, run, input, steps, tutorial }) {
     await page.addInitScript(() => localStorage.setItem('30pc.tutorial', '1'));
   }
 
-  await page.goto(`${BASE}?manual=1&render=0&q=low&curve=0&sound=0&fresh`, { waitUntil: 'load' });
-  await page.waitForFunction(() => window.__game !== undefined, null, { timeout: 600000 });
+  await page.goto(`${BASE}?manual=1&render=0&q=low&curve=0&sound=0&fresh`, {
+    waitUntil: 'load',
+  });
+  await page.waitForFunction(() => window.__game !== undefined, null, {
+    timeout: 600000,
+  });
   await page.evaluate(() => {
     const g = window.__game;
     g.debug.render(false);
@@ -89,8 +110,8 @@ async function runCase({ id, run, input, steps, tutorial }) {
         }
       },
       /**
-       * Advance frames until the condition succeeds or the time limit expires. Track the largest movement in one frame
-       * among the watched bodies.
+       * Advance frames until the condition succeeds or the time limit expires.
+       * Track the largest movement in one frame among the watched bodies.
        */
       until: (done, seconds, watch) => {
         let maxJump = 0;
@@ -103,24 +124,37 @@ async function runCase({ id, run, input, steps, tutorial }) {
           });
 
           if (done()) {
-            return { ok: true, seconds: Math.round(i * DT * 10) / 10, maxJump: Math.round(maxJump * 100) / 100 };
+            return {
+              ok: true,
+              seconds: Math.round(i * DT * 10) / 10,
+              maxJump: Math.round(maxJump * 100) / 100,
+            };
           }
         }
 
-        return { ok: false, seconds, maxJump: Math.round(maxJump * 100) / 100 };
+        return {
+          ok: false,
+          seconds,
+          maxJump: Math.round(maxJump * 100) / 100,
+        };
       },
     };
   });
-  const helpers = Object.entries(steps).map(([name, fn]) => `${name}: ${fn.toString()}`);
+  const helpers = Object.entries(steps).map(
+    ([name, fn]) => `${name}: ${fn.toString()}`,
+  );
   if (helpers.length) {
-    await page.evaluate(`Object.assign(window.__sim, { ${helpers.join(', ')} })`);
+    await page.evaluate(
+      `Object.assign(window.__sim, { ${helpers.join(', ')} })`,
+    );
   }
 
   // Report scenario exceptions as failures so the remaining cases can run.
   const booted = Date.now();
-  const result = await page
-    .evaluate(run, input)
-    .catch((e) => ({ ok: false, threw: String(e.message ?? e).split('\n')[0] }));
+  const result = await page.evaluate(run, input).catch((e) => ({
+    ok: false,
+    threw: String(e.message ?? e).split('\n')[0],
+  }));
   // Treat movement above 3 m per frame (90 m/s at this timestep) as an unexpected position jump.
   const jumped = (result.maxJump ?? 0) > 3;
   const ok = result.ok && !jumped && errors.length === 0;

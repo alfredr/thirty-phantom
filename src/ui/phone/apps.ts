@@ -49,7 +49,10 @@ export class Tasks implements PhoneApp {
           : '';
       },
     });
-    this.views.add({ read: () => list.aim(), draw: (a) => (aim.innerHTML = `<h4>THE BIG ONE</h4><p>${a}</p>`) });
+    this.views.add({
+      read: () => list.aim(),
+      draw: (a) => (aim.innerHTML = `<h4>THE BIG ONE</h4><p>${a}</p>`),
+    });
   }
 
   update(): void {
@@ -57,7 +60,10 @@ export class Tasks implements PhoneApp {
   }
 }
 
-/** Occupancy, escape, and ledger counters plus phantom location labels consumed by the Phantoms app. */
+/**
+ * Occupancy, escape, and ledger counters plus phantom location labels consumed
+ * by the Phantoms app.
+ */
 export interface PhantomReport {
   onBoard: number;
   spots: number;
@@ -67,7 +73,10 @@ export interface PhantomReport {
   where: readonly string[];
 }
 
-/** Display phantom occupancy, escape totals, ledger counts, and phantom locations. */
+/**
+ * Display phantom occupancy, escape totals, ledger counts, and phantom
+ * locations.
+ */
 export class Phantoms implements PhoneApp {
   readonly id = 'phantoms';
   readonly name = 'PHANTOMS';
@@ -102,7 +111,10 @@ export class Phantoms implements PhoneApp {
   }
 }
 
-/** Provide a container for the HUD’s phone map, available while walking or driving. */
+/**
+ * Provide a container for the HUD’s phone map, available while walking or
+ * driving.
+ */
 export class MapApp implements PhoneApp {
   readonly id = 'map';
   readonly name = 'MAP';
@@ -136,19 +148,29 @@ export class Photos implements PhoneApp {
 
     const grid = el('div', 'phone-photos', root);
     for (const p of PHOTOS) {
-      el('figure', '', grid, `<img src="${p.src}" alt=""><figcaption>${p.caption}</figcaption>`);
+      el(
+        'figure',
+        '',
+        grid,
+        `<img src="${p.src}" alt=""><figcaption>${p.caption}</figcaption>`,
+      );
     }
   }
 }
 
-/** Rebuild the control reference when selected so labels match the current input device. */
+/**
+ * Rebuild the control reference when selected so labels match the current
+ * input device.
+ */
 export class Help implements PhoneApp {
   readonly id = 'help';
   readonly name = 'HELP';
   readonly icon = ICONS.help;
   private root: HTMLElement | null = null;
 
-  constructor(private readonly rows: () => readonly [keys: string, what: string][]) {}
+  constructor(
+    private readonly rows: () => readonly [keys: string, what: string][],
+  ) {}
 
   mount(root: HTMLElement): void {
     this.root = root;
@@ -160,7 +182,10 @@ export class Help implements PhoneApp {
     }
 
     this.root.innerHTML = `<div class="phone-keys">${this.rows()
-      .map(([keys, what]) => `<p><span class="keys">${keys}</span><span class="what">${what}</span></p>`)
+      .map(
+        ([keys, what]) =>
+          `<p><span class="keys">${keys}</span><span class="what">${what}</span></p>`,
+      )
       .join('')}</div>`;
   }
 }

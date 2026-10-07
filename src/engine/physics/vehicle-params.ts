@@ -1,4 +1,7 @@
-/** Shared handling and dimensions for vehicle physics, route planning, and predictive simulation. */
+/**
+ * Shared handling and dimensions for vehicle physics, route planning, and
+ * predictive simulation.
+ */
 export interface VehicleParams {
   maxSpeed: number;
   reverseSpeed: number;
@@ -17,15 +20,23 @@ export interface VehicleParams {
   stepUp: number;
   /** Vertical velocity added by a hop, in m/s. */
   hop: number;
-  /** Minimum speed in m/s for breaking parapets. Infinity disables this capability. */
+  /**
+   * Minimum speed in m/s for breaking parapets. Infinity disables this
+   * capability.
+   */
   smashSpeed: number;
-  /** Two-wheelers lean into turns, up to this angle (radians); cars just roll a little on their springs. */
+  /**
+   * Two-wheelers lean into turns, up to this angle (radians); cars just roll a
+   * little on their springs.
+   */
   lean?: number;
 }
 
 /**
- * Where a vehicle's collision circles sit along its length (tail, middle, nose), each of `params.radius`. The physics
- * uses them, and so does anything checking whether a simulated pose fits (autopilot rollouts, drive searches).
+ * Where a vehicle's collision circles sit along its length (tail, middle,
+ * nose), each of `params.radius`. The physics uses them, and so does anything
+ * checking whether a simulated pose fits (autopilot rollouts, drive
+ * searches).
  */
 export function bodyOffsets(params: VehicleParams): number[] {
   const half = bodyHalf(params);
@@ -33,7 +44,9 @@ export function bodyOffsets(params: VehicleParams): number[] {
 }
 
 /** How far the nose and tail collision circles sit from the middle one. */
-export function bodyHalf(params: Pick<VehicleParams, 'length' | 'radius'>): number {
+export function bodyHalf(
+  params: Pick<VehicleParams, 'length' | 'radius'>,
+): number {
   return params.length / 2 - params.radius;
 }
 
@@ -41,8 +54,8 @@ export function bodyHalf(params: Pick<VehicleParams, 'length' | 'radius'>): numb
 const STEER_FADE = 0.45;
 
 /**
- * Share of full steering lock available at `speed` (m/s). The physics uses it, and so does anything simulating a
- * vehicle.
+ * Share of full steering lock available at `speed` (m/s). The physics uses it,
+ * and so does anything simulating a vehicle.
  */
 export function steerScale(params: VehicleParams, speed: number): number {
   return 1 - STEER_FADE * Math.min(1, Math.abs(speed) / params.maxSpeed);

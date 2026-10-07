@@ -6,11 +6,23 @@ import type { Claims } from '@/engine/sim/claims';
 import type { ClaimKind } from '@/game/rules/claim-kinds';
 import type { NavGrid, NavPlanner } from '@/world/nav-grid';
 
-import { SKELETON_BREED, SKELETON_SUMMON, type SkeletonBreed, type SummonSpec } from './breeds';
+import {
+  SKELETON_BREED,
+  SKELETON_SUMMON,
+  type SkeletonBreed,
+  type SummonSpec,
+} from './breeds';
 import { pose } from './presentation';
-import { Skeleton, type SkeletonCrusher, type SkeletonWorld } from './skeleton';
+import {
+  Skeleton,
+  type SkeletonCrusher,
+  type SkeletonWorld,
+} from './skeleton';
 
-/** Summon and remove pack members, enforce group spacing, and report lifecycle effects. */
+/**
+ * Summon and remove pack members, enforce group spacing, and report lifecycle
+ * effects.
+ */
 export class Skeletons {
   readonly root = new Group();
   /** Current skeleton position references, refreshed every update. */
@@ -50,8 +62,8 @@ export class Skeletons {
   }
 
   /**
-   * Attempt to spawn skeletons near `at` and return the count. Return zero during cooldown, at capacity, or when no
-   * valid positions are found.
+   * Attempt to spawn skeletons near `at` and return the count. Return zero
+   * during cooldown, at capacity, or when no valid positions are found.
    */
   summon(at: Vector3, yaw: number): number {
     if (this.cooldown > 0 || this.list.length >= this.summoning.limit) {
@@ -60,15 +72,30 @@ export class Skeletons {
 
     this.cooldown = this.summoning.cooldown;
     let n = 0;
-    for (let k = 0; k < this.summoning.count && this.list.length < this.summoning.limit; k++) {
+    for (
+      let k = 0;
+      k < this.summoning.count && this.list.length < this.summoning.limit;
+      k++
+    ) {
       // Try positions ahead of the summoner before trying behind.
       for (let tries = 0; tries < 6; tries++) {
         const a =
-          yaw + (k - (this.summoning.count - 1) / 2) * 0.9 + (Math.random() - 0.5) * 0.6 + (tries > 2 ? Math.PI : 0);
-        const r = this.summoning.radius[0] + Math.random() * (this.summoning.radius[1] - this.summoning.radius[0]);
+          yaw +
+          (k - (this.summoning.count - 1) / 2) * 0.9 +
+          (Math.random() - 0.5) * 0.6 +
+          (tries > 2 ? Math.PI : 0);
+        const r =
+          this.summoning.radius[0] +
+          Math.random() *
+            (this.summoning.radius[1] - this.summoning.radius[0]);
         const x = at.x + Math.sin(a) * r;
         const z = at.z + Math.cos(a) * r;
-        const y = this.world.nav.standable(x, at.y, z, this.breed.movement.nav);
+        const y = this.world.nav.standable(
+          x,
+          at.y,
+          z,
+          this.breed.movement.nav,
+        );
         if (y === null || this.crowded(x, y, z)) {
           continue;
         }
@@ -90,10 +117,15 @@ export class Skeletons {
   }
 
   /**
-   * @param master Following target when no prey is available; null disables following.
+   * @param master Following target when no prey is available; null disables
+   *   following.
    * @param cars Vehicles checked for damaging contact.
    */
-  update(dt: number, master: Vector3 | null, cars: readonly SkeletonCrusher[]): void {
+  update(
+    dt: number,
+    master: Vector3 | null,
+    cars: readonly SkeletonCrusher[],
+  ): void {
     this.cooldown = Math.max(0, this.cooldown - dt);
     this.threats.length = 0;
 
@@ -143,15 +175,19 @@ export class Skeletons {
   }
 
   /**
-   * Write a distance-weighted separation vector into `out` and return its magnitude. Use reduced spacing for skeletons
-   * sharing a quarry.
+   * Write a distance-weighted separation vector into `out` and return its
+   * magnitude. Use reduced spacing for skeletons sharing a quarry.
    */
   private spacing(s: Skeleton, out: Vector3): number {
     let x = 0;
     let z = 0;
     for (let j = 0; j < this.list.length; j++) {
       const o = this.list[j];
-      if (!o || o === s || Math.abs(o.pos.y - s.pos.y) > this.breed.spacing.level) {
+      if (
+        !o ||
+        o === s ||
+        Math.abs(o.pos.y - s.pos.y) > this.breed.spacing.level
+      ) {
         continue;
       }
 
@@ -182,8 +218,8 @@ export class Skeletons {
   }
 
   /**
-   * Separate overlapping pairs while respecting walls. Rising skeletons stay fixed; pairs that are both rising are
-   * skipped.
+   * Separate overlapping pairs while respecting walls. Rising skeletons stay
+   * fixed; pairs that are both rising are skipped.
    */
   private unstack(): void {
     const n = this.list.length;

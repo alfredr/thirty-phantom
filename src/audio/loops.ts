@@ -10,26 +10,43 @@ import type { Loop, Mixer } from './mixer';
 
 const A = TUNING.audio;
 const E = A.engines;
-/** Start and stop thresholds for gate motor audio, measured in opening fraction per second. */
+/**
+ * Start and stop thresholds for gate motor audio, measured in opening fraction
+ * per second.
+ */
 const ARM = { moving: 0.15, still: 0.05 };
-/** Distance multiplier favoring engines already playing, to avoid switching between similarly distant cars. */
+/**
+ * Distance multiplier favoring engines already playing, to avoid switching
+ * between similarly distant cars.
+ */
 const STAY = 0.7;
 /** Minimum and maximum delay between nighttime moans, in seconds. */
 const MOANS: readonly [number, number] = [20, 45];
 const STALL = { load: 0.15, miss: 0.3 };
 
-/** Return the night ambience weight, from 0 to 1, with smooth transitions around sunrise and nightfall. */
+/**
+ * Return the night ambience weight, from 0 to 1, with smooth transitions
+ * around sunrise and nightfall.
+ */
 export function nightness(hours: number): number {
   const { sunrise, nightfall } = TUNING.clock;
   const w = A.dusk;
-  return 1 - smoothstep(sunrise - w, sunrise + w, hours) * (1 - smoothstep(nightfall - w, nightfall + w, hours));
+  return (
+    1 -
+    smoothstep(sunrise - w, sunrise + w, hours) *
+      (1 - smoothstep(nightfall - w, nightfall + w, hours))
+  );
 }
 
 /**
- * Start a requested loop or keep the existing one. Stop and discard it when no longer wanted. A failed start can be
- * retried on the next call.
+ * Start a requested loop or keep the existing one. Stop and discard it when no
+ * longer wanted. A failed start can be retried on the next call.
  */
-function keep(loop: Loop | null, want: boolean, start: () => Loop | null): Loop | null {
+function keep(
+  loop: Loop | null,
+  want: boolean,
+  start: () => Loop | null,
+): Loop | null {
   if (want) {
     return loop ?? start();
   }
@@ -43,12 +60,18 @@ interface Running {
   sound: SoundOf<'engine'>;
   /** Simulated RPM, gear, and load for this engine. */
   state: EngineState;
-  /** Previous speed and smoothed acceleration, used to estimate traffic throttle. */
+  /**
+   * Previous speed and smoothed acceleration, used to estimate traffic
+   * throttle.
+   */
   speed: number;
   accel: number;
 }
 
-/** Manage engine audio for the player vehicle and the nearest running traffic vehicles. */
+/**
+ * Manage engine audio for the player vehicle and the nearest running traffic
+ * vehicles.
+ */
 class Engines {
   private readonly on = new Map<Vehicle, Running>();
   private readonly near: Vehicle[] = [];
@@ -57,14 +80,20 @@ class Engines {
   constructor(private readonly mixer: Mixer) {}
 
   /**
-   * Update audible engines. The player vehicle uses the supplied throttle and boost; traffic throttle is estimated from
-   * acceleration.
+   * Update audible engines. The player vehicle uses the supplied throttle and
+   * boost; traffic throttle is estimated from acceleration.
    */
   hold(v: Vehicle, seconds: number): void {
     this.held.set(v, seconds);
   }
 
-  update(dt: number, cars: readonly Vehicle[], ride: Vehicle | null, throttle: number, boost: boolean): void {
+  update(
+    dt: number,
+    cars: readonly Vehicle[],
+    ride: Vehicle | null,
+    throttle: number,
+    boost: boolean,
+  ): void {
     for (const [v, left] of this.held) {
       if (left - dt <= 0) {
         this.held.delete(v);
@@ -87,13 +116,17 @@ class Engines {
       }
     }
 
-    const rank = (v: Vehicle): number => v.pos.distanceTo(ear) * (this.on.has(v) ? STAY : 1);
+    const rank = (v: Vehicle): number =>
+      v.pos.distanceTo(ear) * (this.on.has(v) ? STAY : 1);
     near.sort((a, b) => rank(a) - rank(b));
     near.length = Math.min(near.length, E.traffic);
 
     // Release unused engines before starting new ones so they do not consume the cue limit.
     for (const [v, r] of this.on) {
-      if ((v === ride && v.engineOn && !this.held.has(v)) || near.includes(v)) {
+      if (
+        (v === ride && v.engineOn && !this.held.has(v)) ||
+        near.includes(v)
+      ) {
         continue;
       }
 
@@ -110,7 +143,13 @@ class Engines {
     }
   }
 
-  private run(v: Vehicle, dt: number, throttle: number, boost: boolean, mine: boolean): void {
+  private run(
+    v: Vehicle,
+    dt: number,
+    throttle: number,
+    boost: boolean,
+    mine: boolean,
+  ): void {
     const { engine: sound, gears } = v.breed;
     let r = this.on.get(v);
     // Replace the engine sound when the vehicle changes form.
@@ -121,22 +160,49 @@ class Engines {
     }
 
     if (!r) {
-      const loop = this.mixer.loop('engine', sound, v.pos, 1, mine ? 'Cody' : `car ${v.id}`);
+      const loop = this.mixer.loop(
+        'engine',
+        sound,
+        v.pos,
+        1,
+        mine ? 'Cody' : `car ${v.id}`,
+      );
       if (!loop) {
         return;
       }
 
-      r = { loop, sound, state: new EngineState(gears), speed: Math.abs(v.speed), accel: 0 };
+      r = {
+        loop,
+        sound,
+        state: new EngineState(gears),
+        speed: Math.abs(v.speed),
+        accel: 0,
+      };
       this.on.set(v, r);
     }
 
     const speed = Math.abs(v.speed);
     // Estimate traffic throttle from acceleration because AI vehicles expose no pedal input.
-    r.accel += ((speed - r.speed) / Math.max(dt, 1e-3) - r.accel) * (1 - Math.exp(-dt / 0.2));
+    r.accel +=
+      ((speed - r.speed) / Math.max(dt, 1e-3) - r.accel) *
+      (1 - Math.exp(-dt / 0.2));
     r.speed = speed;
     const stalled = v.ignition.stalled;
-    const pedal = stalled ? 0 : mine ? (boost ? 1 : throttle) : r.accel > 0.3 ? clamp(r.accel / 4, 0.25, 1) : 0;
-    r.state.update(dt, speed / v.params.maxSpeed, pedal, !v.grounded || v.crashing);
+    const pedal = stalled
+      ? 0
+      : mine
+        ? boost
+          ? 1
+          : throttle
+        : r.accel > 0.3
+          ? clamp(r.accel / 4, 0.25, 1)
+          : 0;
+    r.state.update(
+      dt,
+      speed / v.params.maxSpeed,
+      pedal,
+      !v.grounded || v.crashing,
+    );
     r.loop.set(
       stalled
         ? { rpm: r.state.rpm, load: STALL.load, miss: STALL.miss }
@@ -145,11 +211,17 @@ class Engines {
   }
 }
 
-/** Manage continuous vehicle, fire, gate, boost, phone, and ambient sounds from the current game state. */
+/**
+ * Manage continuous vehicle, fire, gate, boost, phone, and ambient sounds from
+ * the current game state.
+ */
 export class Loops {
   private readonly engines: Engines;
   private readonly fires = new Map<Npc, Loop>();
-  private readonly arms = new Map<GateRuntime, { open: number; loop: Loop | null }>();
+  private readonly arms = new Map<
+    GateRuntime,
+    { open: number; loop: Loop | null }
+  >();
   private boost: Loop | null = null;
   private call: Loop | null = null;
   private day: Loop | null = null;
@@ -185,12 +257,18 @@ export class Loops {
       ride ? m.loop('boost', 'boost-roar', ride.pos) : null,
     );
     this.boost?.set({ roar: 1 });
-    this.call = keep(this.call, this.ringing, () => m.loop('call', 'phone-ring', null));
+    this.call = keep(this.call, this.ringing, () =>
+      m.loop('call', 'phone-ring', null),
+    );
     this.updateFires(s.npcs);
     this.updateArms(dt, s.gates);
     const n = nightness(s.hours);
-    this.day = keep(this.day, true, () => m.loop('ambience', 'day-town', null, 1 - n));
-    this.night = keep(this.night, true, () => m.loop('ambience', 'night-wind', null, n));
+    this.day = keep(this.day, true, () =>
+      m.loop('ambience', 'day-town', null, 1 - n),
+    );
+    this.night = keep(this.night, true, () =>
+      m.loop('ambience', 'night-wind', null, n),
+    );
 
     if (this.day) {
       this.day.gain = 1 - n;
@@ -207,8 +285,9 @@ export class Loops {
   }
 
   /**
-   * Start nearby fire loops and adjust their intensity as tires burn. Use separate entry and exit distances to avoid
-   * restarting at the range boundary.
+   * Start nearby fire loops and adjust their intensity as tires burn. Use
+   * separate entry and exit distances to avoid restarting at the range
+   * boundary.
    */
   private updateFires(npcs: readonly Npc[]): void {
     const N = A.nearby;
@@ -233,7 +312,10 @@ export class Loops {
     }
   }
 
-  /** Play motor audio for nearby moving gate arms, with separate start and stop thresholds. */
+  /**
+   * Play motor audio for nearby moving gate arms, with separate start and stop
+   * thresholds.
+   */
   private updateArms(dt: number, gates: readonly GateRuntime[]): void {
     for (const g of gates) {
       let a = this.arms.get(g);
@@ -244,8 +326,17 @@ export class Loops {
       const speed = Math.abs(g.open - a.open) / Math.max(dt, 1e-3);
       a.open = g.open;
       const near = g.center.distanceTo(this.mixer.ear) < A.nearby.reach;
-      a.loop = keep(a.loop, near && speed > (a.loop ? ARM.still : ARM.moving), () =>
-        this.mixer.loop('gate', 'gate-motor', g.center, 1, `${g.def.kind} gate`),
+      a.loop = keep(
+        a.loop,
+        near && speed > (a.loop ? ARM.still : ARM.moving),
+        () =>
+          this.mixer.loop(
+            'gate',
+            'gate-motor',
+            g.center,
+            1,
+            `${g.def.kind} gate`,
+          ),
       );
       a.loop?.set({ speed: clamp(speed / 2, 0, 1) });
     }

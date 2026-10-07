@@ -5,9 +5,11 @@
 export const tutorial = true;
 
 /** Read the goal line beneath the clock. */
-const goal = () => document.querySelector('.burner-goal.on')?.textContent?.trim() ?? '';
+const goal = () =>
+  document.querySelector('.burner-goal.on')?.textContent?.trim() ?? '';
 
-const how = () => document.querySelector('.burner-how.on')?.textContent?.trim() ?? '';
+const how = () =>
+  document.querySelector('.burner-how.on')?.textContent?.trim() ?? '';
 
 /** Return the visible objective labels in sorted order. */
 const marks = () =>
@@ -21,9 +23,14 @@ const line = () =>
     ? (document.querySelector('.dialogue-text')?.textContent?.trim() ?? '')
     : '';
 
-const popup = () => document.querySelector('.text-pop.on .text-pop-msg')?.textContent?.trim() ?? '';
+const popup = () =>
+  document.querySelector('.text-pop.on .text-pop-msg')?.textContent?.trim() ??
+  '';
 
-const thread = () => [...document.querySelectorAll('.burner-msg')].map((m) => m.firstChild?.textContent?.trim() ?? '');
+const thread = () =>
+  [...document.querySelectorAll('.burner-msg')].map(
+    (m) => m.firstChild?.textContent?.trim() ?? '',
+  );
 
 const record = () => {
   const g = window.__game;
@@ -60,11 +67,14 @@ const wantsF = () =>
   !!document.querySelector('.signpost.on') ||
   !!document.querySelector('.text-pop.on.key') ||
   (window.__game.phone.calling &&
-    [...document.querySelectorAll('.toast')].some((t) => /ANSWER/.test(t.textContent ?? '')));
+    [...document.querySelectorAll('.toast')].some((t) =>
+      /ANSWER/.test(t.textContent ?? ''),
+    ));
 
 /**
- * Advance at 30 FPS until done() succeeds or the time limit expires, pressing F every 0.2 s when it would advance
- * dialogue, signs, info texts or the first call. Pass `{ press: false }` to leave everything unanswered.
+ * Advance at 30 FPS until done() succeeds or the time limit expires, pressing
+ * F every 0.2 s when it would advance dialogue, signs, info texts or the first
+ * call. Pass `{ press: false }` to leave everything unanswered.
  */
 const play = (done, seconds, opts = {}) => {
   const g = window.__game;
@@ -104,7 +114,14 @@ const toDoor = (v) => {
   const g = window.__game;
   const P = g.player.pos.constructor;
   const side = v.params.radius + 0.8;
-  g.player.place(new P(v.pos.x + Math.cos(v.yaw) * side, v.pos.y, v.pos.z - Math.sin(v.yaw) * side), v.yaw);
+  g.player.place(
+    new P(
+      v.pos.x + Math.cos(v.yaw) * side,
+      v.pos.y,
+      v.pos.z - Math.sin(v.yaw) * side,
+    ),
+    v.yaw,
+  );
 };
 
 const inside = (p, v) => {
@@ -112,7 +129,11 @@ const inside = (p, v) => {
   const dz = p.z - v.pos.z;
   const along = dx * Math.sin(v.yaw) + dz * Math.cos(v.yaw);
   const across = dx * Math.cos(v.yaw) - dz * Math.sin(v.yaw);
-  return Math.abs(along) < v.params.length / 2 && Math.abs(across) < v.params.radius && Math.abs(p.y - v.pos.y) < 2;
+  return (
+    Math.abs(along) < v.params.length / 2 &&
+    Math.abs(across) < v.params.radius &&
+    Math.abs(p.y - v.pos.y) < 2
+  );
 };
 
 const toRandy = () => {
@@ -120,7 +141,11 @@ const toRandy = () => {
   const r = g.npcs.find('randy');
   const P = g.player.pos.constructor;
   g.player.place(
-    new P(r.pos.x + Math.sin(r.homeYaw) * 1.6, r.pos.y, r.pos.z + Math.cos(r.homeYaw) * 1.6),
+    new P(
+      r.pos.x + Math.sin(r.homeYaw) * 1.6,
+      r.pos.y,
+      r.pos.z + Math.cos(r.homeYaw) * 1.6,
+    ),
     r.homeYaw + Math.PI,
   );
 };
@@ -161,7 +186,8 @@ const pilot =
   (k, throttle = 1) =>
   (v) => {
     const right = { x: -k.launch.z, z: k.launch.x };
-    const side = (v.pos.x - k.start.x) * right.x + (v.pos.z - k.start.z) * right.z;
+    const side =
+      (v.pos.x - k.start.x) * right.x + (v.pos.z - k.start.z) * right.z;
     let heading = v.yaw - k.yaw;
     heading = Math.atan2(Math.sin(heading), Math.cos(heading));
     return {
@@ -172,11 +198,15 @@ const pilot =
     };
   };
 
-const toasted = (re) => [...document.querySelectorAll('.toast')].some((t) => re.test(t.textContent ?? ''));
+const toasted = (re) =>
+  [...document.querySelectorAll('.toast')].some((t) =>
+    re.test(t.textContent ?? ''),
+  );
 
 /**
- * Play the tutorial like a quick, competent player until the beat `target` begins, or to the end. Each milestone runs
- * its entry in `checks` with the context, records the result, and stops at the first failure.
+ * Play the tutorial like a quick, competent player until the beat `target`
+ * begins, or to the end. Each milestone runs its entry in `checks` with the
+ * context, records the result, and stops at the first failure.
  */
 const reach = (target, checks = {}) => {
   const g = window.__game;
@@ -193,8 +223,19 @@ const reach = (target, checks = {}) => {
     const ok = !!fn(ctx);
     const flags = ok
       ? {}
-      : Object.fromEntries(Object.entries(ctx).filter(([, v]) => typeof v === 'boolean' || typeof v === 'string'));
-    ctx.log.push({ name, ok, step: sim.at(), goal: sim.goal(), marks: sim.marks(), ...flags });
+      : Object.fromEntries(
+          Object.entries(ctx).filter(
+            ([, v]) => typeof v === 'boolean' || typeof v === 'string',
+          ),
+        );
+    ctx.log.push({
+      name,
+      ok,
+      step: sim.at(),
+      goal: sim.goal(),
+      marks: sim.marks(),
+      ...flags,
+    });
 
     if (!ok) {
       ctx.failed = name;
@@ -252,7 +293,9 @@ const reach = (target, checks = {}) => {
       return ctx;
     }
 
-    ctx.carried = g.inventory.count('badge') === 1 && pickup.ignition.heldBy(g.inventory.keys);
+    ctx.carried =
+      g.inventory.count('badge') === 1 &&
+      pickup.ignition.heldBy(g.inventory.keys);
     sim.play(() => sim.at() === 'handBadge', 30, { each: watch });
 
     if (here()) {
@@ -266,7 +309,10 @@ const reach = (target, checks = {}) => {
         watch();
         const badge = randy.prop('badge');
         const inPalm = badge.parent === g.player.palm && badge.visible;
-        ctx.dropped ||= inPalm && pickup.ignition.heldBy('ground') && g.inventory.count('badge') === 0;
+        ctx.dropped ||=
+          inPalm &&
+          pickup.ignition.heldBy('ground') &&
+          g.inventory.count('badge') === 0;
         ctx.handed ||= ctx.dropped && randy.reaching > 0;
       },
     });
@@ -275,13 +321,19 @@ const reach = (target, checks = {}) => {
       return ctx;
     }
 
-    ctx.taken = randy.prop('badge').parent !== g.player.palm && randy.prop('badge').visible;
+    ctx.taken =
+      randy.prop('badge').parent !== g.player.palm &&
+      randy.prop('badge').visible;
     ctx.thrown = false;
     sim.play(() => sim.at() === 'keys', 30, {
       each: () => {
         watch();
         const badge = randy.prop('badge');
-        ctx.thrown ||= /AH MAN/.test(sim.line()) && randy.throwing.active && badge.parent === g.scene && badge.visible;
+        ctx.thrown ||=
+          /AH MAN/.test(sim.line()) &&
+          randy.throwing.active &&
+          badge.parent === g.scene &&
+          badge.visible;
       },
     });
 
@@ -313,7 +365,9 @@ const reach = (target, checks = {}) => {
     sim.play(() => sim.at() === 'allGood', 30, {
       each: () => {
         watch();
-        ctx.poured ||= randy.pouring > 0 && randy.pos.distanceTo(pickup.pos) < pickup.params.length;
+        ctx.poured ||=
+          randy.pouring > 0 &&
+          randy.pos.distanceTo(pickup.pos) < pickup.params.length;
       },
     });
 
@@ -355,11 +409,15 @@ const reach = (target, checks = {}) => {
     };
 
     ctx.discovering =
-      sim.goal() === 'GET IN YOUR PICKUP' && sim.marks() === 'YOUR PICKUP' && g.vehicleAccess === 'none';
+      sim.goal() === 'GET IN YOUR PICKUP' &&
+      sim.marks() === 'YOUR PICKUP' &&
+      g.vehicleAccess === 'none';
     sim.toDoor(pickup);
     sim.play(() => false, 0.5, { each: watchRandy });
     g.input.press('KeyF');
-    ctx.refused = sim.play(() => g.bubble?.line === 'NO KEYS.', 2, { each: watchRandy }) && pickup.role !== 'player';
+    ctx.refused =
+      sim.play(() => g.bubble?.line === 'NO KEYS.', 2, { each: watchRandy }) &&
+      pickup.role !== 'player';
     sim.play(() => sim.at() === 'wonder', 15, { each: watchRandy });
     ctx.gone = randy.pos.y < 5;
 
@@ -368,8 +426,11 @@ const reach = (target, checks = {}) => {
     }
 
     ctx.solo =
-      sim.play(() => g.bubble?.line === 'WHERE DID HE GO?' && g.bubble?.who === 'CODY', 3) &&
-      !document.body.classList.contains('dialogue-open');
+      sim.play(
+        () =>
+          g.bubble?.line === 'WHERE DID HE GO?' && g.bubble?.who === 'CODY',
+        3,
+      ) && !document.body.classList.contains('dialogue-open');
     ctx.solo &&=
       sim.play(() => g.bubble?.line === '...WAIT. HE HAD MY KEYS!!', 5) &&
       !document.body.classList.contains('dialogue-open');
@@ -387,7 +448,9 @@ const reach = (target, checks = {}) => {
     sim.play(() => sim.at() === 'hotwire', 40, {
       each: () => {
         ctx.notice ||= sim.toasted(/RANDY ADDS MOLTEN KEYS TO INVENTORY/);
-        ctx.smoky ||= !!document.querySelector('.dialogue-portrait.left .portrait-look.on');
+        ctx.smoky ||= !!document.querySelector(
+          '.dialogue-portrait.left .portrait-look.on',
+        );
       },
     });
 
@@ -423,7 +486,9 @@ const reach = (target, checks = {}) => {
     g.input.hold('KeyW', true);
 
     for (const beat of ['sorry', 'weird', 'ramp']) {
-      sim.play(() => sim.at() === beat || sim.at() === 'ramp', 60, { each: creep });
+      sim.play(() => sim.at() === beat || sim.at() === 'ramp', 60, {
+        each: creep,
+      });
 
       if (here()) {
         g.input.hold('KeyW', false);
@@ -433,12 +498,17 @@ const reach = (target, checks = {}) => {
 
     ctx.sorry = rec.popups.some((p) => /THINGS GET A LITTLE WEIRD/.test(p));
     ctx.swept = sim.play(
-      () => pickup.form === 'truck' && g.clock.phase === 'night' && !g.transform && pickup.grounded,
+      () =>
+        pickup.form === 'truck' &&
+        g.clock.phase === 'night' &&
+        !g.transform &&
+        pickup.grounded,
       20,
       { each: creep },
     );
     g.input.hold('KeyW', false);
-    ctx.stalled = crept < 0.5 && rec.lines.includes('...WHY DOES IT SMELL LIKE BARBECUE?');
+    ctx.stalled =
+      crept < 0.5 && rec.lines.includes('...WHY DOES IT SMELL LIKE BARBECUE?');
     ctx.prompt = ctx.wait !== null && ctx.wait > 10 && ctx.wait < 16;
 
     if (!check('hotwire')) {
@@ -447,7 +517,8 @@ const reach = (target, checks = {}) => {
 
     g.input.press('KeyF');
     sim.play(() => false, 0.5, { press: false });
-    ctx.locked = pickup.role === 'player' && window.__sim.toasted(/DOORS WON'T OPEN/);
+    ctx.locked =
+      pickup.role === 'player' && window.__sim.toasted(/DOORS WON'T OPEN/);
     ctx.k = sim.kicker();
 
     if (!check('ramp')) {
@@ -481,7 +552,10 @@ const reach = (target, checks = {}) => {
       return ctx;
     }
 
-    ctx.cameraGoal = sim.play(() => /TRY THE CAMERAS \(1\/2\)/.test(sim.goal()), 15);
+    ctx.cameraGoal = sim.play(
+      () => /TRY THE CAMERAS \(1\/2\)/.test(sim.goal()),
+      15,
+    );
     g.input.press('KeyF');
     sim.play(() => false, 0.5, { press: false });
     ctx.stillLocked = pickup.role === 'player';
@@ -526,11 +600,15 @@ const reach = (target, checks = {}) => {
     ctx.keycap = false;
     sim.play(() => sim.at() === 'tires', 120, {
       each: () => {
-        ctx.keycap ||= /GETS YOU OUT/.test(sim.line()) && !!document.querySelector('.dialogue-text kbd');
+        ctx.keycap ||=
+          /GETS YOU OUT/.test(sim.line()) &&
+          !!document.querySelector('.dialogue-text kbd');
       },
     });
     ctx.logged = [...document.querySelectorAll('.call-lines p')].some(
-      (p) => /GETS YOU OUT/.test(p.textContent ?? '') && !/[{}]/.test(p.textContent ?? ''),
+      (p) =>
+        /GETS YOU OUT/.test(p.textContent ?? '') &&
+        !/[{}]/.test(p.textContent ?? ''),
     );
 
     if (here()) {
@@ -538,7 +616,8 @@ const reach = (target, checks = {}) => {
     }
 
     ctx.unlocked = g.doorLock === null;
-    ctx.errand = sim.goal() === 'SMASH A CAR FOR TIRES' && sim.marks() === 'PARKED CAR';
+    ctx.errand =
+      sim.goal() === 'SMASH A CAR FOR TIRES' && sim.marks() === 'PARKED CAR';
     g.alight();
     sim.play(() => false, 1);
     sim.toRandy();
@@ -557,7 +636,9 @@ const reach = (target, checks = {}) => {
     ctx.brisket = g.inventory.count('brisket');
     g.input.press('KeyF');
     sim.play(() => sim.at() === 'moonlight', 40);
-    ctx.fed = g.inventory.count('tire') === 0 && g.inventory.count('brisket') > ctx.brisket;
+    ctx.fed =
+      g.inventory.count('tire') === 0 &&
+      g.inventory.count('brisket') > ctx.brisket;
 
     if (here() || !check('brisket')) {
       return ctx;
@@ -570,7 +651,10 @@ const reach = (target, checks = {}) => {
       return ctx;
     }
 
-    ctx.night = sim.play(() => sim.at() === 'spook' && g.player.form === 'night', 60);
+    ctx.night = sim.play(
+      () => sim.at() === 'spook' && g.player.form === 'night',
+      60,
+    );
 
     if (here() || !check('phantomCody')) {
       return ctx;
@@ -591,7 +675,9 @@ const reach = (target, checks = {}) => {
       return ctx;
     }
 
-    const inDeck = g.vehicles.find((v) => v.role === 'parked' && v.insideDeck && v.form === 'car');
+    const inDeck = g.vehicles.find(
+      (v) => v.role === 'parked' && v.insideDeck && v.form === 'car',
+    );
     g.board(inDeck);
     sim.play(() => sim.at() === 'escape', 10);
 
@@ -617,7 +703,10 @@ const reach = (target, checks = {}) => {
   sim.play(() => g.player.form === 'day' && !g.transform, 10);
   g.alight();
   sim.play(() => false, 1);
-  const street = g.vehicles.find((v) => v.role === 'parked' && !v.insideDeck && v.form === 'car' && v !== pickup);
+  const street = g.vehicles.find(
+    (v) =>
+      v.role === 'parked' && !v.insideDeck && v.form === 'car' && v !== pickup,
+  );
   g.board(street);
   sim.play(() => sim.at() === 'gate', 5);
 
@@ -633,7 +722,15 @@ const reach = (target, checks = {}) => {
   }
 
   const spot = g.garage.freeSpots()[0];
-  street.place(spot.center.x, spot.center.y, spot.center.z, spot.def.yaw, 0, 0, null);
+  street.place(
+    spot.center.x,
+    spot.center.y,
+    spot.center.z,
+    spot.def.yaw,
+    0,
+    0,
+    null,
+  );
   street.insideDeck = true;
   sim.play(() => false, 0.2);
   g.alight();
@@ -643,13 +740,18 @@ const reach = (target, checks = {}) => {
     return ctx;
   }
 
-  ctx.night2 = sim.play(() => sim.at() === 'night2' && g.player.form === 'night' && !g.transform, 120);
+  ctx.night2 = sim.play(
+    () => sim.at() === 'night2' && g.player.form === 'night' && !g.transform,
+    120,
+  );
 
   if (here()) {
     return ctx;
   }
 
-  const second = g.vehicles.find((v) => v.role === 'parked' && v.insideDeck && v.form === 'car');
+  const second = g.vehicles.find(
+    (v) => v.role === 'parked' && v.insideDeck && v.form === 'car',
+  );
   g.board(second);
   sim.play(() => false, 1);
   g.onCrossing({ vehicle: second, kind: 'escaped' });
@@ -681,14 +783,20 @@ export const steps = {
   reach,
 };
 
-/** Play the whole tutorial like a player, checking each beat's state changes and the 30 s outreach spacing. */
+/**
+ * Play the whole tutorial like a player, checking each beat's state changes
+ * and the 30 s outreach spacing.
+ */
 export function playsThrough() {
   const g = window.__game;
   const sim = window.__sim;
   const rec = sim.record();
   let early = 0;
   g.events.on('swallowed', () => {
-    if (!['ghost', 'boost'].includes(sim.at()) && rec.steps.indexOf('ghost') < 0) {
+    if (
+      !['ghost', 'boost'].includes(sim.at()) &&
+      rec.steps.indexOf('ghost') < 0
+    ) {
       early++;
     }
   });
@@ -743,7 +851,9 @@ export function playsThrough() {
         c.pickup.ignition.heat === 'molten' &&
         c.pickup.ignition.heldBy(c.randy.keys) &&
         rec.lines.includes('GOOD NEWS: YOU CAN HAVE THEM BACK.') &&
-        rec.lines.includes('BAD NEWS: MIGHT BE A SECOND. I DROPPED THEM IN THE SMOKER.')
+        rec.lines.includes(
+          'BAD NEWS: MIGHT BE A SECOND. I DROPPED THEM IN THE SMOKER.',
+        )
       );
     },
     hotwire: (c) =>
@@ -755,14 +865,25 @@ export function playsThrough() {
       c.swept &&
       g.cameraMode === 'chase' &&
       Math.abs(g.clock.hours - 19) < 0.2,
-    ramp: (c) => c.locked && !!c.k && sim.goal() === 'LEAVE THE DECK VIA THE RAMP' && sim.marks() === 'THE RAMP',
+    ramp: (c) =>
+      c.locked &&
+      !!c.k &&
+      sim.goal() === 'LEAVE THE DECK VIA THE RAMP' &&
+      sim.marks() === 'THE RAMP',
     jump: (c) => c.jumped && g.garage.phantoms === 1,
     phantom: (c) =>
       c.ledger &&
       c.signed &&
       c.paused &&
-      rec.lines.includes("HEH. NO SWIPE OUT, NO EXIT ON THE LOG. TRUCK'S YOURS TONIGHT."),
-    camera: (c) => c.cameraGoal && c.stillLocked && c.cameras && early === 0 && g.ghast === 0,
+      rec.lines.includes(
+        "HEH. NO SWIPE OUT, NO EXIT ON THE LOG. TRUCK'S YOURS TONIGHT.",
+      ),
+    camera: (c) =>
+      c.cameraGoal &&
+      c.stillLocked &&
+      c.cameras &&
+      early === 0 &&
+      g.ghast === 0,
     joyride: (c) => c.ghostMarked && c.ghost && c.boost,
     tires: (c) =>
       c.keycap &&
@@ -773,7 +894,11 @@ export function playsThrough() {
       sim.goal() === 'BRING THE TIRES TO RANDY' &&
       sim.marks() === 'RANDY',
     brisket: (c) => c.fed && !!c.randy.stock.slotOf('moltenKeys'),
-    phantomCody: (c) => c.night && !g.cody.holdForm && !g.cody.can('steal') && g.cody.can('summon'),
+    phantomCody: (c) =>
+      c.night &&
+      !g.cody.holdForm &&
+      !g.cody.can('steal') &&
+      g.cody.can('summon'),
     escape: (c) => c.rested && c.part1,
     day2: (c) => c.morning && c.tonight && g.player.form === 'day',
     over: (c) =>
@@ -806,10 +931,21 @@ const idles = (beat) => {
   const rec = sim.record();
   const ctx = sim.reach(beat);
   if (ctx.failed || sim.at() !== beat) {
-    return { ok: false, why: `did not reach ${beat}`, at: sim.at(), failed: ctx.failed };
+    return {
+      ok: false,
+      why: `did not reach ${beat}`,
+      at: sim.at(),
+      failed: ctx.failed,
+    };
   }
 
-  const limit = { hotwire: 18.5, ghost: 21, tires: 22.5, raise: 1.5, morning: 10 }[beat];
+  const limit = {
+    hotwire: 18.5,
+    ghost: 21,
+    tires: 22.5,
+    raise: 1.5,
+    morning: 10,
+  }[beat];
   const start = g.clock.hours;
   let most = 0;
   const ahead = (h) => (((h - start) % 24) + 24) % 24;
@@ -817,11 +953,20 @@ const idles = (beat) => {
     most = Math.max(most, ahead(g.clock.hours));
     return sim.at() !== beat;
   }, 480);
-  const fun = rec.popups.findIndex((p) => p.startsWith('YOU KNOW WHAT WOULD BE FUN?'));
-  const second = beat === 'ghost' ? 'WHERE CAN I FIND A GHOST?' : "YOU KNOW, TIME DOESN'T FLY";
+  const fun = rec.popups.findIndex((p) =>
+    p.startsWith('YOU KNOW WHAT WOULD BE FUN?'),
+  );
+  const second =
+    beat === 'ghost'
+      ? 'WHERE CAN I FIND A GHOST?'
+      : "YOU KNOW, TIME DOESN'T FLY";
   const flies = rec.lines.findIndex((l) => l.startsWith(second));
-  const limbo = rec.lines.findIndex((l) => l.startsWith("LOOK. WE'RE STUCK IN THIS LIMBO"));
-  const still = rec.popups.some((p) => p.startsWith('STILL HERE. STILL LIMBO.'));
+  const limbo = rec.lines.findIndex((l) =>
+    l.startsWith("LOOK. WE'RE STUCK IN THIS LIMBO"),
+  );
+  const still = rec.popups.some((p) =>
+    p.startsWith('STILL HERE. STILL LIMBO.'),
+  );
   const gaps = sim.gaps();
   return {
     ok:
@@ -850,7 +995,10 @@ export function missesTheRamp() {
   const sim = window.__sim;
   const ctx = sim.reach('ramp');
   const { pickup } = ctx;
-  sim.play(() => pickup.form === 'truck' && !g.transform && pickup.grounded, 20);
+  sim.play(
+    () => pickup.form === 'truck' && !g.transform && pickup.grounded,
+    20,
+  );
   const k = sim.kicker();
   if (!k) {
     return { ok: false, why: 'no ramp marker' };
@@ -862,7 +1010,11 @@ export function missesTheRamp() {
   const poses = [];
   g.events.on('reset', () => {
     resets++;
-    poses.push({ onRamp: onRamp(), speed: Math.abs(pickup.speed), facing: Math.cos(pickup.yaw - k.yaw) });
+    poses.push({
+      onRamp: onRamp(),
+      speed: Math.abs(pickup.speed),
+      facing: Math.cos(pickup.yaw - k.yaw),
+    });
   });
   const onRamp = () =>
     pickup.pos.x > k.box.min[0] &&
@@ -886,19 +1038,35 @@ export function missesTheRamp() {
 
   const first = stopOnRamp();
   const back = poses.at(-1);
-  const near = !!back && !back.onRamp && back.speed < 0.5 && back.facing > 0.98;
+  const near =
+    !!back && !back.onRamp && back.speed < 0.5 && back.facing > 0.98;
   const howShown = /FULL SPEED UP THE RAMP/.test(sim.how());
   const second = stopOnRamp();
   const P = pickup.pos.constructor;
-  const mid = new P((k.box.min[0] + k.box.max[0]) / 2, 0, (k.box.min[2] + k.box.max[2]) / 2);
+  const mid = new P(
+    (k.box.min[0] + k.box.max[0]) / 2,
+    0,
+    (k.box.min[2] + k.box.max[2]) / 2,
+  );
   mid.y = g.world.collision.groundAt(mid.x, mid.z, k.box.max[1] + 0.5, 1);
   g.resetVehicle(pickup, { pos: mid, yaw: k.yaw });
   const third = missed();
-  const ideas = sim.toasted(/THE TRUCK'S GOT IDEAS/) || sim.play(() => sim.toasted(/THE TRUCK'S GOT IDEAS/), 3);
+  const ideas =
+    sim.toasted(/THE TRUCK'S GOT IDEAS/) ||
+    sim.play(() => sim.toasted(/THE TRUCK'S GOT IDEAS/), 3);
   const forced = sim.play(() => sim.at() === 'landing', 30);
   sim.play(() => sim.at() === 'tell', 15);
   return {
-    ok: first && near && howShown && second && third && ideas && forced && g.garage.phantoms === 1 && crossings === 1,
+    ok:
+      first &&
+      near &&
+      howShown &&
+      second &&
+      third &&
+      ideas &&
+      forced &&
+      g.garage.phantoms === 1 &&
+      crossings === 1,
     first,
     near,
     howShown,
@@ -918,7 +1086,10 @@ export function assistClearsTheGap() {
   const sim = window.__sim;
   const ctx = sim.reach('ramp');
   const { pickup } = ctx;
-  sim.play(() => pickup.form === 'truck' && !g.transform && pickup.grounded, 20);
+  sim.play(
+    () => pickup.form === 'truck' && !g.transform && pickup.grounded,
+    20,
+  );
   const k = sim.kicker();
   let resets = 0;
   g.events.on('reset', () => resets++);
@@ -961,7 +1132,12 @@ export function truckGetsIdeas() {
   const cutscene = sim.play(() => !!g.cutscene && !!g.autopilot, 3);
   const jumped = sim.play(() => sim.at() === 'landing', 30);
   sim.play(() => sim.at() === 'tell', 15);
-  return { ok: ideas && cutscene && jumped && !g.autopilot && g.garage.phantoms === 1, ideas, cutscene, jumped };
+  return {
+    ok: ideas && cutscene && jumped && !g.autopilot && g.garage.phantoms === 1,
+    ideas,
+    cutscene,
+    jumped,
+  };
 }
 
 export function fallsOffTheRoof() {
@@ -979,12 +1155,22 @@ export function fallsOffTheRoof() {
   g.player.grounded = false;
   const fell = sim.play(() => g.player.pos.y < 5, 10);
   const back = sim.play(() => g.player.pos.y > 15 && !g.fading, 15);
-  const door = g.player.pos.distanceTo(pickup.pos) < pickup.params.radius + 2.5;
+  const door =
+    g.player.pos.distanceTo(pickup.pos) < pickup.params.radius + 2.5;
   sim.play(() => false, 1);
   sim.play(() => rec.lines.includes('...THAT WAS DUMB.'), 10);
   const dumb = rec.lines.includes('...THAT WAS DUMB.');
-  const roof = ['discovery', 'wonder', 'keysCall', 'hotwire'].includes(sim.at());
-  return { ok: fell && back && door && dumb && roof, fell, back, door, dumb, at: sim.at() };
+  const roof = ['discovery', 'wonder', 'keysCall', 'hotwire'].includes(
+    sim.at(),
+  );
+  return {
+    ok: fell && back && door && dumb && roof,
+    fell,
+    back,
+    door,
+    dumb,
+    at: sim.at(),
+  };
 }
 
 export function gateOnTheRoof() {
@@ -992,15 +1178,31 @@ export function gateOnTheRoof() {
   const sim = window.__sim;
   const rec = sim.record();
   const { pickup } = sim.reach('ramp');
-  sim.play(() => pickup.form === 'truck' && !g.transform && pickup.grounded, 20);
+  sim.play(
+    () => pickup.form === 'truck' && !g.transform && pickup.grounded,
+    20,
+  );
   const k = sim.kicker();
   g.resetVehicle(pickup, { pos: k.start, yaw: k.yaw });
   const barred = g.world.collision.solids.some(
-    (s) => s.enabled && !s.ramp && s.max[1] - s.min[1] > 3.9 && s.max[1] - s.min[1] < 4.1,
+    (s) =>
+      s.enabled &&
+      !s.ramp &&
+      s.max[1] - s.min[1] > 3.9 &&
+      s.max[1] - s.min[1] < 4.1,
   );
   g.onCrossing({ vehicle: pickup, kind: 'logged-out' });
-  const texted = sim.play(() => rec.popups.some((p) => /NOT THE GATE, KID. THE GATE SAW THAT/.test(p)), 60);
-  return { ok: barred && texted && sim.at() === 'ramp', barred, texted, at: sim.at() };
+  const texted = sim.play(
+    () =>
+      rec.popups.some((p) => /NOT THE GATE, KID. THE GATE SAW THAT/.test(p)),
+    60,
+  );
+  return {
+    ok: barred && texted && sim.at() === 'ramp',
+    barred,
+    texted,
+    at: sim.at(),
+  };
 }
 
 export function ghostTrailIsReachable() {
@@ -1010,19 +1212,32 @@ export function ghostTrailIsReachable() {
   g.ghast = 0;
   const P = pickup.pos.constructor;
   const target = new P();
-  const near = () => g.activeGhosts().filter((p) => p.distanceTo(pickup.pos) < 45).length;
+  const near = () =>
+    g.activeGhosts().filter((p) => p.distanceTo(pickup.pos) < 45).length;
   const nearby = near();
   g.autopilot = (v) => {
     g.nearestGhost(v.pos, target);
     let heading = Math.atan2(target.x - v.pos.x, target.z - v.pos.z) - v.yaw;
     heading = Math.atan2(Math.sin(heading), Math.cos(heading));
-    return { throttle: 0.8, steer: Math.max(-1, Math.min(1, -2 * heading)), hop: false, drift: false };
+    return {
+      throttle: 0.8,
+      steer: Math.max(-1, Math.min(1, -2 * heading)),
+      hop: false,
+      drift: false,
+    };
   };
 
   let t = 0;
-  const done = sim.play(() => sim.at() !== 'ghost', 8, { each: () => (t += 1 / 30) });
+  const done = sim.play(() => sim.at() !== 'ghost', 8, {
+    each: () => (t += 1 / 30),
+  });
   g.autopilot = null;
-  return { ok: nearby >= 3 && done && t > 0.5 && t < 6, nearby, done, seconds: Math.round(t * 10) / 10 };
+  return {
+    ok: nearby >= 3 && done && t > 0.5 && t < 6,
+    nearby,
+    done,
+    seconds: Math.round(t * 10) / 10,
+  };
 }
 
 export function grabsTheTires() {
@@ -1030,7 +1245,9 @@ export function grabsTheTires() {
   const sim = window.__sim;
   const rec = sim.record();
   const { pickup } = sim.reach('tires');
-  const cars = g.vehicles.filter((v) => v.role === 'parked' && v !== pickup && v.form === 'car');
+  const cars = g.vehicles.filter(
+    (v) => v.role === 'parked' && v !== pickup && v.form === 'car',
+  );
   for (const car of cars) {
     if (g.looseItems('tire').length) {
       break;
@@ -1043,7 +1260,9 @@ export function grabsTheTires() {
 
   sim.play(() => g.looseItems('tire').length > 0 && sim.at() === 'grab', 10);
   sim.play(() => false, 1);
-  const loose = g.looseItems('tire').filter((p) => p.distanceTo(pickup.pos) < 150).length;
+  const loose = g
+    .looseItems('tire')
+    .filter((p) => p.distanceTo(pickup.pos) < 150).length;
   const pins = g.objectives.pins.filter((o) => o.color === '#ffb84a').length;
   const grab = sim.goal() === 'GRAB THE TIRES' && sim.marks() === 'TIRE';
   g.alight();
@@ -1053,10 +1272,21 @@ export function grabsTheTires() {
   const got = sim.play(() => sim.at() === 'bring', 5);
   sim.play(() => false, 0.5);
   const after = g.objectives.pins.length;
-  const lesson = sim.play(() => /OPENS YOUR PHONE/.test(sim.popup()), 60, { press: false });
-  const caps = [...document.querySelectorAll('.text-pop.on .text-pop-msg kbd')].map((k) => k.textContent);
+  const lesson = sim.play(() => /OPENS YOUR PHONE/.test(sim.popup()), 60, {
+    press: false,
+  });
+  const caps = [
+    ...document.querySelectorAll('.text-pop.on .text-pop-msg kbd'),
+  ].map((k) => k.textContent);
   return {
-    ok: loose > 0 && pins === loose && grab && got && after === 0 && lesson && caps.includes('M'),
+    ok:
+      loose > 0 &&
+      pins === loose &&
+      grab &&
+      got &&
+      after === 0 &&
+      lesson &&
+      caps.includes('M'),
     loose,
     pins,
     grab,
@@ -1074,14 +1304,24 @@ export function ghostsPinnedOnTheMap() {
   g.ghast = 0;
   pickup.vel.set(0, 0, 0);
   sim.play(() => false, 1);
-  const near = g.activeGhosts().filter((p) => p.distanceTo(pickup.pos) < 150).length;
+  const near = g
+    .activeGhosts()
+    .filter((p) => p.distanceTo(pickup.pos) < 150).length;
   const pinned = g.objectives.pins.length;
-  const arrows = g.objectives.list.filter((o) => o.kind === 'optional' && o.label === 'GHOST').length;
+  const arrows = g.objectives.list.filter(
+    (o) => o.kind === 'optional' && o.label === 'GHOST',
+  ).length;
   g.ghast = 0.5;
   sim.play(() => sim.at() !== 'ghost', 3);
   sim.play(() => false, 0.5);
   const after = g.objectives.pins.length;
-  return { ok: near > 0 && pinned === near && arrows === 1 && after === 0, near, pinned, arrows, after };
+  return {
+    ok: near > 0 && pinned === near && arrows === 1 && after === 0,
+    near,
+    pinned,
+    arrows,
+    after,
+  };
 }
 
 export function hintNeverShowsAfterTheAction() {
@@ -1097,7 +1337,8 @@ export function hintNeverShowsAfterTheAction() {
   const done = sim.play(() => sim.at() !== 'boost', 3);
   g.input.hold('KeyB', false);
   sim.play(() => false, 40);
-  const shown = (re) => rec.popups.some((p) => re.test(p)) || sim.thread().some((t) => re.test(t));
+  const shown = (re) =>
+    rec.popups.some((p) => re.test(p)) || sim.thread().some((t) => re.test(t));
   const seen = shown(/FEEL THAT\? GHOSTS IN THE TANK/);
   return { ok: held && done && !seen, held, done, seen };
 }
@@ -1107,19 +1348,33 @@ export function staleOutreachIsDropped() {
   const sim = window.__sim;
   const rec = sim.record();
   const { pickup } = sim.reach('ramp');
-  sim.play(() => pickup.form === 'truck' && !g.transform && pickup.grounded, 20);
+  sim.play(
+    () => pickup.form === 'truck' && !g.transform && pickup.grounded,
+    20,
+  );
   const k = sim.kicker();
   g.resetVehicle(pickup, { pos: k.start, yaw: k.yaw });
   g.onCrossing({ vehicle: pickup, kind: 'logged-out' });
-  const gate = sim.play(() => /NOT THE GATE/.test(sim.popup()), 40, { press: false });
+  const gate = sim.play(() => /NOT THE GATE/.test(sim.popup()), 40, {
+    press: false,
+  });
   const queued = sim.play(() => g.phone.pending >= 2, 60, { press: false });
   g.resetVehicle(pickup, { pos: k.start, yaw: k.yaw });
   g.autopilot = sim.pilot(k);
   const jumped = sim.play(() => sim.at() !== 'ramp', 20, { press: false });
   g.autopilot = null;
   sim.play(() => false, 90);
-  const late = [...rec.popups, ...sim.thread()].some((p) => /FLY OFF THAT RAMP/.test(p));
-  return { ok: gate && queued && jumped && !late, gate, queued, jumped, late, pending: g.phone.pending };
+  const late = [...rec.popups, ...sim.thread()].some((p) =>
+    /FLY OFF THAT RAMP/.test(p),
+  );
+  return {
+    ok: gate && queued && jumped && !late,
+    gate,
+    queued,
+    jumped,
+    late,
+    pending: g.phone.pending,
+  };
 }
 
 export function meltedKeysPayoff() {
@@ -1128,33 +1383,57 @@ export function meltedKeysPayoff() {
   localStorage.setItem('30pc.tutorial.part1', '1');
   const rec = sim.record();
   g.start();
-  const morning = sim.at() === 'morning' && g.clock.day === 2 && g.player.form === 'day';
+  const morning =
+    sim.at() === 'morning' && g.clock.day === 2 && g.player.form === 'day';
   const { pickup, randy } = sim.reach('night2');
   const original = pickup.ignition;
-  const hot = original.heat === 'molten' && original.heldBy(randy.keys) && !!randy.stock.slotOf('moltenKeys');
+  const hot =
+    original.heat === 'molten' &&
+    original.heldBy(randy.keys) &&
+    !!randy.stock.slotOf('moltenKeys');
   const swing = sim.play(
-    () => rec.popups.includes('KEYS COOLED OFF. SWING BY.') || sim.thread().includes('KEYS COOLED OFF. SWING BY.'),
+    () =>
+      rec.popups.includes('KEYS COOLED OFF. SWING BY.') ||
+      sim.thread().includes('KEYS COOLED OFF. SWING BY.'),
     120,
   );
-  const optional = g.objectives.list.some((o) => o.id === 'tutorial-keys' && o.kind === 'optional');
+  const optional = g.objectives.list.some(
+    (o) => o.id === 'tutorial-keys' && o.kind === 'optional',
+  );
   g.alight();
   sim.play(() => false, 1);
   sim.toRandy();
   sim.play(() => false, 1);
   g.input.press('KeyF');
-  const told = sim.play(() => rec.lines.includes("TOLD YOU YOU COULD HAVE 'EM BACK."), 10);
+  const told = sim.play(
+    () => rec.lines.includes("TOLD YOU YOU COULD HAVE 'EM BACK."),
+    10,
+  );
   sim.play(() => rec.keys === 'over', 10);
   const melted =
     original.heat === 'melted' &&
     original.heldBy(g.inventory.keys) &&
     !randy.stock.slotOf('moltenKeys') &&
     !!document.querySelector('.inv-item') &&
-    [...document.querySelectorAll('.inv-item')].some((el) => /MELTED KEYS/.test(el.textContent ?? ''));
+    [...document.querySelectorAll('.inv-item')].some((el) =>
+      /MELTED KEYS/.test(el.textContent ?? ''),
+    );
   original.hotwired = false;
-  pickup.place(pickup.pos.x, pickup.pos.y, pickup.pos.z, pickup.yaw, 0, 0, null);
+  pickup.place(
+    pickup.pos.x,
+    pickup.pos.y,
+    pickup.pos.z,
+    pickup.yaw,
+    0,
+    0,
+    null,
+  );
   g.board(pickup);
   sim.play(() => false, 0.5);
-  const dead = pickup.role === 'player' && !pickup.ignition.ready && original.heldBy(g.inventory.keys);
+  const dead =
+    pickup.role === 'player' &&
+    !pickup.ignition.ready &&
+    original.heldBy(g.inventory.keys);
   return {
     ok: morning && hot && swing && optional && told && melted && dead,
     morning,

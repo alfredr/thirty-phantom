@@ -2,7 +2,13 @@ import { Vector3 } from 'three';
 
 import { damp, dampAngle } from '@/engine/core/math';
 import { type Polyline, RouteCursor } from '@/engine/nav/polyline';
-import { NAV, type NavGrid, type NavHop, type NavJob, NO_HOPS } from '@/world/nav-grid';
+import {
+  NAV,
+  type NavGrid,
+  type NavHop,
+  type NavJob,
+  NO_HOPS,
+} from '@/world/nav-grid';
 
 import { type Avoidance, PERSON_RADIUS } from './avoidance';
 import { Gait } from './models/person';
@@ -11,45 +17,64 @@ import type { CharacterRig } from './models/rig';
 const _p = new Vector3();
 const _want = new Vector3();
 const _v = new Vector3();
-/** Endpoint speed gain per remaining meter and a minimum target speed to complete the route. */
+/**
+ * Endpoint speed gain per remaining meter and a minimum target speed to
+ * complete the route.
+ */
 const EASE_PER_M = 2.5;
 const EASE_FLOOR = 0.8;
 /**
- * Rates (per second) for speeding up, steering onto a new velocity, settling feet on the ground, slowing to a stop, and
- * turning.
+ * Rates (per second) for speeding up, steering onto a new velocity, settling
+ * feet on the ground, slowing to a stop, and turning.
  */
 const ACCEL_RATE = 6;
 const STEER_RATE = 8;
 const FOOT_RATE = 16;
 const STOP_RATE = 10;
 const TURN_RATE = 10;
-/** Snap vertical changes above this threshold in meters; smooth smaller changes. */
+/**
+ * Snap vertical changes above this threshold in meters; smooth smaller
+ * changes.
+ */
 const SNAP_DROP = 1.5;
-/** Short look-ahead distance in meters, limiting corner cutting beyond the route’s clearance. */
+/**
+ * Short look-ahead distance in meters, limiting corner cutting beyond the
+ * route’s clearance.
+ */
 const CARROT = 0.6;
 /** Forward route projection window, in meters. */
 const TRACK_WINDOW = 3;
-/** Endpoint distance tolerance, in meters. Cursor progress is checked separately. */
+/**
+ * Endpoint distance tolerance, in meters. Cursor progress is checked
+ * separately.
+ */
 const ARRIVED = 0.25;
-/** Speed, duration, and endpoint-distance thresholds for accepting arrival at a blocked destination. */
+/**
+ * Speed, duration, and endpoint-distance thresholds for accepting arrival at a
+ * blocked destination.
+ */
 const STALLED = 0.15;
 const STALL_TIME = 2;
 const NEAR_END = 2.5;
 /** Seconds stalled before reporting blockage to the route owner. */
 const BLOCKED_TIME = 3;
-/** After prolonged blockage, temporarily ignore stationary obstacles to escape local avoidance deadlocks. */
+/**
+ * After prolonged blockage, temporarily ignore stationary obstacles to escape
+ * local avoidance deadlocks.
+ */
 const BLIND_AFTER = 5;
 const BLIND_FOR = 1.5;
 /**
- * Face actual motion above this fraction of cruise speed and the absolute minimum speed. Otherwise face the route
- * target when it is far enough away.
+ * Face actual motion above this fraction of cruise speed and the absolute
+ * minimum speed. Otherwise face the route target when it is far enough away.
  */
 const FACE_MOVING = 0.5;
 const FACE_MIN = 0.05;
 
 /**
- * Follow a walking route with optional local avoidance and elevator transport. Sample navigation surfaces for foot
- * height, including stair treads. If an avoided position has no standing clearance, advance along the planned route
+ * Follow a walking route with optional local avoidance and elevator transport.
+ * Sample navigation surfaces for foot height, including stair treads. If an
+ * avoided position has no standing clearance, advance along the planned route
  * instead. Report arrival at the endpoint or after sustained blockage nearby.
  */
 export class Walker {
@@ -66,7 +91,8 @@ export class Walker {
   private cursor: RouteCursor | null = null;
   /** Elevator rides on the active route. */
   private hops: readonly NavHop[] = NO_HOPS;
-  private planned: { job: NavJob; pace: number | (() => number) } | null = null;
+  private planned: { job: NavJob; pace: number | (() => number) } | null =
+    null;
   private wantYaw = 0;
   private stalled = 0;
   /** Seconds remaining with stationary obstacles excluded from avoidance. */
@@ -87,15 +113,23 @@ export class Walker {
     return this.planned !== null;
   }
 
-  /** Replace the pending route request. Evaluate a pace callback only when its successful route starts. */
+  /**
+   * Replace the pending route request. Evaluate a pace callback only when its
+   * successful route starts.
+   */
   plan(job: NavJob | null, pace: number | (() => number)): boolean {
     this.cancelPlan();
     this.planned = job ? { job, pace } : null;
     return this.planning;
   }
 
-  /** Consume a settled route request. With `afterCurrent`, defer successful results until the current route ends. */
-  followPlanned(afterCurrent = false): 'waiting' | 'following' | 'failed' | null {
+  /**
+   * Consume a settled route request. With `afterCurrent`, defer successful
+   * results until the current route ends.
+   */
+  followPlanned(
+    afterCurrent = false,
+  ): 'waiting' | 'following' | 'failed' | null {
     const plan = this.planned;
     if (!plan) {
       return null;
@@ -116,7 +150,10 @@ export class Walker {
     return 'following';
   }
 
-  /** Cancel the pending request without interrupting a route already being walked. */
+  /**
+   * Cancel the pending request without interrupting a route already being
+   * walked.
+   */
   cancelPlan(): void {
     this.planned?.job.cancel();
     this.planned = null;
@@ -131,7 +168,10 @@ export class Walker {
     return this.cursor?.path.end ?? null;
   }
 
-  /** Report sustained low speed on an active route so its owner can request a replacement. */
+  /**
+   * Report sustained low speed on an active route so its owner can request a
+   * replacement.
+   */
   get blocked(): boolean {
     return this.cursor !== null && this.stalled > BLOCKED_TIME;
   }
@@ -147,14 +187,21 @@ export class Walker {
     this.sync(0);
   }
 
-  /** Move to a collision-adjusted position while keeping the current and pending routes. */
+  /**
+   * Move to a collision-adjusted position while keeping the current and
+   * pending routes.
+   */
   nudge(p: Vector3): void {
     this.pos.copy(p);
     this.sync(0);
   }
 
   /** Follow the path at the requested pace, using its optional elevator hops. */
-  follow(path: Polyline, pace: number, hops: readonly NavHop[] = NO_HOPS): void {
+  follow(
+    path: Polyline,
+    pace: number,
+    hops: readonly NavHop[] = NO_HOPS,
+  ): void {
     this.cursor = new RouteCursor(path);
     this.hops = hops;
     this.pace = pace;
@@ -172,8 +219,9 @@ export class Walker {
   }
 
   /**
-   * Advance movement, avoidance, elevators, and gait. Return true only when an active route ends, either at its
-   * endpoint or after sustained blockage nearby. Nonpositive dt does not advance route movement.
+   * Advance movement, avoidance, elevators, and gait. Return true only when an
+   * active route ends, either at its endpoint or after sustained blockage
+   * nearby. Nonpositive dt does not advance route movement.
    */
   update(dt: number, nav: NavGrid, avoid: Avoidance | null = null): boolean {
     // Delegate boarding, transport, and disembarking to world/elevators.ts.
@@ -189,7 +237,12 @@ export class Walker {
       this.nav = nav;
       c.track(this.pos, TRACK_WINDOW);
       // Reduce target speed near the endpoint while preserving a minimum approach speed.
-      this.cruise = damp(this.cruise, Math.min(this.pace, c.remaining * EASE_PER_M + EASE_FLOOR), ACCEL_RATE, dt);
+      this.cruise = damp(
+        this.cruise,
+        Math.min(this.pace, c.remaining * EASE_PER_M + EASE_FLOOR),
+        ACCEL_RATE,
+        dt,
+      );
       // Limit desired travel to the look-ahead target to avoid overshooting it.
       c.ahead(CARROT, _p);
       const dx = _p.x - this.pos.x;
@@ -206,7 +259,16 @@ export class Walker {
       this.blind = Math.max(0, this.blind - dt);
 
       if (avoid) {
-        avoid.steer(this, this.pos, this.vel, _want, Math.max(this.pace, this.cruise), this.fits, _v, this.blind > 0);
+        avoid.steer(
+          this,
+          this.pos,
+          this.vel,
+          _want,
+          Math.max(this.pace, this.cruise),
+          this.fits,
+          _v,
+          this.blind > 0,
+        );
       } else {
         _v.copy(_want);
       }
@@ -220,7 +282,9 @@ export class Walker {
       if (ground !== null) {
         this.pos.set(
           nx,
-          Math.abs(ground - this.pos.y) > SNAP_DROP ? ground : damp(this.pos.y, ground, FOOT_RATE, dt),
+          Math.abs(ground - this.pos.y) > SNAP_DROP
+            ? ground
+            : damp(this.pos.y, ground, FOOT_RATE, dt),
           nz,
         );
       } else {
@@ -228,7 +292,13 @@ export class Walker {
         c.ahead(0, _p);
         this.vel.set((_p.x - this.pos.x) / dt, 0, (_p.z - this.pos.z) / dt);
         const g = nav.heightAt(_p.x, _p.y, _p.z) ?? _p.y;
-        this.pos.set(_p.x, Math.abs(g - this.pos.y) > SNAP_DROP ? g : damp(this.pos.y, g, FOOT_RATE, dt), _p.z);
+        this.pos.set(
+          _p.x,
+          Math.abs(g - this.pos.y) > SNAP_DROP
+            ? g
+            : damp(this.pos.y, g, FOOT_RATE, dt),
+          _p.z,
+        );
       }
 
       this.speed = Math.hypot(this.vel.x, this.vel.z);
@@ -246,7 +316,9 @@ export class Walker {
 
       if (
         (toEnd < ARRIVED && c.remaining < ARRIVED + CARROT) ||
-        (this.stalled > STALL_TIME && toEnd < NEAR_END && c.remaining < NEAR_END + CARROT)
+        (this.stalled > STALL_TIME &&
+          toEnd < NEAR_END &&
+          c.remaining < NEAR_END + CARROT)
       ) {
         this.cursor = null;
         this.vel.set(0, 0, 0);
@@ -261,7 +333,10 @@ export class Walker {
     return arrived;
   }
 
-  /** Check standing clearance at the center and four cardinal offsets on the current level. */
+  /**
+   * Check standing clearance at the center and four cardinal offsets on the
+   * current level.
+   */
   private readonly fits = (x: number, z: number): boolean => {
     const nav = this.nav;
     if (!nav) {

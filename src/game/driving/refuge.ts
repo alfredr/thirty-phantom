@@ -4,7 +4,14 @@ import { roadLeadsToward } from '@/actors/vehicles/traffic';
 import type { Vehicle } from '@/actors/vehicles/vehicle';
 import { TUNING } from '@/config';
 import { Polyline } from '@/engine/nav/polyline';
-import { done, type Fail, fail, instead, type Result, running } from '@/engine/sim/action';
+import {
+  done,
+  type Fail,
+  fail,
+  instead,
+  type Result,
+  running,
+} from '@/engine/sim/action';
 import { type SpotRuntime, spotZone } from '@/game/deck/garage';
 import { DIVERSIONS } from '@/game/rules/claim-kinds';
 
@@ -26,13 +33,17 @@ import type { Drivers } from './drivers';
 
 /** Road sampling interval in meters. */
 const ROAD_STEP = 2;
-/** Preferred lead distance before the road’s closest approach to the entry, in meters. */
+/**
+ * Preferred lead distance before the road’s closest approach to the entry, in
+ * meters.
+ */
 const TURN_LEAD = 8;
 
 /**
- * Return the index at which to leave the sampled road for the entry, or -1 if no turn is suitable. Samples begin one
- * `step` ahead. Require the closest approach to be at least `room` ahead and within `gate` of the entry; start the turn
- * up to `lead` meters earlier.
+ * Return the index at which to leave the sampled road for the entry, or -1 if
+ * no turn is suitable. Samples begin one `step` ahead. Require the closest
+ * approach to be at least `room` ahead and within `gate` of the entry; start
+ * the turn up to `lead` meters earlier.
  */
 export function turnOff(
   ahead: readonly Vector3[],
@@ -60,8 +71,15 @@ export function turnOff(
   return Math.max(first, best - Math.round(lead / step));
 }
 
-/** Plan entry through the badge gate while allowing the destination spot’s blocked region. */
-function toSpot(car: Vehicle, spot: SpotRuntime, more: { via?: Polyline; avoid?: Vector3 } = {}): DriveTo {
+/**
+ * Plan entry through the badge gate while allowing the destination spot’s
+ * blocked region.
+ */
+function toSpot(
+  car: Vehicle,
+  spot: SpotRuntime,
+  more: { via?: Polyline; avoid?: Vector3 } = {},
+): DriveTo {
   return new DriveTo({
     car,
     to: spot.center,
@@ -80,14 +98,23 @@ type DivertStep =
   | { readonly at: 'rest'; readonly action: Rest };
 
 /**
- * Divert a frightened driver into a reserved deck spot. Reserve a diversion slot, destination, and driver seat. New
- * threats can return the car to a safe road, move its destination upstairs, or force the driver to flee. After parking,
- * pause before the driver exits. Failed routing abandons the car; crashes use the base job’s recovery handling.
+ * Divert a frightened driver into a reserved deck spot. Reserve a diversion
+ * slot, destination, and driver seat. New threats can return the car to a safe
+ * road, move its destination upstairs, or force the driver to flee. After
+ * parking, pause before the driver exits. Failed routing abandons the car;
+ * crashes use the base job’s recovery handling.
  */
 export class Divert extends DriverJob<DivertStep> {
   private spot: SpotRuntime;
 
-  constructor(readonly p: { car: Vehicle; spot: SpotRuntime; from: Vector3; via: Polyline }) {
+  constructor(
+    readonly p: {
+      car: Vehicle;
+      spot: SpotRuntime;
+      from: Vector3;
+      via: Polyline;
+    },
+  ) {
     super(p.car, 'visitor');
     this.spot = p.spot;
     this.scare = p.from.clone();
@@ -107,7 +134,11 @@ export class Divert extends DriverJob<DivertStep> {
     return null;
   }
 
-  protected drive(w: DriveWorld, dt: number, seen: Vector3 | null): Result<DriveAction> {
+  protected drive(
+    w: DriveWorld,
+    dt: number,
+    seen: Vector3 | null,
+  ): Result<DriveAction> {
     const { car } = this;
     if (seen) {
       const fled = this.flee(w, seen);
@@ -133,13 +164,19 @@ export class Divert extends DriverJob<DivertStep> {
 
     switch (step.at) {
       case 'drive':
-        this.next({ at: 'park', action: new Park({ car, berth: spotBerth(this.spot) }) });
+        this.next({
+          at: 'park',
+          action: new Park({ car, berth: spotBerth(this.spot) }),
+        });
         return running;
       case 'park':
         car.insideDeck = true;
         w.garage.occupy(this.spot, car);
         w.parked(car, this.spot);
-        this.next({ at: 'rest', action: new Rest({ seconds: TUNING.traffic.divertRest }) });
+        this.next({
+          at: 'rest',
+          action: new Rest({ seconds: TUNING.traffic.divertRest }),
+        });
         return running;
       case 'rest':
         stand(car);
@@ -149,12 +186,20 @@ export class Divert extends DriverJob<DivertStep> {
   }
 
   /**
-   * Respond to a sighting by rejoining the road, changing destination, avoiding the threat, or abandoning the car.
-   * Return null to continue.
+   * Respond to a sighting by rejoining the road, changing destination,
+   * avoiding the threat, or abandoning the car. Return null to continue.
    */
   private flee(w: DriveWorld, at: Vector3): Result<DriveAction> | null {
     const { car } = this;
-    if (w.onRoad(car) && !roadLeadsToward(car.pos, w.roadAhead(car, LOOK), at, TUNING.traffic.berth)) {
+    if (
+      w.onRoad(car) &&
+      !roadLeadsToward(
+        car.pos,
+        w.roadAhead(car, LOOK),
+        at,
+        TUNING.traffic.berth,
+      )
+    ) {
       return instead(new Rejoin({ car, from: at }));
     }
 
@@ -164,7 +209,10 @@ export class Divert extends DriverJob<DivertStep> {
       return fail('SPOOKED');
     }
 
-    const up = car.insideDeck && this.spot.def.level <= w.garage.floorOf(car.pos.y) ? this.above(w) : null;
+    const up =
+      car.insideDeck && this.spot.def.level <= w.garage.floorOf(car.pos.y)
+        ? this.above(w)
+        : null;
     if (!up) {
       const round = steerClear(step, at);
       if (round) {
@@ -186,7 +234,10 @@ export class Divert extends DriverJob<DivertStep> {
     return null;
   }
 
-  /** Return the nearest free spot on the lowest available floor above the car, or null. */
+  /**
+   * Return the nearest free spot on the lowest available floor above the car,
+   * or null.
+   */
   private above(w: DriveWorld): SpotRuntime | null {
     const { car } = this;
     const floor = w.garage.floorOf(car.pos.y);
@@ -198,7 +249,11 @@ export class Divert extends DriverJob<DivertStep> {
       }
 
       const d = s.center.distanceToSquared(car.pos);
-      if (!best || s.def.level < best.def.level || (s.def.level === best.def.level && d < bd)) {
+      if (
+        !best ||
+        s.def.level < best.def.level ||
+        (s.def.level === best.def.level && d < bd)
+      ) {
         best = s;
         bd = d;
       }
@@ -207,7 +262,10 @@ export class Divert extends DriverJob<DivertStep> {
     return best;
   }
 
-  /** Stop and abandon the car, then make its driver flee. Mark cars outside the deck for distant removal. */
+  /**
+   * Stop and abandon the car, then make its driver flee. Mark cars outside the
+   * deck for distant removal.
+   */
   private giveUp(w: DriveWorld): void {
     const { car } = this;
     stand(car);
@@ -220,7 +278,10 @@ export class Divert extends DriverJob<DivertStep> {
   }
 }
 
-/** Start and track diversions from traffic lanes into the deck when a suitable turn and parking spot are available. */
+/**
+ * Start and track diversions from traffic lanes into the deck when a suitable
+ * turn and parking spot are available.
+ */
 export class Refuge {
   /** Active diversion jobs, pruned on access. */
   private diverts: Divert[] = [];
@@ -243,8 +304,9 @@ export class Refuge {
   }
 
   /**
-   * Start a diversion if the traffic car can turn toward the entry and reserve an available spot. The caller determines
-   * whether its road leads toward the threat. Return whether the job started.
+   * Start a diversion if the traffic car can turn toward the entry and reserve
+   * an available spot. The caller determines whether its road leads toward the
+   * threat. Return whether the job started.
    */
   take(car: Vehicle, from: Vector3): boolean {
     if (car.role !== 'traffic' || car.crashing) {
@@ -278,13 +340,20 @@ export class Refuge {
     return this.diverts;
   }
 
-  /** Return a free spot on the lowest available floor, choosing the nearest to the entry. */
+  /**
+   * Return a free spot on the lowest available floor, choosing the nearest to
+   * the entry.
+   */
   private pick(): SpotRuntime | null {
     let best: SpotRuntime | null = null;
     let bd = Infinity;
     for (const s of this.world.garage.freeSpots()) {
       const d = s.center.distanceToSquared(this.entry);
-      if (!best || s.def.level < best.def.level || (s.def.level === best.def.level && d < bd)) {
+      if (
+        !best ||
+        s.def.level < best.def.level ||
+        (s.def.level === best.def.level && d < bd)
+      ) {
         best = s;
         bd = d;
       }

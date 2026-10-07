@@ -5,7 +5,10 @@ import { ICONS } from './icons';
 import type { PhoneApp } from './phone';
 import { DayGroups, type Stamp, stampText } from './stamp';
 
-/** Maintain Randy’s message history with timestamps, day separators, unread counts, and newest-message scrolling. */
+/**
+ * Maintain Randy’s message history with timestamps, day separators, unread
+ * counts, and newest-message scrolling.
+ */
 export class Messages implements PhoneApp {
   readonly id = 'messages';
   readonly name = 'MESSAGES';

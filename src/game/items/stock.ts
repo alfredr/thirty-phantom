@@ -21,7 +21,10 @@ export interface StockView {
   count: number;
   price: number;
   unavailable?: string;
-  /** Whether selling is enabled and at least one unit is available and affordable. */
+  /**
+   * Whether selling is enabled and at least one unit is available and
+   * affordable.
+   */
   can: boolean;
 }
 
@@ -30,7 +33,11 @@ export class Stock {
   readonly slots: StockSlot[];
 
   constructor(stock: readonly StockItem[]) {
-    this.slots = stock.map((s, i) => ({ id: `slot${i}`, kind: s.kind, count: s.count }));
+    this.slots = stock.map((s, i) => ({
+      id: `slot${i}`,
+      kind: s.kind,
+      count: s.count,
+    }));
   }
 
   price(kind: ItemKind): number {
@@ -42,7 +49,10 @@ export class Stock {
     return this.slots.find((s) => s.kind === kind && s.count > 0) ?? null;
   }
 
-  /** Build display data and purchase eligibility from the current balance and selling state. */
+  /**
+   * Build display data and purchase eligibility from the current balance and
+   * selling state.
+   */
   view(cash: number, selling: boolean): StockView[] {
     return this.slots.map((s) => ({
       id: s.id,
@@ -52,7 +62,11 @@ export class Stock {
       count: s.count,
       price: this.price(s.kind),
       unavailable: ITEM_BREEDS[s.kind].unavailable,
-      can: !ITEM_BREEDS[s.kind].unavailable && selling && s.count > 0 && cash >= this.price(s.kind),
+      can:
+        !ITEM_BREEDS[s.kind].unavailable &&
+        selling &&
+        s.count > 0 &&
+        cash >= this.price(s.kind),
     }));
   }
 }

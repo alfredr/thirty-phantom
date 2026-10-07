@@ -2,16 +2,27 @@ import { clamp } from '@/engine/core/math';
 import type { BoxFace, FaceMap } from '@/render/geometry';
 import type { MatKey } from '@/render/materials';
 
-import type { BoxDef, FacadeDef, FacadeKind, Facing, StreetFront, WindowStyle } from './level-data';
+import type {
+  BoxDef,
+  FacadeDef,
+  FacadeKind,
+  Facing,
+  StreetFront,
+  WindowStyle,
+} from './level-data';
 
 /**
- * Facade dimensions shared by building generation, physical openings, and the shader in render/facade.ts. Keep these
- * values aligned so doors, windows, awnings, and balconies use the same bays and storeys.
+ * Facade dimensions shared by building generation, physical openings, and the
+ * shader in render/facade.ts. Keep these values aligned so doors, windows,
+ * awnings, and balconies use the same bays and storeys.
  */
 export const FACADE = {
   /** Storey height above the ground floor (m). */
   storey: 3.2,
-  /** Ground floor height from the box's base (m): the sidewalk's 0.2 and a tall shop storey. */
+  /**
+   * Ground floor height from the box's base (m): the sidewalk's 0.2 and a tall
+   * shop storey.
+   */
   ground: 4.4,
   /** Bay width a face aims for (m). */
   bay: 3,
@@ -21,34 +32,39 @@ export const FACADE = {
   /** Rooms behind the windows are this deep (m); shops and lobbies run deeper. */
   room: 4,
   /**
-   * Ground floor openings, shared by the shader's painted fronts and a walk-in building's real ones
-   * (world/interiors.ts), in meters within a bay.
+   * Ground floor openings, shared by the shader's painted fronts and a walk-in
+   * building's real ones (world/interiors.ts), in meters within a bay.
    */
   front: {
     /**
-     * Shop windows: side frames, the bulkhead under the glass, the sign fascia over it (down from the ground floor's
-     * top).
+     * Shop windows: side frames, the bulkhead under the glass, the sign fascia
+     * over it (down from the ground floor's top).
      */
     shop: { frame: 0.12, bulkhead: 0.7, fascia: 1.0 },
-    /** Lobby glass: mullions at the bay edges; its top, down from the ground floor's top. */
+    /**
+     * Lobby glass: mullions at the bay edges; its top, down from the ground
+     * floor's top.
+     */
     lobby: { mullion: 0.06, head: 0.6 },
     /**
-     * Plain ground floors and entries: the pier as a share of the bay (and its limits), a raised sill, the head (down
-     * from the top).
+     * Plain ground floors and entries: the pier as a share of the bay (and its
+     * limits), a raised sill, the head (down from the top).
      */
     plain: { pier: 0.22, pierMin: 0.4, pierMax: 0.9, sill: 1.3, head: 0.8 },
     /**
-     * Doorways: a leaf's width (lobbies have two; wide enough that the 0.5 m nav grid always fits a person through),
-     * their top; the floor inside is the sidewalk's height.
+     * Doorways: a leaf's width (lobbies have two; wide enough that the 0.5 m
+     * nav grid always fits a person through), their top; the floor inside is
+     * the sidewalk's height.
      */
     door: 1.5,
     doorTop: 2.6,
     floor: 0.2,
   },
   /**
-   * Upper storeys' windows, by style (punched, ribbon, paired, grid): sill and head (down from the storey above); a
-   * punched window's pier as a share of the bay and its limits; ribbon and grid mullions; a paired window's outer pier
-   * and the mullion between its two lights.
+   * Upper storeys' windows, by style (punched, ribbon, paired, grid): sill and
+   * head (down from the storey above); a punched window's pier as a share of
+   * the bay and its limits; ribbon and grid mullions; a paired window's outer
+   * pier and the mullion between its two lights.
    */
   glazing: {
     sill: [0.9, 1.0, 0.6, 0.9] as const,
@@ -61,8 +77,9 @@ export const FACADE = {
 };
 
 /**
- * Return ground-floor window bounds as (x0, y0, x1, y1), in meters from the bay's bottom-left corner. Undefined fronts
- * and entry fronts use the plain-window layout.
+ * Return ground-floor window bounds as (x0, y0, x1, y1), in meters from the
+ * bay's bottom-left corner. Undefined fronts and entry fronts use the
+ * plain-window layout.
  */
 export function frontWindow(
   front: StreetFront | undefined,
@@ -71,21 +88,43 @@ export function frontWindow(
 ): [number, number, number, number] {
   const F = FACADE.front;
   if (front === 'shop') {
-    return [F.shop.frame, F.shop.bulkhead, bay - F.shop.frame, ground - F.shop.fascia];
+    return [
+      F.shop.frame,
+      F.shop.bulkhead,
+      bay - F.shop.frame,
+      ground - F.shop.fascia,
+    ];
   }
 
   if (front === 'lobby') {
-    return [F.lobby.mullion, F.floor, bay - F.lobby.mullion, ground - F.lobby.head];
+    return [
+      F.lobby.mullion,
+      F.floor,
+      bay - F.lobby.mullion,
+      ground - F.lobby.head,
+    ];
   }
 
   const pier = clamp(bay * F.plain.pier, F.plain.pierMin, F.plain.pierMax);
   return [pier, F.plain.sill, bay - pier, ground - F.plain.head];
 }
 
-const STYLE_INDEX: Readonly<Record<WindowStyle, 0 | 1 | 2 | 3>> = { punched: 0, ribbon: 1, paired: 2, grid: 3 };
+const STYLE_INDEX: Readonly<Record<WindowStyle, 0 | 1 | 2 | 3>> = {
+  punched: 0,
+  ribbon: 1,
+  paired: 2,
+  grid: 3,
+};
 
-/** Return upper-storey window bounds as (x0, y0, x1, y1), in meters from the bay's bottom-left corner. */
-export function storeyWindow(style: WindowStyle, bay: number, storey: number): [number, number, number, number] {
+/**
+ * Return upper-storey window bounds as (x0, y0, x1, y1), in meters from the
+ * bay's bottom-left corner.
+ */
+export function storeyWindow(
+  style: WindowStyle,
+  bay: number,
+  storey: number,
+): [number, number, number, number] {
   const G = FACADE.glazing;
   const i = STYLE_INDEX[style];
   const side =
@@ -102,8 +141,12 @@ export function doorWidth(front: StreetFront): number {
   return front === 'lobby' ? 2 * FACADE.front.door : FACADE.front.door;
 }
 
-/** Facade layout with required dimensions and style; paint and street-front assignments remain optional. */
-export type Facade = Required<Omit<FacadeDef, 'paint' | 'street'>> & Pick<FacadeDef, 'paint' | 'street'>;
+/**
+ * Facade layout with required dimensions and style; paint and street-front
+ * assignments remain optional.
+ */
+export type Facade = Required<Omit<FacadeDef, 'paint' | 'street'>> &
+  Pick<FacadeDef, 'paint' | 'street'>;
 
 /** Default paint colors for facade materials when a box does not specify paint. */
 export const FACADE_PAINT: Readonly<Partial<Record<MatKey, string>>> = {
@@ -116,7 +159,10 @@ export function isFacade(mat: MatKey): boolean {
   return FACADE_PAINT[mat] !== undefined;
 }
 
-/** A facade box's layout: its FacadeDef with defaults filled in, or null for other materials. */
+/**
+ * A facade box's layout: its FacadeDef with defaults filled in, or null for
+ * other materials.
+ */
 export function facadeOf(b: BoxDef): Facade | null {
   if (!isFacade(b.mat)) {
     return null;
@@ -140,23 +186,35 @@ export function bayCount(len: number, bay: number): number {
   return Math.max(1, Math.round(len / bay));
 }
 
-/** Storeys of windows above the ground floor of a wall `height` tall (from its base to its top). */
+/**
+ * Storeys of windows above the ground floor of a wall `height` tall (from its
+ * base to its top).
+ */
 export function storeyCount(f: Facade, height: number): number {
   return Math.max(0, Math.floor((height - f.ground - f.cap) / f.storey));
 }
 
-/** The bay a street front's door is in: the middle one (left of middle for an even count). */
+/**
+ * The bay a street front's door is in: the middle one (left of middle for an
+ * even count).
+ */
 export function doorBay(bays: number): number {
   return Math.floor((bays - 1) / 2);
 }
 
 /** Outward directions of the four vertical box faces. */
-export const FACE_FACING: Readonly<Record<0 | 1 | 2 | 3, Facing>> = { 0: 'x+', 1: 'x-', 2: 'z+', 3: 'z-' };
+export const FACE_FACING: Readonly<Record<0 | 1 | 2 | 3, Facing>> = {
+  0: 'x+',
+  1: 'x-',
+  2: 'z+',
+  3: 'z-',
+};
 
 /**
- * A vertical face's extent along the wall, in the batch's UV convention (GeometryBatch.quad: u runs along x on z faces
- * and along z on x faces, signed so it increases left to right seen from outside): its u at the left edge, and its
- * length.
+ * A vertical face's extent along the wall, in the batch's UV convention
+ * (GeometryBatch.quad: u runs along x on z faces and along z on x faces,
+ * signed so it increases left to right seen from outside): its u at the left
+ * edge, and its length.
  */
 export function faceSpan(
   min: readonly number[],
@@ -178,28 +236,55 @@ export function faceSpan(
 }
 
 /** A room's surfaces are trim with style 1 (lit). */
-const KIND_CODE: Readonly<Record<FacadeKind, number>> = { wall: 1, trim: 2, awning: 3, room: 2 };
-const WINDOW_CODE: Readonly<Record<WindowStyle, number>> = { punched: 0, ribbon: 1, paired: 2, grid: 3 };
-const STREET_CODE: Readonly<Record<StreetFront, number>> = { shop: 1, lobby: 2, entry: 3 };
+const KIND_CODE: Readonly<Record<FacadeKind, number>> = {
+  wall: 1,
+  trim: 2,
+  awning: 3,
+  room: 2,
+};
+const WINDOW_CODE: Readonly<Record<WindowStyle, number>> = {
+  punched: 0,
+  ribbon: 1,
+  paired: 2,
+  grid: 3,
+};
+const STREET_CODE: Readonly<Record<StreetFront, number>> = {
+  shop: 1,
+  lobby: 2,
+  entry: 3,
+};
 
 /**
- * Bit-field weights packed into FACE_DATA.w: kind + 4_style + 16_street + 64_storeys + 4096_(doorBay + 1). A zero door
- * field means no doorway. For awnings, style selects the stripe axis (0 = X, 1 = Z); for trim, style 1 identifies room
- * surfaces that emit light at night.
+ * Bit-field weights packed into FACE_DATA.w: kind + 4_style + 16_street +
+ * 64_storeys + 4096_(doorBay + 1). A zero door field means no doorway. For
+ * awnings, style selects the stripe axis (0 = X, 1 = Z); for trim, style 1
+ * identifies room surfaces that emit light at night.
  */
 export const FACE_CODE = { style: 4, street: 16, storeys: 64, door: 4096 };
 
 /**
- * Return a face-mapping callback for a facade box. Wall UVs count bays from the left edge and storeys from the top of
- * the ground floor; FACE_DATA stores their dimensions and packed style code. Horizontal wall faces return undefined.
- * Trim, rooms, and awnings use one code-only mapping for every face.
+ * Return a face-mapping callback for a facade box. Wall UVs count bays from
+ * the left edge and storeys from the top of the ground floor; FACE_DATA stores
+ * their dimensions and packed style code. Horizontal wall faces return
+ * undefined. Trim, rooms, and awnings use one code-only mapping for every
+ * face.
  */
-export function facadeFaces(b: BoxDef, f: Facade): (face: BoxFace) => FaceMap | undefined {
+export function facadeFaces(
+  b: BoxDef,
+  f: Facade,
+): (face: BoxFace) => FaceMap | undefined {
   const height = b.max[1] - b.min[1];
   if (f.kind !== 'wall') {
     const alongX = b.max[0] - b.min[0] >= b.max[2] - b.min[2];
-    const style = f.kind === 'room' ? 1 : f.kind === 'awning' && !alongX ? 1 : 0;
-    const map: FaceMap = { u0: 0, v0: 0, su: 1, sv: 1, data: [0, 0, 0, KIND_CODE[f.kind] + FACE_CODE.style * style] };
+    const style =
+      f.kind === 'room' ? 1 : f.kind === 'awning' && !alongX ? 1 : 0;
+    const map: FaceMap = {
+      u0: 0,
+      v0: 0,
+      su: 1,
+      sv: 1,
+      data: [0, 0, 0, KIND_CODE[f.kind] + FACE_CODE.style * style],
+    };
     return () => map;
   }
 

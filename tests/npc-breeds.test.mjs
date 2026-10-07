@@ -5,7 +5,13 @@ import { Group, Scene, Vector3 } from 'three';
 
 import { loadModules } from './modules.mjs';
 
-const [{ Npc, Npcs }, { NPC_BREEDS }, { proximityPitch, feedItems }, { Shop }, { Inventory }] = await loadModules(
+const [
+  { Npc, Npcs },
+  { NPC_BREEDS },
+  { proximityPitch, feedItems },
+  { Shop },
+  { Inventory },
+] = await loadModules(
   '/src/actors/npcs/npcs.ts',
   '/src/actors/npcs/breeds.ts',
   '/src/actors/npcs/behaviors.ts',
@@ -23,7 +29,12 @@ const hooks = {
   planner: { request: () => ({ settled: false, cancel() {} }) },
   walkBlocks: () => [],
 };
-const placed = (x) => ({ id: 'randy', pos: [x, 0, 0], yaw: 0, fire: [x, 0, 1] });
+const placed = (x) => ({
+  id: 'randy',
+  pos: [x, 0, 0],
+  yaw: 0,
+  fire: [x, 0, 1],
+});
 
 test('pocket smoke follows the coat and stops when that NPC no longer carries molten keys', () => {
   const puffs = [];
@@ -42,10 +53,16 @@ test('pocket smoke follows the coat and stops when that NPC no longer carries mo
   a.send({ type: 'held', face: null });
   a.send({ type: 'flash', open: true });
   npcs.update(0.2, null);
-  assert.ok(first.distanceTo(puffs.at(-1)) > 0.1, 'opening the coat moves the smoke origin');
+  assert.ok(
+    first.distanceTo(puffs.at(-1)) > 0.1,
+    'opening the coat moves the smoke origin',
+  );
   a.place(new Vector3(4, -3, 6), Math.PI / 2);
   npcs.update(0.2, null);
-  assert.deepEqual(puffs.at(-1), a.model.smokeOrigin.getWorldPosition(new Vector3()));
+  assert.deepEqual(
+    puffs.at(-1),
+    a.model.smokeOrigin.getWorldPosition(new Vector3()),
+  );
   keys.count = 0;
   const count = puffs.length;
   npcs.update(1, null);
@@ -74,7 +91,12 @@ test('NPCs share breed definitions while keeping their models, stock, and behavi
   assert.equal(b.held, false);
   assert.equal(a.model.root.getObjectByName('flapL').rotation.y < -1, true);
   assert.equal(Math.abs(b.model.root.getObjectByName('flapL').rotation.y), 0);
-  a.send({ type: 'given', n: 2, reward: { kind: 'brisket', n: 2 }, from: new Vector3() });
+  a.send({
+    type: 'given',
+    n: 2,
+    reward: { kind: 'brisket', n: 2 },
+    from: new Vector3(),
+  });
   assert.equal(a.work.state.at, 'feeding');
   assert.equal(b.work.state.at, 'idle');
 });
@@ -82,7 +104,11 @@ test('NPCs share breed definitions while keeping their models, stock, and behavi
 test('an NPC can omit merchant, pitch, fire, and work capabilities', () => {
   let posed = 0;
   const root = new Group();
-  const breed = { name: 'BYSTANDER', model: () => ({ root, rig: { root }, pose: () => posed++ }), trades: [] };
+  const breed = {
+    name: 'BYSTANDER',
+    model: () => ({ root, rig: { root }, pose: () => posed++ }),
+    trades: [],
+  };
   const npcs = new Npcs([], new Scene(), hooks);
   const npc = new Npc(placed(0), breed, { scene: new Scene(), ...hooks });
   npcs.list.push(npc);
@@ -95,7 +121,12 @@ test('an NPC can omit merchant, pitch, fire, and work capabilities', () => {
   assert.equal(npc.throwing, null);
   assert.equal(npc.pitching, false);
   assert.equal(npc.send({ type: 'held', face: null }), false);
-  const shop = new Shop(npcs, new Inventory(), { cash: 0, spend: () => false }, () => {});
+  const shop = new Shop(
+    npcs,
+    new Inventory(),
+    { cash: 0, spend: () => false },
+    () => {},
+  );
   assert.equal(shop.update(new Vector3()), null);
   assert.equal(shop.view(npc), null);
 });
@@ -137,7 +168,12 @@ test('each fire owns its feeding animation and follows its NPC when repositioned
 test('shop purchases and gifts use the chosen NPC stock, title, and range', () => {
   const npcs = new Npcs([placed(0), placed(10)], new Scene(), hooks);
   const [a, b] = npcs.list;
-  const shop = new Shop(npcs, new Inventory(), { cash: 100, spend: () => true }, () => {});
+  const shop = new Shop(
+    npcs,
+    new Inventory(),
+    { cash: 100, spend: () => true },
+    () => {},
+  );
   a.pitch.go({ at: 'pitching', t: 0 });
   b.pitch.go({ at: 'pitching', t: 0 });
   assert.equal(shop.update(new Vector3()), a);
@@ -160,7 +196,10 @@ test('shop purchases and gifts use the chosen NPC stock, title, and range', () =
       offered: () => true,
     },
   };
-  const c = new Npc({ ...placed(20), fire: undefined }, breed, { scene: new Scene(), ...hooks });
+  const c = new Npc({ ...placed(20), fire: undefined }, breed, {
+    scene: new Scene(),
+    ...hooks,
+  });
   npcs.list.push(c);
   c.pitch.go({ at: 'pitching', t: 0 });
   assert.equal(shop.update(new Vector3(21.5, 0, 0)), null);
@@ -191,7 +230,11 @@ test('behavior definitions select pitch timing and exchange effects', () => {
   work.send({ type: 'given', n: 2, reward: { kind: 'hubcap', n: 4 }, from });
   from.x = 9;
   work.tick(0.01);
-  assert.deepEqual(log, [4], 'the first launch starts immediately at the captured position');
+  assert.deepEqual(
+    log,
+    [4],
+    'the first launch starts immediately at the captured position',
+  );
   work.tick(0.5);
   assert.deepEqual(log, [4]);
   work.tick(0.5);

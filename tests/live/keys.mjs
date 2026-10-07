@@ -12,27 +12,48 @@ export function droppedKeysStartOnlyTheirCar() {
 
   car.ignition.transfer('away', 'ignition');
   g.crowd.arrive(car);
-  const owner = g.crowd.living().find((p) => p.car === car && car.ignition.heldBy(p.keys));
+  const owner = g.crowd
+    .living()
+    .find((p) => p.car === car && car.ignition.heldBy(p.keys));
   if (!owner) {
     return { ok: false, why: 'no owner' };
   }
 
   const keys = car.ignition;
-  owner.mind.send({ type: 'felled', from: car.pos.clone(), vx: 0, vz: 0, harm: 'dead' });
+  owner.mind.send({
+    type: 'felled',
+    from: car.pos.clone(),
+    vx: 0,
+    vz: 0,
+    harm: 'dead',
+  });
   const dropped = keys.heldBy('ground') && !owner.keys.held.size;
   const refused = !g.visitors.leave(car, owner.keys);
   g.player.place(owner.walker.pos.clone(), 0);
   sim.run(1);
   const collected = keys.heldBy(g.inventory.keys);
-  const label = g.interactions.inventoryView(g.inventory).find((i) => i.kind === `keys-${car.id}`)?.name;
+  const label = g.interactions
+    .inventoryView(g.inventory)
+    .find((i) => i.kind === `keys-${car.id}`)?.name;
   g.codyRide.enter(car);
-  const started = g.driving === car && car.engineOn && keys.heldBy('ignition') && !keys.hotwired;
+  const started =
+    g.driving === car &&
+    car.engineOn &&
+    keys.heldBy('ignition') &&
+    !keys.hotwired;
   g.alight();
   const carried = keys.heldBy(g.inventory.keys);
   g.fleet.remove(car);
   const retired = !g.inventory.keys.held.has(keys);
   return {
-    ok: dropped && refused && collected && started && carried && retired && label === `KEYS FOR ${car.plate}`,
+    ok:
+      dropped &&
+      refused &&
+      collected &&
+      started &&
+      carried &&
+      retired &&
+      label === `KEYS FOR ${car.plate}`,
     dropped,
     refused,
     collected,
@@ -53,7 +74,11 @@ export function valetTakesNearestMatchingKeys() {
   g.player.place(at.clone().add({ x: 0, y: 0, z: 1 }), 0);
 
   const spawn = (distance, owned) => {
-    const car = g.park(at.clone().add({ x: distance, y: 0, z: 0 }), 0, 'sedan');
+    const car = g.park(
+      at.clone().add({ x: distance, y: 0, z: 0 }),
+      0,
+      'sedan',
+    );
     if (owned) {
       car.ignition.transfer('away', g.inventory.keys);
     }

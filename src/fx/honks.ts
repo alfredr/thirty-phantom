@@ -1,4 +1,10 @@
-import { type CanvasTexture, Group, Sprite, SpriteMaterial, Vector3 } from 'three';
+import {
+  type CanvasTexture,
+  Group,
+  Sprite,
+  SpriteMaterial,
+  Vector3,
+} from 'three';
 
 import { easeOutBack, lerp } from '@/engine/core/math';
 import { withCurve } from '@/render/curvature';
@@ -6,7 +12,10 @@ import { FX_LAYER } from '@/render/layers';
 import { fitFont, FONT } from '@/render/signs';
 import { makeCanvas, toTexture } from '@/render/textures';
 
-/** Honk label width and rise distance in meters, with entrance and lifetime durations in seconds. */
+/**
+ * Honk label width and rise distance in meters, with entrance and lifetime
+ * durations in seconds.
+ */
 const WIDTH = 2.4;
 const POP = 0.2;
 const LIFE = 1;
@@ -24,7 +33,10 @@ const TEX_H = 128;
 const FILL = '#fff3c4';
 const INK = '#1a0830';
 const TILT = -0.12;
-/** Maximum text width and height as fractions of the canvas, leaving room for outline and rotation. */
+/**
+ * Maximum text width and height as fractions of the canvas, leaving room for
+ * outline and rotation.
+ */
 const FIT_W = 0.8;
 const FIT_H = 0.62;
 
@@ -68,18 +80,33 @@ export class Honks {
   private readonly pops: Pop[] = [];
   private next = 0;
 
-  /** Show a label anchored at `at`. Driver anger from 0 to 1 increases its size and lifetime. */
+  /**
+   * Show a label anchored at `at`. Driver anger from 0 to 1 increases its size
+   * and lifetime.
+   */
   pop(at: Vector3, anger = 0): void {
     if (this.pops.length < POOL) {
       const m = withCurve(
-        new SpriteMaterial({ map: honkTexture(), transparent: true, depthWrite: false, toneMapped: false }),
+        new SpriteMaterial({
+          map: honkTexture(),
+          transparent: true,
+          depthWrite: false,
+          toneMapped: false,
+        }),
       );
       const s = new Sprite(m);
       s.center.set(0.5, 0);
       s.layers.set(FX_LAYER);
       s.renderOrder = 6;
       this.root.add(s);
-      this.pops.push({ s, m, t: -1, at: new Vector3(), width: WIDTH, life: LIFE });
+      this.pops.push({
+        s,
+        m,
+        t: -1,
+        at: new Vector3(),
+        width: WIDTH,
+        life: LIFE,
+      });
     }
 
     const p = this.pops[this.next % this.pops.length] as Pop;

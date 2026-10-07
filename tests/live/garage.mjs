@@ -1,16 +1,26 @@
-/** Initial deck cars must be registered before the occupancy board is displayed. */
+/**
+ * Initial deck cars must be registered before the occupancy board is
+ * displayed.
+ */
 export function initialCarsAreLogged() {
   const g = window.__game;
   g.start();
   window.__sim.run(1);
 
   const cars = g.vehicles.filter((v) => v.insideDeck && !v.gone);
-  const registered = cars.filter((v) => g.garage.spots.some((s) => s.occupant === v && v.homeSpot === s.def.id)).length;
+  const registered = cars.filter((v) =>
+    g.garage.spots.some((s) => s.occupant === v && v.homeSpot === s.def.id),
+  ).length;
   const logged = g.garage.logged;
   const phantom = g.garage.phantomOccupancy(g.vehicles);
   const displayed = g.hud.root.querySelector('.sign-score').textContent;
   return {
-    ok: cars.length > 0 && registered === cars.length && logged === cars.length && phantom === 0 && displayed === '0',
+    ok:
+      cars.length > 0 &&
+      registered === cars.length &&
+      logged === cars.length &&
+      phantom === 0 &&
+      displayed === '0',
     actual: cars.length,
     registered,
     logged,
@@ -19,7 +29,10 @@ export function initialCarsAreLogged() {
   };
 }
 
-/** Restoring a phantom replaces its initial car while preserving that car's logged entry. */
+/**
+ * Restoring a phantom replaces its initial car while preserving that car's
+ * logged entry.
+ */
 export function restoredPhantomReplacesParkedCar() {
   const g = window.__game;
   g.start();

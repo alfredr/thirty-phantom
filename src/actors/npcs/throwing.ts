@@ -25,7 +25,10 @@ export interface ThrowWorld {
 /** Wind-up and follow-through arm angles, in radians. */
 const TOSS_BACK = 1.15;
 const TOSS_THROUGH = 1.7;
-/** Terrain clearance in meters, final path fraction exempt from checks, and sampling intervals. */
+/**
+ * Terrain clearance in meters, final path fraction exempt from checks, and
+ * sampling intervals.
+ */
 const TOSS_CLEAR = 0.6;
 const TOSS_LAND = 0.06;
 const TOSS_SAMPLES = 40;
@@ -35,7 +38,10 @@ const TOSS_SPIN = 9;
 const ARM_RATE = 8;
 const _held = new Vector3();
 
-/** Active throw, including world-space endpoints, elapsed time, flight duration, and original hand attachment. */
+/**
+ * Active throw, including world-space endpoints, elapsed time, flight
+ * duration, and original hand attachment.
+ */
 interface Toss {
   kind: ItemKind;
   item: Object3D;
@@ -50,7 +56,10 @@ interface Toss {
   lift: number;
 }
 
-/** Own a prop throw, its arm animation, and trajectory displays that continue fading after landing. */
+/**
+ * Own a prop throw, its arm animation, and trajectory displays that continue
+ * fading after landing.
+ */
 export class Throwing {
   private toss: Toss | null = null;
   private trails: ArcPath[] = [];
@@ -67,10 +76,14 @@ export class Throwing {
   }
 
   /**
-   * Throw a model prop to `to`, optionally displaying its path. Return the estimated duration including wind-up, in
-   * seconds.
+   * Throw a model prop to `to`, optionally displaying its path. Return the
+   * estimated duration including wind-up, in seconds.
    */
-  throw(kind: ItemKind, to: Vector3, opts: { showPath?: boolean } = {}): number {
+  throw(
+    kind: ItemKind,
+    to: Vector3,
+    opts: { showPath?: boolean } = {},
+  ): number {
     const item = this.props[kind];
     if (!item) {
       throw new Error(`Missing ${kind} prop for throwing`);
@@ -79,8 +92,15 @@ export class Throwing {
     item.visible = true;
     const from = item.getWorldPosition(new Vector3());
     const lift = this.liftFor(from, to);
-    const flight = Math.max(this.spec.flight + from.distanceTo(to) / this.spec.speed, fallTime(from, to, lift));
-    const hand = { parent: item.parent, pos: item.position.clone(), quat: item.quaternion.clone() };
+    const flight = Math.max(
+      this.spec.flight + from.distanceTo(to) / this.spec.speed,
+      fallTime(from, to, lift),
+    );
+    const hand = {
+      parent: item.parent,
+      pos: item.position.clone(),
+      quat: item.quaternion.clone(),
+    };
     // Show the item and destination highlights during wind-up.
     const highlight = new Highlight();
     highlight.place(from, to);
@@ -92,13 +112,26 @@ export class Throwing {
       this.world.scene.add(path.root);
     }
 
-    this.toss = { kind, item, to: to.clone(), from, flight, t: 0, released: false, hand, highlight, path, lift };
+    this.toss = {
+      kind,
+      item,
+      to: to.clone(),
+      from,
+      flight,
+      t: 0,
+      released: false,
+      hand,
+      highlight,
+      path,
+      lift,
+    };
     return this.spec.windup + flight;
   }
 
   /**
-   * Compute the arc lift needed for the distance and sampled surface clearance. Ignore the final landing fraction and
-   * surfaces above the endpoint height allowance.
+   * Compute the arc lift needed for the distance and sampled surface
+   * clearance. Ignore the final landing fraction and surfaces above the
+   * endpoint height allowance.
    */
   private liftFor(from: Vector3, to: Vector3): number {
     const d = from.distanceTo(to);
@@ -111,12 +144,19 @@ export class Throwing {
         break;
       }
 
-      const h = this.world.ground(from.x + (to.x - from.x) * u, from.z + (to.z - from.z) * u, top);
+      const h = this.world.ground(
+        from.x + (to.x - from.x) * u,
+        from.z + (to.z - from.z) * u,
+        top,
+      );
       if (!Number.isFinite(h)) {
         continue;
       }
 
-      lift = Math.max(lift, (h + TOSS_CLEAR - from.y - drop * u * u) / (u * (1 - u)));
+      lift = Math.max(
+        lift,
+        (h + TOSS_CLEAR - from.y - drop * u * u) / (u * (1 - u)),
+      );
     }
 
     return lift;
@@ -145,7 +185,10 @@ export class Throwing {
 
     if (!tw.released) {
       const k = tw.t / this.spec.windup;
-      arm.rotation.x = k < 0.5 ? TOSS_BACK * (k / 0.5) : TOSS_BACK - (TOSS_BACK + TOSS_THROUGH) * ((k - 0.5) / 0.5);
+      arm.rotation.x =
+        k < 0.5
+          ? TOSS_BACK * (k / 0.5)
+          : TOSS_BACK - (TOSS_BACK + TOSS_THROUGH) * ((k - 0.5) / 0.5);
 
       if (k < 1) {
         return;
@@ -191,20 +234,32 @@ export class Throwing {
 }
 
 /**
- * Evaluate a throw at normalized time `u` into `out`. Horizontal motion is linear; height combines a lift parabola with
- * a quadratic endpoint drop.
+ * Evaluate a throw at normalized time `u` into `out`. Horizontal motion is
+ * linear; height combines a lift parabola with a quadratic endpoint drop.
  */
-function arcAt(from: Vector3, to: Vector3, lift: number, u: number, out: Vector3): Vector3 {
+function arcAt(
+  from: Vector3,
+  to: Vector3,
+  lift: number,
+  u: number,
+  out: Vector3,
+): Vector3 {
   out.lerpVectors(from, to, u);
   out.y = from.y + lift * u * (1 - u) + (to.y - from.y) * u * u;
   return out;
 }
 
-/** Estimate ascent plus descent time under TOSS_G using the arc’s peak height, in seconds. */
+/**
+ * Estimate ascent plus descent time under TOSS_G using the arc’s peak height,
+ * in seconds.
+ */
 function fallTime(from: Vector3, to: Vector3, lift: number): number {
   const drop = to.y - from.y;
   // Find the peak of the quadratic height curve within the flight interval.
   const u = Math.min(1, Math.max(0, lift / (2 * (lift - drop))));
   const peak = from.y + lift * u * (1 - u) + drop * u * u;
-  return Math.sqrt((2 * Math.max(0, peak - from.y)) / TOSS_G) + Math.sqrt((2 * Math.max(0, peak - to.y)) / TOSS_G);
+  return (
+    Math.sqrt((2 * Math.max(0, peak - from.y)) / TOSS_G) +
+    Math.sqrt((2 * Math.max(0, peak - to.y)) / TOSS_G)
+  );
 }

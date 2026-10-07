@@ -45,7 +45,8 @@ function setup() {
       used: (_kind, action) => log.push([action]),
       skipPhase() {},
     },
-    tradeFor: (kind) => (kind === 'tire' && state.taker ? { to: state.taker } : null),
+    tradeFor: (kind) =>
+      kind === 'tire' && state.taker ? { to: state.taker } : null,
     give: (to) => {
       log.push(['give', to]);
       return true;
@@ -96,7 +97,13 @@ test('discovery keeps scripts above conversations and the nearest vehicle first'
   const { state, log, shown, interactions, press } = setup();
   state.vehicles.push(car('far', 3), car('near', 1));
   state.valet = {};
-  const remove = interactions.addOffer(() => new ScriptedOffer({ label: 'SCRIPT', start: () => log.push(['script']) }));
+  const remove = interactions.addOffer(
+    () =>
+      new ScriptedOffer({
+        label: 'SCRIPT',
+        start: () => log.push(['script']),
+      }),
+  );
   press();
   assert.match(shown.prompt, /SCRIPT/);
   remove();
@@ -143,7 +150,11 @@ test('inventory actions resolve again on selection as targets and permissions ch
   state.eat = false;
   interactions.useItem('brisket', 'eat');
   assert.deepEqual(log, []);
-  assert.ok(interactions.inventoryView(inventory).every((item) => item.actions.length === 0));
+  assert.ok(
+    interactions
+      .inventoryView(inventory)
+      .every((item) => item.actions.length === 0),
+  );
   state.eat = true;
   interactions.useItem('brisket', 'eat');
   assert.deepEqual(log, [['eat']]);
@@ -157,7 +168,13 @@ test('driving offers handoff or exit without on-foot scripts and vehicle offers'
   const { state, shown, log, interactions, press } = setup();
   state.ride = { ...car('ride', 0), speed: 0 };
   state.valet = {};
-  interactions.addOffer(() => new ScriptedOffer({ label: 'SCRIPT', start: () => log.push(['script']) }));
+  interactions.addOffer(
+    () =>
+      new ScriptedOffer({
+        label: 'SCRIPT',
+        start: () => log.push(['script']),
+      }),
+  );
   press();
   assert.match(shown.prompt, /TALK TO VALET/);
   state.valet = null;

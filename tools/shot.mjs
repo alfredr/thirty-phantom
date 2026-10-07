@@ -11,7 +11,12 @@ mkdirSync(out, { recursive: true });
 
 const browser = await chromium.launch({
   executablePath: process.env.CHROME ?? '/opt/pw-browsers/chromium',
-  args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--enable-webgl'],
+  args: [
+    '--use-angle=swiftshader',
+    '--enable-unsafe-swiftshader',
+    '--ignore-gpu-blocklist',
+    '--enable-webgl',
+  ],
 });
 const page = await browser.newPage({ viewport: { width: 1280, height: 760 } });
 const logs = [];
@@ -32,7 +37,11 @@ const step = async (n, dt = 1 / 30) => {
 
 const snap = async (name) => {
   await page.screenshot({ path: `${out}/${name}.png`, timeout: 180000 });
-  console.log('shot', name, JSON.stringify(await page.evaluate(() => window.__game.debug.state())));
+  console.log(
+    'shot',
+    name,
+    JSON.stringify(await page.evaluate(() => window.__game.debug.state())),
+  );
 };
 
 const scenarios = {
@@ -180,7 +189,9 @@ for (const [name, fn] of Object.entries(scenarios)) {
   }
 
   await page.goto(url, { waitUntil: 'load' });
-  await page.waitForFunction(() => window.__game !== undefined, null, { timeout: 120000 });
+  await page.waitForFunction(() => window.__game !== undefined, null, {
+    timeout: 120000,
+  });
   await fn();
 }
 

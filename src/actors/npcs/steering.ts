@@ -8,11 +8,18 @@ export interface Turning {
   readonly speed: number;
 }
 
-export const heading = (from: Vector3, to: Vector3): number => Math.atan2(to.x - from.x, to.z - from.z);
+export const heading = (from: Vector3, to: Vector3): number =>
+  Math.atan2(to.x - from.x, to.z - from.z);
 
-export const offBy = (yaw: number, want: number): number => Math.abs(wrapAngle(want - yaw));
+export const offBy = (yaw: number, want: number): number =>
+  Math.abs(wrapAngle(want - yaw));
 
-export function turnToward(yaw: number, want: number, turn: Turning, dt: number): number {
+export function turnToward(
+  yaw: number,
+  want: number,
+  turn: Turning,
+  dt: number,
+): number {
   const step = wrapAngle(want - yaw) * (1 - Math.exp(-turn.rate * dt));
   const most = turn.speed * dt;
   return wrapAngle(yaw + clamp(step, -most, most));

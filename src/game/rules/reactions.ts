@@ -10,15 +10,30 @@ import { LEVEL, REACH } from './reach';
 /** Actors indexed for perception during the current frame. */
 export type Thing =
   | { readonly kind: 'phantom'; readonly pos: Vector3 }
-  | { readonly kind: 'phantomTruck'; readonly pos: Vector3; readonly vehicle: Vehicle }
+  | {
+      readonly kind: 'phantomTruck';
+      readonly pos: Vector3;
+      readonly vehicle: Vehicle;
+    }
   | { readonly kind: 'skeleton'; readonly pos: Vector3 }
-  | { readonly kind: 'townsperson'; readonly pos: Vector3; readonly person: Townsperson }
-  | { readonly kind: 'driver'; readonly pos: Vector3; readonly vehicle: Vehicle };
+  | {
+      readonly kind: 'townsperson';
+      readonly pos: Vector3;
+      readonly person: Townsperson;
+    }
+  | {
+      readonly kind: 'driver';
+      readonly pos: Vector3;
+      readonly vehicle: Vehicle;
+    };
 
 export type ThingKind = Thing['kind'];
 export type ThingOf<K extends ThingKind> = Extract<Thing, { kind: K }>;
 
-export function isKind<K extends ThingKind>(thing: Thing, kind: K): thing is ThingOf<K> {
+export function isKind<K extends ThingKind>(
+  thing: Thing,
+  kind: K,
+): thing is ThingOf<K> {
   return thing.kind === kind;
 }
 
@@ -35,11 +50,17 @@ export const EYE_HEIGHT: Readonly<Record<ThingKind, number>> = {
 export interface Perception {
   readonly space: Space<Thing>;
   readonly things: readonly Thing[];
-  /** Test whether the sight line between actor eye heights is unobstructed, including by floors. */
+  /**
+   * Test whether the sight line between actor eye heights is unobstructed,
+   * including by floors.
+   */
   sees(perceiver: Thing, seen: Thing): boolean;
 }
 
-/** Perceiver and target categories, distance limits, and the response to a visible match. */
+/**
+ * Perceiver and target categories, distance limits, and the response to a
+ * visible match.
+ */
 export interface ReactionSpec<K extends ThingKind> {
   readonly who: K;
   readonly sees: readonly ThingKind[];
@@ -54,10 +75,16 @@ export interface Reaction {
 }
 
 /**
- * Build a reaction that queries nearby perceivers for each eligible target. Check kind and vertical range before
- * testing visibility.
+ * Build a reaction that queries nearby perceivers for each eligible target.
+ * Check kind and vertical range before testing visibility.
  */
-export function reaction<K extends ThingKind>({ who, sees, within, level, then }: ReactionSpec<K>): Reaction {
+export function reaction<K extends ThingKind>({
+  who,
+  sees,
+  within,
+  level,
+  then,
+}: ReactionSpec<K>): Reaction {
   return {
     run({ space, things, sees: visible }) {
       for (const seen of things) {
@@ -75,7 +102,10 @@ export function reaction<K extends ThingKind>({ who, sees, within, level, then }
   };
 }
 
-/** Create pedestrian and driver fright responses with their respective target kinds and ranges. */
+/**
+ * Create pedestrian and driver fright responses with their respective target
+ * kinds and ranges.
+ */
 export function gameReactions({
   crowd,
   drivers,

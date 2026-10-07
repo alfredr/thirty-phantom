@@ -1,4 +1,7 @@
-/** Seeded Mulberry32 generator. Equal seeds produce the same procedural content. */
+/**
+ * Seeded Mulberry32 generator. Equal seeds produce the same procedural
+ * content.
+ */
 export class Rng {
   private s: number;
 

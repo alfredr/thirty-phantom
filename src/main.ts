@@ -12,7 +12,11 @@ import { loadLevel } from './world/load-level';
 
 /** Load fonts before generating canvas textures for signs and vehicle livery. */
 async function loadFonts(): Promise<void> {
-  await Promise.all(['64px "Creepster"', '64px "Anton"', '64px "Bangers"'].map((f) => document.fonts.load(f)));
+  await Promise.all(
+    ['64px "Creepster"', '64px "Anton"', '64px "Bangers"'].map((f) =>
+      document.fonts.load(f),
+    ),
+  );
 }
 
 async function boot(): Promise<void> {
@@ -21,7 +25,11 @@ async function boot(): Promise<void> {
     throw new Error('#app missing');
   }
 
-  const [, assets, level] = await Promise.all([loadFonts(), AssetRegistry.load(), loadLevel(urlParam('level'))]);
+  const [, assets, level] = await Promise.all([
+    loadFonts(),
+    AssetRegistry.load(),
+    loadLevel(urlParam('level')),
+  ]);
   const game = new Game(app, level, assets);
   const tutorial = new Tutorial(game, level);
   // Register after Tutorial so its start handler decides whether to restore a save.

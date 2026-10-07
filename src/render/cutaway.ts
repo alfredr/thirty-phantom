@@ -9,16 +9,26 @@ import type { ChaseKind } from './chase-camera';
 import type { IsoCamera } from './iso-camera';
 import { cutUniforms } from './materials';
 
-/** Sightlines toward the camera: through the focus, and this far to either side of it (m). */
+/**
+ * Sightlines toward the camera: through the focus, and this far to either side
+ * of it (m).
+ */
 const PROBES = [0, -1.2, 1.2] as const;
 /** The window starts this far in front of the focus, toward the camera (m). */
-const NEAR: Readonly<Record<ChaseKind, number>> = { foot: 0.9, car: 2.6, truck: 4.2 };
+const NEAR: Readonly<Record<ChaseKind, number>> = {
+  foot: 0.9,
+  car: 2.6,
+  truck: 4.2,
+};
 const _center = new Vector3();
 const _side = new Vector3();
 const _a: V3 = [0, 0, 0];
 const _b: V3 = [0, 0, 0];
 
-/** Open a cutaway around Cody or his vehicle when geometry obstructs the isometric camera. */
+/**
+ * Open a cutaway around Cody or his vehicle when geometry obstructs the
+ * isometric camera.
+ */
 export class Cutaway {
   private radius = 0;
   private ceil = 1e9;
@@ -30,8 +40,9 @@ export class Cutaway {
   }
 
   /**
-   * Update cutaway uniforms from visibility probes and ceiling height. Optional `sight` geometry can obstruct the view
-   * without participating in physical collision, as with tree crowns.
+   * Update cutaway uniforms from visibility probes and ceiling height.
+   * Optional `sight` geometry can obstruct the view without participating in
+   * physical collision, as with tree crowns.
    */
   update(
     dt: number,
@@ -64,9 +75,15 @@ export class Cutaway {
     this.radius = damp(this.radius, want, 8, dt);
     // Remove the overhead slab throughout the opening, including portions behind the focus.
     const height = v ? v.params.height : TUNING.player.height;
-    const ceil = collision.ceilingAt(focus.x, focus.z, 0.2, focus.y + height - 0.2);
+    const ceil = collision.ceilingAt(
+      focus.x,
+      focus.z,
+      0.2,
+      focus.y + height - 0.2,
+    );
     const ceilWant = Number.isFinite(ceil) ? ceil - 0.05 : focus.y + 200;
-    this.ceil = this.radius < 0.05 ? ceilWant : damp(this.ceil, ceilWant, 8, dt);
+    this.ceil =
+      this.radius < 0.05 ? ceilWant : damp(this.ceil, ceilWant, 8, dt);
     cutUniforms.uCutCenter.value.copy(center);
     cutUniforms.uCutDir.value.copy(vd);
     cutUniforms.uCutRadius.value = this.radius;

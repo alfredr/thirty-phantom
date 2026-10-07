@@ -8,7 +8,13 @@ import type { Merchant } from '@/game/items/shop';
 import type { Exchange } from '@/game/items/trades';
 import type { NpcDef } from '@/world/level-data';
 
-import { feedItems, type NpcEvent, type Pitch, proximityPitch, type Work } from './behaviors';
+import {
+  feedItems,
+  type NpcEvent,
+  type Pitch,
+  proximityPitch,
+  type Work,
+} from './behaviors';
 import type { FireSpec } from './fire';
 import type { Npc } from './npcs';
 import { coatSeller, type NpcModel } from './presentation';
@@ -30,7 +36,10 @@ export interface NpcBreed {
   readonly trades: readonly Exchange[];
 }
 
-/** NPC kinds compose models, behaviors, stock, and exchanges. Factories create state for each instance. */
+/**
+ * NPC kinds compose models, behaviors, stock, and exchanges. Factories create
+ * state for each instance.
+ */
 export const NPC_BREEDS: Readonly<Record<NpcDef['id'], NpcBreed>> = {
   randy: {
     name: 'RANDY',
@@ -55,7 +64,13 @@ export const NPC_BREEDS: Readonly<Record<NpcDef['id'], NpcBreed>> = {
       active: (n) => !!n.stock?.slotOf('moltenKeys'),
     },
     fire: { model: buildTrashFire, rim: CAN_TOP },
-    throwing: { windup: 0.45, flight: 0.8, speed: 14, arc: 0.8, arcPerMeter: 0.15 },
+    throwing: {
+      windup: 0.45,
+      flight: 0.8,
+      speed: 14,
+      arc: 0.8,
+      arcPerMeter: 0.15,
+    },
     attention: { reach: 5, level: 2 },
     pitch: proximityPitch({ rest: 4, hold: 3.5 }),
     work: feedItems({
@@ -68,7 +83,10 @@ export const NPC_BREEDS: Readonly<Record<NpcDef['id'], NpcBreed>> = {
       title: "RANDY'S WARES",
       stock: [
         { kind: 'burner', count: 1 },
-        ...Array.from({ length: 5 }, () => ({ kind: 'brisket' as const, count: 128 })),
+        ...Array.from({ length: 5 }, () => ({
+          kind: 'brisket' as const,
+          count: 128,
+        })),
       ],
       reach: 2.8,
       level: 2,
@@ -90,7 +108,12 @@ export const NPC_BREEDS: Readonly<Record<NpcDef['id'], NpcBreed>> = {
         offered: (n) => !!n.fire,
         ready: (n) => !!n.work?.in('idle'),
         start: (n, from, count, reward) => {
-          n.send({ type: 'given', n: count, reward, from: new Vector3(from.x, from.y + HANDS, from.z) });
+          n.send({
+            type: 'given',
+            n: count,
+            reward,
+            from: new Vector3(from.x, from.y + HANDS, from.z),
+          });
         },
       },
     ],

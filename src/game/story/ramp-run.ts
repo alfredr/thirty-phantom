@@ -38,7 +38,9 @@ export function launchOf(k: RampDef): Vector3 {
   return k.axis === 'x' ? new Vector3(k.dir, 0, 0) : new Vector3(0, 0, k.dir);
 }
 
-export function rampRun<C>(config: RampConfig<C>): BeatBehavior<C & RampServices, MindEvent<string>, string> {
+export function rampRun<C>(
+  config: RampConfig<C>,
+): BeatBehavior<C & RampServices, MindEvent<string>, string> {
   return function start(scope, context) {
     return new RampRun(scope, context, config);
   };
@@ -136,7 +138,10 @@ class RampRun<C> implements RunningBehavior<MindEvent<string>> {
     }
 
     this.assist = this.misses >= this.config.assistAfterMisses;
-    this.c.recovery.reset(this.config.vehicle(this.c), this.config.resetTo(this.c));
+    this.c.recovery.reset(
+      this.config.vehicle(this.c),
+      this.config.resetTo(this.c),
+    );
   }
 
   private force(): void {
@@ -159,7 +164,9 @@ class RampRun<C> implements RunningBehavior<MindEvent<string>> {
 
       this.pilot = c.recovery.force(
         (car) => {
-          const side = (car.pos.x - start.pos.x) * right.x + (car.pos.z - start.pos.z) * right.z;
+          const side =
+            (car.pos.x - start.pos.x) * right.x +
+            (car.pos.z - start.pos.z) * right.z;
           const heading = wrapAngle(car.yaw - yaw);
           return {
             throttle: 1,

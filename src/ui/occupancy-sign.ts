@@ -1,7 +1,10 @@
 import { clamp } from '@/engine/core/math';
 import { el } from '@/engine/ui/dom';
 
-/** Display logged, actual, and phantom occupancy beside the clock, with one visual cell per parking space. */
+/**
+ * Display logged, actual, and phantom occupancy beside the clock, with one
+ * visual cell per parking space.
+ */
 export class OccupancySign {
   readonly root: HTMLDivElement;
   private readonly score: HTMLElement;
@@ -27,7 +30,12 @@ export class OccupancySign {
 
   set(logged: number, actual: number, phantom: number, max: number): void {
     const last = this.last;
-    if (logged === last.logged && actual === last.actual && phantom === last.phantom && max === last.max) {
+    if (
+      logged === last.logged &&
+      actual === last.actual &&
+      phantom === last.phantom &&
+      max === last.max
+    ) {
       return;
     }
 
@@ -37,7 +45,9 @@ export class OccupancySign {
     this.of.textContent = `/${max}`;
 
     if (max !== last.max) {
-      this.stalls.replaceChildren(...Array.from({ length: max }, () => el('i')));
+      this.stalls.replaceChildren(
+        ...Array.from({ length: max }, () => el('i')),
+      );
       this.stalls.style.gridTemplateColumns = `repeat(${Math.ceil(max / 2)}, 1fr)`;
     }
 
@@ -45,7 +55,10 @@ export class OccupancySign {
     const ghosts = clamp(phantom, 0, max);
     const cars = clamp(actual, 0, max - ghosts);
     const cells = [...this.stalls.children];
-    cells.forEach((c, i) => (c.className = i < ghosts ? 'ghost' : i < ghosts + cars ? 'car' : ''));
+    cells.forEach(
+      (c, i) =>
+        (c.className = i < ghosts ? 'ghost' : i < ghosts + cars ? 'car' : ''),
+    );
 
     if (last.phantom >= 0 && phantom > last.phantom) {
       cells[ghosts - 1]?.classList.add('new');

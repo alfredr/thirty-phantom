@@ -1,12 +1,22 @@
 import type { Npc } from '@/actors/npcs/npcs';
-import { npcScenes, player, type NpcSceneBindings } from '@/game/story/npc-scene';
+import {
+  npcScenes,
+  player,
+  type NpcSceneBindings,
+} from '@/game/story/npc-scene';
 
 const scene = npcScenes<'speaker', 'door', 'closeup', 'lightFire'>();
 
-export function checkSceneTypes(bindings: NpcSceneBindings<'speaker', 'door', 'closeup', 'lightFire'>, npc: Npc): void {
+export function checkSceneTypes(
+  bindings: NpcSceneBindings<'speaker', 'door', 'closeup', 'lightFire'>,
+  npc: Npc,
+): void {
   const definition = scene.holding(
     [scene.camera('closeup'), scene.attention('speaker', player)],
-    scene.sequence([scene.walkTo('speaker', 'door'), scene.handOver('speaker', 'burner', { seconds: 1, at: 0.5 })]),
+    scene.sequence([
+      scene.walkTo('speaker', 'door'),
+      scene.handOver('speaker', 'burner', { seconds: 1, at: 0.5 }),
+    ]),
   );
   scene.play(definition, bindings);
   scene.custom('lightFire');

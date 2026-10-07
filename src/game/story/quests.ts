@@ -13,7 +13,10 @@ export interface Quest {
   restore(step: string): void;
 }
 
-/** Saves and restores quest progress by id. Unknown ids in older saves are ignored. */
+/**
+ * Saves and restores quest progress by id. Unknown ids in older saves are
+ * ignored.
+ */
 export class Quests {
   constructor(readonly all: readonly Quest[]) {}
 
@@ -34,7 +37,9 @@ export class Quests {
 }
 
 /** Main quest progress. `announced` prevents duplicate victory displays. */
-export type HauntState = State<'haunting'> | State<'won', { announced: boolean }>;
+export type HauntState =
+  | State<'haunting'>
+  | State<'won', { announced: boolean }>;
 export type HauntEvent =
   /** A phantom was created; `n` is the total count. */
   MindEvent<'phantom', { n: number }>;
@@ -51,7 +56,10 @@ export interface HauntWorld {
 
 const HAUNTING = mind<Haunting, HauntState, HauntEvent>({
   haunting: {
-    on: { phantom: (q, _s, { n }) => (n >= q.world.needed ? { at: 'won', announced: false } : null) },
+    on: {
+      phantom: (q, _s, { n }) =>
+        n >= q.world.needed ? { at: 'won', announced: false } : null,
+    },
   },
   won: {
     enter: (q, s) => {
@@ -65,7 +73,10 @@ const HAUNTING = mind<Haunting, HauntState, HauntEvent>({
   },
 });
 
-/** Complete the main quest when the phantom count reaches its target. Restored victories remain silent. */
+/**
+ * Complete the main quest when the phantom count reaches its target. Restored
+ * victories remain silent.
+ */
 export class Haunting implements Quest {
   readonly id = 'haunting';
   readonly mind: Mind<Haunting, HauntState, HauntEvent>;
@@ -91,6 +102,18 @@ export class Haunting implements Quest {
 }
 
 /** Create an optional Randy marker when Cody has tires and Randy is available. */
-export function tireMarks(have: number, randy: Vector3 | null): readonly Objective[] {
-  return have > 0 && randy ? [{ id: 'tires-randy', label: 'RANDY TAKES TIRES', kind: 'optional', at: randy }] : [];
+export function tireMarks(
+  have: number,
+  randy: Vector3 | null,
+): readonly Objective[] {
+  return have > 0 && randy
+    ? [
+        {
+          id: 'tires-randy',
+          label: 'RANDY TAKES TIRES',
+          kind: 'optional',
+          at: randy,
+        },
+      ]
+    : [];
 }

@@ -2,7 +2,10 @@ import { Color, type Object3D, Vector3 } from 'three';
 
 import type { SpriteFx } from './sprite-fx';
 
-/** Emission interval and lifetime in seconds, sizes in meters, and drift in m/s. */
+/**
+ * Emission interval and lifetime in seconds, sizes in meters, and drift in
+ * m/s.
+ */
 export interface SmokeSpec {
   readonly every: number;
   readonly life: number;
@@ -41,7 +44,20 @@ export class Smoke {
     const s = this.spec;
     this.wait = s.every;
     this.origin.getWorldPosition(this.at);
-    this.velocity.set((Math.random() - 0.5) * s.scatter, s.rise, (Math.random() - 0.5) * s.scatter);
-    this.sprites.emit(this.at, this.velocity, this.color, s.size[0], s.size[1], s.life, 'smoke', s.alpha);
+    this.velocity.set(
+      (Math.random() - 0.5) * s.scatter,
+      s.rise,
+      (Math.random() - 0.5) * s.scatter,
+    );
+    this.sprites.emit(
+      this.at,
+      this.velocity,
+      this.color,
+      s.size[0],
+      s.size[1],
+      s.life,
+      'smoke',
+      s.alpha,
+    );
   }
 }

@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
-  "printWidth": 120,
+  "printWidth": 79,
   "singleQuote": true,
   "endOfLine": "lf",
   "insertFinalNewline": true,

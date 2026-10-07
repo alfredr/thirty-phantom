@@ -11,10 +11,17 @@ export interface DripWorld {
   /** Boxes slime must not cut through (signs). */
   blocked(min: V3, max: V3): boolean;
   /**
-   * Return the landing height and receiving pool for a drop at (x, y, z). Pool placement uses (px, pz); return pool -1
-   * for surfaces that cannot support a puddle.
+   * Return the landing height and receiving pool for a drop at (x, y, z). Pool
+   * placement uses (px, pz); return pool -1 for surfaces that cannot support a
+   * puddle.
    */
-  land(x: number, y: number, z: number, px: number, pz: number): { y: number; pool: number };
+  land(
+    x: number,
+    y: number,
+    z: number,
+    px: number,
+    pz: number,
+  ): { y: number; pool: number };
   /** A fresh id for a run of underside slime. */
   run(): number;
 }
@@ -29,11 +36,14 @@ export interface FilmSpec {
 }
 
 /**
- * One drip hanging from an edge lip. The lip feeds it slowly; the runtime sim (slime.ts) swells and stretches it within
- * the limits set here.
+ * One drip hanging from an edge lip. The lip feeds it slowly; the runtime sim
+ * (slime.ts) swells and stretches it within the limits set here.
  */
 export interface DripSpec {
-  /** Edge direction (the drip's width runs along it) and outward sign on the other axis. */
+  /**
+   * Edge direction (the drip's width runs along it) and outward sign on the
+   * other axis.
+   */
   axis: 'x' | 'z';
   out: 1 | -1;
   /** Position along the edge, and the face's coordinate on the other axis. */
@@ -43,7 +53,10 @@ export interface DripSpec {
   w: number;
   /** Maximum wall-supported strand length, in meters. */
   reach: number;
-  /** Maximum nominal unsupported length in meters; zero keeps the drip on the wall. */
+  /**
+   * Maximum nominal unsupported length in meters; zero keeps the drip on the
+   * wall.
+   */
   hang: number;
   /** Whether a full hanging bulb detaches as a falling drop. */
   drops: boolean;
@@ -55,8 +68,9 @@ export interface DripSpec {
 }
 
 /**
- * Bulb dimensions depend on drip width and fill fraction. Free bulbs stretch and bulge more than wall-supported bulbs.
- * `below` is the fraction of bulb height extending below the strand endpoint.
+ * Bulb dimensions depend on drip width and fill fraction. Free bulbs stretch
+ * and bulge more than wall-supported bulbs. `below` is the fraction of bulb
+ * height extending below the strand endpoint.
  */
 export const BULB = {
   base: 1.05,
@@ -68,7 +82,11 @@ export const BULB = {
   below: 0.6,
 };
 
-export function bulbSize(w: number, f: number, free: boolean): { across: number; tall: number; depth: number } {
+export function bulbSize(
+  w: number,
+  f: number,
+  free: boolean,
+): { across: number; tall: number; depth: number } {
   const across = w * (BULB.base + BULB.grow * f);
   return {
     across,
@@ -78,7 +96,8 @@ export function bulbSize(w: number, f: number, free: boolean): { across: number;
 }
 
 /** How far a full bulb reaches below its strand's end. */
-const bulbBelow = (w: number, free: boolean): number => bulbSize(w, 1, free).tall * BULB.below;
+const bulbBelow = (w: number, free: boolean): number =>
+  bulbSize(w, 1, free).tall * BULB.below;
 
 /** How far a drip's column is scanned per step (m). */
 const STEP = 0.05;
@@ -93,7 +112,10 @@ interface Edge {
   out: 1 | -1;
 }
 
-/** Choose a drip length in meters, favouring short drips with less frequent medium and long drips. */
+/**
+ * Choose a drip length in meters, favouring short drips with less frequent
+ * medium and long drips.
+ */
 function dripLength(rng: Rng, maxLong: number): number {
   const r = rng.next();
   if (r < 0.55) {
@@ -111,10 +133,11 @@ function dripLength(rng: Rng, maxLong: number): number {
 const DRIP_DENSITY = 0.6;
 
 /**
- * Place slime along exposed box edges, avoiding adjacent geometry and sign bounds. Append top-edge lips to `batch`;
- * return drip specifications and underside films for SlimeSim. Limit strands and bulbs to available wall and obstacle
- * clearance, and associate falling drops with suitable landing pools. Underside films supply finite volume through
- * their assigned runs.
+ * Place slime along exposed box edges, avoiding adjacent geometry and sign
+ * bounds. Append top-edge lips to `batch`; return drip specifications and
+ * underside films for SlimeSim. Limit strands and bulbs to available wall and
+ * obstacle clearance, and associate falling drops with suitable landing pools.
+ * Underside films supply finite volume through their assigned runs.
  */
 export function addDrips(
   batch: GeometryBatch,
@@ -149,7 +172,15 @@ export function addDrips(
   };
 
   // box spanning [along±w/2] x [o0..o1 outward offsets] x [y0..y1]; underside ones join the current run
-  const B = (e: Edge, along: number, w: number, o0: number, o1: number, y0: number, y1: number): boolean => {
+  const B = (
+    e: Edge,
+    along: number,
+    w: number,
+    o0: number,
+    o1: number,
+    y0: number,
+    y1: number,
+  ): boolean => {
     const [x0, z0] = xz(e, along - w / 2, o0);
     const [x1, z1] = xz(e, along + w / 2, o1);
     const bmin: V3 = [Math.min(x0, x1), y0, Math.min(z0, z1)];
@@ -168,25 +199,45 @@ export function addDrips(
   };
 
   // a sign within reach of the biggest bulb, or a ledge right under the drip
-  const inWay = (e: Edge, along: number, w: number, y0: number, y1: number): boolean => {
+  const inWay = (
+    e: Edge,
+    along: number,
+    w: number,
+    y0: number,
+    y1: number,
+  ): boolean => {
     const big = bulbSize(w, 1, true);
     const [x0, z0] = xz(e, along - big.across / 2, -0.03);
     const [x1, z1] = xz(e, along + big.across / 2, -0.03 + big.depth);
     return (
-      world.blocked([Math.min(x0, x1), y0, Math.min(z0, z1)], [Math.max(x0, x1), y1, Math.max(z0, z1)]) ||
-      at(e, along, 0.035, y0)
+      world.blocked(
+        [Math.min(x0, x1), y0, Math.min(z0, z1)],
+        [Math.max(x0, x1), y1, Math.max(z0, z1)],
+      ) || at(e, along, 0.035, y0)
     );
   };
 
   const covered = (e: Edge, along: number): boolean => {
     if (mode === 'top') {
-      return at(e, along, 0.15, yEdge - Math.min(0.25, thick * 0.5)) || at(e, along, -0.15, yEdge + 0.12);
+      return (
+        at(e, along, 0.15, yEdge - Math.min(0.25, thick * 0.5)) ||
+        at(e, along, -0.15, yEdge + 0.12)
+      );
     }
 
-    return at(e, along, 0.15, yEdge + Math.min(0.2, thick * 0.5)) || at(e, along, 0.15, yEdge - 0.25);
+    return (
+      at(e, along, 0.15, yEdge + Math.min(0.2, thick * 0.5)) ||
+      at(e, along, 0.15, yEdge - 0.25)
+    );
   };
 
-  const drip = (e: Edge, along: number, w: number, top: number, L: number): void => {
+  const drip = (
+    e: Edge,
+    along: number,
+    w: number,
+    top: number,
+    L: number,
+  ): void => {
     // Scan downward to find the continuous supporting wall and the first obstruction.
     const depth = L + 1.2;
     let wall = 0;
@@ -206,7 +257,13 @@ export function addDrips(
       }
     }
 
-    const spec = (reach: number, hang = 0, drops = false, landY = 0, pool = -1): void => {
+    const spec = (
+      reach: number,
+      hang = 0,
+      drops = false,
+      landY = 0,
+      pool = -1,
+    ): void => {
       out.push({
         axis: e.axis,
         out: e.out,
@@ -224,7 +281,13 @@ export function addDrips(
     };
 
     // Reserve clearance for a full bulb and stretch oscillation.
-    const hang = L > wall ? Math.min(rng.range(0.15, 0.45), (limit - wall - bulbBelow(w, true)) / 1.2) : 0;
+    const hang =
+      L > wall
+        ? Math.min(
+            rng.range(0.15, 0.45),
+            (limit - wall - bulbBelow(w, true)) / 1.2,
+          )
+        : 0;
     if (hang < 0.06) {
       // Reject underside drips without enough room for a hanging bulb.
       if (mode === 'bottom') {
@@ -288,10 +351,34 @@ export function addDrips(
           const lip = rng.range(0.08, 0.3);
           let placed: boolean;
           if (mode === 'top') {
-            B(e, mid, seg + 0.02, -rng.range(0.1, 0.32), 0.06, yEdge, yEdge + rng.range(0.03, 0.07));
-            placed = B(e, mid, seg + 0.02, -0.02, 0.06, yEdge - lip, yEdge + 0.03);
+            B(
+              e,
+              mid,
+              seg + 0.02,
+              -rng.range(0.1, 0.32),
+              0.06,
+              yEdge,
+              yEdge + rng.range(0.03, 0.07),
+            );
+            placed = B(
+              e,
+              mid,
+              seg + 0.02,
+              -0.02,
+              0.06,
+              yEdge - lip,
+              yEdge + 0.03,
+            );
           } else {
-            placed = B(e, mid, seg + 0.02, -0.03, 0.05, yEdge - lip * 0.6, yEdge + Math.min(0.2, thick * 0.6));
+            placed = B(
+              e,
+              mid,
+              seg + 0.02,
+              -0.03,
+              0.05,
+              yEdge - lip * 0.6,
+              yEdge + Math.min(0.2, thick * 0.6),
+            );
           }
 
           if (placed) {
@@ -305,7 +392,10 @@ export function addDrips(
       // Require the drip position to lie beneath a successfully placed lip or film.
       const underLip = (along: number): boolean => {
         for (let i = 0; i < lipped.length; i += 2) {
-          if (along >= (lipped[i] as number) && along <= (lipped[i + 1] as number)) {
+          if (
+            along >= (lipped[i] as number) &&
+            along <= (lipped[i + 1] as number)
+          ) {
             return true;
           }
         }
@@ -316,13 +406,21 @@ export function addDrips(
       // Place drips along the exposed portions of this run.
       let d = t + rng.range(0.02, 0.2);
       while (d < runEnd - 0.06) {
-        const w = mode === 'top' ? rng.range(0.07, 0.26) : rng.range(0.06, 0.13);
+        const w =
+          mode === 'top' ? rng.range(0.07, 0.26) : rng.range(0.06, 0.13);
         const along = d + w / 2;
         if (!covered(e, along) && underLip(along)) {
-          drip(e, along, w, mode === 'top' ? yEdge : yEdge + 0.06, dripLength(rng, 2.4));
+          drip(
+            e,
+            along,
+            w,
+            mode === 'top' ? yEdge : yEdge + 0.06,
+            dripLength(rng, 2.4),
+          );
         }
 
-        d += w + (mode === 'top' ? rng.range(0.04, 0.42) : rng.range(0.5, 1.4));
+        d +=
+          w + (mode === 'top' ? rng.range(0.04, 0.42) : rng.range(0.5, 1.4));
       }
 
       t = runEnd + rng.range(0.4, 2.6);

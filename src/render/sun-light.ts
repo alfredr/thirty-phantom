@@ -1,10 +1,19 @@
 import { DirectionalLight, HemisphereLight, type Scene, Vector3 } from 'three';
 
-/** Shadow-box half-width in meters for the chase view and the maximum for the isometric view. */
+/**
+ * Shadow-box half-width in meters for the chase view and the maximum for the
+ * isometric view.
+ */
 const SHADOW_HALF = 55;
-/** Quantization step in meters for fitted half-extents, reducing changes as the view moves. */
+/**
+ * Quantization step in meters for fitted half-extents, reducing changes as the
+ * view moves.
+ */
 const SHADOW_STEP = 4;
-/** Extra coverage in meters for shadow-filter samples beyond the visible region. */
+/**
+ * Extra coverage in meters for shadow-filter samples beyond the visible
+ * region.
+ */
 const SHADOW_PAD = 2;
 const _x = new Vector3();
 const _y = new Vector3();
@@ -32,7 +41,10 @@ export class SunLight {
     scene.add(this.hemi, sun, sun.target);
   }
 
-  /** Centre a fixed shadow box on the ground below `focus`, snapping horizontally to texels to reduce shimmer. */
+  /**
+   * Centre a fixed shadow box on the ground below `focus`, snapping
+   * horizontally to texels to reduce shimmer.
+   */
   follow(focus: Vector3, dir: Vector3): void {
     this.size(SHADOW_HALF, SHADOW_HALF);
     this.sun.shadow.camera.up.set(0, 1, 0);
@@ -44,9 +56,11 @@ export class SunLight {
   }
 
   /**
-   * Fit shadow bounds to the supplied world points as seen along `dir`, oriented by `up`. Pad and quantize the
-   * half-extents, capped at SHADOW_HALF, then snap the centre to shadow texels to reduce shimmer. Callers normally
-   * supply IsoCamera.shadowCorners and the camera's horizontal screen-up direction.
+   * Fit shadow bounds to the supplied world points as seen along `dir`,
+   * oriented by `up`. Pad and quantize the half-extents, capped at
+   * SHADOW_HALF, then snap the centre to shadow texels to reduce shimmer.
+   * Callers normally supply IsoCamera.shadowCorners and the camera's
+   * horizontal screen-up direction.
    */
   cover(points: readonly Vector3[], dir: Vector3, up: Vector3): void {
     // Match the shadow camera basis constructed by Three.js lookAt.
@@ -82,7 +96,11 @@ export class SunLight {
       y1 = Math.max(y1, v);
     }
 
-    const step = (h: number): number => Math.min(SHADOW_HALF, Math.ceil((h + SHADOW_PAD) / SHADOW_STEP) * SHADOW_STEP);
+    const step = (h: number): number =>
+      Math.min(
+        SHADOW_HALF,
+        Math.ceil((h + SHADOW_PAD) / SHADOW_STEP) * SHADOW_STEP,
+      );
     const hx = step((x1 - x0) / 2);
     const hy = step((y1 - y0) / 2);
     this.size(hx, hy);
@@ -93,7 +111,10 @@ export class SunLight {
     const my = (y0 + y1) / 2;
     const ox = _c.dot(_x) + mx;
     const oy = _c.dot(_y) + my;
-    _c.addScaledVector(_x, Math.round(ox / tx) * tx - ox + mx).addScaledVector(_y, Math.round(oy / ty) * ty - oy + my);
+    _c.addScaledVector(_x, Math.round(ox / tx) * tx - ox + mx).addScaledVector(
+      _y,
+      Math.round(oy / ty) * ty - oy + my,
+    );
     this.sun.target.position.copy(_c);
     this.sun.position.copy(_c).addScaledVector(dir, 120);
   }

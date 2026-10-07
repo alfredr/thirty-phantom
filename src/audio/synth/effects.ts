@@ -22,11 +22,14 @@ interface Layer {
 }
 
 /**
- * Optional layers for impact sounds. A low sine-wave thump supplies weight; filtered noise supplies the remaining
- * textures without sustained ringing.
+ * Optional layers for impact sounds. A low sine-wave thump supplies weight;
+ * filtered noise supplies the remaining textures without sustained ringing.
  */
 export interface FoleyP {
-  /** Low sine-wave impact, sweeping from `from` to `to` in Hz over a short envelope. */
+  /**
+   * Low sine-wave impact, sweeping from `from` to `to` in Hz over a short
+   * envelope.
+   */
   thump?: Layer & { from: number; to: number };
   /** Low-frequency noise with a rapidly falling cutoff, initially `f` Hz. */
   body?: Layer & { f: number };
@@ -36,7 +39,10 @@ export interface FoleyP {
   snap?: Layer & { f: number; q: number };
   /** Initial glass break followed by `n` short noise bursts over `len` seconds. */
   glass?: Layer & { n: number };
-  /** Debris impacts: `n` noise bursts around `f` Hz over `len` seconds. Default resonance is 1.4. */
+  /**
+   * Debris impacts: `n` noise bursts around `f` Hz over `len` seconds. Default
+   * resonance is 1.4.
+   */
   rattle?: Layer & { n: number; f: number; q?: number };
   /** Filtered leaf noise above `f` Hz with short twig snaps. */
   rustle?: Layer & { f: number };
@@ -49,8 +55,17 @@ export function foley(k: Kit, out: AudioNode, t: number, p: FoleyP): Voice {
     end = Math.max(end, e);
   };
 
-  /** Schedule a short band-pass noise burst at context time `at`, centered on `f` Hz. */
-  const click = (at: number, f: number, q: number, vol: number, len: number): void => {
+  /**
+   * Schedule a short band-pass noise burst at context time `at`, centered on
+   * `f` Hz.
+   */
+  const click = (
+    at: number,
+    f: number,
+    q: number,
+    vol: number,
+    len: number,
+  ): void => {
     chain(
       noise(k, s, at, at + len + 0.02),
       filter(k, 'bandpass', f, q),
@@ -61,7 +76,13 @@ export function foley(k: Kit, out: AudioNode, t: number, p: FoleyP): Voice {
   };
 
   /** Sweep a filter exponentially from `f` to `f * to` Hz over `len` seconds. */
-  const sweep = (b: BiquadFilterNode, at: number, f: number, to: number, len: number): void => {
+  const sweep = (
+    b: BiquadFilterNode,
+    at: number,
+    f: number,
+    to: number,
+    len: number,
+  ): void => {
     b.frequency.setValueAtTime(f, at);
     b.frequency.exponentialRampToValueAtTime(f * to, at + len);
   };
@@ -92,13 +113,24 @@ export function foley(k: Kit, out: AudioNode, t: number, p: FoleyP): Voice {
     const t0 = t + (crunch.at ?? 0);
     const bursts: [number, number, number, number][] = [
       [0, crunch.f, crunch.vol, crunch.len],
-      [rand(0.03, 0.08), crunch.f * rand(0.7, 1.3), crunch.vol * 0.6, crunch.len * 0.7],
+      [
+        rand(0.03, 0.08),
+        crunch.f * rand(0.7, 1.3),
+        crunch.vol * 0.6,
+        crunch.len * 0.7,
+      ],
     ];
     for (const [d, f, vol, len] of bursts) {
       const b = t0 + d;
       const band = filter(k, 'bandpass', f, crunch.q);
       sweep(band, b, f, 0.35, len);
-      chain(noise(k, s, b, b + len + 0.02), band, shape(k, k.hard), strike(k, b, vol * 0.5, 0.001, len), out);
+      chain(
+        noise(k, s, b, b + len + 0.02),
+        band,
+        shape(k, k.hard),
+        strike(k, b, vol * 0.5, 0.001, len),
+        out,
+      );
       upTo(b + len + 0.02);
     }
   }
@@ -118,7 +150,13 @@ export function foley(k: Kit, out: AudioNode, t: number, p: FoleyP): Voice {
 
     // Use broad noise bands so glass fragments do not produce sustained tones.
     for (let i = 0; i < glass.n; i++) {
-      click(t0 + glass.len * Math.random() ** 1.5, rand(3000, 8000), 0.9, glass.vol * rand(0.2, 0.6), rand(0.01, 0.04));
+      click(
+        t0 + glass.len * Math.random() ** 1.5,
+        rand(3000, 8000),
+        0.9,
+        glass.vol * rand(0.2, 0.6),
+        rand(0.01, 0.04),
+      );
     }
   }
 
@@ -142,7 +180,13 @@ export function foley(k: Kit, out: AudioNode, t: number, p: FoleyP): Voice {
       noise(k, s, t0, e + 0.02),
       filter(k, 'highpass', rustle.f),
       filter(k, 'lowpass', rustle.f * 4),
-      strike(k, t0, rustle.vol * loud(k, rustle.f * 3), rustle.len * 0.1, rustle.len * 0.9),
+      strike(
+        k,
+        t0,
+        rustle.vol * loud(k, rustle.f * 3),
+        rustle.len * 0.1,
+        rustle.len * 0.9,
+      ),
       out,
     );
     upTo(e + 0.02);
@@ -162,10 +206,16 @@ export function foley(k: Kit, out: AudioNode, t: number, p: FoleyP): Voice {
 }
 
 export interface WhooshP {
-  /** Band-pass center frequencies at the start, peak, and end, in Hz, plus filter resonance Q. */
+  /**
+   * Band-pass center frequencies at the start, peak, and end, in Hz, plus
+   * filter resonance Q.
+   */
   f: readonly [number, number, number];
   q: number;
-  /** Duration in seconds, peak time as a fraction of duration, gain, and optional low boom frequency in Hz. */
+  /**
+   * Duration in seconds, peak time as a fraction of duration, gain, and
+   * optional low boom frequency in Hz.
+   */
   len: number;
   peak: number;
   vol: number;
@@ -196,18 +246,27 @@ export function whoosh(k: Kit, out: AudioNode, t: number, p: WhooshP): Voice {
 }
 
 export interface WailP {
-  /** Pitch sweep from `from` to `to` Hz over `len` seconds. Vibrato depth is relative to the starting pitch. */
+  /**
+   * Pitch sweep from `from` to `to` Hz over `len` seconds. Vibrato depth is
+   * relative to the starting pitch.
+   */
   from: number;
   to: number;
   len: number;
   vibrato: number;
-  /** Chorus voice count, detuning interval in cents, waveform, and breath-noise gain. */
+  /**
+   * Chorus voice count, detuning interval in cents, waveform, and breath-noise
+   * gain.
+   */
   voices: number;
   cents: number;
   wave: OscillatorType;
   air: number;
   vol: number;
-  /** Fraction of the duration used for the attack; the remaining time is the fade. */
+  /**
+   * Fraction of the duration used for the attack; the remaining time is the
+   * fade.
+   */
   rise: number;
 }
 
@@ -225,7 +284,12 @@ export function wail(k: Kit, out: AudioNode, t: number, p: WailP): Voice {
     const o = osc(k, s, p.wave, p.from, t, end);
     o.detune.value = (i - (p.voices - 1) / 2) * p.cents;
     o.frequency.exponentialRampToValueAtTime(p.to, end);
-    wobble(k, osc(k, s, 'sine', 4.5 + i * 0.8, t, end), p.from * p.vibrato, o.frequency);
+    wobble(
+      k,
+      osc(k, s, 'sine', 4.5 + i * 0.8, t, end),
+      p.from * p.vibrato,
+      o.frequency,
+    );
     chain(o, amp(k, 1 / p.voices), lp);
   }
 
@@ -233,14 +297,22 @@ export function wail(k: Kit, out: AudioNode, t: number, p: WailP): Voice {
     const band = filter(k, 'bandpass', p.from * 2, 3);
     band.frequency.setValueAtTime(p.from * 2, t);
     band.frequency.exponentialRampToValueAtTime(p.to * 2, end);
-    chain(noise(k, s, t, end), band, amp(k, p.air * loud(k, (p.from * 2) / 3)), env);
+    chain(
+      noise(k, s, t, end),
+      band,
+      amp(k, p.air * loud(k, (p.from * 2) / 3)),
+      env,
+    );
   }
 
   return { end, stop: s.stop };
 }
 
 export interface ChimeP {
-  /** Note frequencies in Hz, spaced by `step` seconds, with `decay` seconds per note. */
+  /**
+   * Note frequencies in Hz, spaced by `step` seconds, with `decay` seconds per
+   * note.
+   */
   notes: readonly number[];
   step: number;
   decay: number;
@@ -256,10 +328,18 @@ export function chime(k: Kit, out: AudioNode, t: number, p: ChimeP): Voice {
   p.notes.forEach((f, i) => {
     const at = t + i * p.step;
     const e = at + p.decay + 0.02;
-    chain(osc(k, s, p.wave, f, at, e), strike(k, at, p.vol, 0.004, p.decay), out);
+    chain(
+      osc(k, s, p.wave, f, at, e),
+      strike(k, at, p.vol, 0.004, p.decay),
+      out,
+    );
 
     if (p.bell) {
-      chain(osc(k, s, 'sine', f * p.bell, at, e), strike(k, at, p.vol / 3, 0.002, p.decay * 0.5), out);
+      chain(
+        osc(k, s, 'sine', f * p.bell, at, e),
+        strike(k, at, p.vol / 3, 0.002, p.decay * 0.5),
+        out,
+      );
     }
 
     end = Math.max(end, e);
@@ -281,7 +361,13 @@ export function ring(k: Kit, out: AudioNode, t: number, p: RingP): Voice {
   const s = new Sources();
   const o = osc(k, s, 'square', p.f[0], t);
   const gate = amp(k, 0);
-  chain(o, filter(k, 'bandpass', 1600, 0.8), filter(k, 'lowpass', 3500), gate, out);
+  chain(
+    o,
+    filter(k, 'bandpass', 1600, 0.8),
+    filter(k, 'lowpass', 3500),
+    gate,
+    out,
+  );
   let next = t;
   let step = 0;
   const tick = (at: number): void => {
@@ -296,7 +382,10 @@ export function ring(k: Kit, out: AudioNode, t: number, p: RingP): Voice {
       gate.gain.linearRampToValueAtTime(p.vol, next + 0.01);
 
       for (let j = 0; j / p.trill < on; j++) {
-        o.frequency.setValueAtTime(j % 2 ? p.f[1] : p.f[0], next + j / p.trill);
+        o.frequency.setValueAtTime(
+          j % 2 ? p.f[1] : p.f[0],
+          next + j / p.trill,
+        );
       }
 
       gate.gain.setValueAtTime(p.vol, next + on - 0.01);
@@ -311,7 +400,10 @@ export function ring(k: Kit, out: AudioNode, t: number, p: RingP): Voice {
 }
 
 export interface BuzzP {
-  /** Vibration frequency in Hz, pulse count, pulse duration, and gap in seconds. */
+  /**
+   * Vibration frequency in Hz, pulse count, pulse duration, and gap in
+   * seconds.
+   */
   f: number;
   pulses: number;
   len: number;
@@ -326,7 +418,12 @@ export function buzz(k: Kit, out: AudioNode, t: number, p: BuzzP): Voice {
   const s = new Sources();
   const end = t + p.pulses * (p.len + p.gap) + 0.3;
   const gate = amp(k, 0);
-  chain(osc(k, s, 'square', p.f, t, end), filter(k, 'lowpass', p.f * 2.5), gate, out);
+  chain(
+    osc(k, s, 'square', p.f, t, end),
+    filter(k, 'lowpass', p.f * 2.5),
+    gate,
+    out,
+  );
 
   for (let i = 0; i < p.pulses; i++) {
     const b = t + i * (p.len + p.gap);
@@ -338,15 +435,20 @@ export function buzz(k: Kit, out: AudioNode, t: number, p: BuzzP): Voice {
 
   p.ding.forEach((f, i) => {
     const b = t + i * p.step;
-    chain(osc(k, s, 'sine', f, b, b + 0.32), strike(k, b, p.vol * 0.5, 0.003, 0.3), out);
+    chain(
+      osc(k, s, 'sine', f, b, b + 0.32),
+      strike(k, b, p.vol * 0.5, 0.003, 0.3),
+      out,
+    );
   });
   return { end, stop: s.stop };
 }
 
 export interface MorphP {
   /**
-   * Transformation sound: a rising growl for `shudder` seconds, followed by a pitch sweep through `blorp`, noise, and a
-   * low impact. Frequencies are in Hz.
+   * Transformation sound: a rising growl for `shudder` seconds, followed by a
+   * pitch sweep through `blorp`, noise, and a low impact. Frequencies are in
+   * Hz.
    */
   shudder: number;
   from: number;
@@ -375,7 +477,12 @@ export function morph(k: Kit, out: AudioNode, t: number, p: MorphP): Voice {
   const splash = filter(k, 'bandpass', 2200, 1.2);
   splash.frequency.setValueAtTime(2200, pop);
   splash.frequency.exponentialRampToValueAtTime(350, pop + 0.45);
-  chain(noise(k, s, pop, end), splash, strike(k, pop, p.vol * 0.6 * loud(k, 1000), 0.003, 0.5), out);
+  chain(
+    noise(k, s, pop, end),
+    splash,
+    strike(k, pop, p.vol * 0.6 * loud(k, 1000), 0.003, 0.5),
+    out,
+  );
   const boom = osc(k, s, 'sine', 80, pop, end);
   boom.frequency.exponentialRampToValueAtTime(35, pop + 0.4);
   chain(boom, strike(k, pop, p.vol * 0.9, 0.004, 0.5), out);
@@ -385,14 +492,22 @@ export function morph(k: Kit, out: AudioNode, t: number, p: MorphP): Voice {
 export interface StingerP {
   /** Gong fundamental frequency in Hz, with inharmonic overtones. */
   gong: number;
-  /** Chord frequencies in Hz, attack time in seconds, and total sound duration in seconds. */
+  /**
+   * Chord frequencies in Hz, attack time in seconds, and total sound duration
+   * in seconds.
+   */
   chord: readonly number[];
   swell: number;
   len: number;
   vol: number;
 }
 
-export function stinger(k: Kit, out: AudioNode, t: number, p: StingerP): Voice {
+export function stinger(
+  k: Kit,
+  out: AudioNode,
+  t: number,
+  p: StingerP,
+): Voice {
   const s = new Sources();
   const end = t + p.len;
   [1, 2.32, 4.25, 6.63].forEach((r, i) => {

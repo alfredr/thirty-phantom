@@ -1,6 +1,9 @@
 import { clamp, mod, TAU, wrapAngle } from '@/engine/core/math';
 import { MinHeap } from '@/engine/core/min-heap';
-import { bodyOffsets, type VehicleParams } from '@/engine/physics/vehicle-params';
+import {
+  bodyOffsets,
+  type VehicleParams,
+} from '@/engine/physics/vehicle-params';
 
 import { dubins, sampleDubins } from './dubins';
 
@@ -8,11 +11,17 @@ import { dubins, sampleDubins } from './dubins';
 export interface DriveGround {
   /** Biggest height change between neighbouring poses. */
   readonly stepUp: number;
-  /** Ground height if a body point fits at (x, z) near height y with the car heading `yaw`, else null. */
+  /**
+   * Ground height if a body point fits at (x, z) near height y with the car
+   * heading `yaw`, else null.
+   */
   fits(x: number, y: number, z: number, yaw: number): number | null;
   /** Cost per meter of travelling through (x, y, z) in direction `dir` (a yaw). */
   cost(x: number, y: number, z: number, dir: number): number;
-  /** Cost still to go from (x, y, z) ignoring the turning circle (a lower bound), or Infinity out of bounds. */
+  /**
+   * Cost still to go from (x, y, z) ignoring the turning circle (a lower
+   * bound), or Infinity out of bounds.
+   */
   toGo(x: number, y: number, z: number): number;
   /** Distance from (x, y, z) to the nearest wall or drop, up to some cap. */
   clearance(x: number, y: number, z: number): number;
@@ -37,21 +46,28 @@ export type DriveGoals = readonly [DriveGoal, ...DriveGoal[]];
 
 export type DriveStatus = 'running' | 'done' | 'failed';
 
-/** Each expansion drives this far, checked in this many substeps, at one of these fractions of lock. */
+/**
+ * Each expansion drives this far, checked in this many substeps, at one of
+ * these fractions of lock.
+ */
 const STEP = 1.2;
 const SUBSTEPS = 3;
 const STEERS = [-1, -0.5, 0, 0.5, 1];
 /** Reserve steering capacity for corrections during route tracking. */
 const LOCK = 0.85;
 /**
- * Multiply reverse travel cost by REVERSE_COST. Penalize direction changes, steering magnitude, and changes in steering
- * fraction to favor routes with fewer reversals and smoother controls.
+ * Multiply reverse travel cost by REVERSE_COST. Penalize direction changes,
+ * steering magnitude, and changes in steering fraction to favor routes with
+ * fewer reversals and smoother controls.
  */
 const REVERSE_COST = 3;
 const SWITCH_COST = 10;
 const STEER_COST = 0.6;
 const STEER_CHANGE_COST = 0.6;
-/** Duplicate detection: position cells (meters), heading bins, and height buckets (half a storey, so floors stay apart). */
+/**
+ * Duplicate detection: position cells (meters), heading bins, and height
+ * buckets (half a storey, so floors stay apart).
+ */
 const KEY_CELL = 1;
 const YAW_BINS = 36;
 const LEVEL_BUCKET = 2.5;
@@ -63,9 +79,15 @@ const GOAL_YAW = 0.15;
 const GREED = 1.3;
 /** Maximum expansions before accepting the best route or reporting failure. */
 const MAX_EXPAND = 12000;
-/** Continue searching this many expansions after the first route is found to seek a lower-cost result. */
+/**
+ * Continue searching this many expansions after the first route is found to
+ * seek a lower-cost result.
+ */
 const POLISH = 300;
-/** Try Dubins connections periodically, or on every expansion near a goal; limit the candidates considered. */
+/**
+ * Try Dubins connections periodically, or on every expansion near a goal;
+ * limit the candidates considered.
+ */
 const FINISH_EVERY = 6;
 const FINISH_CLOSE = 6;
 const FINISH_CANDIDATES = 3;
@@ -74,8 +96,9 @@ const CHECK_EVERY = 32;
 const SAMPLE = STEP / SUBSTEPS;
 
 /**
- * Obstacle-free turning lookup extent and resolution. TABLE_SCALE matches the minimum ground cost per meter used when
- * combining the lookup with the navigation heuristic.
+ * Obstacle-free turning lookup extent and resolution. TABLE_SCALE matches the
+ * minimum ground cost per meter used when combining the lookup with the
+ * navigation heuristic.
  */
 const TABLE_HALF = 14;
 const TABLE_CELL = 0.5;
@@ -83,8 +106,9 @@ const TABLE_YAWS = 36;
 const TABLE_SCALE = 0.7;
 
 /**
- * Smoothing parameters for Dolgov et al.’s gradient approach. Sample vertices at approximately SMOOTH_SPACING meters
- * and minimize roughness, excessive curvature, and wall proximity over SMOOTH_ITERS iterations.
+ * Smoothing parameters for Dolgov et al.’s gradient approach. Sample vertices
+ * at approximately SMOOTH_SPACING meters and minimize roughness, excessive
+ * curvature, and wall proximity over SMOOTH_ITERS iterations.
  */
 const SMOOTH_SPACING = 0.8;
 const SMOOTH_ITERS = 80;
@@ -113,7 +137,10 @@ interface Node {
   goal?: number;
 }
 
-/** Return the minimum planned turning radius in meters, including reserved steering capacity. */
+/**
+ * Return the minimum planned turning radius in meters, including reserved
+ * steering capacity.
+ */
 export function driveRadius(v: VehicleParams): number {
   return v.wheelBase / Math.tan(v.maxSteer * LOCK);
 }
@@ -127,8 +154,10 @@ const TABLE_N = Math.round((TABLE_HALF * 2) / TABLE_CELL);
 const tables = new Map<string, Float32Array>();
 
 /**
- * Build obstacle-free costs to the origin facing +z by reverse Dijkstra traversal of the search arcs, following
- * Dolgov’s non-holonomic-without-obstacles heuristic. Cache by wheelbase and maximum steering angle.
+ * Build obstacle-free costs to the origin facing +z by reverse Dijkstra
+ * traversal of the search arcs, following Dolgov’s
+ * non-holonomic-without-obstacles heuristic. Cache by wheelbase and maximum
+ * steering angle.
  */
 export function turnTable(v: VehicleParams): Float32Array {
   const id = `${v.wheelBase}|${v.maxSteer}`;
@@ -190,7 +219,10 @@ export function turnTable(v: VehicleParams): Float32Array {
           continue;
         }
 
-        const g = g0 + STEP * (dir < 0 ? REVERSE_COST : 1) + Math.abs(STEERS[si] as number) * STEER_COST;
+        const g =
+          g0 +
+          STEP * (dir < 0 ? REVERSE_COST : 1) +
+          Math.abs(STEERS[si] as number) * STEER_COST;
         if (g >= (best[n] as number)) {
           continue;
         }
@@ -209,10 +241,12 @@ export function turnTable(v: VehicleParams): Float32Array {
 }
 
 /**
- * Plan short vehicle maneuvers with Hybrid A* (Dolgov et al., "Practical Search Techniques in Path Planning for
- * Autonomous Driving"). Search forward and reverse steering arcs using ground-cost and turning heuristics, try forward
- * Dubins connections, and smooth successful legs after clearance checks. run() advances work in deadline slices;
- * success exposes poses and a goal index, while exhausted searches report failure.
+ * Plan short vehicle maneuvers with Hybrid A* (Dolgov et al., "Practical
+ * Search Techniques in Path Planning for Autonomous Driving"). Search forward
+ * and reverse steering arcs using ground-cost and turning heuristics, try
+ * forward Dubins connections, and smooth successful legs after clearance
+ * checks. run() advances work in deadline slices; success exposes poses and a
+ * goal index, while exhausted searches report failure.
  */
 export class DriveSearch {
   status: DriveStatus = 'running';
@@ -230,18 +264,26 @@ export class DriveSearch {
   private readonly closed = new Set<number>();
   /** Cost of the cheapest finish queued so far. */
   private bestFinish = Infinity;
-  /** Best completed route and the expansion count when the first route was found. */
-  private found: { node: Node; goal: number; g: number; at: number } | null = null;
+  /**
+   * Best completed route and the expansion count when the first route was
+   * found.
+   */
+  private found: { node: Node; goal: number; g: number; at: number } | null =
+    null;
 
   constructor(
     private readonly ground: DriveGround,
     car: VehicleParams,
     private readonly start: DrivePose,
-    /** Acceptable end poses (a parking spot either way round, points along the route after a corner). */
+    /**
+     * Acceptable end poses (a parking spot either way round, points along the
+     * route after a corner).
+     */
     private readonly goals: DriveGoals,
     /**
-     * Continuity constraints for a segment of a longer route. `start` charges an initial direction change relative to
-     * start.reverse; `end` requires forward arrival.
+     * Continuity constraints for a segment of a longer route. `start` charges
+     * an initial direction change relative to start.reverse; `end` requires
+     * forward arrival.
      */
     private readonly midway = { start: false, end: false },
   ) {
@@ -358,10 +400,22 @@ export class DriveSearch {
         const g =
           n.g +
           STEP * step * (reverse ? REVERSE_COST : 1) +
-          ((n.parent || this.midway.start) && reverse !== n.reverse ? SWITCH_COST : 0) +
+          ((n.parent || this.midway.start) && reverse !== n.reverse
+            ? SWITCH_COST
+            : 0) +
           Math.abs(sf) * STEER_COST +
           Math.abs(sf - n.steer) * STEER_CHANGE_COST;
-        const child: Node = { x, y, z, yaw, reverse, steer: sf, g, f: g + h * GREED, parent: n };
+        const child: Node = {
+          x,
+          y,
+          z,
+          yaw,
+          reverse,
+          steer: sf,
+          g,
+          f: g + h * GREED,
+          parent: n,
+        };
         const ck = this.key(child);
         if (this.closed.has(ck) || g >= (this.best.get(ck) ?? Infinity)) {
           continue;
@@ -373,7 +427,10 @@ export class DriveSearch {
     }
   }
 
-  /** Combine the ground cost-to-go with the smallest scaled turning cost, including each goal’s remaining cost. */
+  /**
+   * Combine the ground cost-to-go with the smallest scaled turning cost,
+   * including each goal’s remaining cost.
+   */
   private estimate(x: number, y: number, z: number, yaw: number): number {
     const h = this.ground.toGo(x, y, z);
     if (h === Infinity) {
@@ -382,13 +439,19 @@ export class DriveSearch {
 
     let turning = Infinity;
     for (const q of this.goals) {
-      turning = Math.min(turning, this.turning(x, z, yaw, q) * TABLE_SCALE + q.rest);
+      turning = Math.min(
+        turning,
+        this.turning(x, z, yaw, q) * TABLE_SCALE + q.rest,
+      );
     }
 
     return Math.max(h, turning);
   }
 
-  /** Look up obstacle-free turning cost; use straight-line distance outside the table or for unreachable cells. */
+  /**
+   * Look up obstacle-free turning cost; use straight-line distance outside the
+   * table or for unreachable cells.
+   */
   private turning(x: number, z: number, yaw: number, q: DrivePose): number {
     const dx = x - q.x;
     const dz = z - q.z;
@@ -403,7 +466,10 @@ export class DriveSearch {
       return Math.hypot(dx, dz);
     }
 
-    const b = mod(Math.round((wrapAngle(yaw - q.yaw) / TAU) * TABLE_YAWS), TABLE_YAWS);
+    const b = mod(
+      Math.round((wrapAngle(yaw - q.yaw) / TAU) * TABLE_YAWS),
+      TABLE_YAWS,
+    );
     const v = this.table[(j * TABLE_N + i) * TABLE_YAWS + b] as number;
     return v === Infinity ? Math.hypot(dx, dz) : v;
   }
@@ -412,7 +478,12 @@ export class DriveSearch {
   private poseOk(x: number, y: number, z: number, yaw: number): number | null {
     let ground: number | null = null;
     for (const o of this.body) {
-      const g = this.ground.fits(x + Math.sin(yaw) * o, y, z + Math.cos(yaw) * o, yaw);
+      const g = this.ground.fits(
+        x + Math.sin(yaw) * o,
+        y,
+        z + Math.cos(yaw) * o,
+        yaw,
+      );
       if (g === null) {
         return null;
       }
@@ -447,9 +518,14 @@ export class DriveSearch {
     );
   }
 
-  /** Queue the first valid forward Dubins candidate that improves the best finish cost. */
+  /**
+   * Queue the first valid forward Dubins candidate that improves the best
+   * finish cost.
+   */
   private tryFinish(n: Node): void {
-    const tries = this.goals.flatMap((q, k) => dubins(n, q, this.R).map((path) => ({ q, k, path })));
+    const tries = this.goals.flatMap((q, k) =>
+      dubins(n, q, this.R).map((path) => ({ q, k, path })),
+    );
     tries.sort((u, v) => u.path.total + u.q.rest - (v.path.total + v.q.rest));
 
     for (const { q, k, path } of tries.slice(0, FINISH_CANDIDATES)) {
@@ -459,13 +535,23 @@ export class DriveSearch {
 
       let y = n.y;
       // Apply the same full-steering penalty used by discrete search arcs.
-      let g = n.g + ((path.total - (path.word[1] === 'S' ? path.lengths[1] : 0)) / STEP) * STEER_COST;
+      let g =
+        n.g +
+        ((path.total - (path.word[1] === 'S' ? path.lengths[1] : 0)) / STEP) *
+          STEER_COST;
       let ok = true;
       const tail: DrivePose[] = [];
       for (const s of sampleDubins(n, path, this.R, SAMPLE)) {
         const ground = this.poseOk(s.x, y, s.z, s.yaw);
-        const k = ground === null ? Infinity : this.ground.cost(s.x, ground, s.z, s.yaw);
-        if (ground === null || k === Infinity || this.ground.toGo(s.x, ground, s.z) === Infinity) {
+        const k =
+          ground === null
+            ? Infinity
+            : this.ground.cost(s.x, ground, s.z, s.yaw);
+        if (
+          ground === null ||
+          k === Infinity ||
+          this.ground.toGo(s.x, ground, s.z) === Infinity
+        ) {
           ok = false;
           break;
         }
@@ -477,15 +563,34 @@ export class DriveSearch {
 
       g += q.rest;
 
-      if (ok && Math.abs(y - q.y) <= this.ground.stepUp && g < this.bestFinish) {
+      if (
+        ok &&
+        Math.abs(y - q.y) <= this.ground.stepUp &&
+        g < this.bestFinish
+      ) {
         this.bestFinish = g;
-        this.push({ x: q.x, y, z: q.z, yaw: q.yaw, reverse: false, steer: 0, g, f: g, parent: n, tail, goal: k });
+        this.push({
+          x: q.x,
+          y,
+          z: q.z,
+          yaw: q.yaw,
+          reverse: false,
+          steer: 0,
+          g,
+          f: g,
+          parent: n,
+          tail,
+          goal: k,
+        });
         return;
       }
     }
   }
 
-  /** Replay the arcs from the start to the goal (substep by substep), then any finish, and smooth the result. */
+  /**
+   * Replay the arcs from the start to the goal (substep by substep), then any
+   * finish, and smooth the result.
+   */
   private finish(goal: Node): void {
     const n = goal.tail ? (goal.parent as Node) : goal;
     const chain: Node[] = [];
@@ -494,7 +599,9 @@ export class DriveSearch {
     }
 
     chain.reverse();
-    const out: DrivePose[] = [{ ...this.start, reverse: chain[1]?.reverse ?? false }];
+    const out: DrivePose[] = [
+      { ...this.start, reverse: chain[1]?.reverse ?? false },
+    ];
     for (let i = 1; i < chain.length; i++) {
       const a = chain[i - 1] as Node;
       const b = chain[i] as Node;
@@ -507,7 +614,13 @@ export class DriveSearch {
         yaw += ds * turn;
         x += Math.sin(yaw) * ds;
         z += Math.cos(yaw) * ds;
-        out.push({ x, y: a.y + ((b.y - a.y) * s) / SUBSTEPS, z, yaw, reverse: b.reverse });
+        out.push({
+          x,
+          y: a.y + ((b.y - a.y) * s) / SUBSTEPS,
+          z,
+          yaw,
+          reverse: b.reverse,
+        });
       }
     }
 
@@ -519,14 +632,20 @@ export class DriveSearch {
     this.status = 'done';
   }
 
-  /** Smooth each forward or reverse leg while preserving cusps. Keep the original leg if smoothing fails clearance. */
+  /**
+   * Smooth each forward or reverse leg while preserving cusps. Keep the
+   * original leg if smoothing fails clearance.
+   */
   private smooth(poses: DrivePose[]): DrivePose[] {
     const out: DrivePose[] = [poses[0] as DrivePose];
     let i = 0;
     while (i < poses.length - 1) {
       let j = i + 1;
       const reverse = (poses[j] as DrivePose).reverse;
-      while (j + 1 < poses.length && (poses[j + 1] as DrivePose).reverse === reverse) {
+      while (
+        j + 1 < poses.length &&
+        (poses[j + 1] as DrivePose).reverse === reverse
+      ) {
         j++;
       }
 
@@ -539,9 +658,11 @@ export class DriveSearch {
   }
 
   /**
-   * Relax a resampled leg while holding its first and last two vertices fixed to preserve endpoint directions. Penalize
-   * roughness, curvature beyond the planned turning radius, and nearby walls. Return poses after the first point, or
-   * null when the leg is too short or the resulting samples fail clearance or endpoint-height checks.
+   * Relax a resampled leg while holding its first and last two vertices fixed
+   * to preserve endpoint directions. Penalize roughness, curvature beyond the
+   * planned turning radius, and nearby walls. Return poses after the first
+   * point, or null when the leg is too short or the resulting samples fail
+   * clearance or endpoint-height checks.
    */
   private relax(leg: DrivePose[], reverse: boolean): DrivePose[] | null {
     const first = leg[0] as DrivePose;
@@ -592,7 +713,8 @@ export class DriveSearch {
       return Math.max(0, ang / la - kMax);
     };
 
-    const bend = (k: number): number => curve(k - 1) ** 2 + curve(k) ** 2 + curve(k + 1) ** 2;
+    const bend = (k: number): number =>
+      curve(k - 1) ** 2 + curve(k) ** 2 + curve(k + 1) ** 2;
     const wall = (x: number, y: number, z: number): number =>
       Math.max(0, SMOOTH_ROOM - this.ground.clearance(x, y, z)) ** 2;
     for (let it = 0; it < SMOOTH_ITERS; it++) {
@@ -601,11 +723,17 @@ export class DriveSearch {
         const y = ys[k] as number;
         const z = zs[k] as number;
         // Penalize deviation from the adjacent vertices’ midpoint.
-        let gx = W_SMOOTH * (2 * x - (xs[k - 1] as number) - (xs[k + 1] as number));
-        let gz = W_SMOOTH * (2 * z - (zs[k - 1] as number) - (zs[k + 1] as number));
+        let gx =
+          W_SMOOTH * (2 * x - (xs[k - 1] as number) - (xs[k + 1] as number));
+        let gz =
+          W_SMOOTH * (2 * z - (zs[k - 1] as number) - (zs[k + 1] as number));
         // Approximate clearance and curvature gradients with finite differences.
-        gx += (W_WALL * (wall(x + GRAD_EPS, y, z) - wall(x - GRAD_EPS, y, z))) / (2 * GRAD_EPS);
-        gz += (W_WALL * (wall(x, y, z + GRAD_EPS) - wall(x, y, z - GRAD_EPS))) / (2 * GRAD_EPS);
+        gx +=
+          (W_WALL * (wall(x + GRAD_EPS, y, z) - wall(x - GRAD_EPS, y, z))) /
+          (2 * GRAD_EPS);
+        gz +=
+          (W_WALL * (wall(x, y, z + GRAD_EPS) - wall(x, y, z - GRAD_EPS))) /
+          (2 * GRAD_EPS);
         const e0 = bend(k);
         if (e0 > 0) {
           xs[k] = x + GRAD_EPS;
@@ -632,11 +760,19 @@ export class DriveSearch {
       const bx = xs[k] as number;
       const bz = zs[k] as number;
       const travel = Math.atan2(bx - ax, bz - az);
-      const steps = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / SAMPLE));
+      const steps = Math.max(
+        1,
+        Math.ceil(Math.hypot(bx - ax, bz - az) / SAMPLE),
+      );
       for (let s = 1; s <= steps; s++) {
         const x = ax + ((bx - ax) * s) / steps;
         const z = az + ((bz - az) * s) / steps;
-        const yaw = k === n - 1 && s === steps ? last.yaw : reverse ? travel + Math.PI : travel;
+        const yaw =
+          k === n - 1 && s === steps
+            ? last.yaw
+            : reverse
+              ? travel + Math.PI
+              : travel;
         const g = this.poseOk(x, py, z, yaw);
         if (g === null) {
           return null;

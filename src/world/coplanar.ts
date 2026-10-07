@@ -7,7 +7,10 @@ export interface FaceSource {
   max: V3;
   /** Faces this box actually draws. */
   faces: readonly BoxFace[];
-  /** Yield to non-yielding faces so removing a breakable box does not expose a hole in its neighbour. */
+  /**
+   * Yield to non-yielding faces so removing a breakable box does not expose a
+   * hole in its neighbour.
+   */
   yields: boolean;
 }
 
@@ -23,12 +26,16 @@ interface Face {
 const PLANE_EPS = 1e-4;
 
 /**
- * Find overlapping same-facing box faces on quantized planes and return rectangular holes keyed by `box * 6 + face`.
- * Yielding faces lose to non-yielding faces; two yielding faces remain intact. Otherwise, remove the overlap from the
- * larger face, breaking equal-area ties by box index. This prevents z-fighting without exposing holes when breakable
- * boxes are removed.
+ * Find overlapping same-facing box faces on quantized planes and return
+ * rectangular holes keyed by `box * 6 + face`. Yielding faces lose to
+ * non-yielding faces; two yielding faces remain intact. Otherwise, remove the
+ * overlap from the larger face, breaking equal-area ties by box index. This
+ * prevents z-fighting without exposing holes when breakable boxes are
+ * removed.
  */
-export function coplanarHoles(boxes: readonly FaceSource[]): Map<number, Rect[]> {
+export function coplanarHoles(
+  boxes: readonly FaceSource[],
+): Map<number, Rect[]> {
   const planes = new Map<string, Face[]>();
   boxes.forEach((b, box) => {
     for (const face of b.faces) {
@@ -41,7 +48,13 @@ export function coplanarHoles(boxes: readonly FaceSource[]): Map<number, Rect[]>
         planes.set(key, (list = []));
       }
 
-      list.push({ box, face, rect, area: (rect.u1 - rect.u0) * (rect.v1 - rect.v0), yields: b.yields });
+      list.push({
+        box,
+        face,
+        rect,
+        area: (rect.u1 - rect.u0) * (rect.v1 - rect.v0),
+        yields: b.yields,
+      });
     }
   });
 
@@ -85,7 +98,10 @@ export function coplanarHoles(boxes: readonly FaceSource[]): Map<number, Rect[]>
   return holes;
 }
 
-/** The face that gets the overlap cut out, or null to leave both (two breakables). */
+/**
+ * The face that gets the overlap cut out, or null to leave both (two
+ * breakables).
+ */
 function pickLoser(a: Face, b: Face): Face | null {
   if (a.yields !== b.yields) {
     return a.yields ? a : b;

@@ -1,12 +1,17 @@
 // Townsfolk on foot. Each case runs in the page (see tools/scenarios.mjs).
 
-/** Verify that a frightened pedestrian moves away and eventually resumes strolling or pausing. */
+/**
+ * Verify that a frightened pedestrian moves away and eventually resumes
+ * strolling or pausing.
+ */
 export function runsFromAFrightThenCalmsDown() {
   const g = window.__game;
   const sim = window.__sim;
   g.start();
   sim.run(600);
-  const p = g.crowd.living().find((q) => q.mind.state.at === 'pause' || q.mind.state.at === 'stroll');
+  const p = g.crowd
+    .living()
+    .find((q) => q.mind.state.at === 'pause' || q.mind.state.at === 'stroll');
   if (!p) {
     return { ok: false, why: 'nobody about', count: g.crowd.count };
   }
@@ -16,8 +21,17 @@ export function runsFromAFrightThenCalmsDown() {
   const ran = p.mind.state.at === 'flee';
   sim.run(60);
   const away = p.walker.pos.distanceTo(from);
-  const calm = sim.until(() => p.mind.state.at === 'pause' || p.mind.state.at === 'stroll', 40, []);
-  return { ok: ran && away > 4 && calm.ok, ran, away: +away.toFixed(1), calmAfter: calm.seconds };
+  const calm = sim.until(
+    () => p.mind.state.at === 'pause' || p.mind.state.at === 'stroll',
+    40,
+    [],
+  );
+  return {
+    ok: ran && away > 4 && calm.ok,
+    ran,
+    away: +away.toFixed(1),
+    calmAfter: calm.seconds,
+  };
 }
 
 /** Verify that an injured pedestrian falls, recovers, and flees with a limp. */
@@ -44,7 +58,10 @@ export function knockedDownGetsUpAndRuns() {
   };
 }
 
-/** Verify that at most three of nine summoned skeletons claim the only nearby pedestrian. */
+/**
+ * Verify that at most three of nine summoned skeletons claim the only nearby
+ * pedestrian.
+ */
 export function atMostThreeSkeletonsOnOnePerson() {
   const g = window.__game;
   const sim = window.__sim;
@@ -80,7 +97,14 @@ export function atMostThreeSkeletonsOnOnePerson() {
     }
   }
 
-  const hunters = g.skeletons.list.filter((s) => s.hunting?.target === victim).length;
+  const hunters = g.skeletons.list.filter(
+    (s) => s.hunting?.target === victim,
+  ).length;
   const claims = g.claims.holders('quarry', victim).length;
-  return { ok: raised === 9 && hunters > 0 && hunters <= 3 && claims === hunters, raised, hunters, claims };
+  return {
+    ok: raised === 9 && hunters > 0 && hunters <= 3 && claims === hunters,
+    raised,
+    hunters,
+    claims,
+  };
 }

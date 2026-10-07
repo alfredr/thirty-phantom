@@ -52,24 +52,41 @@ export class Goals {
   }
 }
 
-export type Line<C> = string | null | ((context: C, scope: Scope<string>) => string | null);
-type GoalBehavior<C> = BeatBehavior<C & { readonly goals: Goals }, MindEvent<string>, string>;
+export type Line<C> =
+  | string
+  | null
+  | ((context: C, scope: Scope<string>) => string | null);
+type GoalBehavior<C> = BeatBehavior<
+  C & { readonly goals: Goals },
+  MindEvent<string>,
+  string
+>;
 
 export interface GoalSpec<C> {
   readonly how?: Line<C>;
   readonly marks?: (context: C, scope: Scope<string>) => readonly Objective[];
 }
 
-function lineOf<C>(v: Line<C>, context: C, scope: Scope<string>): string | null {
+function lineOf<C>(
+  v: Line<C>,
+  context: C,
+  scope: Scope<string>,
+): string | null {
   return typeof v === 'function' ? v(context, scope) : v;
 }
 
-export function goal<C>(text: Line<C>, spec: GoalSpec<C> = {}): GoalBehavior<C> {
+export function goal<C>(
+  text: Line<C>,
+  spec: GoalSpec<C> = {},
+): GoalBehavior<C> {
   return function start(scope, context) {
     const token = {};
     let nearest: number | null = null;
     function show(): void {
-      const how = scope.stuck || scope.idle >= HOW_AFTER ? lineOf(spec.how ?? null, context, scope) : null;
+      const how =
+        scope.stuck || scope.idle >= HOW_AFTER
+          ? lineOf(spec.how ?? null, context, scope)
+          : null;
       context.goals.show(token, lineOf(text, context, scope), how);
 
       if (!spec.marks) {
@@ -104,7 +121,9 @@ export function goal<C>(text: Line<C>, spec: GoalSpec<C> = {}): GoalBehavior<C> 
   };
 }
 
-export function mark<C>(marks: (context: C, scope: Scope<string>) => readonly Objective[]): GoalBehavior<C> {
+export function mark<C>(
+  marks: (context: C, scope: Scope<string>) => readonly Objective[],
+): GoalBehavior<C> {
   return function start(scope, context) {
     const token = {};
     function show(): void {
@@ -133,7 +152,13 @@ export function pins<C>(
       const list: Objective[] = [];
       for (const at of read(context)) {
         if (at.distanceTo(me) < range) {
-          list.push({ id: `pin-${list.length}`, label: '', kind: 'pin', at, color });
+          list.push({
+            id: `pin-${list.length}`,
+            label: '',
+            kind: 'pin',
+            at,
+            color,
+          });
         }
       }
 

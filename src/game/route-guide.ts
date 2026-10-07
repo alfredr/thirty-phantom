@@ -1,15 +1,26 @@
 import { Vector3 } from 'three';
 
 import { RouteCursor } from '@/engine/nav/polyline';
-import type { NavJob, NavPlanner, NavProfile, NavQuery } from '@/world/nav-grid';
+import type {
+  NavJob,
+  NavPlanner,
+  NavProfile,
+  NavQuery,
+} from '@/world/nav-grid';
 
-/** Route deviation threshold in meters, refresh interval in seconds, and look-ahead distance in meters. */
+/**
+ * Route deviation threshold in meters, refresh interval in seconds, and
+ * look-ahead distance in meters.
+ */
 const STRAY = 7;
 const REFRESH = 6;
 const LOOK_AHEAD = 10;
 const NO_QUERY: NavQuery = {};
 
-/** Provide a route target for the HUD arrow using the shared navigation planner. */
+/**
+ * Provide a route target for the HUD arrow using the shared navigation
+ * planner.
+ */
 export class RouteGuide {
   private job: NavJob | null = null;
   private cursor: RouteCursor | null = null;
@@ -19,8 +30,18 @@ export class RouteGuide {
 
   constructor(private readonly planner: NavPlanner) {}
 
-  /** Return a point ahead on the route, or the goal until a route is available. Change `key` to reset the route. */
-  update(dt: number, from: Vector3, goal: Vector3, key: string, p: NavProfile, q: NavQuery = NO_QUERY): Vector3 {
+  /**
+   * Return a point ahead on the route, or the goal until a route is available.
+   * Change `key` to reset the route.
+   */
+  update(
+    dt: number,
+    from: Vector3,
+    goal: Vector3,
+    key: string,
+    p: NavProfile,
+    q: NavQuery = NO_QUERY,
+  ): Vector3 {
     this.age += dt;
 
     if (key !== this.key) {

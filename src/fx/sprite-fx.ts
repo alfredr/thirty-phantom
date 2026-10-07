@@ -54,13 +54,22 @@ export class SpriteFx {
       s.layers.set(FX_LAYER);
       s.renderOrder = 5;
       this.root.add(s);
-      this.pool.push({ s, vel: new Vector3(), life: 0, max: 1, size0: 1, size1: 1, alpha: 1 });
+      this.pool.push({
+        s,
+        vel: new Vector3(),
+        life: 0,
+        max: 1,
+        size0: 1,
+        size1: 1,
+        alpha: 1,
+      });
     }
   }
 
   /**
-   * Emit `n` sprites at one position. Horizontal velocity on each axis ranges from -spread/2 to spread/2; vertical
-   * velocity uses `up`. Speeds are in m/s. Lifetime is fixed or sampled from a range in seconds.
+   * Emit `n` sprites at one position. Horizontal velocity on each axis ranges
+   * from -spread/2 to spread/2; vertical velocity uses `up`. Speeds are in
+   * m/s. Lifetime is fixed or sampled from a range in seconds.
    */
   spray(
     at: Vector3,
@@ -75,14 +84,20 @@ export class SpriteFx {
     alpha: number,
   ): void {
     for (let i = 0; i < n; i++) {
-      _vel.set((Math.random() - 0.5) * spread, up[0] + Math.random() * (up[1] - up[0]), (Math.random() - 0.5) * spread);
+      _vel.set(
+        (Math.random() - 0.5) * spread,
+        up[0] + Math.random() * (up[1] - up[0]),
+        (Math.random() - 0.5) * spread,
+      );
       this.emit(
         at,
         _vel,
         color,
         size0,
         size1,
-        typeof life === 'number' ? life : life[0] + Math.random() * (life[1] - life[0]),
+        typeof life === 'number'
+          ? life
+          : life[0] + Math.random() * (life[1] - life[0]),
         kind,
         alpha,
       );

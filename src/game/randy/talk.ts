@@ -6,9 +6,15 @@ import type { Focus } from '@/engine/input/input';
 import type { Control } from '@/game/controls';
 import { type Choice, Conversation } from '@/game/story/conversation';
 
-/** Horizontal conversation range in meters; NPC lookup also checks level separation. */
+/**
+ * Horizontal conversation range in meters; NPC lookup also checks level
+ * separation.
+ */
 const TALK_REACH = 3;
-/** Maximum separation in meters, conversation timeout in seconds, and final-line duration in seconds. */
+/**
+ * Maximum separation in meters, conversation timeout in seconds, and
+ * final-line duration in seconds.
+ */
 const PACING = { breakAt: 4.5, timeout: 12, lineTime: 2.4 };
 
 /** Inventory and trade operations available to Randy’s conversation. */
@@ -20,8 +26,9 @@ export interface RandyTalkHooks {
 }
 
 /**
- * Offer a tire trade while talking to Randy at his fire. Without tires, display a closing line. The tutorial disables
- * this conversation while using its own scenes.
+ * Offer a tire trade while talking to Randy at his fire. Without tires,
+ * display a closing line. The tutorial disables this conversation while using
+ * its own scenes.
  */
 export class RandyTalk extends Conversation<Npc, 'give'> {
   /** Set false while the tutorial runs. */
@@ -35,7 +42,10 @@ export class RandyTalk extends Conversation<Npc, 'give'> {
     super(focus, PACING);
   }
 
-  /** Return a nearby Randy who has a fire, is roasting, and is not controlled by a scene. */
+  /**
+   * Return a nearby Randy who has a fire, is roasting, and is not controlled
+   * by a scene.
+   */
   talkable(cody: Vector3): Npc | null {
     if (!this.enabled || this.active) {
       return null;
@@ -66,11 +76,22 @@ export class RandyTalk extends Conversation<Npc, 'give'> {
 
   protected choices(): Choice<'give'>[] {
     const k = this.hooks.tires();
-    return k > 0 ? [{ action: 'interact', label: `GIVE ${k} TIRE${k > 1 ? 'S' : ''}`, off: false, does: 'give' }] : [];
+    return k > 0
+      ? [
+          {
+            action: 'interact',
+            label: `GIVE ${k} TIRE${k > 1 ? 'S' : ''}`,
+            off: false,
+            does: 'give',
+          },
+        ]
+      : [];
   }
 
   protected chose(n: Npc): void {
-    this.lastLine(this.hooks.give(n) ? 'OHHH. NICE WHEELS.' : "HOLD ON, FIRE'S BUSY.");
+    this.lastLine(
+      this.hooks.give(n) ? 'OHHH. NICE WHEELS.' : "HOLD ON, FIRE'S BUSY.",
+    );
   }
 
   protected attend(n: Npc): Release {

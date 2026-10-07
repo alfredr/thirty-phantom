@@ -6,15 +6,24 @@ import { Rng } from '@/engine/core/rng';
 
 import type { SpriteFx } from './sprite-fx';
 
-/** Tailpipe offsets: distance inward from the rear in meters, fraction of body half-width, and height in meters. */
+/**
+ * Tailpipe offsets: distance inward from the rear in meters, fraction of body
+ * half-width, and height in meters.
+ */
 const TAIL_IN = 0.2;
 const PIPE_SIDE = 0.45;
 const PIPE_UP = 0.35;
-/** Puff velocity: backward speed, upward speed range, and lateral scatter range, in m/s. */
+/**
+ * Puff velocity: backward speed, upward speed range, and lateral scatter
+ * range, in m/s.
+ */
 const PUSH = 1.2;
 const DRIFT: readonly [number, number] = [0.3, 0.8];
 const SCATTER = 0.5;
-/** Seconds without qualifying acceleration before another full exhaust burst is available. */
+/**
+ * Seconds without qualifying acceleration before another full exhaust burst is
+ * available.
+ */
 const REST = 0.4;
 
 /** Per-vehicle speed history and exhaust burst state. */
@@ -32,8 +41,9 @@ const _at = new Vector3();
 const _vel = new Vector3();
 
 /**
- * Emit short smoke bursts when selected cars accelerate at low speed. Selection is deterministic per vehicle ID;
- * drive() emits the current ride’s spectral exhaust.
+ * Emit short smoke bursts when selected cars accelerate at low speed.
+ * Selection is deterministic per vehicle ID; drive() emits the current ride’s
+ * spectral exhaust.
  */
 export class Exhaust {
   /** Cached emission state, or null for vehicles selected to run without smoke. */
@@ -45,7 +55,10 @@ export class Exhaust {
 
   constructor(private readonly sprites: SpriteFx) {}
 
-  /** Update exhaust bursts and interpolate unlit smoke color from day (0) to night (1). */
+  /**
+   * Update exhaust bursts and interpolate unlit smoke color from day (0) to
+   * night (1).
+   */
   update(dt: number, vehicles: readonly Vehicle[], nightness: number): void {
     if (dt <= 0) {
       return;
@@ -58,7 +71,11 @@ export class Exhaust {
       }
 
       const E = exhaust.smoke;
-      this.color.lerpColors(this.day.set(E.day), this.night.set(E.night), nightness);
+      this.color.lerpColors(
+        this.day.set(E.day),
+        this.night.set(E.night),
+        nightness,
+      );
       let p = this.pipes.get(v);
       if (p === undefined) {
         this.pipes.set(
@@ -98,7 +115,10 @@ export class Exhaust {
     }
   }
 
-  /** Advance the current ride's spectral exhaust without resetting its clock between drives. */
+  /**
+   * Advance the current ride's spectral exhaust without resetting its clock
+   * between drives.
+   */
   drive(dt: number, car: Vehicle, throttle: number, burning: boolean): void {
     const exhaust = car.breed.exhaust;
     if (exhaust?.kind !== 'spectral') {
@@ -116,8 +136,21 @@ export class Exhaust {
 
     for (const port of exhaust.ports) {
       car.rig.body.localToWorld(_at.set(...port));
-      _vel.set((Math.random() - 0.5) * puff.scatter, puff.rise, (Math.random() - 0.5) * puff.scatter);
-      this.sprites.emit(_at, _vel, puff.color, puff.size[0], puff.size[1], puff.life, 'puff', puff.alpha);
+      _vel.set(
+        (Math.random() - 0.5) * puff.scatter,
+        puff.rise,
+        (Math.random() - 0.5) * puff.scatter,
+      );
+      this.sprites.emit(
+        _at,
+        _vel,
+        puff.color,
+        puff.size[0],
+        puff.size[1],
+        puff.life,
+        'puff',
+        puff.alpha,
+      );
     }
   }
 
@@ -129,13 +162,26 @@ export class Exhaust {
     const back = P.length / 2 - TAIL_IN;
     const side = P.radius * PIPE_SIDE;
     // The local right vector is (-fz, fx).
-    _at.set(v.pos.x - fx * back - fz * side, v.pos.y + PIPE_UP, v.pos.z - fz * back + fx * side);
+    _at.set(
+      v.pos.x - fx * back - fz * side,
+      v.pos.y + PIPE_UP,
+      v.pos.z - fz * back + fx * side,
+    );
     _vel.set(
       -fx * PUSH + (Math.random() - 0.5) * SCATTER,
       DRIFT[0] + Math.random() * (DRIFT[1] - DRIFT[0]),
       -fz * PUSH + (Math.random() - 0.5) * SCATTER,
     );
     const life = E.life[0] + Math.random() * (E.life[1] - E.life[0]);
-    this.sprites.emit(_at, _vel, this.color, E.size[0], E.size[1], life, 'smoke', E.alpha);
+    this.sprites.emit(
+      _at,
+      _vel,
+      this.color,
+      E.size[0],
+      E.size[1],
+      life,
+      'smoke',
+      E.alpha,
+    );
   }
 }

@@ -49,7 +49,11 @@ export class Recovery {
   }
 }
 
-type RecoveryServices = { readonly game: Game; readonly recovery: Recovery; readonly outreach: Outreach };
+type RecoveryServices = {
+  readonly game: Game;
+  readonly recovery: Recovery;
+  readonly outreach: Outreach;
+};
 
 export interface RegionSpec<C> {
   readonly inside: (c: C) => boolean;
@@ -57,7 +61,9 @@ export interface RegionSpec<C> {
   readonly line?: Line;
 }
 
-export function region<C>(spec: RegionSpec<C>): BeatBehavior<C & RecoveryServices, MindEvent<string>, string> {
+export function region<C>(
+  spec: RegionSpec<C>,
+): BeatBehavior<C & RecoveryServices, MindEvent<string>, string> {
   return function start(scope, context) {
     let state: 'in' | 'out' | 'carrying' = 'in';
     function say(): void {
@@ -72,7 +78,12 @@ export function region<C>(spec: RegionSpec<C>): BeatBehavior<C & RecoveryService
         const p = g.player;
         if (state === 'in' && p.visible && !spec.inside(context)) {
           state = 'out';
-        } else if (state === 'out' && p.grounded && !g.fading && context.recovery.carry(spec.home(context), say)) {
+        } else if (
+          state === 'out' &&
+          p.grounded &&
+          !g.fading &&
+          context.recovery.carry(spec.home(context), say)
+        ) {
           state = 'carrying';
           scope.struggle();
         } else if (state === 'carrying' && !g.fading) {

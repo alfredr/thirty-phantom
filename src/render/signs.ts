@@ -17,8 +17,14 @@ export interface SignTextures {
   glow: number;
 }
 
-/** Create a cutaway-aware sign material from color and emissive textures. The caller registers its day/night channel. */
-export function signMaterial(t: SignTextures, roughness: number): MeshStandardMaterial {
+/**
+ * Create a cutaway-aware sign material from color and emissive textures. The
+ * caller registers its day/night channel.
+ */
+export function signMaterial(
+  t: SignTextures,
+  roughness: number,
+): MeshStandardMaterial {
   return withCutaway(
     new MeshStandardMaterial({
       map: t.map,
@@ -38,8 +44,17 @@ export const FONT = {
   brush: '"Bangers", "Impact", sans-serif',
 };
 
-/** Set and return a font size in pixels, reducing maxPx proportionally when the measured text exceeds maxW. */
-export function fitFont(ctx: Ctx, text: string, family: string, maxW: number, maxPx: number): number {
+/**
+ * Set and return a font size in pixels, reducing maxPx proportionally when the
+ * measured text exceeds maxW.
+ */
+export function fitFont(
+  ctx: Ctx,
+  text: string,
+  family: string,
+  maxW: number,
+  maxPx: number,
+): number {
   let px = maxPx;
   ctx.font = `${px}px ${family}`;
   const w = ctx.measureText(text).width;
@@ -51,7 +66,14 @@ export function fitFont(ctx: Ctx, text: string, family: string, maxW: number, ma
   return px;
 }
 
-export function drawSkull(ctx: Ctx, cx: number, cy: number, s: number, fill: string, holes: string): void {
+export function drawSkull(
+  ctx: Ctx,
+  cx: number,
+  cy: number,
+  s: number,
+  fill: string,
+  holes: string,
+): void {
   ctx.save();
   ctx.fillStyle = fill;
   ctx.beginPath();
@@ -78,16 +100,29 @@ export function drawSkull(ctx: Ctx, cx: number, cy: number, s: number, fill: str
 }
 
 /**
- * Slime band along the top edge with drips, drawn to every context given (so a color map and its emissive map get
- * identical shapes).
+ * Slime band along the top edge with drips, drawn to every context given (so a
+ * color map and its emissive map get identical shapes).
  */
-export function drawSlimeTop(ctxs: Ctx[], w: number, band: number, rng: Rng, scale = 1, emissiveOnlyCtx?: Ctx): void {
+export function drawSlimeTop(
+  ctxs: Ctx[],
+  w: number,
+  band: number,
+  rng: Rng,
+  scale = 1,
+  emissiveOnlyCtx?: Ctx,
+): void {
   const drips: { x: number; w: number; l: number }[] = [];
   let x = rng.range(0, 10) * scale;
   while (x < w) {
     const dw = rng.range(7, 22) * scale;
     const long = rng.chance(0.35);
-    drips.push({ x, w: dw, l: long ? rng.range(band * 0.8, band * 3.2) : rng.range(band * 0.1, band * 0.7) });
+    drips.push({
+      x,
+      w: dw,
+      l: long
+        ? rng.range(band * 0.8, band * 3.2)
+        : rng.range(band * 0.1, band * 0.7),
+    });
     x += dw + rng.range(-3, 14) * scale;
   }
 
@@ -117,7 +152,12 @@ export function drawSlimeTop(ctxs: Ctx[], w: number, band: number, rng: Rng, sca
     ctx.fillStyle = isEm ? '#b9ff52' : PALETTE.slimeHot;
 
     for (const d of drips) {
-      ctx.fillRect(d.x + d.w * 0.22, band * 0.3, Math.max(1.5, d.w * 0.16), band * 0.5 + d.l * 0.7);
+      ctx.fillRect(
+        d.x + d.w * 0.22,
+        band * 0.3,
+        Math.max(1.5, d.w * 0.16),
+        band * 0.5 + d.l * 0.7,
+      );
     }
 
     ctx.fillStyle = isEm ? '#2a7a00' : PALETTE.slimeDeep;
@@ -139,11 +179,20 @@ function distress(ctx: Ctx, w: number, h: number, rng: Rng, n: number): void {
   ctx.restore();
 }
 
-function finish(map: HTMLCanvasElement, emissive: HTMLCanvasElement, glow: number): SignTextures {
+function finish(
+  map: HTMLCanvasElement,
+  emissive: HTMLCanvasElement,
+  glow: number,
+): SignTextures {
   return { map: toTexture(map), emissive: toTexture(emissive), glow };
 }
 
-function bannerSign(lines: string[], w: number, h: number, rng: Rng): SignTextures {
+function bannerSign(
+  lines: string[],
+  w: number,
+  h: number,
+  rng: Rng,
+): SignTextures {
   const W = Math.round(w * PX);
   const H = Math.round(h * PX);
   const a = makeCanvas(W, H);
@@ -173,7 +222,14 @@ function bannerSign(lines: string[], w: number, h: number, rng: Rng): SignTextur
     ctx.fillStyle = '#1a0830';
     ctx.fillText(line, W / 2, y);
   });
-  drawSkull(ctx, W / 2, H - pad - skullH * 0.45, skullH * 0.75, '#1a0830', '#8c4ad6');
+  drawSkull(
+    ctx,
+    W / 2,
+    H - pad - skullH * 0.45,
+    skullH * 0.75,
+    '#1a0830',
+    '#8c4ad6',
+  );
   addNoise(ctx, W, H, rng, 18);
   distress(ctx, W, H, rng, 160);
   const e = makeCanvas(W, H);
@@ -181,7 +237,12 @@ function bannerSign(lines: string[], w: number, h: number, rng: Rng): SignTextur
   return finish(a.c, e.c, 0.28);
 }
 
-function levelSign(lines: string[], w: number, h: number, rng: Rng): SignTextures {
+function levelSign(
+  lines: string[],
+  w: number,
+  h: number,
+  rng: Rng,
+): SignTextures {
   const W = Math.round(w * PX);
   const H = Math.round(h * PX);
   const a = makeCanvas(W, H);
@@ -199,7 +260,10 @@ function levelSign(lines: string[], w: number, h: number, rng: Rng): SignTexture
     ctx.strokeRect(8, 8, W - 16, H - 16);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const [small, big] = lines.length > 1 ? [lines[0] ?? '', lines[1] ?? ''] : ['', lines[0] ?? ''];
+    const [small, big] =
+      lines.length > 1
+        ? [lines[0] ?? '', lines[1] ?? '']
+        : ['', lines[0] ?? ''];
     if (small) {
       fitFont(ctx, small, FONT.label, W * 0.8, H * 0.24);
       ctx.fillStyle = '#d9b8ff';
@@ -216,7 +280,12 @@ function levelSign(lines: string[], w: number, h: number, rng: Rng): SignTexture
   return finish(a.c, e.c, 1.1);
 }
 
-function checkerSign(lines: string[], w: number, h: number, rng: Rng): SignTextures {
+function checkerSign(
+  lines: string[],
+  w: number,
+  h: number,
+  rng: Rng,
+): SignTextures {
   const W = Math.round(w * PX);
   const H = Math.round(h * PX);
   const a = makeCanvas(W, H);
@@ -254,7 +323,14 @@ function checkerSign(lines: string[], w: number, h: number, rng: Rng): SignTextu
   return finish(a.c, e.c, 0.22);
 }
 
-function neonSign(lines: string[], w: number, h: number, color: string, family: string, rng: Rng): SignTextures {
+function neonSign(
+  lines: string[],
+  w: number,
+  h: number,
+  color: string,
+  family: string,
+  rng: Rng,
+): SignTextures {
   const W = Math.round(w * PX);
   const H = Math.round(h * PX);
   const a = makeCanvas(W, H);
@@ -287,7 +363,12 @@ function neonSign(lines: string[], w: number, h: number, color: string, family: 
   return finish(a.c, e.c, 2.2);
 }
 
-function billboardSign(lines: string[], w: number, h: number, rng: Rng): SignTextures {
+function billboardSign(
+  lines: string[],
+  w: number,
+  h: number,
+  rng: Rng,
+): SignTextures {
   const W = Math.round(w * PX * 0.7);
   const H = Math.round(h * PX * 0.7);
   const a = makeCanvas(W, H);
@@ -422,7 +503,11 @@ function dialSign(rng: Rng): SignTextures {
 
     for (let i = 1; i <= 12; i++) {
       const ang = (i / 12) * TAU;
-      ctx.fillText(String(i), c + Math.sin(ang) * S * 0.3, c - Math.cos(ang) * S * 0.3 + 2);
+      ctx.fillText(
+        String(i),
+        c + Math.sin(ang) * S * 0.3,
+        c - Math.cos(ang) * S * 0.3 + 2,
+      );
     }
 
     if (!em) {
@@ -436,7 +521,13 @@ function dialSign(rng: Rng): SignTextures {
 
 const cache = new Map<string, SignTextures>();
 
-export function signTextures(style: SignStyle, lines: string[], w: number, h: number, seed = 1): SignTextures {
+export function signTextures(
+  style: SignStyle,
+  lines: string[],
+  w: number,
+  h: number,
+  seed = 1,
+): SignTextures {
   const key = `${style}|${lines.join('/')}|${w}|${h}|${seed}`;
   const hit = cache.get(key);
   if (hit) {

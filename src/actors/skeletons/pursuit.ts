@@ -3,7 +3,12 @@ import { Vector3 } from 'three';
 import { damp, dampAngle, type V3 } from '@/engine/core/math';
 import { RouteCursor } from '@/engine/nav/polyline';
 import type { CollisionWorld } from '@/engine/physics/collision';
-import type { NavGrid, NavJob, NavPlanner, NavProfile } from '@/world/nav-grid';
+import type {
+  NavGrid,
+  NavJob,
+  NavPlanner,
+  NavProfile,
+} from '@/world/nav-grid';
 
 export interface PursuitWorld {
   readonly collision: CollisionWorld;
@@ -12,7 +17,10 @@ export interface PursuitWorld {
 }
 
 export interface PursuitSpec {
-  /** Speed in m/s, body dimensions in meters, and route refresh interval in seconds. */
+  /**
+   * Speed in m/s, body dimensions in meters, and route refresh interval in
+   * seconds.
+   */
   readonly pace: number;
   readonly radius: number;
   readonly height: number;
@@ -32,7 +40,10 @@ const _p: V3 = [0, 0, 0];
 const _a: V3 = [0, 0, 0];
 const _b: V3 = [0, 0, 0];
 
-/** Steer directly toward a moving goal, requesting a route when walls or height changes block the way. */
+/**
+ * Steer directly toward a moving goal, requesting a route when walls or height
+ * changes block the way.
+ */
 export class Pursuit {
   private job: NavJob | null = null;
   private route: RouteCursor | null = null;
@@ -44,7 +55,10 @@ export class Pursuit {
     private readonly world: PursuitWorld,
   ) {}
 
-  /** Move toward the goal, requesting routes around obstructions or height changes and blending in separation. */
+  /**
+   * Move toward the goal, requesting routes around obstructions or height
+   * changes and blending in separation.
+   */
   go(goal: Vector3, separation: Vector3, weight: number, dt: number): void {
     _a[0] = this.body.pos.x;
     _a[1] = this.body.pos.y + 1;
@@ -53,7 +67,10 @@ export class Pursuit {
     _b[1] = goal.y + 1;
     _b[2] = goal.z;
     let to: Vector3 = goal;
-    if (this.world.collision.segmentBlocked(_a, _b) || Math.abs(goal.y - this.body.pos.y) > this.spec.step) {
+    if (
+      this.world.collision.segmentBlocked(_a, _b) ||
+      Math.abs(goal.y - this.body.pos.y) > this.spec.step
+    ) {
       this.replan -= dt;
 
       if (this.job?.settled) {
@@ -64,7 +81,11 @@ export class Pursuit {
 
       if (!this.job && (this.replan <= 0 || !this.route)) {
         this.replan = this.spec.replan;
-        this.job = this.world.planner.request(this.body.pos, goal, this.spec.nav);
+        this.job = this.world.planner.request(
+          this.body.pos,
+          goal,
+          this.spec.nav,
+        );
       }
 
       if (this.route) {
@@ -82,10 +103,18 @@ export class Pursuit {
       return;
     }
 
-    this.walk(dx / d + separation.x * weight, dz / d + separation.z * weight, this.spec.pace, dt);
+    this.walk(
+      dx / d + separation.x * weight,
+      dz / d + separation.z * weight,
+      this.spec.pace,
+      dt,
+    );
   }
 
-  /** Turn toward the desired direction and move forward with collision resolution. `pace` is in m/s. */
+  /**
+   * Turn toward the desired direction and move forward with collision
+   * resolution. `pace` is in m/s.
+   */
   walk(dx: number, dz: number, pace: number, dt: number): void {
     if (dx * dx + dz * dz > 1e-8) {
       this.body.yaw = dampAngle(this.body.yaw, Math.atan2(dx, dz), 8, dt);
@@ -95,11 +124,27 @@ export class Pursuit {
     _p[0] = this.body.pos.x + Math.sin(this.body.yaw) * this.body.speed * dt;
     _p[1] = this.body.pos.y;
     _p[2] = this.body.pos.z + Math.cos(this.body.yaw) * this.body.speed * dt;
-    this.world.collision.resolveCircle(_p, this.spec.radius, this.spec.height, this.spec.step);
+    this.world.collision.resolveCircle(
+      _p,
+      this.spec.radius,
+      this.spec.height,
+      this.spec.step,
+    );
     const y =
       this.world.nav.heightAt(_p[0], this.body.pos.y, _p[2], this.spec.nav) ??
-      this.world.collision.groundAt(_p[0], _p[2], this.body.pos.y, this.spec.step);
-    this.body.pos.set(_p[0], Math.abs(y - this.body.pos.y) > 0.6 ? y : damp(this.body.pos.y, y, 20, dt), _p[2]);
+      this.world.collision.groundAt(
+        _p[0],
+        _p[2],
+        this.body.pos.y,
+        this.spec.step,
+      );
+    this.body.pos.set(
+      _p[0],
+      Math.abs(y - this.body.pos.y) > 0.6
+        ? y
+        : damp(this.body.pos.y, y, 20, dt),
+      _p[2],
+    );
   }
 
   /** Apply a horizontal displacement with wall collision resolution. */
@@ -107,7 +152,12 @@ export class Pursuit {
     _p[0] = this.body.pos.x + dx;
     _p[1] = this.body.pos.y;
     _p[2] = this.body.pos.z + dz;
-    this.world.collision.resolveCircle(_p, this.spec.radius, this.spec.height, this.spec.step);
+    this.world.collision.resolveCircle(
+      _p,
+      this.spec.radius,
+      this.spec.height,
+      this.spec.step,
+    );
     this.body.pos.x = _p[0];
     this.body.pos.z = _p[2];
   }

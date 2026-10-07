@@ -27,7 +27,19 @@ const [
 );
 const { heading, turnToward, clampAround, offBy, trimPath } = steering;
 const { Action, done, running, fail, instead } = action;
-const { WalkTo, Face, Gesture, HandOver, Take, homeOf, Throw, attachProp, releaseProp, effect, wait } = actions;
+const {
+  WalkTo,
+  Face,
+  Gesture,
+  HandOver,
+  Take,
+  homeOf,
+  Throw,
+  attachProp,
+  releaseProp,
+  effect,
+  wait,
+} = actions;
 
 const scene = npcScenes();
 
@@ -45,7 +57,10 @@ test('yaw 0 faces +Z and a quarter turn faces +X', () => {
 test('turning takes the short way across the seam, at a capped rate, without overshooting', () => {
   const yaw = turnToward(3, -3, TURN, DT);
   assert.ok(yaw > 3 || yaw < -3, `from 3 toward -3 crosses pi, got ${yaw}`);
-  assert.ok(offBy(yaw, 3) <= TURN.speed * DT + 1e-9, 'one frame turns no faster than the cap');
+  assert.ok(
+    offBy(yaw, 3) <= TURN.speed * DT + 1e-9,
+    'one frame turns no faster than the cap',
+  );
 
   let a = 0;
   let frames = 0;
@@ -56,7 +71,10 @@ test('turning takes the short way across the seam, at a capped rate, without ove
     frames++;
   }
 
-  assert.ok(frames * DT > (Math.PI - 0.5) / TURN.speed, 'a half turn is rate limited, not a snap');
+  assert.ok(
+    frames * DT > (Math.PI - 0.5) / TURN.speed,
+    'a half turn is rate limited, not a snap',
+  );
   assert.ok(frames < 300);
   assert.ok(close(turnToward(1, 1, TURN, DT), 1));
 });
@@ -65,11 +83,18 @@ test('a clamped turn stays within its limit around the resting yaw, on either si
   assert.ok(close(clampAround(3, 0, 0.6), 0.6));
   assert.ok(close(clampAround(-3, 0, 0.6), -0.6));
   assert.ok(close(clampAround(0.2, 0, 0.6), 0.2));
-  assert.ok(offBy(clampAround(-3, 3, 0.6), -3) < 1e-9, 'targets across pi count as near');
+  assert.ok(
+    offBy(clampAround(-3, 3, 0.6), -3) < 1e-9,
+    'targets across pi count as near',
+  );
 });
 
 test('a route can stop short of its end, along the route', () => {
-  const path = new Polyline([new Vector3(0, 0, 0), new Vector3(4, 0, 0), new Vector3(4, 0, 3)]);
+  const path = new Polyline([
+    new Vector3(0, 0, 0),
+    new Vector3(4, 0, 0),
+    new Vector3(4, 0, 3),
+  ]);
   const short = trimPath(path, 1);
   assert.ok(close(short.total, 6));
   assert.ok(short.end.distanceTo(new Vector3(4, 0, 2)) < 1e-9);
@@ -97,18 +122,29 @@ class Step extends Action {
 
 test('a sequence runs its steps in order, starting the next one in the same frame', () => {
   const log = [];
-  const seq = new Sequence([new Step('a', log, [running]), new Step('b', log, []), new Step('c', log, [running])]);
+  const seq = new Sequence([
+    new Step('a', log, [running]),
+    new Step('b', log, []),
+    new Step('c', log, [running]),
+  ]);
   assert.deepEqual(seq.perform({}, 0.1), running);
   assert.deepEqual(seq.perform({}, 0.2), running);
   assert.deepEqual(log, ['a:0.1', 'a:0.2', 'a:stop', 'b:0', 'b:stop', 'c:0']);
   assert.deepEqual(seq.perform({}, 0.3), done);
   seq.stop();
-  assert.deepEqual(log.slice(-2), ['c:0.3', 'c:stop'], 'a finished sequence has nothing left to stop');
+  assert.deepEqual(
+    log.slice(-2),
+    ['c:0.3', 'c:stop'],
+    'a finished sequence has nothing left to stop',
+  );
 });
 
 test('a failing step fails the sequence and the rest never start', () => {
   const log = [];
-  const seq = new Sequence([new Step('a', log, [fail('NO ROUTE')]), new Step('b', log, [])]);
+  const seq = new Sequence([
+    new Step('a', log, [fail('NO ROUTE')]),
+    new Step('b', log, []),
+  ]);
   assert.deepEqual(seq.perform({}, 0.1), { fail: 'NO ROUTE' });
   seq.stop();
   assert.deepEqual(log, ['a:0.1', 'a:stop']);
@@ -117,7 +153,10 @@ test('a failing step fails the sequence and the rest never start', () => {
 test('a step can hand over to a replacement, and stopping stops only the running step', () => {
   const log = [];
   const next = new Step('next', log, [running]);
-  const seq = new Sequence([new Step('a', log, [instead(next)]), new Step('b', log, [])]);
+  const seq = new Sequence([
+    new Step('a', log, [instead(next)]),
+    new Step('b', log, []),
+  ]);
   assert.deepEqual(seq.perform({}, 0.1), running);
   assert.equal(next.parent, seq);
   seq.stop();
@@ -186,11 +225,19 @@ test('walking somewhere plans a person route around parked cars and stops short 
   assert.equal(job.query.blocks, blocks);
   assert.deepEqual(walk.perform(w, DT), running, 'waits for the planner');
 
-  job.path = new Polyline([new Vector3(), new Vector3(0, 0, 3), new Vector3(6, 0, 3), keys]);
+  job.path = new Polyline([
+    new Vector3(),
+    new Vector3(0, 0, 3),
+    new Vector3(6, 0, 3),
+    keys,
+  ]);
   job.settled = true;
   assert.deepEqual(walk.perform(w, DT), running);
   assert.equal(npc.walks.length, 1);
-  assert.ok(npc.walks[0].path.end.distanceTo(new Vector3(6, 0, 0.5)) < 1e-9, 'the walk ends half a meter short');
+  assert.ok(
+    npc.walks[0].path.end.distanceTo(new Vector3(6, 0, 0.5)) < 1e-9,
+    'the walk ends half a meter short',
+  );
 
   npc.walking = false;
   const result = walk.perform(w, DT);
@@ -213,7 +260,11 @@ test('a walk without a route fails, and an interrupted walk stops the walker', (
     r = slow.perform(w, DT);
   }
 
-  assert.deepEqual(r, { fail: 'NO ROUTE' }, 'gives up on a planner that never answers');
+  assert.deepEqual(
+    r,
+    { fail: 'NO ROUTE' },
+    'gives up on a planner that never answers',
+  );
 
   const cut = new WalkTo({ npc, to: new Vector3(3, 0, 0) });
   cut.perform(w, DT);
@@ -250,12 +301,19 @@ test('facing looks at a copy of the target and finishes once turned', () => {
   const can = new Vector3(1, 0, 1);
   const face = new Face({ npc, at: can });
   assert.deepEqual(face.perform({}, 0), running);
-  assert.notEqual(npc.looks[0], can, 'later moves of the prop do not drag his gaze');
+  assert.notEqual(
+    npc.looks[0],
+    can,
+    'later moves of the prop do not drag his gaze',
+  );
   assert.ok(npc.looks[0].equals(can));
   npc.turned = true;
   assert.deepEqual(face.perform({}, DT), done);
 
-  const stuck = new Face({ npc: { ...fakeNpc(), aligned: () => false }, at: 0.5 });
+  const stuck = new Face({
+    npc: { ...fakeNpc(), aligned: () => false },
+    at: 0.5,
+  });
   let r = running;
   let t = 0;
   for (; 'running' in r && t < 10; t += DT) {
@@ -268,7 +326,12 @@ test('facing looks at a copy of the target and finishes once turned', () => {
 test('a gesture holds its pose for its duration, beats on time, and clears when interrupted', () => {
   const npc = fakeNpc();
   let glugs = 0;
-  const pour = new Gesture({ npc, pose: 'pour', seconds: 1, beat: { every: 0.45, run: () => glugs++ } });
+  const pour = new Gesture({
+    npc,
+    pose: 'pour',
+    seconds: 1,
+    beat: { every: 0.45, run: () => glugs++ },
+  });
   assert.deepEqual(pour.perform({}, 0), running);
   assert.equal(npc.timers.pour, 1);
   let r = running;
@@ -289,7 +352,13 @@ test('a gesture holds its pose for its duration, beats on time, and clears when 
 test('handing over gives the item once, at its moment, and a cancelled hand-over gives nothing', () => {
   const npc = fakeNpc();
   let given = 0;
-  const hand = new HandOver({ npc, kind: 'burner', seconds: 1.4, at: 0.7, give: () => given++ });
+  const hand = new HandOver({
+    npc,
+    kind: 'burner',
+    seconds: 1.4,
+    at: 0.7,
+    give: () => given++,
+  });
   hand.perform({}, 0);
   assert.equal(npc.hand.visible, true);
   assert.equal(npc.timers.reach, 1.4);
@@ -301,7 +370,13 @@ test('handing over gives the item once, at its moment, and a cancelled hand-over
   hand.stop();
   assert.equal(given, 1);
 
-  const early = new HandOver({ npc, kind: 'burner', seconds: 1.4, at: 0.7, give: () => given++ });
+  const early = new HandOver({
+    npc,
+    kind: 'burner',
+    seconds: 1.4,
+    at: 0.7,
+    give: () => given++,
+  });
   early.perform({}, 0);
   early.perform({}, 0.3);
   early.stop();
@@ -321,11 +396,22 @@ test('taking puts the item back in its home hand once, at its moment', () => {
   cody.add(badge);
   badge.position.set(0, 0, 0);
   let took = 0;
-  const take = new Take({ npc, item: badge, home, seconds: 0.9, at: 0.4, took: () => took++ });
+  const take = new Take({
+    npc,
+    item: badge,
+    home,
+    seconds: 0.9,
+    at: 0.4,
+    took: () => took++,
+  });
   take.perform({}, 0);
   assert.equal(npc.timers.reach, 0.9);
   take.perform({}, 0.3);
-  assert.equal(badge.parent, cody, 'still in the giver hand before the moment');
+  assert.equal(
+    badge.parent,
+    cody,
+    'still in the giver hand before the moment',
+  );
   take.perform({}, 0.2);
   assert.equal(badge.parent, hand);
   assert.deepEqual(badge.position.toArray(), [0.1, -0.6, 0.05]);
@@ -359,11 +445,21 @@ test('a throw happens with or without someone waiting on its duration', () => {
   assert.deepEqual(plain.perform(), done);
 
   let seconds = 0;
-  new Throw({ npc, kind: 'badge', to, thrown: (s) => (seconds = s) }).perform();
+  new Throw({
+    npc,
+    kind: 'badge',
+    to,
+    thrown: (s) => (seconds = s),
+  }).perform();
   assert.equal(thrown.length, 2);
   assert.equal(seconds, 1.25);
 
-  assert.deepEqual(new Throw({ npc: fakeNpc(), kind: 'badge', to }).perform(), { fail: 'NOTHING TO THROW WITH' });
+  assert.deepEqual(
+    new Throw({ npc: fakeNpc(), kind: 'badge', to }).perform(),
+    {
+      fail: 'NOTHING TO THROW WITH',
+    },
+  );
 });
 
 test('an NPC turns in place before setting off on a route behind him', () => {
@@ -373,7 +469,10 @@ test('an NPC turns in place before setting off on a route behind him', () => {
   let still = 0;
   while (offBy(n.yaw, Math.PI) > 0.8 && still < 100) {
     n.update(DT, null);
-    assert.ok(n.pos.distanceTo(start) < 1e-9, 'no walking backwards while facing away');
+    assert.ok(
+      n.pos.distanceTo(start) < 1e-9,
+      'no walking backwards while facing away',
+    );
     assert.equal(n.pace, 0);
     still++;
   }
@@ -397,7 +496,10 @@ test('away from his fire an NPC turns fully to what he is told to face; at the f
     away.update(DT, null);
   }
 
-  assert.ok(offBy(away.yaw, heading(away.pos, new Vector3(-3, 0, -3))) < 0.02, 'faces a target behind him');
+  assert.ok(
+    offBy(away.yaw, heading(away.pos, new Vector3(-3, 0, -3))) < 0.02,
+    'faces a target behind him',
+  );
   assert.equal(away.anchored, false);
 
   const home = randyAt(new Vector3(), 0, new Vector3(0, 0, 1.4));
@@ -408,14 +510,20 @@ test('away from his fire an NPC turns fully to what he is told to face; at the f
     home.update(DT, null);
   }
 
-  assert.ok(close(Math.abs(home.yaw), 0.6, 0.02), `turns only as far as the fire allows, got ${home.yaw}`);
+  assert.ok(
+    close(Math.abs(home.yaw), 0.6, 0.02),
+    `turns only as far as the fire allows, got ${home.yaw}`,
+  );
   home.lookAt(new Vector3(0.3, 0, 1.4));
 
   for (let i = 0; i < 90; i++) {
     home.update(DT, null);
   }
 
-  assert.ok(offBy(home.yaw, heading(home.pos, new Vector3(0.3, 0, 1.4))) < 0.02, 'faces the drum in front of him');
+  assert.ok(
+    offBy(home.yaw, heading(home.pos, new Vector3(0.3, 0, 1.4))) < 0.02,
+    'faces the drum in front of him',
+  );
 });
 
 test('facing through the NPC reports alignment only once the body has turned', () => {
@@ -453,7 +561,11 @@ test('a directed run reports done, failed with a reason, or cancelled', () => {
 
   const first = n.direct([wait(5)]);
   const second = n.direct([wait(5)]);
-  assert.equal(first.status, 'cancelled', 'a new direction interrupts the old one');
+  assert.equal(
+    first.status,
+    'cancelled',
+    'a new direction interrupts the old one',
+  );
   assert.equal(first.reason, null);
   assert.equal(second.status, 'running');
   n.stopDirecting(second);
@@ -463,7 +575,11 @@ test('a directed run reports done, failed with a reason, or cancelled', () => {
 
   const third = n.direct([wait(5)]);
   n.place(new Vector3(), 0);
-  assert.equal(third.status, 'cancelled', 'moving the NPC elsewhere cancels what he was doing');
+  assert.equal(
+    third.status,
+    'cancelled',
+    'moving the NPC elsewhere cancels what he was doing',
+  );
 });
 
 test('a prop attached to a hand moves with it until released into the world', () => {
@@ -475,7 +591,10 @@ test('a prop attached to a hand moves with it until released into the world', ()
   const run = n.direct([attachProp(n, 'leftHand', can, 0.4)]);
   assert.equal(run.status, 'done');
   assert.equal(can.parent, n.hand('leftHand'));
-  assert.ok(can.position.equals(new Vector3(0, -0.4, 0)), 'hangs below the hand');
+  assert.ok(
+    can.position.equals(new Vector3(0, -0.4, 0)),
+    'hangs below the hand',
+  );
 
   n.model.root.position.set(5, 0, 0);
   n.model.root.updateMatrixWorld(true);
@@ -484,7 +603,10 @@ test('a prop attached to a hand moves with it until released into the world', ()
 
   n.direct([releaseProp(n, can, world)]);
   assert.equal(can.parent, world);
-  assert.ok(can.getWorldPosition(new Vector3()).distanceTo(held) < 1e-9, 'stays where it was let go');
+  assert.ok(
+    can.getWorldPosition(new Vector3()).distanceTo(held) < 1e-9,
+    'stays where it was let go',
+  );
 
   n.attach(can, 'leftHand');
   n.direct([releaseProp(n, can, null)]);
@@ -566,7 +688,9 @@ test('the phone handoff needs no roof layout or tutorial state and gives the pho
   const n = randyAt(new Vector3(), 0);
   const s = sceneBindings(n);
   const game = {
-    inventory: { count: (item) => s.items.filter((kind) => kind === item).length },
+    inventory: {
+      count: (item) => s.items.filter((kind) => kind === item).length,
+    },
     handOver: s.bindings.items.give,
   };
   const camera = { ...s.bindings.camera, shot: s.bindings.shots.roof };
@@ -593,9 +717,15 @@ for (const capability of ['camera', 'items', 'visible']) {
         ? scene.holding([scene.camera('roof')], scene.wait(1))
         : capability === 'items'
           ? scene.give('randy', 'burner')
-          : scene.until(scene.offscreen('randy', { after: 0, timeout: 1 }), scene.wait(2));
+          : scene.until(
+              scene.offscreen('randy', { after: 0, timeout: 1 }),
+              scene.wait(2),
+            );
     const definition = scene.holding([scene.attention('randy', player)], body);
-    assert.throws(() => n.direct([scene.play(definition, s.bindings)]), /Scene .* is not bound/);
+    assert.throws(
+      () => n.direct([scene.play(definition, s.bindings)]),
+      /Scene .* is not bound/,
+    );
     assert.equal(n.held, false);
     assert.equal(s.hasShot(), false);
     assert.deepEqual(s.items, []);
@@ -625,7 +755,10 @@ test('interrupting a phone scene cleans up without undoing a completed handoff',
 test('a scene cancels its pending navigation request before releasing attention', () => {
   const n = randyAt(new Vector3(), 0);
   const s = sceneBindings(n);
-  const definition = scene.holding([scene.attention('randy', player)], scene.walkTo('randy', 'roofExit'));
+  const definition = scene.holding(
+    [scene.attention('randy', player)],
+    scene.walkTo('randy', 'roofExit'),
+  );
   const run = n.direct([scene.play(definition, s.bindings)]);
   const job = n.world.planner.jobs.at(-1);
   assert.equal(run.status, 'running');
@@ -634,18 +767,29 @@ test('a scene cancels its pending navigation request before releasing attention'
   assert.equal(n.held, false);
 });
 
-for (const reason of ['arrival', 'no route', 'offscreen', 'timeout', 'cancelled']) {
+for (const reason of [
+  'arrival',
+  'no route',
+  'offscreen',
+  'timeout',
+  'cancelled',
+]) {
   test(`departure releases attention and navigation on ${reason}`, () => {
     const n = randyAt(new Vector3(), 0);
     const s = sceneBindings(n);
     s.bindings.visible = () => reason !== 'offscreen';
-    const run = n.direct([scene.play(JSON.parse(JSON.stringify(ROOF_DEPARTURE)), s.bindings)]);
+    const run = n.direct([
+      scene.play(JSON.parse(JSON.stringify(ROOF_DEPARTURE)), s.bindings),
+    ]);
     const job = n.world.planner.jobs.at(-1);
     assert.equal(n.held, true);
 
     if (reason === 'arrival' || reason === 'no route') {
       job.settled = true;
-      job.path = reason === 'arrival' ? new Polyline([n.pos.clone(), new Vector3(0, 0, 1)]) : null;
+      job.path =
+        reason === 'arrival'
+          ? new Polyline([n.pos.clone(), new Vector3(0, 0, 1)])
+          : null;
     } else if (reason === 'timeout') {
       job.settled = true;
       job.path = new Polyline([n.pos.clone(), new Vector3(0, 0, 100)]);
@@ -659,11 +803,22 @@ for (const reason of ['arrival', 'no route', 'offscreen', 'timeout', 'cancelled'
       elapsed += DT;
 
       if (reason === 'offscreen' && elapsed < 0.8) {
-        assert.equal(run.running, true, 'the offscreen grace period still applies');
+        assert.equal(
+          run.running,
+          true,
+          'the offscreen grace period still applies',
+        );
       }
     }
 
-    assert.equal(run.status, reason === 'no route' ? 'failed' : reason === 'cancelled' ? 'cancelled' : 'done');
+    assert.equal(
+      run.status,
+      reason === 'no route'
+        ? 'failed'
+        : reason === 'cancelled'
+          ? 'cancelled'
+          : 'done',
+    );
     assert.equal(n.held, false);
     assert.equal(n.walking, false);
 
@@ -695,7 +850,11 @@ test('leaving the roof relocates Randy and his fire after the action settles', (
   job.settled = true;
   job.path = null;
   n.update(DT, null);
-  assert.equal(n.pos.y, 8, 'relocation waits for the host to observe the outcome');
+  assert.equal(
+    n.pos.y,
+    8,
+    'relocation waits for the host to observe the outcome',
+  );
   active.tick(DT);
   active.stop();
   assert.equal(finished, 1);
@@ -716,7 +875,10 @@ test('leaving the tutorial cancels departure without a later relocation', () => 
     {
       randy: n,
       level: { elevators: [] },
-      game: { puff: () => assert.fail('cancelled beat relocated'), toScreen: () => null },
+      game: {
+        puff: () => assert.fail('cancelled beat relocated'),
+        toScreen: () => null,
+      },
     },
   );
   const job = n.world.planner.jobs.at(-1);

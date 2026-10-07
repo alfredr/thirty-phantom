@@ -11,7 +11,8 @@ const [{ Walker }, { Polyline }, { NavJob, NAV }] = await loadModules(
   '/src/world/nav-grid.ts',
 );
 
-const request = (x) => new NavJob(new Vector3(), new Vector3(x, 0, 0), NAV.person);
+const request = (x) =>
+  new NavJob(new Vector3(), new Vector3(x, 0, 0), NAV.person);
 function finish(job) {
   job.path = new Polyline([job.from, job.to]);
   job.status = 'done';
@@ -29,14 +30,22 @@ test('a walker cancels a replaced route and starts the new route only once', () 
   assert.equal(walker.followPlanned(), 'following');
   assert.equal(walker.goal, next.path.end);
   assert.equal(walker.planning, false);
-  assert.equal(walker.followPlanned(), null, 'the completed request cannot restart the walk');
+  assert.equal(
+    walker.followPlanned(),
+    null,
+    'the completed request cannot restart the walk',
+  );
 
   const abandoned = request(12);
   walker.plan(abandoned, 2);
   walker.cancelPlan();
   assert.equal(abandoned.status, 'cancelled');
   assert.equal(walker.followPlanned(), null);
-  assert.equal(walker.goal, next.path.end, 'cancelling a request preserves the route already being walked');
+  assert.equal(
+    walker.goal,
+    next.path.end,
+    'cancelling a request preserves the route already being walked',
+  );
 });
 
 test('a fleeing walker finishes its dash before following the planned route', () => {

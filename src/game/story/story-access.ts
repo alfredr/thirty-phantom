@@ -21,7 +21,8 @@ export interface Raisable {
 export class Access {
   private readonly entry = new Leases<Entry>((e) => {
     const pickup = this.pickup();
-    this.game.vehicleAccess = e === 'pickup' && pickup ? pickup : e === 'none' ? 'none' : 'any';
+    this.game.vehicleAccess =
+      e === 'pickup' && pickup ? pickup : e === 'none' ? 'none' : 'any';
   });
   private readonly doors = new Leases<string>((why) => {
     this.game.doorLock = why;
@@ -37,7 +38,9 @@ export class Access {
       this.game.transformCody();
     }
   });
-  private readonly walls = new Leases<true>((on) => this.barriers.raise(on !== null));
+  private readonly walls = new Leases<true>((on) =>
+    this.barriers.raise(on !== null),
+  );
   private readonly trades = new Leases<false>((off) => {
     this.game.trades.enabled = off === null && this.defaults.trades;
   });
@@ -103,7 +106,11 @@ export class Access {
   }
 }
 
-type AccessBehavior = BeatBehavior<{ readonly access: Access }, MindEvent<string>, string>;
+type AccessBehavior = BeatBehavior<
+  { readonly access: Access },
+  MindEvent<string>,
+  string
+>;
 
 export function entry(e: Entry): AccessBehavior {
   return hold((context) => context.access.enter(e));
@@ -117,9 +124,15 @@ export function dayLook(...grants: CodyAbility[]): AccessBehavior {
   return hold((context) => context.access.hold(grants));
 }
 
-export const barriers: AccessBehavior = hold((context) => context.access.wall());
-export const noTrades: AccessBehavior = hold((context) => context.access.noTrades());
-export const keepEscapes: AccessBehavior = hold((context) => context.access.keepEscapes());
+export const barriers: AccessBehavior = hold((context) =>
+  context.access.wall(),
+);
+export const noTrades: AccessBehavior = hold((context) =>
+  context.access.noTrades(),
+);
+export const keepEscapes: AccessBehavior = hold((context) =>
+  context.access.keepEscapes(),
+);
 
 export function stall<C>(
   vehicle: (context: C) => Vehicle,

@@ -1,4 +1,11 @@
-import { BoxGeometry, Group, Mesh, MeshStandardMaterial, type Object3D, PlaneGeometry } from 'three';
+import {
+  BoxGeometry,
+  Group,
+  Mesh,
+  MeshStandardMaterial,
+  type Object3D,
+  PlaneGeometry,
+} from 'three';
 
 import { TAU } from '@/engine/core/math';
 import { withCutaway, type MaterialLibrary } from '@/render/materials';
@@ -15,9 +22,19 @@ export class ClockFaces {
   constructor(defs: ClockDef[], mats: MaterialLibrary) {
     const dialMat = signMaterial(signTextures('dial', [], 1, 1, 3), 0.6);
     mats.register(dialMat, 'signs');
-    const handMat = withCutaway(new MeshStandardMaterial({ color: '#140920', roughness: 0.4, metalness: 0.3 }));
+    const handMat = withCutaway(
+      new MeshStandardMaterial({
+        color: '#140920',
+        roughness: 0.4,
+        metalness: 0.3,
+      }),
+    );
     const tipMat = withCutaway(
-      new MeshStandardMaterial({ color: '#2a0d47', emissive: PALETTE.purpleHot, emissiveIntensity: 2.5 }),
+      new MeshStandardMaterial({
+        color: '#2a0d47',
+        emissive: PALETTE.purpleHot,
+        emissiveIntensity: 2.5,
+      }),
     );
     mats.register(tipMat, 'neon');
 
@@ -38,7 +55,10 @@ export class ClockFaces {
         const hand = new Mesh(geo, handMat);
         hand.castShadow = true;
         pivot.add(hand);
-        const tip = new Mesh(new BoxGeometry(width * 1.3, width * 1.3, 0.1), tipMat);
+        const tip = new Mesh(
+          new BoxGeometry(width * 1.3, width * 1.3, 0.1),
+          tipMat,
+        );
         tip.position.y = len - width * 0.9;
         pivot.add(tip);
         g.add(pivot);

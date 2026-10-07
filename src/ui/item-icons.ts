@@ -1,4 +1,7 @@
-/** Inline SVG markup referenced by ItemBreed.icon for shop slots and inventory tags. */
+/**
+ * Inline SVG markup referenced by ItemBreed.icon for shop slots and inventory
+ * tags.
+ */
 export const ITEM_ICONS = {
   keys:
     '<svg viewBox="0 0 40 36" class="item-icon icon-keys">' +

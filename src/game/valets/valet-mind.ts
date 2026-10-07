@@ -2,7 +2,12 @@ import { Vector3 } from 'three';
 
 import type { Vehicle } from '@/actors/vehicles/vehicle';
 import { TUNING } from '@/config';
-import { mind, type MindEvent, type State, type StateOf } from '@/engine/sim/mind';
+import {
+  mind,
+  type MindEvent,
+  type State,
+  type StateOf,
+} from '@/engine/sim/mind';
 import type { SpotRuntime } from '@/game/deck/garage';
 
 import type { Valet, ValetDrive } from './valet';
@@ -34,7 +39,10 @@ export type Attention =
   /** Face the position returned by the conversation target. */
   | State<'facing', { who: () => Vector3 }>;
 
-/** Events shared by the job and attention state machines. Each state handles only its declared events. */
+/**
+ * Events shared by the job and attention state machines. Each state handles
+ * only its declared events.
+ */
 export type ValetEvent =
   /** Assign a car and destination spot. */
   | MindEvent<'handedCar', { car: Vehicle; spot: SpotRuntime }>
@@ -47,7 +55,10 @@ export type ValetEvent =
 
 const returning = (): StateOf<Job, 'returning'> => ({ at: 'returning' });
 
-/** Accept assignments while idle or returning, then walk, board, drive, and return. */
+/**
+ * Accept assignments while idle or returning, then walk, board, drive, and
+ * return.
+ */
 export const VALET_JOB = mind<Valet, Job, ValetEvent>({
   off: {
     enter: (v) => {
@@ -88,7 +99,10 @@ export const VALET_JOB = mind<Valet, Job, ValetEvent>({
         w.place(v.crew.doorOf(s.car), s.car.yaw);
       }
 
-      if (!w.update(dt, v.crew.nav, v.crew.avoid) && (w.planning || w.walking)) {
+      if (
+        !w.update(dt, v.crew.nav, v.crew.avoid) &&
+        (w.planning || w.walking)
+      ) {
         return null;
       }
 
@@ -170,7 +184,13 @@ export const VALET_JOB = mind<Valet, Job, ValetEvent>({
         w.update(dt, v.crew.nav, v.crew.avoid) ||
         (!w.planning && !w.walking && w.pos.distanceTo(v.home) < HOME_EPS)
       ) {
-        w.face(_ahead.set(v.home.x + Math.sin(v.homeYaw), v.home.y, v.home.z + Math.cos(v.homeYaw)));
+        w.face(
+          _ahead.set(
+            v.home.x + Math.sin(v.homeYaw),
+            v.home.y,
+            v.home.z + Math.cos(v.homeYaw),
+          ),
+        );
         return { at: 'idle' };
       }
 
@@ -186,7 +206,10 @@ export const VALET_JOB = mind<Valet, Job, ValetEvent>({
   },
 });
 
-/** Track conversation facing independently; a new car assignment releases that attention. */
+/**
+ * Track conversation facing independently; a new car assignment releases that
+ * attention.
+ */
 export const VALET_ATTENTION = mind<Valet, Attention, ValetEvent>({
   free: {
     on: { talk: (_v, _s, { who }) => ({ at: 'facing', who }) },

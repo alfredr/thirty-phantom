@@ -1,5 +1,14 @@
 import type { MindEvent } from '@/engine/sim/mind';
-import { act, after, all, on, progressOn, react, when, type BeatBehavior } from '@/game/story/behaviors';
+import {
+  act,
+  after,
+  all,
+  on,
+  progressOn,
+  react,
+  when,
+  type BeatBehavior,
+} from '@/game/story/behaviors';
 import type { Beats } from '@/game/story/director';
 
 type Context = { score: number };

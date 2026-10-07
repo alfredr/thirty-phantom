@@ -24,10 +24,17 @@ import { Goals } from './story-goals';
 import { Outreach } from './story-outreach';
 import { Recovery } from './story-recovery';
 import { BEATS, type BeatId, ERRAND, type ErrandId } from './tutorial-beats';
-import type { RoofStage, TutorialContext, TutorialEvent } from './tutorial-context';
+import type {
+  RoofStage,
+  TutorialContext,
+  TutorialEvent,
+} from './tutorial-context';
 import { doorOf, moltenKeys, stagedView, stageOn } from './tutorial-scenes';
 
-/** Persist completion of the whole tutorial, or of part 1 at the first escape so a reload restarts part 2. */
+/**
+ * Persist completion of the whole tutorial, or of part 1 at the first escape
+ * so a reload restarts part 2.
+ */
 const DONE_KEY = '30pc.tutorial';
 const PART1_KEY = '30pc.tutorial.part1';
 const START_HOUR = 17.5;
@@ -53,9 +60,11 @@ interface Settings {
 }
 
 /**
- * Wire the game into the tutorial's beat directors. The opening night (part 1) runs from the roof at 5:30 PM through
- * the first escape; day 2 and night 2 (part 2) follow, and a reload during part 2 restarts it at the next morning. The
- * beats themselves live in tutorial-beats.ts and their mechanics in tutorial-scenes.ts.
+ * Wire the game into the tutorial's beat directors. The opening night (part 1)
+ * runs from the roof at 5:30 PM through the first escape; day 2 and night 2
+ * (part 2) follow, and a reload during part 2 restarts it at the next morning.
+ * The beats themselves live in tutorial-beats.ts and their mechanics in
+ * tutorial-scenes.ts.
  */
 export class Tutorial {
   private wanted = !remembered(DONE_KEY);
@@ -72,12 +81,16 @@ export class Tutorial {
   private access: Access | null = null;
   private context: TutorialContext | null = null;
   private main: Director<TutorialContext, TutorialEvent, BeatId> | null = null;
-  private errand: Director<TutorialContext, TutorialEvent, ErrandId> | null = null;
+  private errand: Director<TutorialContext, TutorialEvent, ErrandId> | null =
+    null;
   private settings: Settings | null = null;
   private t = 0;
   private readonly head = new Vector3();
 
-  /** Whether this run is active. game/save.ts uses this to suppress normal progress restoration and writes. */
+  /**
+   * Whether this run is active. game/save.ts uses this to suppress normal
+   * progress restoration and writes.
+   */
   get running(): boolean {
     return this.active;
   }
@@ -86,9 +99,16 @@ export class Tutorial {
     private readonly game: Game,
     private readonly level: LevelData,
   ) {
-    this.dialogue = new Dialogue({ left: 'RANDY ROLSEN', right: 'CODY' }, game.input.focus);
+    this.dialogue = new Dialogue(
+      { left: 'RANDY ROLSEN', right: 'CODY' },
+      game.input.focus,
+    );
     this.dialogue.addLook('left', 'smoke', `${GLOW}${WISPS}`);
-    this.dialogue.addLook('left', 'molten', `${GLOW}<div class="held">${ITEM_ICONS.moltenKeys}</div>${WISPS}`);
+    this.dialogue.addLook(
+      'left',
+      'molten',
+      `${GLOW}<div class="held">${ITEM_ICONS.moltenKeys}</div>${WISPS}`,
+    );
     this.sign = new Signpost(game.hud.root, game.input.focus);
     this.barriers = new Barriers(level, game.scene, game.world.collision);
     this.clock = new StoryClock(game.clock);
@@ -98,7 +118,9 @@ export class Tutorial {
       this.dialogue,
       {
         show: (line) => {
-          game.bubble = line ? { at: this.head, who: line.who, line: line.say, choices: [] } : null;
+          game.bubble = line
+            ? { at: this.head, who: line.who, line: line.say, choices: [] }
+            : null;
         },
       },
       { left: 'RANDY', right: 'CODY' },
@@ -107,7 +129,12 @@ export class Tutorial {
       {
         ring: (first) => {
           if (first) {
-            game.hud.toast('INCOMING CALL', '{interact} ANSWER', '', RING_HINT);
+            game.hud.toast(
+              'INCOMING CALL',
+              '{interact} ANSWER',
+              '',
+              RING_HINT,
+            );
           }
         },
         answered: (first) => {
@@ -124,7 +151,9 @@ export class Tutorial {
     const ev = game.events;
     ev.on('start', () => this.begin());
     ev.on('frame', (dt) => this.frame(dt));
-    ev.on('entered', ({ v, possessed }) => this.send({ type: 'entered', v, possessed }));
+    ev.on('entered', ({ v, possessed }) =>
+      this.send({ type: 'entered', v, possessed }),
+    );
     ev.on('exited', ({ spot }) => {
       this.camera.restore();
       this.send({ type: 'exited', spot });
@@ -145,14 +174,22 @@ export class Tutorial {
     ev.on('sunrise', () => this.send({ type: 'sunrise' }));
   }
 
-  /** Add the title's skip/replay toggle. The click also reaches the title's game-start handler. */
+  /**
+   * Add the title's skip/replay toggle. The click also reaches the title's
+   * game-start handler.
+   */
   private titleLink(): void {
     const title = document.querySelector<HTMLElement>('.hud-title');
     if (!title) {
       return;
     }
 
-    const link = el('div', 'title-tut', title, this.wanted ? 'SKIP TUTORIAL' : 'REPLAY TUTORIAL');
+    const link = el(
+      'div',
+      'title-tut',
+      title,
+      this.wanted ? 'SKIP TUTORIAL' : 'REPLAY TUTORIAL',
+    );
     link.addEventListener('click', () => {
       this.wanted = !this.wanted;
 
@@ -167,7 +204,9 @@ export class Tutorial {
   private begin(): void {
     const g = this.game;
     const randy = g.npcs.find('randy');
-    const stage = stageOn(this.level, g.garage, (x, z) => g.world.collision.groundAt(x, z, 2, 0));
+    const stage = stageOn(this.level, g.garage, (x, z) =>
+      g.world.collision.groundAt(x, z, 2, 0),
+    );
     if (!this.wanted || !randy || !stage) {
       return;
     }
@@ -183,7 +222,12 @@ export class Tutorial {
     this.settings = settings;
     g.randyTalk.enabled = false;
     g.skipAfterEating = false;
-    const access = new Access(g, () => this.context?.pickup ?? null, this.barriers, settings);
+    const access = new Access(
+      g,
+      () => this.context?.pickup ?? null,
+      this.barriers,
+      settings,
+    );
     this.access = access;
     const { randy: face, cody } = g.portraits;
     this.dialogue.setPortrait('left', face);
@@ -204,7 +248,11 @@ export class Tutorial {
       send: (e) => this.send(e),
       camera: this.camera,
       sign: this.sign,
-      progress: { firstPhantom: null, noticedSmell: false, viewsSeen: new Set() },
+      progress: {
+        firstPhantom: null,
+        noticedSmell: false,
+        viewsSeen: new Set(),
+      },
       roofScene: this.roofScene,
       pickup,
       randy,
@@ -229,7 +277,8 @@ export class Tutorial {
     });
     this.errand = new Director(ERRAND, context, {
       prefix: 'errand',
-      moved: (id) => g.events.emit('step', { quest: 'tutorial-keys', step: id ?? 'over' }),
+      moved: (id) =>
+        g.events.emit('step', { quest: 'tutorial-keys', step: id ?? 'over' }),
     });
 
     if (remembered(PART1_KEY)) {
@@ -270,7 +319,9 @@ export class Tutorial {
     }
 
     focus.multiplyScalar(1 / action.length).setY(st.randy.y + TALK_HEIGHT);
-    const reach = Math.max(...action.map((p) => Math.hypot(p.x - focus.x, p.z - focus.z)));
+    const reach = Math.max(
+      ...action.map((p) => Math.hypot(p.x - focus.x, p.z - focus.z)),
+    );
     const fx = Math.sin(st.yaw);
     const fz = Math.cos(st.yaw);
     const sights: Vector3[] = [];
@@ -278,13 +329,20 @@ export class Tutorial {
       for (const across of [-1, 0, 1]) {
         for (const up of [0.6, 1.4]) {
           const p = st.truck.clone();
-          p.set(p.x + fx * along + fz * across, p.y + up, p.z + fz * along - fx * across);
+          p.set(
+            p.x + fx * along + fz * across,
+            p.y + up,
+            p.z + fz * along - fx * across,
+          );
           sights.push(p);
         }
       }
     }
 
-    sights.push(...action.map((p) => p.clone().setY(st.randy.y + 1)), fire.clone().setY(fire.y + FLARE_TOP));
+    sights.push(
+      ...action.map((p) => p.clone().setY(st.randy.y + 1)),
+      fire.clone().setY(fire.y + FLARE_TOP),
+    );
     const azimuth = stagedView(g.world.root, sights, st.yaw);
     const zoom = clamp(reach * ZOOM_PER_METER + ZOOM_PAD, ZOOM_MIN, ZOOM_MAX);
     focus.x -= Math.sin(azimuth) * zoom * LIFT;
@@ -369,7 +427,9 @@ export class Tutorial {
 
   private me(): Vector3 {
     const g = this.game;
-    const ride: Vehicle | undefined = g.vehicles.find((v) => v.role === 'player');
+    const ride: Vehicle | undefined = g.vehicles.find(
+      (v) => v.role === 'player',
+    );
     return ride?.pos ?? g.player.pos;
   }
 }

@@ -1,14 +1,29 @@
 import { Color, type Group, Matrix4, Vector3 } from 'three';
 
-import { baked, type Instanced, instanced, type Model } from '@/actors/models/part';
+import {
+  baked,
+  type Instanced,
+  instanced,
+  type Model,
+} from '@/actors/models/part';
 import { CollisionWorld } from '@/engine/physics/collision';
 import type { EmissiveChannel, MaterialLibrary } from '@/render/materials';
 
-import { DECOR, type DecorHit, type DecorKind, hitOf, type LocalBox, worldBox } from './decor-models';
+import {
+  DECOR,
+  type DecorHit,
+  type DecorKind,
+  hitOf,
+  type LocalBox,
+  worldBox,
+} from './decor-models';
 import type { DecorDef } from './level-data';
 import type { PropKind, PropSpec } from './props';
 
-/** Glowing decor (petals, the fountain's water, a shelter's ad panel) follows the neon signs' day and night levels. */
+/**
+ * Glowing decor (petals, the fountain's water, a shelter's ad panel) follows
+ * the neon signs' day and night levels.
+ */
 const GLOW: EmissiveChannel = 'neon';
 
 export interface BuiltDecor {
@@ -16,13 +31,19 @@ export interface BuiltDecor {
   root: Group;
   /** Breakable decor registered with the world's Props system. */
   props: PropSpec[];
-  /** Visual occluders such as tree crowns, used for cutaway probes without blocking movement. */
+  /**
+   * Visual occluders such as tree crowns, used for cutaway probes without
+   * blocking movement.
+   */
   sight: CollisionWorld;
 }
 
 const _s = new Vector3();
 
-/** Write the decor's translation, yaw, scale, and local-X stretch into `out`, then return it. */
+/**
+ * Write the decor's translation, yaw, scale, and local-X stretch into `out`,
+ * then return it.
+ */
 export function decorMatrix(d: DecorDef, out = new Matrix4()): Matrix4 {
   const s = d.scale ?? 1;
   return out
@@ -31,18 +52,28 @@ export function decorMatrix(d: DecorDef, out = new Matrix4()): Matrix4 {
     .setPosition(d.pos[0], d.pos[1], d.pos[2]);
 }
 
-/** Transform local decor boxes into world-space bounds, ignoring yaw for round decor. */
+/**
+ * Transform local decor boxes into world-space bounds, ignoring yaw for round
+ * decor.
+ */
 function placed(list: readonly LocalBox[], d: DecorDef): LocalBox[] {
   const turn = DECOR[d.kind].round ? 0 : d.yaw;
-  return list.map((b) => worldBox(b, d.pos, turn, d.scale ?? 1, d.stretch ?? 1));
+  return list.map((b) =>
+    worldBox(b, d.pos, turn, d.scale ?? 1, d.stretch ?? 1),
+  );
 }
 
 /**
- * Build decor meshes, visual occluders, and breakable props. Batch standing geometry by material and allocate instances
- * for toppled pieces. Add breakable collision here; static collision must already be in the level boxes. Throw if a
- * breakable decor definition has no collision boxes.
+ * Build decor meshes, visual occluders, and breakable props. Batch standing
+ * geometry by material and allocate instances for toppled pieces. Add
+ * breakable collision here; static collision must already be in the level
+ * boxes. Throw if a breakable decor definition has no collision boxes.
  */
-export function buildDecor(defs: readonly DecorDef[], mats: MaterialLibrary, collision: CollisionWorld): BuiltDecor {
+export function buildDecor(
+  defs: readonly DecorDef[],
+  mats: MaterialLibrary,
+  collision: CollisionWorld,
+): BuiltDecor {
   const models = new Map<DecorKind, Model<string>>();
   const modelOf = (k: DecorKind): Model<string> => {
     let m = models.get(k);
@@ -53,7 +84,9 @@ export function buildDecor(defs: readonly DecorDef[], mats: MaterialLibrary, col
     return m;
   };
 
-  const bake = baked(defs.map((d) => ({ model: modelOf(d.kind), at: decorMatrix(d) })));
+  const bake = baked(
+    defs.map((d) => ({ model: modelOf(d.kind), at: decorMatrix(d) })),
+  );
   bake.root.name = 'decor';
 
   for (const { mat } of bake.materials) {
@@ -112,7 +145,9 @@ export function buildDecor(defs: readonly DecorDef[], mats: MaterialLibrary, col
   const slots = new Map<DecorKind, number>();
   defs.forEach((d, i) => {
     const spec = DECOR[d.kind];
-    const crowns = placed(spec.sight ?? [], d).map(([min, max]) => sight.add(min, max));
+    const crowns = placed(spec.sight ?? [], d).map(([min, max]) =>
+      sight.add(min, max),
+    );
     const hit = hits[i];
     const kind = kinds.get(d.kind);
     if (!hit || !kind) {
@@ -122,9 +157,16 @@ export function buildDecor(defs: readonly DecorDef[], mats: MaterialLibrary, col
     const slot = slots.get(d.kind) ?? 0;
     slots.set(d.kind, slot + 1);
     const scale = d.scale ?? 1;
-    const boost = hit.boost && scale > hit.boost.above ? hit.boost.momentum * scale : undefined;
+    const boost =
+      hit.boost && scale > hit.boost.above
+        ? hit.boost.momentum * scale
+        : undefined;
     const [solid, ...parts] = placed(spec.solids, d).map(([min, max]) =>
-      collision.add(min, max, { knockdown: true, heavy: hit.by === 'truck', boost }),
+      collision.add(min, max, {
+        knockdown: true,
+        heavy: hit.by === 'truck',
+        boost,
+      }),
     );
     if (!solid) {
       throw new Error(`decor ${d.kind} breaks but has no solids`);

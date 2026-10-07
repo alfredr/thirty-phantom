@@ -14,10 +14,13 @@ export interface Portraits {
 const SIZE = 256;
 
 /**
- * Render PNG data URLs for Randy facing right and both Cody forms facing left. `cody` must supply a fresh model that
- * can be posed.
+ * Render PNG data URLs for Randy facing right and both Cody forms facing left.
+ * `cody` must supply a fresh model that can be posed.
  */
-export function makePortraits(renderer: WebGLRenderer, cody: () => CharacterModel): Portraits {
+export function makePortraits(
+  renderer: WebGLRenderer,
+  cody: () => CharacterModel,
+): Portraits {
   const randy = buildRandy();
   const c = cody();
   c.setForm('day');
@@ -26,5 +29,9 @@ export function makePortraits(renderer: WebGLRenderer, cody: () => CharacterMode
   c.setForm('night');
   c.animate(0, 0, true);
   const night = renderPortrait(renderer, c.root, 'left', SIZE);
-  return { randy: renderPortrait(renderer, randy.root, 'right', SIZE), cody: day, codyNight: night };
+  return {
+    randy: renderPortrait(renderer, randy.root, 'right', SIZE),
+    cody: day,
+    codyNight: night,
+  };
 }

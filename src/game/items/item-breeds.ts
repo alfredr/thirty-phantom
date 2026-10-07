@@ -5,7 +5,13 @@ import { ITEM_ICONS } from '@/ui/item-icons';
 import { consume, type ItemUse } from './item-use';
 
 /** Item kinds supported by the inventory and pickup systems. */
-export type ItemKind = PartKind | 'brisket' | 'badge' | 'burner' | 'moltenKeys' | 'keys';
+export type ItemKind =
+  | PartKind
+  | 'brisket'
+  | 'badge'
+  | 'burner'
+  | 'moltenKeys'
+  | 'keys';
 
 /** Presentation, price, and use capabilities shared by an item kind. */
 export interface ItemBreed {
@@ -45,11 +51,24 @@ export const ITEM_BREEDS: Readonly<Record<ItemKind, ItemBreed>> = {
       label: 'EAT',
       count: 1,
       when: (w) => w.canEat(),
-      effect: (w) => w.skipPhase({ title: 'BRISKET', message: 'YOU ATE SO MUCH YOU FELT SLEEPY...' }),
+      effect: (w) =>
+        w.skipPhase({
+          title: 'BRISKET',
+          message: 'YOU ATE SO MUCH YOU FELT SLEEPY...',
+        }),
     }),
   },
-  badge: { name: 'UNREADABLE BADGE', note: 'COVERED IN BBQ SAUCE', sound: 'item-gift' },
-  moltenKeys: { name: 'MOLTEN KEYS', sound: 'item-gift', icon: ITEM_ICONS.moltenKeys, unavailable: 'TOO HOT' },
+  badge: {
+    name: 'UNREADABLE BADGE',
+    note: 'COVERED IN BBQ SAUCE',
+    sound: 'item-gift',
+  },
+  moltenKeys: {
+    name: 'MOLTEN KEYS',
+    sound: 'item-gift',
+    icon: ITEM_ICONS.moltenKeys,
+    unavailable: 'TOO HOT',
+  },
   keys: { name: 'CAR KEYS', sound: 'item-gift', icon: ITEM_ICONS.keys },
 
   burner: {

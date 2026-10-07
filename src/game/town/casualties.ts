@@ -5,14 +5,28 @@ import { Ragdoll, type RagdollPusher } from '@/actors/ragdoll';
 import type { CollisionWorld } from '@/engine/physics/collision';
 import type { BloodSim } from '@/world/blood';
 
-/** Injury severity in ascending order. Survivors can recover; dead casualties remain down. */
+/**
+ * Injury severity in ascending order. Survivors can recover; dead casualties
+ * remain down.
+ */
 export type Harm = 'stunned' | 'injured' | 'unconscious' | 'dead';
 export type Cause = 'vehicle' | 'claws';
 const ORDER: readonly Harm[] = ['stunned', 'injured', 'unconscious', 'dead'];
 
-/** Impact thresholds after mass scaling, in m/s. Lower impacts do not cause casualties. */
-const HARM_AT: Readonly<Record<Harm, number>> = { stunned: 3, injured: 7, unconscious: 12, dead: 17 };
-/** Reference mass in kilograms; impact severity scales with the cube root of the mass ratio. */
+/**
+ * Impact thresholds after mass scaling, in m/s. Lower impacts do not cause
+ * casualties.
+ */
+const HARM_AT: Readonly<Record<Harm, number>> = {
+  stunned: 3,
+  injured: 7,
+  unconscious: 12,
+  dead: 17,
+};
+/**
+ * Reference mass in kilograms; impact severity scales with the cube root of
+ * the mass ratio.
+ */
 const REF_MASS = 1300;
 /** Recovery delay ranges in seconds. */
 const DOWN_FOR: Readonly<Record<Harm, readonly [number, number]>> = {
@@ -22,18 +36,34 @@ const DOWN_FOR: Readonly<Record<Harm, readonly [number, number]>> = {
   dead: [Infinity, Infinity],
 };
 /** Initial bleeding rates in m³/s and fractional decay rates per second. */
-const BLEED: Readonly<Record<Harm, number>> = { stunned: 0, injured: 1e-5, unconscious: 2.5e-5, dead: 8e-5 };
-const STAUNCH: Readonly<Record<Harm, number>> = { stunned: 1, injured: 1 / 25, unconscious: 1 / 70, dead: 1 / 40 };
+const BLEED: Readonly<Record<Harm, number>> = {
+  stunned: 0,
+  injured: 1e-5,
+  unconscious: 2.5e-5,
+  dead: 8e-5,
+};
+const STAUNCH: Readonly<Record<Harm, number>> = {
+  stunned: 1,
+  injured: 1 / 25,
+  unconscious: 1 / 70,
+  dead: 1 / 40,
+};
 /** Blood volume per drop in m³ and impact spray counts by severity. */
 const DROP = 2e-6;
 const SPRAY = [0, 10, 18, 30] as const;
-/** Horizontal velocity retention, vertical lift per m/s of impact, and ragdoll tumble strength. */
+/**
+ * Horizontal velocity retention, vertical lift per m/s of impact, and ragdoll
+ * tumble strength.
+ */
 const CARRY = 0.85;
 const LIFT = 0.35;
 const TUMBLE = 0.6;
 /** Minimum interval between vehicle-induced injury escalations, in seconds. */
 const REHIT = 0.6;
-/** Maximum additional recovery delay while the ragdoll remains unsettled, in seconds. */
+/**
+ * Maximum additional recovery delay while the ragdoll remains unsettled, in
+ * seconds.
+ */
 const GET_UP_ANYWAY = 3;
 
 const _c = new Vector3();
@@ -52,13 +82,17 @@ export interface Casualty {
   readonly at: Vector3;
   readonly head: Vector3;
   readonly feet: Vector3;
-  /** Remaining cooldown before another vehicle impact can worsen the injury, in seconds. */
+  /**
+   * Remaining cooldown before another vehicle impact can worsen the injury, in
+   * seconds.
+   */
   cool: number;
 }
 
 /**
- * Simulate fallen characters, impact injury, bleeding, and recovery. Repeated vehicle impacts or claw attacks can
- * increase severity. Survivors recover after their delay and settling checks; dead casualties remain.
+ * Simulate fallen characters, impact injury, bleeding, and recovery. Repeated
+ * vehicle impacts or claw attacks can increase severity. Survivors recover
+ * after their delay and settling checks; dead casualties remain.
  */
 export class Casualties {
   readonly list: Casualty[] = [];
@@ -69,7 +103,10 @@ export class Casualties {
     private readonly blood: BloodSim,
   ) {}
 
-  /** Classify impact speed in m/s scaled by body mass in kilograms, or return null below the injury threshold. */
+  /**
+   * Classify impact speed in m/s scaled by body mass in kilograms, or return
+   * null below the injury threshold.
+   */
   static harmFor(speed: number, mass: number): Harm | null {
     const k = speed * Math.cbrt(mass / REF_MASS);
     let harm: Harm | null = null;
@@ -82,8 +119,17 @@ export class Casualties {
     return harm;
   }
 
-  /** Launch a ragdoll from the current rig pose using impact velocity (vx, vz) in m/s and the supplied injury. */
-  strike(rig: CharacterRig, vx: number, vz: number, harm: Harm, cause: Cause): Casualty {
+  /**
+   * Launch a ragdoll from the current rig pose using impact velocity (vx, vz)
+   * in m/s and the supplied injury.
+   */
+  strike(
+    rig: CharacterRig,
+    vx: number,
+    vz: number,
+    harm: Harm,
+    cause: Cause,
+  ): Casualty {
     const ragdoll = new Ragdoll(rig);
     const speed = Math.hypot(vx, vz);
     ragdoll.launch(vx * CARRY, 1.5 + speed * LIFT, vz * CARRY, TUMBLE);
@@ -104,25 +150,52 @@ export class Casualties {
     return c;
   }
 
-  /** Escalate a casualty by one severity level and emit blood away from the attack. Return the resulting severity. */
+  /**
+   * Escalate a casualty by one severity level and emit blood away from the
+   * attack. Return the resulting severity.
+   */
   maul(c: Casualty, from: Vector3): Harm {
     c.ragdoll.chest(_c);
-    this.worsen(c, this.next(c.harm), (_c.x - from.x) * 2, (_c.z - from.z) * 2, 'claws');
+    this.worsen(
+      c,
+      this.next(c.harm),
+      (_c.x - from.x) * 2,
+      (_c.z - from.z) * 2,
+      'claws',
+    );
     c.cool = REHIT;
     return c.harm;
   }
 
   /** Emit a blood spray for an upright victim struck from `from`. */
   cut(at: Vector3, from: Vector3): void {
-    this.blood.spray(at.x, at.y + 1.2, at.z, (at.x - from.x) * 2, (at.z - from.z) * 2, 6, 2.5, DROP * 1.5);
+    this.blood.spray(
+      at.x,
+      at.y + 1.2,
+      at.z,
+      (at.x - from.x) * 2,
+      (at.z - from.z) * 2,
+      6,
+      2.5,
+      DROP * 1.5,
+    );
   }
 
-  /** Allow living casualties to recover after the delay and settling, or after the additional grace period. */
+  /**
+   * Allow living casualties to recover after the delay and settling, or after
+   * the additional grace period.
+   */
   ready(c: Casualty): boolean {
-    return c.harm !== 'dead' && ((c.down <= 0 && c.ragdoll.asleep) || c.down <= -GET_UP_ANYWAY);
+    return (
+      c.harm !== 'dead' &&
+      ((c.down <= 0 && c.ragdoll.asleep) || c.down <= -GET_UP_ANYWAY)
+    );
   }
 
-  /** Remove casualty simulation, reset the rig pose, and write its ground position into `out`. Return the recovery yaw. */
+  /**
+   * Remove casualty simulation, reset the rig pose, and write its ground
+   * position into `out`. Return the recovery yaw.
+   */
   recover(c: Casualty, out: Vector3): number {
     this.remove(c);
     const r = c.rig;
@@ -157,7 +230,10 @@ export class Casualties {
       rd.feet(c.feet);
       // Rate-limit injury escalation from repeated vehicle contact.
       c.cool -= dt;
-      const again = rd.hardest > 0 && c.cool <= 0 ? Casualties.harmFor(rd.hardest, REF_MASS) : null;
+      const again =
+        rd.hardest > 0 && c.cool <= 0
+          ? Casualties.harmFor(rd.hardest, REF_MASS)
+          : null;
       if (again && ORDER.indexOf(again) >= ORDER.indexOf(c.harm) - 1) {
         this.worsen(c, this.next(c.harm), 0, 0, 'vehicle');
         c.cool = REHIT;
@@ -179,10 +255,16 @@ export class Casualties {
   }
 
   /**
-   * Raise injury severity without reducing it, refresh recovery and bleeding, and emit impact blood. Report a death to
-   * onDeath with its cause.
+   * Raise injury severity without reducing it, refresh recovery and bleeding,
+   * and emit impact blood. Report a death to onDeath with its cause.
    */
-  private worsen(c: Casualty, harm: Harm, vx: number, vz: number, cause: Cause): void {
+  private worsen(
+    c: Casualty,
+    harm: Harm,
+    vx: number,
+    vz: number,
+    cause: Cause,
+  ): void {
     const was = ORDER.indexOf(c.harm);
     const now = Math.max(was, ORDER.indexOf(harm));
     c.harm = ORDER[now] as Harm;
@@ -200,7 +282,10 @@ export class Casualties {
     }
   }
 
-  /** Accumulate blood volume into discrete drops while decaying the bleeding rate. */
+  /**
+   * Accumulate blood volume into discrete drops while decaying the bleeding
+   * rate.
+   */
   private bleedFrom(c: Casualty, dt: number): void {
     if (c.bleed <= 0) {
       return;
@@ -216,7 +301,15 @@ export class Casualties {
     while (c.owed >= DROP) {
       c.owed -= DROP;
       c.ragdoll.chest(_c);
-      this.blood.drip(_c.x + (Math.random() - 0.5) * 0.3, _c.y, _c.z + (Math.random() - 0.5) * 0.3, 0, 0, 0, DROP);
+      this.blood.drip(
+        _c.x + (Math.random() - 0.5) * 0.3,
+        _c.y,
+        _c.z + (Math.random() - 0.5) * 0.3,
+        0,
+        0,
+        0,
+        DROP,
+      );
     }
   }
 }

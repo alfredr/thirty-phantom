@@ -15,8 +15,9 @@ import { GHOST_LAYER } from '@/render/layers';
 import { FULLSCREEN_VERT } from './fullscreen';
 
 /**
- * Composite GHOST_LAYER after the sky so transparent characters remain visible against it. Copy scene depth first to
- * preserve wall occlusion; ghost depth twins restrict each character to its nearest surface. These objects do not
+ * Composite GHOST_LAYER after the sky so transparent characters remain visible
+ * against it. Copy scene depth first to preserve wall occlusion; ghost depth
+ * twins restrict each character to its nearest surface. These objects do not
  * participate in the outline normal pass.
  */
 export class GhostPass extends Pass {
@@ -24,7 +25,10 @@ export class GhostPass extends Pass {
   depthTexture: DepthTexture | null = null;
   /** Whether existing scene lights have been enabled on GHOST_LAYER. */
   private lit = false;
-  /** Writes the scene's depth into the target, so walls in front still hide the ghost. */
+  /**
+   * Writes the scene's depth into the target, so walls in front still hide the
+   * ghost.
+   */
   private readonly copyMat = new ShaderMaterial({
     uniforms: { tDepth: { value: null } },
     vertexShader: FULLSCREEN_VERT,
@@ -50,7 +54,11 @@ export class GhostPass extends Pass {
     this.enabled = false;
   }
 
-  override render(renderer: WebGLRenderer, _writeBuffer: WebGLRenderTarget, readBuffer: WebGLRenderTarget): void {
+  override render(
+    renderer: WebGLRenderer,
+    _writeBuffer: WebGLRenderTarget,
+    readBuffer: WebGLRenderTarget,
+  ): void {
     const cam = this.camera;
     if (!cam || !this.depthTexture) {
       return;

@@ -5,7 +5,10 @@ export class Keyring {
   readonly held = new Set<Ignition>();
 }
 
-/** Away means the owner is outside the simulated crowd. Destroyed keys cannot return. */
+/**
+ * Away means the owner is outside the simulated crowd. Destroyed keys cannot
+ * return.
+ */
 type KeyOwner = Keyring | 'ignition' | 'away' | 'ground' | 'destroyed';
 
 export type KeyHeat = 'cool' | 'molten' | 'melted';
@@ -48,7 +51,10 @@ export class Ignition {
     return true;
   }
 
-  /** Insert matching keys unless heat has ruined them. A hotwire bypass does not count as having the keys. */
+  /**
+   * Insert matching keys unless heat has ruined them. A hotwire bypass does
+   * not count as having the keys.
+   */
   insert(keys: Keyring): boolean {
     return this.heat === 'cool' && this.transfer(keys, 'ignition');
   }

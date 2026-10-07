@@ -3,7 +3,12 @@ import { test } from 'node:test';
 
 import { loadModules } from './modules.mjs';
 
-const [{ OutreachQueue, OUTREACH_GAP }, { Outreach, nudge, call }, { Director }, { on }] = await loadModules(
+const [
+  { OutreachQueue, OUTREACH_GAP },
+  { Outreach, nudge, call },
+  { Director },
+  { on },
+] = await loadModules(
   '/src/ui/phone/outreach.ts',
   '/src/game/story/story-outreach.ts',
   '/src/game/story/director.ts',
@@ -13,7 +18,13 @@ const [{ OutreachQueue, OUTREACH_GAP }, { Outreach, nudge, call }, { Director },
 function harness() {
   const spoken = [];
   let done = null;
-  const queue = new OutreachQueue({ show() {}, hide() {}, fly() {}, land() {}, ring() {} });
+  const queue = new OutreachQueue({
+    show() {},
+    hide() {},
+    fly() {},
+    land() {},
+    ring() {},
+  });
   const phone = {
     text: (msg, opts) => queue.text(msg, opts),
     drop: (key) => queue.drop(key),
@@ -66,7 +77,10 @@ for (const state of ['queued', 'ringing', 'talking']) {
   for (const cleanup of ['progressed', 'stop']) {
     test(`${cleanup} cancels a ${state} nudge without leaving a stale call`, () => {
       const h = harness();
-      const active = nudge('HOTWIRE THAT PICKUP')({ key: 'beat:hotwire', idle: 31 }, h);
+      const active = nudge('HOTWIRE THAT PICKUP')(
+        { key: 'beat:hotwire', idle: 31 },
+        h,
+      );
       active.tick(0.1);
       active.tick(0.1);
 
@@ -89,7 +103,11 @@ for (const state of ['queued', 'ringing', 'talking']) {
       assert.equal(h.queue.calling, false);
       assert.equal(h.queue.pending, 0);
       assert.equal(h.outreach.free, true);
-      assert.equal(h.spoken.length, spoken, 'the cancelled nudge never starts speaking later');
+      assert.equal(
+        h.spoken.length,
+        spoken,
+        'the cancelled nudge never starts speaking later',
+      );
     });
   }
 }
@@ -98,8 +116,14 @@ test('a new beat call waits for the outreach gap after cancelling an old nudge',
   const h = harness();
   const director = new Director(
     {
-      hotwire: { parts: [nudge('HOTWIRE THAT PICKUP'), on('hotwired')], next: 'drive' },
-      drive: { parts: [call([{ who: 'left', say: 'DRIVE OFF.' }])], next: null },
+      hotwire: {
+        parts: [nudge('HOTWIRE THAT PICKUP'), on('hotwired')],
+        next: 'drive',
+      },
+      drive: {
+        parts: [call([{ who: 'left', say: 'DRIVE OFF.' }])],
+        next: null,
+      },
     },
     h,
     { prefix: 'beat' },
@@ -128,8 +152,14 @@ test('a completed call can remain open across beats for its continuation', () =>
   const h = harness();
   const director = new Director(
     {
-      first: { parts: [call([{ who: 'left', say: 'TAKE A LOOK.' }], { keep: true })], next: 'second' },
-      second: { parts: [call([{ who: 'left', say: "TRUCK'S YOURS TONIGHT." }])], next: null },
+      first: {
+        parts: [call([{ who: 'left', say: 'TAKE A LOOK.' }], { keep: true })],
+        next: 'second',
+      },
+      second: {
+        parts: [call([{ who: 'left', say: "TRUCK'S YOURS TONIGHT." }])],
+        next: null,
+      },
     },
     h,
     { prefix: 'beat' },
@@ -142,7 +172,11 @@ test('a completed call can remain open across beats for its continuation', () =>
   h.step(0.1);
   assert.equal(h.queue.calling, true);
   assert.deepEqual(h.spoken, [['TAKE A LOOK.'], ["TRUCK'S YOURS TONIGHT."]]);
-  assert.equal(h.queue.history.length, 1, 'the continuation uses the existing call');
+  assert.equal(
+    h.queue.history.length,
+    1,
+    'the continuation uses the existing call',
+  );
   h.finish();
   assert.equal(h.queue.calling, false);
   assert.equal(director.beat, null);

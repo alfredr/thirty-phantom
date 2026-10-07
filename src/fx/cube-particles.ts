@@ -27,7 +27,10 @@ const _q = new Quaternion();
 const _s = new Vector3();
 const _e = new Vector3();
 
-/** Reuse instanced cubes for debris and slime particles. Each particle bounces against a fixed floor height. */
+/**
+ * Reuse instanced cubes for debris and slime particles. Each particle bounces
+ * against a fixed floor height.
+ */
 export class CubeParticles {
   readonly mesh: InstancedMesh;
   private readonly ps: P[] = [];
@@ -59,8 +62,18 @@ export class CubeParticles {
     }
   }
 
-  /** Initialize the next pooled particle, replacing its previous contents. Color stays fixed for its lifetime. */
-  spawn(pos: Vector3, vel: Vector3, size: number, life: number, color: Color, floor = pos.y): void {
+  /**
+   * Initialize the next pooled particle, replacing its previous contents.
+   * Color stays fixed for its lifetime.
+   */
+  spawn(
+    pos: Vector3,
+    vel: Vector3,
+    size: number,
+    life: number,
+    color: Color,
+    floor = pos.y,
+  ): void {
     const i = this.cursor;
     const p = this.ps[i] as P;
     this.cursor = (i + 1) % this.ps.length;
@@ -72,7 +85,11 @@ export class CubeParticles {
 
     p.pos.copy(pos);
     p.vel.copy(vel);
-    p.spin.set((Math.random() - 0.5) * 14, (Math.random() - 0.5) * 14, (Math.random() - 0.5) * 14);
+    p.spin.set(
+      (Math.random() - 0.5) * 14,
+      (Math.random() - 0.5) * 14,
+      (Math.random() - 0.5) * 14,
+    );
     _e.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
     const angle = _e.length();
     p.rot.setFromAxisAngle(_e.normalize(), angle);
@@ -95,9 +112,20 @@ export class CubeParticles {
     for (let i = 0; i < n; i++) {
       const a = Math.random() * TAU;
       const s = speed * (0.3 + Math.random() * 0.7);
-      _e.set(Math.cos(a) * s, (0.5 + Math.random()) * speed * 0.8 * up, Math.sin(a) * s);
+      _e.set(
+        Math.cos(a) * s,
+        (0.5 + Math.random()) * speed * 0.8 * up,
+        Math.sin(a) * s,
+      );
       const sz = size[0] + Math.random() * (size[1] - size[0]);
-      this.spawn(at, _e, sz, life[0] + Math.random() * (life[1] - life[0]), color, floor);
+      this.spawn(
+        at,
+        _e,
+        sz,
+        life[0] + Math.random() * (life[1] - life[0]),
+        color,
+        floor,
+      );
     }
   }
 
@@ -126,7 +154,8 @@ export class CubeParticles {
         p.rot.premultiply(_q).normalize();
       }
 
-      const k = p.life <= 0 ? 0 : Math.min(1, p.life / (p.max * 0.35)) * p.size;
+      const k =
+        p.life <= 0 ? 0 : Math.min(1, p.life / (p.max * 0.35)) * p.size;
       _m.compose(p.pos, p.rot, _s.setScalar(k));
       this.mesh.setMatrixAt(i, _m);
     }

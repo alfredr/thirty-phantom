@@ -1,6 +1,21 @@
-import type { Color, Group, Material, MeshStandardMaterial, Object3D } from 'three';
+import type {
+  Color,
+  Group,
+  Material,
+  MeshStandardMaterial,
+  Object3D,
+} from 'three';
 
-import { box, type Box, type Built, cylinder, group, type Part, pivot, solid } from './part';
+import {
+  box,
+  type Box,
+  type Built,
+  cylinder,
+  group,
+  type Part,
+  pivot,
+  solid,
+} from './part';
 
 export interface WheelRig {
   pivot: Object3D;
@@ -48,11 +63,23 @@ export interface CharacterRig {
 }
 
 /** Limb hanging from the top center of `b`, which is also its swing pivot. */
-export function limb<M extends string>(name: string, b: Box, mat: M, extras: readonly Part<M>[] = []): Part<M> {
-  return pivot(name, [b.center[0], b.top, b.center[2]], [solid(b, mat, { receive: false }), ...extras]);
+export function limb<M extends string>(
+  name: string,
+  b: Box,
+  mat: M,
+  extras: readonly Part<M>[] = [],
+): Part<M> {
+  return pivot(
+    name,
+    [b.center[0], b.top, b.center[2]],
+    [solid(b, mat, { receive: false }), ...extras],
+  );
 }
 
-/** Extract the required character nodes from a built model. Missing required nodes throw; robe is optional. */
+/**
+ * Extract the required character nodes from a built model. Missing required
+ * nodes throw; robe is optional.
+ */
 export function characterRig<M extends string>(b: Built<M>): CharacterRig {
   return {
     root: b.root,
@@ -76,28 +103,48 @@ export interface WheelSpec {
   base: number;
 }
 
-/** Wheel node names, shared with the GLB contract: wheel_ + front/rear + left/right. */
-export const WHEELS = ['wheel_fl', 'wheel_fr', 'wheel_rl', 'wheel_rr'] as const;
+/**
+ * Wheel node names, shared with the GLB contract: wheel_ + front/rear +
+ * left/right.
+ */
+export const WHEELS = [
+  'wheel_fl',
+  'wheel_fr',
+  'wheel_rl',
+  'wheel_rr',
+] as const;
 /** Motorcycle wheel node names used by the rig contract. */
 export const BIKE_WHEELS = ['wheel_f', 'wheel_r'] as const;
 export const isFrontWheel = (name: string): boolean => name[6] === 'f';
 const isLeftWheel = (name: string): boolean => name[7] === 'l';
 
 /**
- * The four wheels, named like the GLB contract (+X is left when facing +Z): pivot (steers) > spin (rolls about X) >
- * tire, hub, extras.
+ * The four wheels, named like the GLB contract (+X is left when facing +Z):
+ * pivot (steers) > spin (rolls about X) > tire, hub, extras.
  */
-export function wheels<M extends string>(s: WheelSpec, tire: M, hub: M, extras: readonly Part<M>[] = []): Part<M>[] {
+export function wheels<M extends string>(
+  s: WheelSpec,
+  tire: M,
+  hub: M,
+  extras: readonly Part<M>[] = [],
+): Part<M>[] {
   return WHEELS.map((name) =>
     group(
       {
         name,
-        at: [isLeftWheel(name) ? s.track / 2 : -s.track / 2, s.r, isFrontWheel(name) ? s.base / 2 : -s.base / 2],
+        at: [
+          isLeftWheel(name) ? s.track / 2 : -s.track / 2,
+          s.r,
+          isFrontWheel(name) ? s.base / 2 : -s.base / 2,
+        ],
         data: { radius: s.r },
       },
       [
         group({ name: `${name}.spin`, cast: false, receive: false }, [
-          cylinder(s.r, s.w, 20, tire, { rot: [0, 0, Math.PI / 2], cast: true }),
+          cylinder(s.r, s.w, 20, tire, {
+            rot: [0, 0, Math.PI / 2],
+            cast: true,
+          }),
           solid(box(s.w * 1.02, s.r * 0.7, s.r * 0.7), hub),
           ...extras,
         ]),
@@ -106,7 +153,10 @@ export function wheels<M extends string>(s: WheelSpec, tire: M, hub: M, extras: 
   );
 }
 
-/** Extract the body, wheel pivots, spin nodes, and light materials. Missing required nodes throw. */
+/**
+ * Extract the body, wheel pivots, spin nodes, and light materials. Missing
+ * required nodes throw.
+ */
 export function vehicleRig<M extends string>(
   b: Built<M>,
   lights: readonly M[],

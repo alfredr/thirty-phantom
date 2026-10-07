@@ -1,14 +1,26 @@
-import { Color, Matrix4, type Texture, Vector2, Vector3, Vector4 } from 'three';
+import {
+  Color,
+  Matrix4,
+  type Texture,
+  Vector2,
+  Vector3,
+  Vector4,
+} from 'three';
 
-/** Where the moon sits across the iso sky band (0..1 of the width) when it is up. */
+/**
+ * Where the moon sits across the iso sky band (0..1 of the width) when it is
+ * up.
+ */
 export const MOON_X = 0.715;
 /** How high it sits once risen (0..1 of the height). */
 export const MOON_Y = 0.915;
 
 /**
- * Composite a procedural sky before bloom. Flat isometric views fade distant geometry into a screen-space sky band.
- * Perspective views use world-oriented angular coordinates and distance fog. Curved isometric views fill uncovered
- * pixels with sky and add haze near the planet horizon. DayNight controls celestial visibility.
+ * Composite a procedural sky before bloom. Flat isometric views fade distant
+ * geometry into a screen-space sky band. Perspective views use world-oriented
+ * angular coordinates and distance fog. Curved isometric views fill uncovered
+ * pixels with sky and add haze near the planet horizon. DayNight controls
+ * celestial visibility.
  */
 export const SkyShader = {
   name: 'SkyShader',
@@ -30,12 +42,17 @@ export const SkyShader = {
     skylineColor: { value: new Color('#120822') },
     skylineFar: { value: new Color('#24123c') },
     windowColor: { value: new Color('#ffcf73') },
-    /** How much of the distant skyline silhouette shows, 0..1 (the renderer can drop it in a view). */
+    /**
+     * How much of the distant skyline silhouette shows, 0..1 (the renderer can
+     * drop it in a view).
+     */
     skylineAmount: { value: 1 },
     /**
-     * Projected planet outline packed as (radius, centreY, aspectScale, enabled), with distances in UV units. The upper
-     * edge is y0 + sqrt(r^2 - ((x - 0.5) * sx)^2). `planet` stores the world-space centre and radius; `toCam` and
-     * `hazeFrom` control haze as the ground normal turns away from the camera.
+     * Projected planet outline packed as (radius, centreY, aspectScale,
+     * enabled), with distances in UV units. The upper edge is y0 + sqrt(r^2 -
+     * ((x - 0.5) * sx)^2). `planet` stores the world-space centre and radius;
+     * `toCam` and `hazeFrom` control haze as the ground normal turns away from
+     * the camera.
      */
     horizon: { value: new Vector4() },
     planet: { value: new Vector4() },
@@ -241,7 +258,10 @@ export const GradeShader = {
     resolution: { value: new Vector2(1, 1) },
     time: { value: 0 },
     exposure: { value: 1 },
-    /** Contrast about mid-grey in gamma space. Keep the increase small to preserve detail in night shadows. */
+    /**
+     * Contrast about mid-grey in gamma space. Keep the increase small to
+     * preserve detail in night shadows.
+     */
     contrast: { value: 1.06 },
     /** Saturation multiplier in gamma space. */
     saturation: { value: 1.14 },

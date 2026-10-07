@@ -23,7 +23,10 @@ const SLIME_PUFF = new Color(0.4, 1.6, 0.2);
 const _v = new Vector3();
 const _at = new Vector3();
 
-/** Animate a vehicle form change, replacing the rig after the shudder and restoring control after the expansion. */
+/**
+ * Animate a vehicle form change, replacing the rig after the shudder and
+ * restoring control after the expansion.
+ */
 export class TransformSequence {
   private t = 0;
   private swapped = false;
@@ -59,11 +62,24 @@ export class TransformSequence {
         v.pos.z + (Math.random() - 0.5) * 0.25 * k,
       );
       r.rotation.z = (Math.random() - 0.5) * 0.12 * k;
-      r.scale.setScalar(this.oldRig.scale * (1 + Math.sin(this.t * 40) * 0.04 * k));
+      r.scale.setScalar(
+        this.oldRig.scale * (1 + Math.sin(this.t * 40) * 0.04 * k),
+      );
 
       if (Math.random() < 0.6) {
-        _v.set((Math.random() - 0.5) * 3, Math.random() * 4, (Math.random() - 0.5) * 3);
-        slime.spawn(_at.copy(r.position).setY(r.position.y + 1), _v, 0.15 + Math.random() * 0.15, 0.8, SLIME, v.pos.y);
+        _v.set(
+          (Math.random() - 0.5) * 3,
+          Math.random() * 4,
+          (Math.random() - 0.5) * 3,
+        );
+        slime.spawn(
+          _at.copy(r.position).setY(r.position.y + 1),
+          _v,
+          0.15 + Math.random() * 0.15,
+          0.8,
+          SLIME,
+          v.pos.y,
+        );
       }
 
       if (this.t >= SHUDDER) {
@@ -96,9 +112,23 @@ export class TransformSequence {
     const at = _at.copy(v.pos).setY(v.pos.y + 1.2);
     slime.burst(at, 70, 12, [0.18, 0.55], [1.2, 2.4], SLIME, 1, v.pos.y);
     slime.burst(at, 18, 9, [0.15, 0.35], [1, 1.8], PURPLE, 1, v.pos.y);
-    sprites.spray(at, 10, 6, [3, 7], WHITE, 1.5, 3.2, [1.6, 2.6], 'ghost', 0.9);
+    sprites.spray(
+      at,
+      10,
+      6,
+      [3, 7],
+      WHITE,
+      1.5,
+      3.2,
+      [1.6, 2.6],
+      'ghost',
+      0.9,
+    );
     sprites.spray(at, 14, 10, [0, 3], SLIME_PUFF, 3, 7, 1.2, 'puff', 0.7);
     shake(0.75);
-    flash(this.to === 'truck' ? 0.55 : 0.3, this.to === 'truck' ? '#9dff3a' : '#ffd9b0');
+    flash(
+      this.to === 'truck' ? 0.55 : 0.3,
+      this.to === 'truck' ? '#9dff3a' : '#ffd9b0',
+    );
   }
 }

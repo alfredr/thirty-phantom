@@ -2,7 +2,10 @@ import type { Focus } from '@/engine/input/input';
 import { el } from '@/engine/ui/dom';
 import type { Control } from '@/game/controls';
 
-/** Shop slot with stock count and unit price. A zero count preserves an empty slot. */
+/**
+ * Shop slot with stock count and unit price. A zero count preserves an empty
+ * slot.
+ */
 export interface WareSlot {
   id: string;
   kind: string;
@@ -46,12 +49,24 @@ export function sameWares(a: Wares | null, b: Wares | null): boolean {
 }
 
 /** Number keys buy from the slot they number (Shift: the whole stack). */
-const SLOT_KEYS: readonly Control[] = ['slot1', 'slot2', 'slot3', 'slot4', 'slot5', 'slot6', 'slot7', 'slot8', 'slot9'];
+const SLOT_KEYS: readonly Control[] = [
+  'slot1',
+  'slot2',
+  'slot3',
+  'slot4',
+  'slot5',
+  'slot6',
+  'slot7',
+  'slot8',
+  'slot9',
+];
 
 /**
- * Display Randy’s shop inventory and dispatch purchase requests. Number keys and mouse clicks buy one item; Shift
- * requests the whole stack. Touch first selects a slot, then requires a purchase button to avoid accidental buying
- * while using movement controls. The game supplies availability and handles transaction results.
+ * Display Randy’s shop inventory and dispatch purchase requests. Number keys
+ * and mouse clicks buy one item; Shift requests the whole stack. Touch first
+ * selects a slot, then requires a purchase button to avoid accidental buying
+ * while using movement controls. The game supplies availability and handles
+ * transaction results.
  */
 export class WaresPanel {
   readonly root: HTMLDivElement;
@@ -70,7 +85,8 @@ export class WaresPanel {
     this.root = el('div', 'hud-wares', parent);
     this.root.addEventListener('click', (e) => this.click(e));
     this.root.addEventListener('mouseover', (e) => {
-      const id = (e.target as Element).closest<HTMLElement>('.ware-slot')?.dataset.id;
+      const id = (e.target as Element).closest<HTMLElement>('.ware-slot')
+        ?.dataset.id;
       if (id && id !== this.focus && !touch()) {
         this.setFocus(id);
       }
@@ -78,7 +94,9 @@ export class WaresPanel {
     // Reserve only the displayed slots’ shortcuts while the shop is visible.
     layers.add({
       controls: () =>
-        this.wares && this.root.offsetParent !== null ? SLOT_KEYS.slice(0, this.wares.slots.length) : [],
+        this.wares && this.root.offsetParent !== null
+          ? SLOT_KEYS.slice(0, this.wares.slots.length)
+          : [],
       press: (control, { repeat, shift }) => {
         const s = this.wares?.slots[SLOT_KEYS.indexOf(control)];
         if (!s || repeat) {
@@ -112,7 +130,9 @@ export class WaresPanel {
   }
 
   private slot(id: string | null): WareSlot | undefined {
-    return id === null ? undefined : this.wares?.slots.find((s) => s.id === id);
+    return id === null
+      ? undefined
+      : this.wares?.slots.find((s) => s.id === id);
   }
 
   private click(e: MouseEvent): void {
@@ -127,7 +147,9 @@ export class WaresPanel {
       return;
     }
 
-    const s = this.slot(t.closest<HTMLElement>('.ware-slot')?.dataset.id ?? null);
+    const s = this.slot(
+      t.closest<HTMLElement>('.ware-slot')?.dataset.id ?? null,
+    );
     if (!s) {
       return;
     }
@@ -189,7 +211,10 @@ export class WaresPanel {
         return;
       }
 
-      slot.insertAdjacentHTML('beforeend', s.icon ?? `<span class="ware-initial">${s.name.charAt(0)}</span>`);
+      slot.insertAdjacentHTML(
+        'beforeend',
+        s.icon ?? `<span class="ware-initial">${s.name.charAt(0)}</span>`,
+      );
       el('b', 'ware-count', slot, String(s.count));
     });
     const info = el('div', 'wares-info');
@@ -216,12 +241,26 @@ export class WaresPanel {
       if (!picked) {
         how.textContent = 'TAP A SLOT';
       } else {
-        el('div', `wares-btn${picked.can ? '' : ' off'}`, how, 'BUY 1').dataset.buy = 'one';
-        el('div', `wares-btn${picked.can ? '' : ' off'}`, how, 'BUY ALL').dataset.buy = 'all';
+        el(
+          'div',
+          `wares-btn${picked.can ? '' : ' off'}`,
+          how,
+          'BUY 1',
+        ).dataset.buy = 'one';
+        el(
+          'div',
+          `wares-btn${picked.can ? '' : ' off'}`,
+          how,
+          'BUY ALL',
+        ).dataset.buy = 'all';
       }
     }
 
-    this.root.replaceChildren(el('div', 'wares-title', undefined, w.title), grid, info);
+    this.root.replaceChildren(
+      el('div', 'wares-title', undefined, w.title),
+      grid,
+      info,
+    );
   }
 }
 

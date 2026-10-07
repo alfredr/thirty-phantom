@@ -1,6 +1,12 @@
 import type { Npc } from '@/actors/npcs/npcs';
 import type { Vehicle } from '@/actors/vehicles/vehicle';
-import { Action, done, fail, type Fail, type Result } from '@/engine/sim/action';
+import {
+  Action,
+  done,
+  fail,
+  type Fail,
+  type Result,
+} from '@/engine/sim/action';
 import type { Candidate } from '@/engine/sim/offers';
 import type { Control } from '@/game/controls';
 import type { ItemKind } from '@/game/items/item-breeds';
@@ -43,7 +49,14 @@ export type CodyAction = Action<Play, Play>;
 export type CodyCandidate = Candidate<Control, Play, Play>;
 
 /** Priority among offers sharing a control; higher values win. */
-export const RANK = { script: 40, valet: 30, randy: 30, elevator: 20, vehicle: 10, getOut: 10 } as const;
+export const RANK = {
+  script: 40,
+  valet: 30,
+  randy: 30,
+  elevator: 20,
+  vehicle: 10,
+  getOut: 10,
+} as const;
 
 /** Shared boarding behavior for possession, theft, and ordinary entry. */
 abstract class Board extends Action<Play, Play> {
@@ -60,7 +73,10 @@ abstract class Board extends Action<Play, Play> {
   }
 }
 
-/** Label possession as ordinary entry while the tutorial keeps Cody in daytime form. */
+/**
+ * Label possession as ordinary entry while the tutorial keeps Cody in daytime
+ * form.
+ */
 export class Possess extends Board {
   label({ cody }: Play): string {
     return `${cody.phantom ? 'POSSESS' : 'GET IN'} &nbsp;☾`;
@@ -94,7 +110,10 @@ export class Hotwire extends Action<Play, Play> {
   }
 }
 
-/** Resolve vehicle interaction according to possession eligibility, vehicle form, and Cody’s abilities. */
+/**
+ * Resolve vehicle interaction according to possession eligibility, vehicle
+ * form, and Cody’s abilities.
+ */
 export class InteractWithVehicle extends Action<Play, Play> {
   constructor(readonly p: { car: Vehicle }) {
     super();
@@ -118,7 +137,9 @@ export class InteractWithVehicle extends Action<Play, Play> {
       return fail('');
     }
 
-    return car.role === 'traffic' || car.role === 'visitor' || car.role === 'valet'
+    return car.role === 'traffic' ||
+      car.role === 'visitor' ||
+      car.role === 'valet'
       ? new Steal({ car })
       : new GetIn({ car });
   }
@@ -168,7 +189,10 @@ export class CallElevator extends Action<Play, Play> {
   }
 }
 
-/** Select the next elevator stop in the requested direction. The down label also displays destination information. */
+/**
+ * Select the next elevator stop in the requested direction. The down label
+ * also displays destination information.
+ */
 export class PickFloor extends Action<Play, Play> {
   constructor(readonly p: { cab: Elevator; dir: 1 | -1 }) {
     super();
@@ -184,14 +208,22 @@ export class PickFloor extends Action<Play, Play> {
   }
 }
 
-/** Exit the vehicle, showing PARK HERE when the current parking conditions allow it. */
+/**
+ * Exit the vehicle, showing PARK HERE when the current parking conditions
+ * allow it.
+ */
 export class GetOut extends Action<Play, Play> {
   constructor(readonly p: { car: Vehicle }) {
     super();
   }
   label(w: Play): string {
     const { car } = this.p;
-    return w.conditions.parking() && car.insideDeck && car.form === 'car' && w.inFreeSpot(car) ? 'PARK HERE' : '';
+    return w.conditions.parking() &&
+      car.insideDeck &&
+      car.form === 'car' &&
+      w.inFreeSpot(car)
+      ? 'PARK HERE'
+      : '';
   }
   resolve(w: Play): CodyAction | Fail {
     const { car } = this.p;
@@ -210,8 +242,8 @@ export class GetOut extends Action<Play, Play> {
 }
 
 /**
- * Label the hop control for a resting overturned vehicle. Driving input performs the recovery; this action only
- * supplies the prompt.
+ * Label the hop control for a resting overturned vehicle. Driving input
+ * performs the recovery; this action only supplies the prompt.
  */
 export class RockOver extends Action<Play, Play> {
   label(): string {
@@ -224,7 +256,9 @@ export class RockOver extends Action<Play, Play> {
 
 export class Summon extends Action<Play, Play> {
   resolve({ cody }: Play): CodyAction | Fail {
-    return cody.can('summon') ? this : fail('ONLY THE PHANTOM CAN RAISE THE DEAD');
+    return cody.can('summon')
+      ? this
+      : fail('ONLY THE PHANTOM CAN RAISE THE DEAD');
   }
   perform(w: Play): Result<CodyAction> {
     return w.summon() > 0 ? done : fail('THE DEAD NEED A MOMENT');

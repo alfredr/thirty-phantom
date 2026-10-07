@@ -3,24 +3,38 @@ import { test } from 'node:test';
 
 import { loadModules } from './modules.mjs';
 
-const [{ Triggers }, { SaveGame }, { Emitter }, { Haunting, Quests, tireMarks }, { Objectives }, { Inventory }] =
-  await loadModules(
-    '/src/game/story/triggers.ts',
-    '/src/game/save.ts',
-    '/src/engine/core/events.ts',
-    '/src/game/story/quests.ts',
-    '/src/game/story/objectives.ts',
-    '/src/game/items/inventory.ts',
-  );
+const [
+  { Triggers },
+  { SaveGame },
+  { Emitter },
+  { Haunting, Quests, tireMarks },
+  { Objectives },
+  { Inventory },
+] = await loadModules(
+  '/src/game/story/triggers.ts',
+  '/src/game/save.ts',
+  '/src/engine/core/events.ts',
+  '/src/game/story/quests.ts',
+  '/src/game/story/objectives.ts',
+  '/src/game/items/inventory.ts',
+);
 
 /** Create the game state needed to test saving and loading. */
 function stand(over = {}) {
   const stock = [{ count: 1 }, { count: 128 }];
-  const haunting = new Haunting({ needed: 30, victory: () => stand.victories++, moved() {} });
+  const haunting = new Haunting({
+    needed: 30,
+    victory: () => stand.victories++,
+    moved() {},
+  });
   return {
     events: new Emitter(),
     clock: { day: 2 },
-    money: { cash: 40, foundToday: () => [[1, 0, 2, 15]], layOut: (list) => (stand.laidOut = list) },
+    money: {
+      cash: 40,
+      foundToday: () => [[1, 0, 2, 15]],
+      layOut: (list) => (stand.laidOut = list),
+    },
     inventory: { list: () => [['tire', 2]], add() {} },
     quests: new Quests([haunting]),
     haunting,
@@ -35,10 +49,15 @@ function stand(over = {}) {
 stand.victories = 0;
 stand.laidOut = null;
 
-/** Install browser globals for one test and restore their original values during cleanup. */
+/**
+ * Install browser globals for one test and restore their original values
+ * during cleanup.
+ */
 function browser(t, storage) {
   const globals = ['window', 'document', 'localStorage'];
-  const originals = globals.map((key) => Object.getOwnPropertyDescriptor(globalThis, key));
+  const originals = globals.map((key) =>
+    Object.getOwnPropertyDescriptor(globalThis, key),
+  );
   t.after(() => {
     globals.forEach((key, i) => {
       if (originals[i]) {
@@ -49,7 +68,12 @@ function browser(t, storage) {
     });
   });
   const values = [new EventTarget(), new EventTarget(), storage];
-  globals.forEach((key, i) => Object.defineProperty(globalThis, key, { configurable: true, value: values[i] }));
+  globals.forEach((key, i) =>
+    Object.defineProperty(globalThis, key, {
+      configurable: true,
+      value: values[i],
+    }),
+  );
 }
 
 test('nested trigger checks fire each callback once and preserve pending triggers', () => {
@@ -83,7 +107,9 @@ test('a callback can cancel another ready trigger without removing pending trigg
 
 test('saves retry failed writes and skip unchanged data after a successful write', (t) => {
   const globals = ['window', 'document', 'localStorage'];
-  const originals = globals.map((key) => Object.getOwnPropertyDescriptor(globalThis, key));
+  const originals = globals.map((key) =>
+    Object.getOwnPropertyDescriptor(globalThis, key),
+  );
   t.after(() => {
     globals.forEach((key, i) => {
       if (originals[i]) {
@@ -109,7 +135,12 @@ test('saves retry failed writes and skip unchanged data after a successful write
     },
   };
   const values = [new EventTarget(), new EventTarget(), storage];
-  globals.forEach((key, i) => Object.defineProperty(globalThis, key, { configurable: true, value: values[i] }));
+  globals.forEach((key, i) =>
+    Object.defineProperty(globalThis, key, {
+      configurable: true,
+      value: values[i],
+    }),
+  );
 
   const game = stand();
   const save = new SaveGame(game, () => false);
@@ -141,7 +172,9 @@ test('saves retry failed writes and skip unchanged data after a successful write
 
 test('a save with unreadable cash still brings back the day, the items and the phantoms', (t) => {
   const globals = ['window', 'document', 'localStorage'];
-  const originals = globals.map((key) => Object.getOwnPropertyDescriptor(globalThis, key));
+  const originals = globals.map((key) =>
+    Object.getOwnPropertyDescriptor(globalThis, key),
+  );
   t.after(() => {
     globals.forEach((key, i) => {
       if (originals[i]) {
@@ -161,7 +194,12 @@ test('a save with unreadable cash still brings back the day, the items and the p
   };
   const storage = { getItem: () => JSON.stringify(saved), setItem() {} };
   const values = [new EventTarget(), new EventTarget(), storage];
-  globals.forEach((key, i) => Object.defineProperty(globalThis, key, { configurable: true, value: values[i] }));
+  globals.forEach((key, i) =>
+    Object.defineProperty(globalThis, key, {
+      configurable: true,
+      value: values[i],
+    }),
+  );
 
   const restored = [];
   const added = [];
@@ -222,8 +260,19 @@ test("a won game comes back won without the victory again, with the same cash ab
 });
 
 test('a version 1 save with enough phantoms loads as won, quietly', (t) => {
-  const phantoms = Array.from({ length: 30 }, (_, n) => ({ spot: null, at: [0, 0, 0], yaw: 0, n, hours: 21, day: 1 }));
-  browser(t, { getItem: () => JSON.stringify({ v: 1, day: 2, cash: 0, items: [], phantoms }), setItem() {} });
+  const phantoms = Array.from({ length: 30 }, (_, n) => ({
+    spot: null,
+    at: [0, 0, 0],
+    yaw: 0,
+    n,
+    hours: 21,
+    day: 1,
+  }));
+  browser(t, {
+    getItem: () =>
+      JSON.stringify({ v: 1, day: 2, cash: 0, items: [], phantoms }),
+    setItem() {},
+  });
   stand.victories = 0;
   const game = stand();
   new SaveGame(game, () => false);
@@ -244,7 +293,14 @@ test('the haunting is won on the phantom that makes enough, once', () => {
 });
 
 test('restored inventory determines the tire marker, ignoring obsolete quest steps', (t) => {
-  const saved = { v: 2, day: 2, cash: 0, items: [['tire', 2]], phantoms: [], quests: { tires: 'waiting' } };
+  const saved = {
+    v: 2,
+    day: 2,
+    cash: 0,
+    items: [['tire', 2]],
+    phantoms: [],
+    quests: { tires: 'waiting' },
+  };
   browser(t, { getItem: () => JSON.stringify(saved), setItem() {} });
   const inventory = new Inventory();
   const game = stand({ inventory });
@@ -252,23 +308,49 @@ test('restored inventory determines the tire marker, ignoring obsolete quest ste
   game.events.emit('start', null);
   const randy = { x: 1, y: 0, z: 2 };
   assert.equal(tireMarks(inventory.count('tire'), randy)[0].at, randy);
-  assert.deepEqual(tireMarks(inventory.count('tire'), null), [], 'Randy is unavailable during a scene');
+  assert.deepEqual(
+    tireMarks(inventory.count('tire'), null),
+    [],
+    'Randy is unavailable during a scene',
+  );
   assert.deepEqual(game.quests.steps(), { haunting: 'haunting' });
   inventory.take('tire', 2);
-  assert.deepEqual(tireMarks(inventory.count('tire'), randy), [], 'the marker goes when the tires go');
+  assert.deepEqual(
+    tireMarks(inventory.count('tire'), randy),
+    [],
+    'the marker goes when the tires go',
+  );
 });
 
 test('objective sources replace and clear their own markers without removing another source', () => {
   const objectives = new Objectives();
   const tutorial = {};
   const tires = {};
-  const primary = { id: 'badge', kind: 'primary', label: 'BADGE', at: { x: 0, y: 0, z: 0 } };
-  const optional = { id: 'randy', kind: 'optional', label: 'RANDY', at: { x: 1, y: 0, z: 2 } };
+  const primary = {
+    id: 'badge',
+    kind: 'primary',
+    label: 'BADGE',
+    at: { x: 0, y: 0, z: 0 },
+  };
+  const optional = {
+    id: 'randy',
+    kind: 'optional',
+    label: 'RANDY',
+    at: { x: 1, y: 0, z: 2 },
+  };
   objectives.replace(tutorial, [primary]);
   objectives.replace(tires, [optional]);
-  const moved = { ...optional, label: 'RANDY TAKES TIRES', at: { x: 3, y: 0, z: 4 } };
+  const moved = {
+    ...optional,
+    label: 'RANDY TAKES TIRES',
+    at: { x: 3, y: 0, z: 4 },
+  };
   objectives.replace(tires, [moved]);
-  assert.deepEqual(objectives.list, [primary, moved], 'an existing marker can change its label and target');
+  assert.deepEqual(
+    objectives.list,
+    [primary, moved],
+    'an existing marker can change its label and target',
+  );
   objectives.replace(tutorial, []);
   assert.deepEqual(objectives.list, [moved]);
   objectives.replace(tires, []);

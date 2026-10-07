@@ -5,12 +5,20 @@ import type { Claims } from '@/engine/sim/claims';
 import type { ClaimKind } from '@/game/rules/claim-kinds';
 
 /**
- * Query a pool of eligible entities. Handles identify individual entities; the source owns their state. Distances are
- * in meters.
+ * Query a pool of eligible entities. Handles identify individual entities; the
+ * source owns their state. Distances are in meters.
  */
 export interface Targets<T extends object = object> {
-  nearest(at: Vector3, reach: number, sameLevel: number, may: (target: T) => boolean): T | null;
-  /** Write the current position; return false when the target is dead or absent. */
+  nearest(
+    at: Vector3,
+    reach: number,
+    sameLevel: number,
+    may: (target: T) => boolean,
+  ): T | null;
+  /**
+   * Write the current position; return false when the target is dead or
+   * absent.
+   */
   position(target: T, out: Vector3): boolean;
 }
 
@@ -31,7 +39,10 @@ interface Hunter {
 export interface HuntWorld {
   readonly targets: Targets | null;
   readonly claims: Claims<ClaimKind> | null;
-  /** Apply damage and injury rules; report the outcome before any kill effects run. */
+  /**
+   * Apply damage and injury rules; report the outcome before any kill effects
+   * run.
+   */
   hit(target: object, from: Vector3, damage: number): Hit;
   killed(at: Vector3): void;
 }
@@ -52,7 +63,11 @@ export function maul(spec: {
     reach: spec.reach,
     every: spec.every,
     perform: (world, target, from) =>
-      world.hit(target, from, spec.damage[0] + Math.random() * (spec.damage[1] - spec.damage[0])),
+      world.hit(
+        target,
+        from,
+        spec.damage[0] + Math.random() * (spec.damage[1] - spec.damage[0]),
+      ),
   };
 }
 
@@ -64,7 +79,10 @@ export interface HuntSpec {
   readonly attack: Melee;
 }
 
-/** Acquire quarry claims and attack nearby prey, keeping targeting and cooldown state per hunter. */
+/**
+ * Acquire quarry claims and attack nearby prey, keeping targeting and cooldown
+ * state per hunter.
+ */
 export class Hunting {
   target: object | null = null;
   swing = 0;
@@ -113,15 +131,26 @@ export class Hunting {
     return null;
   }
 
-  /** Stop and face prey within reach. Return true while in striking range, including between attacks. */
+  /**
+   * Stop and face prey within reach. Return true while in striking range,
+   * including between attacks.
+   */
   strike(goal: Vector3, dt: number): boolean {
     const s = this.actor;
     const { attack } = this.spec;
-    if (!this.target || Math.hypot(goal.x - s.pos.x, goal.z - s.pos.z) >= attack.reach) {
+    if (
+      !this.target ||
+      Math.hypot(goal.x - s.pos.x, goal.z - s.pos.z) >= attack.reach
+    ) {
       return false;
     }
 
-    s.yaw = dampAngle(s.yaw, Math.atan2(goal.x - s.pos.x, goal.z - s.pos.z), 12, dt);
+    s.yaw = dampAngle(
+      s.yaw,
+      Math.atan2(goal.x - s.pos.x, goal.z - s.pos.z),
+      12,
+      dt,
+    );
     s.speed = damp(s.speed, 0, 10, dt);
 
     if (this.swing <= 0) {

@@ -43,12 +43,18 @@ const _root = new Quaternion();
 type Clip = 'idle' | 'walk' | 'run' | 'ride';
 const CLIPS: readonly Clip[] = ['idle', 'walk', 'run', 'ride'];
 
-/** Rigged GLB (public/assets/models/cody.glb): idle/walk/run/ride clips, day_* and night_* outfit meshes. */
+/**
+ * Rigged GLB (public/assets/models/cody.glb): idle/walk/run/ride clips, day_*
+ * and night_* outfit meshes.
+ */
 export class GltfCharacter implements CharacterModel {
   readonly root = new Group();
   private readonly mixer: AnimationMixer;
   private readonly actions: Partial<Record<Clip, AnimationAction>> = {};
-  private readonly outfits: Record<CodyForm, Object3D[]> = { day: [], night: [] };
+  private readonly outfits: Record<CodyForm, Object3D[]> = {
+    day: [],
+    night: [],
+  };
   private readonly inner: Object3D;
   /** Standing hip height used to align the riding pose with the saddle. */
   private readonly hip: number;
@@ -65,7 +71,9 @@ export class GltfCharacter implements CharacterModel {
     this.inner = scene;
     this.root.add(scene);
     const bone = (name: string): Object3D | null =>
-      scene.getObjectByName(name) ?? scene.getObjectByName(name.replace('.', '')) ?? null;
+      scene.getObjectByName(name) ??
+      scene.getObjectByName(name.replace('.', '')) ??
+      null;
     this.upperArm = bone('upper_arm.R');
     this.forearm = bone('forearm.R');
     (bone('hand.R') ?? scene).add(this.palm);
@@ -79,7 +87,9 @@ export class GltfCharacter implements CharacterModel {
       }
     });
     scene.updateWorldMatrix(true, true);
-    this.hip = scene.getObjectByName('hips')?.getWorldPosition(new Vector3()).y ?? CODY_DAY.hip;
+    this.hip =
+      scene.getObjectByName('hips')?.getWorldPosition(new Vector3()).y ??
+      CODY_DAY.hip;
     this.mixer = new AnimationMixer(scene);
 
     for (const name of CLIPS) {
@@ -170,11 +180,15 @@ export class GltfCharacter implements CharacterModel {
     walk?.setEffectiveTimeScale(Math.max(0.6, speed / 3.4));
     run?.setEffectiveTimeScale(Math.max(0.8, speed / 9.5));
     this.mixer.update(dt);
-    this.inner.position.y = this.form === 'night' ? 0.14 + Math.sin(this.t * 2.4) * 0.07 : 0;
+    this.inner.position.y =
+      this.form === 'night' ? 0.14 + Math.sin(this.t * 2.4) * 0.07 : 0;
   }
 }
 
-/** Riding limb angles in radians for the procedural rig, which has no knee joints. */
+/**
+ * Riding limb angles in radians for the procedural rig, which has no knee
+ * joints.
+ */
 const SIT_LEGS = -1.45;
 const SIT_ARMS = -1.2;
 const PALM_DOWN = 0.62;
@@ -184,7 +198,10 @@ const OFFER_LIFT = 1.25;
 export class ProceduralCharacter implements CharacterModel {
   readonly root = new Group();
   private readonly rigs: Record<CodyForm, CharacterRig>;
-  private readonly palms: Record<CodyForm, Group> = { day: new Group(), night: new Group() };
+  private readonly palms: Record<CodyForm, Group> = {
+    day: new Group(),
+    night: new Group(),
+  };
   private offering = 0;
   private offered = 0;
   private form: CodyForm = 'day';

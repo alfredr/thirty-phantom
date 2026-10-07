@@ -29,7 +29,9 @@ export const OUTREACH_GAP = 30;
 export const FLY_TIME = 0.5;
 const HISTORY = 64;
 
-type Item = { kind: 'text'; msg: string; opts: TextOptions } | { kind: 'call'; start: () => void; key?: string };
+type Item =
+  | { kind: 'text'; msg: string; opts: TextOptions }
+  | { kind: 'call'; start: () => void; key?: string };
 
 interface Showing {
   msg: string;
@@ -90,12 +92,19 @@ export class OutreachQueue {
   drop(key: string): void {
     for (let i = this.items.length - 1; i >= 0; i--) {
       const item = this.items[i];
-      if (item && (item.kind === 'text' ? item.opts.key : item.key)?.startsWith(key)) {
+      if (
+        item &&
+        (item.kind === 'text' ? item.opts.key : item.key)?.startsWith(key)
+      ) {
         this.items.splice(i, 1);
       }
     }
 
-    if (this.current && this.current.flying === null && this.current.opts.key?.startsWith(key)) {
+    if (
+      this.current &&
+      this.current.flying === null &&
+      this.current.opts.key?.startsWith(key)
+    ) {
       this.acknowledge(true);
     }
   }

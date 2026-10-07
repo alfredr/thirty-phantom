@@ -47,14 +47,33 @@ export class StuckWatch {
   }
 }
 
-const profileOf = (car: Vehicle): NavProfile => (car.form === 'truck' ? NAV.truck : NAV.car);
+const profileOf = (car: Vehicle): NavProfile =>
+  car.form === 'truck' ? NAV.truck : NAV.car;
 
-function crowded(car: Vehicle, x: number, z: number, others: readonly Vehicle[]): boolean {
+function crowded(
+  car: Vehicle,
+  x: number,
+  z: number,
+  others: readonly Vehicle[],
+): boolean {
   const reach = car.params.length / 2 + ROOM;
-  return others.some((o) => o !== car && !o.gone && Math.hypot(o.pos.x - x, o.pos.z - z) < reach + o.params.length / 2);
+  return others.some(
+    (o) =>
+      o !== car &&
+      !o.gone &&
+      Math.hypot(o.pos.x - x, o.pos.z - z) < reach + o.params.length / 2,
+  );
 }
 
-function fits(car: Vehicle, nav: NavGrid, p: NavProfile, x: number, y: number, z: number, yaw: number): boolean {
+function fits(
+  car: Vehicle,
+  nav: NavGrid,
+  p: NavProfile,
+  x: number,
+  y: number,
+  z: number,
+  yaw: number,
+): boolean {
   const half = Math.max(0, car.params.length / 2 - car.params.radius);
   const dx = Math.sin(yaw) * half;
   const dz = Math.cos(yaw) * half;
@@ -65,14 +84,27 @@ function fits(car: Vehicle, nav: NavGrid, p: NavProfile, x: number, y: number, z
   );
 }
 
-function run(nav: NavGrid, p: NavProfile, x: number, y: number, z: number, yaw: number): number {
+function run(
+  nav: NavGrid,
+  p: NavProfile,
+  x: number,
+  y: number,
+  z: number,
+  yaw: number,
+): number {
   const dx = Math.sin(yaw);
   const dz = Math.cos(yaw);
   let h = y;
   let d = 0;
 
   while (d < RUN) {
-    const next = nav.standable(x + dx * (d + RUN_STEP), h, z + dz * (d + RUN_STEP), p, yaw);
+    const next = nav.standable(
+      x + dx * (d + RUN_STEP),
+      h,
+      z + dz * (d + RUN_STEP),
+      p,
+      yaw,
+    );
     if (next === null) {
       break;
     }
@@ -84,7 +116,11 @@ function run(nav: NavGrid, p: NavProfile, x: number, y: number, z: number, yaw: 
   return d;
 }
 
-export function openPose(car: Vehicle, nav: NavGrid, others: readonly Vehicle[]): Pose | null {
+export function openPose(
+  car: Vehicle,
+  nav: NavGrid,
+  others: readonly Vehicle[],
+): Pose | null {
   const p = profileOf(car);
   const { x: cx, y: cy, z: cz } = car.pos;
 

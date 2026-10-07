@@ -30,7 +30,10 @@ export class Fade {
     return true;
   }
 
-  /** Return the exposure multiplier for this frame, including the frame that finishes the fade. */
+  /**
+   * Return the exposure multiplier for this frame, including the frame that
+   * finishes the fade.
+   */
   update(dt: number): number {
     if (this.elapsed === null) {
       return 1;
@@ -43,7 +46,8 @@ export class Fade {
       this.whileDark();
     }
 
-    const k = t < down ? t / down : t < down + hold ? 1 : 1 - (t - down - hold) / up;
+    const k =
+      t < down ? t / down : t < down + hold ? 1 : 1 - (t - down - hold) / up;
     if (t >= down + hold + up) {
       this.elapsed = null;
     }

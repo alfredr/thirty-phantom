@@ -1,7 +1,10 @@
 import { clipBox, clipInterval, type Interval } from '@/engine/core/geometry';
 import { clamp, lerp, type V3 } from '@/engine/core/math';
 
-/** Skip slabs below this height in raycast() and in segmentBlocked() unless slabs are requested. */
+/**
+ * Skip slabs below this height in raycast() and in segmentBlocked() unless
+ * slabs are requested.
+ */
 const THIN_SLAB = 0.3;
 /** Segment direction scratch for raycast() and segmentBlocked(). */
 const _d: V3 = [0, 0, 0];
@@ -15,7 +18,10 @@ function segment(a: V3, b: V3): V3 {
   return _d;
 }
 
-/** Filled in by groundAt: the solid whose top it found, or null for the ground plane. */
+/**
+ * Filled in by groundAt: the solid whose top it found, or null for the ground
+ * plane.
+ */
 export interface GroundHit {
   solid: Solid | null;
 }
@@ -23,7 +29,10 @@ export interface GroundHit {
 export interface RampShape {
   axis: 'x' | 'z';
   dir: 1 | -1;
-  /** Surface height at the low end; max[1] is the surface height at the high end. */
+  /**
+   * Surface height at the low end; max[1] is the surface height at the high
+   * end.
+   */
   low: number;
 }
 
@@ -33,9 +42,15 @@ export interface Solid {
   max: V3;
   ramp?: RampShape;
   breakable?: boolean;
-  /** Street furniture any vehicle knocks over at TUNING.knockdown.speed (lamp posts). */
+  /**
+   * Street furniture any vehicle knocks over at TUNING.knockdown.speed (lamp
+   * posts).
+   */
   knockdown?: boolean;
-  /** Require the vehicle’s smashSpeed for knockdown, leaving heavy props solid to ordinary vehicles. */
+  /**
+   * Require the vehicle’s smashSpeed for knockdown, leaving heavy props solid
+   * to ordinary vehicles.
+   */
   heavy?: boolean;
   boost?: number;
   enabled: boolean;
@@ -56,8 +71,8 @@ export interface CircleHit {
 }
 
 /**
- * 2.5D collision over axis-aligned solids (plus ramps: AABBs whose top slopes along one axis). Actors are vertical
- * cylinders; vehicles use a few circles.
+ * 2.5D collision over axis-aligned solids (plus ramps: AABBs whose top slopes
+ * along one axis). Actors are vertical cylinders; vehicles use a few circles.
  */
 export class CollisionWorld {
   readonly solids: Solid[] = [];
@@ -65,7 +80,10 @@ export class CollisionWorld {
   private readonly cell = 8;
   private stamp = 1;
   private readonly scratch: Solid[] = [];
-  /** Pit footprints replace the street-level ground plane with their floor height. */
+  /**
+   * Pit footprints replace the street-level ground plane with their floor
+   * height.
+   */
   private pits: readonly Box[] = [];
 
   /** Set the pit footprints and floor heights used by groundPlane(). */
@@ -87,7 +105,13 @@ export class CollisionWorld {
   add(
     min: V3,
     max: V3,
-    extra: { ramp?: RampShape; breakable?: boolean; knockdown?: boolean; heavy?: boolean; boost?: number } = {},
+    extra: {
+      ramp?: RampShape;
+      breakable?: boolean;
+      knockdown?: boolean;
+      heavy?: boolean;
+      boost?: number;
+    } = {},
   ): Solid {
     const s: Solid = {
       id: this.solids.length,
@@ -104,7 +128,11 @@ export class CollisionWorld {
     this.solids.push(s);
     const c = this.cell;
     for (let ix = Math.floor(min[0] / c); ix <= Math.floor(max[0] / c); ix++) {
-      for (let iz = Math.floor(min[2] / c); iz <= Math.floor(max[2] / c); iz++) {
+      for (
+        let iz = Math.floor(min[2] / c);
+        iz <= Math.floor(max[2] / c);
+        iz++
+      ) {
         const k = this.key(ix, iz);
         let list = this.grid.get(k);
         if (!list) {
@@ -122,13 +150,19 @@ export class CollisionWorld {
     return (ix + 2048) * 4096 + (iz + 2048);
   }
 
-  /** Change a solid’s vertical bounds without reindexing. Its horizontal footprint must remain unchanged. */
+  /**
+   * Change a solid’s vertical bounds without reindexing. Its horizontal
+   * footprint must remain unchanged.
+   */
   setHeight(s: Solid, y0: number, y1: number): void {
     s.min[1] = y0;
     s.max[1] = y1;
   }
 
-  /** Solids whose XZ footprint intersects the rect. The returned array is reused. */
+  /**
+   * Solids whose XZ footprint intersects the rect. The returned array is
+   * reused.
+   */
   query(minX: number, minZ: number, maxX: number, maxZ: number): Solid[] {
     const out = this.scratch;
     out.length = 0;
@@ -148,7 +182,12 @@ export class CollisionWorld {
 
           s.stamp = st;
 
-          if (s.max[0] < minX || s.min[0] > maxX || s.max[2] < minZ || s.min[2] > maxZ) {
+          if (
+            s.max[0] < minX ||
+            s.min[0] > maxX ||
+            s.max[2] < minZ ||
+            s.min[2] > maxZ
+          ) {
             continue;
           }
 
@@ -176,13 +215,32 @@ export class CollisionWorld {
     return lerp(r.low, s.max[1], t);
   }
 
-  /** Return the highest solid top at or below y + stepUp, with the ground plane as the minimum height. */
-  groundAt(x: number, z: number, y: number, stepUp: number, hit?: GroundHit): number {
+  /**
+   * Return the highest solid top at or below y + stepUp, with the ground plane
+   * as the minimum height.
+   */
+  groundAt(
+    x: number,
+    z: number,
+    y: number,
+    stepUp: number,
+    hit?: GroundHit,
+  ): number {
     return this.groundIn(this.query(x, z, x, z), x, z, y, stepUp, hit);
   }
 
-  /** groundAt over a candidate list that already holds every solid containing (x,z). */
-  private groundIn(list: readonly Solid[], x: number, z: number, y: number, stepUp: number, hit?: GroundHit): number {
+  /**
+   * groundAt over a candidate list that already holds every solid containing
+   * (x,z).
+   */
+  private groundIn(
+    list: readonly Solid[],
+    x: number,
+    z: number,
+    y: number,
+    stepUp: number,
+    hit?: GroundHit,
+  ): number {
     let g = this.groundPlane(x, z);
     if (hit) {
       hit.solid = null;
@@ -208,7 +266,14 @@ export class CollisionWorld {
     return g;
   }
 
-  groundAlong(x: number, z: number, dx: number, dz: number, half: number, y: number): number {
+  groundAlong(
+    x: number,
+    z: number,
+    dx: number,
+    dz: number,
+    half: number,
+    y: number,
+  ): number {
     let g = this.groundPlane(x, z);
     const ex = Math.abs(dx) * half;
     const ez = Math.abs(dz) * half;
@@ -216,7 +281,10 @@ export class CollisionWorld {
       _span[0] = -half;
       _span[1] = half;
 
-      if (!clipInterval(x, dx, s.min[0], s.max[0], _span) || !clipInterval(z, dz, s.min[2], s.max[2], _span)) {
+      if (
+        !clipInterval(x, dx, s.min[0], s.max[0], _span) ||
+        !clipInterval(z, dz, s.min[2], s.max[2], _span)
+      ) {
         continue;
       }
 
@@ -230,7 +298,10 @@ export class CollisionWorld {
     return g;
   }
 
-  /** Return the lowest non-ramp underside at or above `fromY` intersecting the square footprint, or Infinity. */
+  /**
+   * Return the lowest non-ramp underside at or above `fromY` intersecting the
+   * square footprint, or Infinity.
+   */
   ceilingAt(x: number, z: number, r: number, fromY: number): number {
     let c = Infinity;
     for (const s of this.query(x - r, z - r, x + r, z + r)) {
@@ -243,10 +314,18 @@ export class CollisionWorld {
   }
 
   /**
-   * Resolve horizontal cylinder overlaps in up to three passes. Mutate `p`, whose y coordinate is the foot height, and
-   * append contact normals to `hits`. Ignore step-height surfaces and overhead clearance. Return whether moved.
+   * Resolve horizontal cylinder overlaps in up to three passes. Mutate `p`,
+   * whose y coordinate is the foot height, and append contact normals to
+   * `hits`. Ignore step-height surfaces and overhead clearance. Return whether
+   * moved.
    */
-  resolveCircle(p: V3, r: number, height: number, stepUp: number, hits?: CircleHit[]): boolean {
+  resolveCircle(
+    p: V3,
+    r: number,
+    height: number,
+    stepUp: number,
+    hits?: CircleHit[],
+  ): boolean {
     let any = false;
     for (let iter = 0; iter < 3; iter++) {
       let moved = false;
@@ -272,7 +351,10 @@ export class CollisionWorld {
 
         // Measure overhead clearance at the contact edge, where a ramp may be lower than at the cylinder center.
         // Reuse `near`: the contact point lies inside its query bounds.
-        if (s.min[1] > p[1] + stepUp && s.min[1] >= this.groundIn(near, qx, qz, p[1], stepUp) + height) {
+        if (
+          s.min[1] > p[1] + stepUp &&
+          s.min[1] >= this.groundIn(near, qx, qz, p[1], stepUp) + height
+        ) {
           continue;
         }
 
@@ -348,7 +430,10 @@ export class CollisionWorld {
     return any;
   }
 
-  /** Test strict containment in enabled solids, using the sloped surface for ramps. */
+  /**
+   * Test strict containment in enabled solids, using the sloped surface for
+   * ramps.
+   */
   containsPoint(x: number, y: number, z: number): boolean {
     for (const s of this.query(x, z, x, z)) {
       if (x <= s.min[0] || x >= s.max[0] || z <= s.min[2] || z >= s.max[2]) {
@@ -364,9 +449,10 @@ export class CollisionWorld {
   }
 
   /**
-   * Return the clear fraction of a segment against solids expanded by `pad`, or 1 if no hit occurs. Skip thin slabs and
-   * box contacts containing the start point so camera booms can exit walls. Refine ramp hits against their sloped top
-   * surface.
+   * Return the clear fraction of a segment against solids expanded by `pad`,
+   * or 1 if no hit occurs. Skip thin slabs and box contacts containing the
+   * start point so camera booms can exit walls. Refine ramp hits against their
+   * sloped top surface.
    */
   raycast(a: V3, b: V3, pad: number): number {
     const d = segment(a, b);
@@ -407,7 +493,10 @@ export class CollisionWorld {
       }
 
       // Refine the box hit against the ramp surface before shortening the ray.
-      const above = (t: number): number => a[1] + d[1] * t - (this.topAt(s, a[0] + d[0] * t, a[2] + d[2] * t) + pad);
+      const above = (t: number): number =>
+        a[1] +
+        d[1] * t -
+        (this.topAt(s, a[0] + d[0] * t, a[2] + d[2] * t) + pad);
       const h0 = above(t0);
       if (h0 <= 0) {
         if (!inside) {
@@ -427,8 +516,9 @@ export class CollisionWorld {
   }
 
   /**
-   * Test whether segment a→b intersects an enabled solid, treating ramps as boxes. Skip thin slabs unless `slabs` is
-   * true; sightline callers can include them to block visibility between deck floors.
+   * Test whether segment a→b intersects an enabled solid, treating ramps as
+   * boxes. Skip thin slabs unless `slabs` is true; sightline callers can
+   * include them to block visibility between deck floors.
    */
   segmentBlocked(a: V3, b: V3, slabs = false): boolean {
     const minX = Math.min(a[0], b[0]);

@@ -22,12 +22,16 @@ export type RunningBehavior<Ev extends MindEvent<string>> = {
   stop?(): void;
 };
 
-export type BeatBehavior<C, Ev extends MindEvent<string>, Id extends string> = (
-  scope: Scope<Id>,
-  context: C,
-) => RunningBehavior<Ev>;
+export type BeatBehavior<
+  C,
+  Ev extends MindEvent<string>,
+  Id extends string,
+> = (scope: Scope<Id>, context: C) => RunningBehavior<Ev>;
 
-function is<Ev extends MindEvent<string>, T extends Ev['type']>(e: Ev, type: T): e is EventOf<Ev, T> {
+function is<Ev extends MindEvent<string>, T extends Ev['type']>(
+  e: Ev,
+  type: T,
+): e is EventOf<Ev, T> {
   return e.type === type;
 }
 
@@ -98,7 +102,12 @@ export function act<C, Ev extends MindEvent<string>, Id extends string>(
   };
 }
 
-export function on<C, Ev extends MindEvent<string>, Id extends string, T extends Ev['type']>(
+export function on<
+  C,
+  Ev extends MindEvent<string>,
+  Id extends string,
+  T extends Ev['type'],
+>(
   type: T,
   when?: (context: C, e: EventOf<Ev, T>) => boolean,
   next?: NoInfer<Id> | null,
@@ -114,7 +123,12 @@ export function on<C, Ev extends MindEvent<string>, Id extends string, T extends
   };
 }
 
-export function react<C, Ev extends MindEvent<string>, Id extends string, T extends Ev['type']>(
+export function react<
+  C,
+  Ev extends MindEvent<string>,
+  Id extends string,
+  T extends Ev['type'],
+>(
   type: T,
   fn: (context: C, e: EventOf<Ev, T>, scope: Scope<Id>) => void,
 ): BeatBehavior<C, Ev, Id> {
@@ -129,7 +143,12 @@ export function react<C, Ev extends MindEvent<string>, Id extends string, T exte
   };
 }
 
-export function progressOn<C, Ev extends MindEvent<string>, Id extends string, T extends Ev['type']>(
+export function progressOn<
+  C,
+  Ev extends MindEvent<string>,
+  Id extends string,
+  T extends Ev['type'],
+>(
   type: T,
   when?: (context: C, e: EventOf<Ev, T>) => boolean,
 ): BeatBehavior<C, Ev, Id> {

@@ -6,21 +6,50 @@ import { type ActionSteps, Sequence } from './sequence';
 export type Scene<A, R, P = never> =
   | { readonly kind: 'action'; readonly action: A }
   | { readonly kind: 'sequence'; readonly steps: readonly Scene<A, R, P>[] }
-  | { readonly kind: 'holding'; readonly resources: readonly R[]; readonly body: Scene<A, R, P> }
+  | {
+      readonly kind: 'holding';
+      readonly resources: readonly R[];
+      readonly body: Scene<A, R, P>;
+    }
   | {
       readonly kind: 'orElse';
       readonly body: Scene<A, R, P>;
       readonly fallback: Scene<A, R, P>;
     }
-  | { readonly kind: 'until'; readonly condition: P; readonly body: Scene<A, R, P> };
+  | {
+      readonly kind: 'until';
+      readonly condition: P;
+      readonly body: Scene<A, R, P>;
+    };
 
 export function scenes<A, R, P = never>() {
   return {
-    until: (condition: P, body: Scene<A, R, P>): Scene<A, R, P> => ({ kind: 'until', condition, body }),
+    until: (condition: P, body: Scene<A, R, P>): Scene<A, R, P> => ({
+      kind: 'until',
+      condition,
+      body,
+    }),
     action: (action: A): Scene<A, R, P> => ({ kind: 'action', action }),
-    sequence: (steps: readonly Scene<A, R, P>[]): Scene<A, R, P> => ({ kind: 'sequence', steps }),
-    holding: (resources: readonly R[], body: Scene<A, R, P>): Scene<A, R, P> => ({ kind: 'holding', resources, body }),
-    orElse: (body: Scene<A, R, P>, fallback: Scene<A, R, P>): Scene<A, R, P> => ({ kind: 'orElse', body, fallback }),
+    sequence: (steps: readonly Scene<A, R, P>[]): Scene<A, R, P> => ({
+      kind: 'sequence',
+      steps,
+    }),
+    holding: (
+      resources: readonly R[],
+      body: Scene<A, R, P>,
+    ): Scene<A, R, P> => ({
+      kind: 'holding',
+      resources,
+      body,
+    }),
+    orElse: (
+      body: Scene<A, R, P>,
+      fallback: Scene<A, R, P>,
+    ): Scene<A, R, P> => ({
+      kind: 'orElse',
+      body,
+      fallback,
+    }),
   };
 }
 

@@ -3,7 +3,9 @@ import { test } from 'node:test';
 
 import { loadModules } from './modules.mjs';
 
-const [{ OutreachQueue, OUTREACH_GAP, FLY_TIME }] = await loadModules('/src/ui/phone/outreach.ts');
+const [{ OutreachQueue, OUTREACH_GAP, FLY_TIME }] = await loadModules(
+  '/src/ui/phone/outreach.ts',
+);
 
 function harness() {
   const log = [];
@@ -52,7 +54,11 @@ test('texts show one at a time in order, at least 30 s apart from landing to the
   assert.equal(h.q.visible, true);
   assert.equal(h.q.awaitingKey, true);
   h.step(12);
-  assert.deepEqual(h.events('show'), ['ONE'], 'the next waits for the acknowledgement');
+  assert.deepEqual(
+    h.events('show'),
+    ['ONE'],
+    'the next waits for the acknowledgement',
+  );
   assert.equal(h.q.acknowledge(), true);
   assert.equal(h.q.visible, false, 'flying is not visible');
   h.step(FLY_TIME + 0.05);
@@ -86,11 +92,23 @@ test('quiet holds new pop-ups back and hides one already showing until it ends',
   h.quiet = true;
   h.step(0.1);
   assert.equal(h.q.visible, false);
-  assert.equal(h.q.awaitingKey, false, 'a hidden pop-up gives the interact key back');
-  assert.equal(h.q.acknowledge(), false, 'a hidden pop-up cannot be acknowledged');
+  assert.equal(
+    h.q.awaitingKey,
+    false,
+    'a hidden pop-up gives the interact key back',
+  );
+  assert.equal(
+    h.q.acknowledge(),
+    false,
+    'a hidden pop-up cannot be acknowledged',
+  );
   h.quiet = false;
   h.step(0.1);
-  assert.deepEqual(h.events('show'), ['WAIT', 'WAIT'], 'it comes back after the quiet');
+  assert.deepEqual(
+    h.events('show'),
+    ['WAIT', 'WAIT'],
+    'it comes back after the quiet',
+  );
   assert.ok(h.q.acknowledge());
 });
 
@@ -99,15 +117,29 @@ test('until acknowledges by doing, and lands silently when already done at the f
   let drove = false;
   let parked = false;
   const landed = [];
-  h.q.text('DRIVE OFF', { until: () => drove, landed: () => landed.push('drive') });
-  h.q.text('PARK IT', { until: () => parked, landed: () => landed.push('park') });
+  h.q.text('DRIVE OFF', {
+    until: () => drove,
+    landed: () => landed.push('drive'),
+  });
+  h.q.text('PARK IT', {
+    until: () => parked,
+    landed: () => landed.push('park'),
+  });
   h.step(1);
-  assert.equal(h.q.awaitingKey, false, 'an action text never takes the interact key');
+  assert.equal(
+    h.q.awaitingKey,
+    false,
+    'an action text never takes the interact key',
+  );
   assert.equal(h.q.acknowledge(), false, 'nor a tap');
   drove = true;
   parked = true;
   h.step(FLY_TIME + 0.2);
-  assert.deepEqual(h.events('land'), ['DRIVE OFF', 'PARK IT'], 'the second was already done, so it lands at once');
+  assert.deepEqual(
+    h.events('land'),
+    ['DRIVE OFF', 'PARK IT'],
+    'the second was already done, so it lands at once',
+  );
   assert.deepEqual(h.events('show'), ['DRIVE OFF'], 'without a pop-up');
   assert.deepEqual(landed, ['drive', 'park']);
   assert.equal(h.q.history.length, 1, 'a silent landing is not an outreach');
@@ -116,9 +148,16 @@ test('until acknowledges by doing, and lands silently when already done at the f
 test('brief texts land on their own after their time, which does not run while quiet', () => {
   const h = harness();
   const landed = [];
-  h.q.text('HA! SOUL POWER.', { brief: 3, landed: () => landed.push(h.q.elapsed) });
+  h.q.text('HA! SOUL POWER.', {
+    brief: 3,
+    landed: () => landed.push(h.q.elapsed),
+  });
   h.step(1);
-  assert.equal(h.q.awaitingKey, false, 'brief texts do not take the interact key');
+  assert.equal(
+    h.q.awaitingKey,
+    false,
+    'brief texts do not take the interact key',
+  );
   h.quiet = true;
   h.step(10);
   h.quiet = false;
@@ -128,7 +167,10 @@ test('brief texts land on their own after their time, which does not run while q
   assert.deepEqual(h.events('fly'), ['HA! SOUL POWER.']);
   h.step(FLY_TIME + 0.1);
   assert.equal(landed.length, 1);
-  assert.ok(Math.abs(landed[0] - (13 + FLY_TIME)) < 0.25, `landed at ${landed[0]}`);
+  assert.ok(
+    Math.abs(landed[0] - (13 + FLY_TIME)) < 0.25,
+    `landed at ${landed[0]}`,
+  );
 });
 
 test('drop removes queued texts and calls by key and force-acknowledges the showing one', () => {
@@ -143,7 +185,11 @@ test('drop removes queued texts and calls by key and force-acknowledges the show
   h.q.drop('hint');
   h.step(FLY_TIME + 0.1);
   assert.deepEqual(h.events('land'), ['CAMS']);
-  assert.deepEqual(landed, ['cams'], 'the showing text lands; never-shown ones are just dropped');
+  assert.deepEqual(
+    landed,
+    ['cams'],
+    'the showing text lands; never-shown ones are just dropped',
+  );
   h.step(OUTREACH_GAP + 1);
   assert.deepEqual(h.events('show'), ['CAMS', 'KEEP']);
   assert.equal(rang, 0);
@@ -173,7 +219,14 @@ test('landed fires exactly once on every landing path', () => {
   h.step(5);
   h.q.text('SILENT', { until: () => true, landed: landed('silent') });
   h.step(1);
-  assert.deepEqual(count, { key: 1, tap: 1, until: 1, brief: 1, drop: 1, silent: 1 });
+  assert.deepEqual(count, {
+    key: 1,
+    tap: 1,
+    until: 1,
+    brief: 1,
+    drop: 1,
+    silent: 1,
+  });
   assertGaps(h.q.history);
 });
 
@@ -197,7 +250,11 @@ test('calls share the 30 s gap with texts, wait their turn, and end on endCall',
   assert.equal(h.events('ring').length, 1, 'it rings when it starts');
   assert.equal(h.q.calling, true);
   h.step(60);
-  assert.deepEqual(h.events('show'), ['FIRST'], 'texts wait while the call is on');
+  assert.deepEqual(
+    h.events('show'),
+    ['FIRST'],
+    'texts wait while the call is on',
+  );
   h.q.endCall();
   assert.equal(h.q.calling, false);
   h.step(OUTREACH_GAP - 0.5);
@@ -217,7 +274,11 @@ test('a first call rings at once, and later outreaches wait for it to end', () =
   h.q.queueCall(() => started++);
   h.q.text('LATER');
   h.step(0.1);
-  assert.equal(started, 1, 'nothing came before, so there is no gap to wait out');
+  assert.equal(
+    started,
+    1,
+    'nothing came before, so there is no gap to wait out',
+  );
   h.step(40);
   assert.deepEqual(h.events('show'), []);
   h.q.endCall();
@@ -230,11 +291,23 @@ test('dropping a beat prefix cancels its stale texts, calls and nudges but not o
   const h = harness();
   const landed = [];
   let rang = 0;
-  h.q.text('RAMP HINT', { key: 'beat:ramp', landed: () => landed.push('hint') });
-  h.q.text('RAMP NUDGE 1', { key: 'beat:ramp:nudge1', landed: () => landed.push('nudge1') });
+  h.q.text('RAMP HINT', {
+    key: 'beat:ramp',
+    landed: () => landed.push('hint'),
+  });
+  h.q.text('RAMP NUDGE 1', {
+    key: 'beat:ramp:nudge1',
+    landed: () => landed.push('nudge1'),
+  });
   h.q.queueCall(() => rang++, { key: 'beat:ramp:call' });
-  h.q.text('RAMPAGE', { key: 'beat:rampage', landed: () => landed.push('rampage') });
-  h.q.text('CAMERA', { key: 'beat:camera', landed: () => landed.push('camera') });
+  h.q.text('RAMPAGE', {
+    key: 'beat:rampage',
+    landed: () => landed.push('rampage'),
+  });
+  h.q.text('CAMERA', {
+    key: 'beat:camera',
+    landed: () => landed.push('camera'),
+  });
   h.step(0.1);
   assert.deepEqual(h.events('show'), ['RAMP HINT']);
   h.q.drop('beat:ramp:');
@@ -244,7 +317,11 @@ test('dropping a beat prefix cancels its stale texts, calls and nudges but not o
   h.q.acknowledge();
   h.step(OUTREACH_GAP + 1);
   assert.equal(rang, 0, 'the dropped call never rings');
-  assert.deepEqual(h.events('show'), ['RAMP HINT', 'CAMERA'], 'prefix drop takes beat:ramp and beat:rampage alike');
+  assert.deepEqual(
+    h.events('show'),
+    ['RAMP HINT', 'CAMERA'],
+    'prefix drop takes beat:ramp and beat:rampage alike',
+  );
   assert.deepEqual(landed, ['hint', 'camera']);
   assert.equal(h.q.pending, 0);
 });
@@ -253,7 +330,10 @@ test('a hint whose action is done before it reaches the front never shows', () =
   const h = harness();
   let boosted = false;
   h.q.text('INFO');
-  h.q.text('HOLD {boost} TO BURN IT', { until: () => boosted, key: 'beat:boost' });
+  h.q.text('HOLD {boost} TO BURN IT', {
+    until: () => boosted,
+    key: 'beat:boost',
+  });
   h.step(1);
   boosted = true;
   h.q.acknowledge();
@@ -304,11 +384,19 @@ test('a reply skips the 30 s gap and jumps the queue, and only replies may break
   h.step(1);
   h.q.text('SORRY', { reply: true });
   h.step(0.2);
-  assert.deepEqual(h.events('show'), ['SORRY'], 'the reply shows at once, ahead of the waiting text');
+  assert.deepEqual(
+    h.events('show'),
+    ['SORRY'],
+    'the reply shows at once, ahead of the waiting text',
+  );
   h.q.acknowledge();
   h.step(FLY_TIME + 0.05);
   h.step(OUTREACH_GAP + 1);
-  assert.deepEqual(h.events('show'), ['SORRY', 'LATER'], 'the waiting text still keeps its gap');
+  assert.deepEqual(
+    h.events('show'),
+    ['SORRY', 'LATER'],
+    'the waiting text still keeps its gap',
+  );
   const history = h.q.history;
   assert.deepEqual(
     history.map((o) => o.reply),

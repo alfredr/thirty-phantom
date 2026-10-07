@@ -1,10 +1,14 @@
 import type { GameClock } from '@/game/game-clock';
 
-export type WorldConditionName = 'deckAwake' | 'valetsOnShift' | 'parking' | 'daylight';
+export type WorldConditionName =
+  | 'deckAwake'
+  | 'valetsOnShift'
+  | 'parking'
+  | 'daylight';
 
 /**
- * Expose day/night rules with optional script overrides. Pinning a condition changes that rule without changing the
- * clock.
+ * Expose day/night rules with optional script overrides. Pinning a condition
+ * changes that rule without changing the clock.
  */
 export class WorldConditions {
   private readonly pins = new Map<WorldConditionName, boolean>();
@@ -12,10 +16,12 @@ export class WorldConditions {
   constructor(private readonly clock: GameClock) {}
 
   /** Enable deck possession, normally at night. */
-  readonly deckAwake = (): boolean => this.read('deckAwake', !this.clock.isDay);
+  readonly deckAwake = (): boolean =>
+    this.read('deckAwake', !this.clock.isDay);
 
   /** Enable valet shifts, normally by day. */
-  readonly valetsOnShift = (): boolean => this.read('valetsOnShift', this.clock.isDay);
+  readonly valetsOnShift = (): boolean =>
+    this.read('valetsOnShift', this.clock.isDay);
 
   /** Enable parking prompts and guidance, normally by day. */
   readonly parking = (): boolean => this.read('parking', this.clock.isDay);

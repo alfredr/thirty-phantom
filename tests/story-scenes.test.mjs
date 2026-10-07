@@ -38,11 +38,18 @@ for (const ending of ['done', 'failed', 'cancelled', 'beat ended']) {
     let ticks = 0;
     const action = new (class extends Action {
       perform() {
-        return ++ticks < 2 ? running : ending === 'done' ? done : fail('NO ROUTE');
+        return ++ticks < 2
+          ? running
+          : ending === 'done'
+            ? done
+            : fail('NO ROUTE');
       }
     })();
     const part = directRandy(() => action)(
-      { done: () => outcomes.push('done'), struggle: () => outcomes.push('struggle') },
+      {
+        done: () => outcomes.push('done'),
+        struggle: () => outcomes.push('struggle'),
+      },
       { randy: npc },
     );
 
@@ -57,7 +64,10 @@ for (const ending of ['done', 'failed', 'cancelled', 'beat ended']) {
     part.tick(DT);
     part.stop();
     part.tick(DT);
-    assert.deepEqual(outcomes, ending === 'beat ended' ? [] : [ending === 'done' ? 'done' : 'struggle']);
+    assert.deepEqual(
+      outcomes,
+      ending === 'beat ended' ? [] : [ending === 'done' ? 'done' : 'struggle'],
+    );
     assert.equal(ticks, ending === 'done' || ending === 'failed' ? 2 : 1);
   });
 }
@@ -86,19 +96,27 @@ function setup() {
     inventory: {
       keys: new Keyring(),
       count: (item) => items.get(item) ?? 0,
-      take: (item, count) => items.set(item, Math.max(0, (items.get(item) ?? 0) - count)),
+      take: (item, count) =>
+        items.set(item, Math.max(0, (items.get(item) ?? 0) - count)),
     },
     events: { emit: (_type, cue) => cues.push(cue) },
     hud: { clearToasts() {} },
     toScreen: () => ({ x: 20, y: 40 }),
   };
-  const pickup = { pos: new Vector3(8, 0, 8), yaw: 0, params: { length: 5, radius: 1 } };
+  const pickup = {
+    pos: new Vector3(8, 0, 8),
+    yaw: 0,
+    params: { length: 5, radius: 1 },
+  };
   pickup.ignition = new Ignition(pickup, game.inventory.keys);
   game.inventory.keys.held.add(pickup.ignition);
   const props = new RoofScene(game);
   props.setup(randy);
   const camera = new StoryCamera(game);
-  const run = (definition) => randy.direct([props.play(saved(definition), randy, pickup, new Vector3(0, 0, 2))]);
+  const run = (definition) =>
+    randy.direct([
+      props.play(saved(definition), randy, pickup, new Vector3(0, 0, 2)),
+    ]);
   const advance = (until, routes = true) => {
     for (let i = 0; i < 1800 && !until(); i++) {
       for (const job of randy.world.planner.jobs) {
@@ -193,7 +211,11 @@ test('cancelling a pour releases the animation without marking the pour finished
   assert.equal(s.props.poured, false);
 });
 
-for (const [name, part] of Object.entries({ roofScene, seatAtFire, faceCody })) {
+for (const [name, part] of Object.entries({
+  roofScene,
+  seatAtFire,
+  faceCody,
+})) {
   test(`${name} releases its attention and camera when its beat ends`, () => {
     const s = setup();
     const before = { focus: new Vector3(), zoom: 8 };
@@ -244,7 +266,9 @@ function signScene() {
     {
       ...s,
       sign,
-      progress: { firstPhantom: { at: new Vector3(), title: 'FIRST', meta: '' } },
+      progress: {
+        firstPhantom: { at: new Vector3(), title: 'FIRST', meta: '' },
+      },
     },
   );
   return { ...s, active, sign, completed: () => completed };
@@ -298,7 +322,9 @@ test('cancelling badge tracking releases the camera while the thrown badge keeps
     },
   };
   const shot = s.camera.hold();
-  const active = s.randy.direct([tossBadge(s.randy, new Vector3(20, 0, 0), s.camera)]);
+  const active = s.randy.direct([
+    tossBadge(s.randy, new Vector3(20, 0, 0), s.camera),
+  ]);
   s.camera.tick(DT);
   assert.equal(s.camera.shot.zoom, 24);
   s.randy.stopDirecting(active);

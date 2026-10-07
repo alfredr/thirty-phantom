@@ -1,6 +1,9 @@
 // Townsfolk who drive into the lots and out again. Each case runs in the page (see tools/scenarios.mjs).
 
-/** Queue an arrival and verify that its car parks in a stall and adds a pedestrian. */
+/**
+ * Queue an arrival and verify that its car parks in a stall and adds a
+ * pedestrian.
+ */
 export function arrivesParksAndGetsOut() {
   const g = window.__game;
   const sim = window.__sim;
@@ -19,7 +22,10 @@ export function arrivesParksAndGetsOut() {
 
   let car = null;
   const turnedUp = sim.until(
-    () => (car = g.vehicles.find((v) => !before.has(v) && v.role === 'visitor') ?? null) !== null,
+    () =>
+      (car =
+        g.vehicles.find((v) => !before.has(v) && v.role === 'visitor') ??
+        null) !== null,
     30,
     [],
   );
@@ -28,7 +34,9 @@ export function arrivesParksAndGetsOut() {
   }
 
   const parked = sim.until(() => car.role === 'parked', 120, [car]);
-  const inStall = g.visitors.bays.some((b) => Math.hypot(car.pos.x - b.center.x, car.pos.z - b.center.z) < 1);
+  const inStall = g.visitors.bays.some(
+    (b) => Math.hypot(car.pos.x - b.center.x, car.pos.z - b.center.z) < 1,
+  );
   return {
     ok: parked.ok && inStall && g.crowd.living().length > people,
     secondsToTurnUp: turnedUp.seconds,
@@ -39,7 +47,10 @@ export function arrivesParksAndGetsOut() {
   };
 }
 
-/** Verify that a departing visitor leaves its stall and remains in traffic after merging. */
+/**
+ * Verify that a departing visitor leaves its stall and remains in traffic
+ * after merging.
+ */
 export function leavesAndJoinsTraffic() {
   const g = window.__game;
   const sim = window.__sim;
@@ -52,12 +63,19 @@ export function leavesAndJoinsTraffic() {
 
   car.ignition.transfer('away', 'ignition');
   g.crowd.arrive(car);
-  const owner = g.crowd.living().find((p) => p.car === car && car.ignition.heldBy(p.keys));
+  const owner = g.crowd
+    .living()
+    .find((p) => p.car === car && car.ignition.heldBy(p.keys));
   if (!owner || !g.visitors.leave(car, owner.keys)) {
     return { ok: false, why: 'nowhere to go' };
   }
 
   const joined = sim.until(() => car.role === 'traffic', 90, [car]);
   sim.run(60);
-  return { ok: joined.ok && car.role === 'traffic', seconds: joined.seconds, role: car.role, maxJump: joined.maxJump };
+  return {
+    ok: joined.ok && car.role === 'traffic',
+    seconds: joined.seconds,
+    role: car.role,
+    maxJump: joined.maxJump,
+  };
 }

@@ -1,6 +1,7 @@
 /**
- * Read a UI value and draw it when it changes. draw() receives the previously drawn value, or undefined on its first
- * call. Supply same() when reference equality does not describe a visible change.
+ * Read a UI value and draw it when it changes. draw() receives the previously
+ * drawn value, or undefined on its first call. Supply same() when reference
+ * equality does not describe a visible change.
  */
 export interface Binding<T> {
   read(): T;
@@ -10,8 +11,9 @@ export interface Binding<T> {
 }
 
 /**
- * Refresh registered UI bindings from game state. Each update reads every binding and redraws only values that differ
- * from the last draw according to that binding’s equality check.
+ * Refresh registered UI bindings from game state. Each update reads every
+ * binding and redraws only values that differ from the last draw according to
+ * that binding’s equality check.
  */
 export class Bindings {
   private readonly rows: (() => void)[] = [];

@@ -1,4 +1,11 @@
-import { BoxGeometry, Color, Group, Mesh, MeshStandardMaterial, Vector3 } from 'three';
+import {
+  BoxGeometry,
+  Color,
+  Group,
+  Mesh,
+  MeshStandardMaterial,
+  Vector3,
+} from 'three';
 
 import { TUNING } from '@/config';
 import { clamp, cross2, damp, type V3 } from '@/engine/core/math';
@@ -15,18 +22,28 @@ export interface GateCrasher {
   readonly pos: Vector3;
   readonly vel: Vector3;
   readonly yaw: number;
-  readonly params: { readonly radius: number; readonly length: number; readonly height: number };
+  readonly params: {
+    readonly radius: number;
+    readonly length: number;
+    readonly height: number;
+  };
   readonly gone: boolean;
   readonly role: string;
 }
 
-/** Scanner lamp: red when shut, amber while a car is near, green on a badge scan. */
+/**
+ * Scanner lamp: red when shut, amber while a car is near, green on a badge
+ * scan.
+ */
 const SHUT = new Color('#ff2a4a');
 const NEAR = new Color('#ffd23d');
 const SCANNED = new Color('#3dff6a');
 /** Horizontal opening distance in meters. */
 const OPEN_REACH = 10;
-/** Maximum horizontal speed in meters per second at which a vehicle can trigger opening. */
+/**
+ * Maximum horizontal speed in meters per second at which a vehicle can trigger
+ * opening.
+ */
 const OPEN_SPEED = 8;
 /** How fast the arm swings (damp rate) and how far up it goes (radians). */
 const OPEN_RATE = 5;
@@ -54,7 +71,9 @@ function blockedSpan(
   height: number,
 ): [number, number] | null {
   if (rise < 1e-6) {
-    return hinge - BAR_HALF < feet + height && hinge + BAR_HALF > feet ? [0, reach] : null;
+    return hinge - BAR_HALF < feet + height && hinge + BAR_HALF > feet
+      ? [0, reach]
+      : null;
   }
 
   const lo = Math.max(0, (feet - BAR_HALF - hinge) / rise);
@@ -63,8 +82,9 @@ function blockedSpan(
 }
 
 /**
- * Control gate-arm poses and scanner lamps. Arms are Props instances: nearby slow vehicles trigger opening, and impacts
- * can release an arm as a loose prop.
+ * Control gate-arm poses and scanner lamps. Arms are Props instances: nearby
+ * slow vehicles trigger opening, and impacts can release an arm as a loose
+ * prop.
  */
 export class Gates {
   readonly root = new Group();
@@ -80,11 +100,20 @@ export class Gates {
       const yaw = new Group();
       yaw.position.set(def.hinge[0], def.hinge[1], def.hinge[2]);
       yaw.rotation.y = facingYaw(def.armDir);
-      const lamp = withCutaway(new MeshStandardMaterial({ color: '#330000', emissive: SHUT, emissiveIntensity: 2.5 }));
+      const lamp = withCutaway(
+        new MeshStandardMaterial({
+          color: '#330000',
+          emissive: SHUT,
+          emissiveIntensity: 2.5,
+        }),
+      );
       const bulb = new Mesh(new BoxGeometry(0.3, 0.3, 0.3), lamp);
       bulb.position.set(0, 0.3, 0);
       yaw.add(bulb);
-      const post = new Mesh(whiteColors(new BoxGeometry(0.35, 1.2, 0.35)), mats.get('metal'));
+      const post = new Mesh(
+        whiteColors(new BoxGeometry(0.35, 1.2, 0.35)),
+        mats.get('metal'),
+      );
       post.position.set(0, -0.6, 0);
       yaw.add(post);
       this.root.add(yaw);
@@ -104,28 +133,43 @@ export class Gates {
   }
 
   /**
-   * Update arms and scanner lamps over `dt` seconds. When `cars` is supplied, use vehicle state for speed-qualified
-   * opening and impacts; otherwise use `movers` positions for proximity-only opening.
+   * Update arms and scanner lamps over `dt` seconds. When `cars` is supplied,
+   * use vehicle state for speed-qualified opening and impacts; otherwise use
+   * `movers` positions for proximity-only opening.
    */
-  update(dt: number, movers: readonly Vector3[], cars: readonly GateCrasher[] | null = null): void {
+  update(
+    dt: number,
+    movers: readonly Vector3[],
+    cars: readonly GateCrasher[] | null = null,
+  ): void {
     for (let k = 0; k < this.list.length; k++) {
       const g = this.list[k] as GateRuntime;
       let want = 0;
       if (cars) {
         for (const v of cars) {
-          if (v.gone || v.role === 'parked' || v.vel.x * v.vel.x + v.vel.z * v.vel.z > OPEN_SPEED * OPEN_SPEED) {
+          if (
+            v.gone ||
+            v.role === 'parked' ||
+            v.vel.x * v.vel.x + v.vel.z * v.vel.z > OPEN_SPEED * OPEN_SPEED
+          ) {
             continue;
           }
 
           const dx = v.pos.x - g.center.x;
           const dz = v.pos.z - g.center.z;
-          if (level(g, v.pos.y) && dx * dx + dz * dz < OPEN_REACH * OPEN_REACH) {
+          if (
+            level(g, v.pos.y) &&
+            dx * dx + dz * dz < OPEN_REACH * OPEN_REACH
+          ) {
             want = 1;
           }
         }
       } else {
         for (const p of movers) {
-          if (level(g, p.y) && Math.hypot(p.x - g.center.x, p.z - g.center.z) < OPEN_REACH) {
+          if (
+            level(g, p.y) &&
+            Math.hypot(p.x - g.center.x, p.z - g.center.z) < OPEN_REACH
+          ) {
             want = 1;
           }
         }
@@ -148,8 +192,15 @@ export class Gates {
     }
   }
 
-  /** Release a standing arm when a vehicle above the knockdown speed intersects its current height and horizontal span. */
-  private strike(g: GateRuntime, arm: number, cars: readonly GateCrasher[]): void {
+  /**
+   * Release a standing arm when a vehicle above the knockdown speed intersects
+   * its current height and horizontal span.
+   */
+  private strike(
+    g: GateRuntime,
+    arm: number,
+    cars: readonly GateCrasher[],
+  ): void {
     const a = g.open * LIFT;
     const h = g.def.hinge;
     const yaw = facingYaw(g.def.armDir);
@@ -183,7 +234,12 @@ export class Gates {
           continue;
         }
 
-        const kind = this.props?.release(arm, v.vel.x * 0.7, 2.5, v.vel.z * 0.7);
+        const kind = this.props?.release(
+          arm,
+          v.vel.x * 0.7,
+          2.5,
+          v.vel.z * 0.7,
+        );
         if (kind) {
           this.onSnapped?.(g, kind);
         }
@@ -198,7 +254,12 @@ export class Gates {
     for (let k = 0; k < this.list.length; k++) {
       const g = this.list[k];
       const arm = this.arms[k];
-      if (g && arm !== undefined && this.props?.standing(arm) && this.fence(g, from, p, r, height)) {
+      if (
+        g &&
+        arm !== undefined &&
+        this.props?.standing(arm) &&
+        this.fence(g, from, p, r, height)
+      ) {
         moved = true;
       }
     }
@@ -206,10 +267,22 @@ export class Gates {
     return moved;
   }
 
-  private fence(g: GateRuntime, from: Vector3, p: V3, r: number, height: number): boolean {
+  private fence(
+    g: GateRuntime,
+    from: Vector3,
+    p: V3,
+    r: number,
+    height: number,
+  ): boolean {
     const a = g.open * LIFT;
     const h = g.def.hinge;
-    const span = blockedSpan(h[1], Math.tan(a), g.def.armLength * Math.cos(a), p[1], height);
+    const span = blockedSpan(
+      h[1],
+      Math.tan(a),
+      g.def.armLength * Math.cos(a),
+      p[1],
+      height,
+    );
     if (!span) {
       return false;
     }
@@ -261,7 +334,13 @@ export class Gates {
   inZone(p: Vector3): GateRuntime | null {
     for (const g of this.list) {
       const { min, max } = g.def;
-      if (p.x >= min[0] && p.x <= max[0] && p.z >= min[2] && p.z <= max[2] && level(g, p.y)) {
+      if (
+        p.x >= min[0] &&
+        p.x <= max[0] &&
+        p.z >= min[2] &&
+        p.z <= max[2] &&
+        level(g, p.y)
+      ) {
         return g;
       }
     }

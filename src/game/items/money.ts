@@ -29,14 +29,20 @@ interface Loot {
   floor: number;
   landed: boolean;
   age: number;
-  /** Lifetime in seconds. Daily cash has infinite lifetime and is replaced at sunrise. */
+  /**
+   * Lifetime in seconds. Daily cash has infinite lifetime and is replaced at
+   * sunrise.
+   */
   life: number;
   /** Identify daily cash for saving and replacement. */
   found: boolean;
   root: Group;
 }
 
-/** A daily cash record: ground position (x, y, z) in meters and amount in dollars. */
+/**
+ * A daily cash record: ground position (x, y, z) in meters and amount in
+ * dollars.
+ */
 export type FoundCash = [number, number, number, number];
 
 export interface Pickup {
@@ -62,7 +68,10 @@ export class Money {
     this.searched.add(car);
   }
 
-  /** Search a car once, add any cash found to the balance, and return the amount in dollars. */
+  /**
+   * Search a car once, add any cash found to the balance, and return the
+   * amount in dollars.
+   */
   glovebox(car: object): number {
     if (this.searched.has(car)) {
       return 0;
@@ -86,16 +95,26 @@ export class Money {
     for (let k = 0; k < F.count; k++) {
       const at = this.nav.anywhere(this.rng, NAV.person, F.upTo, true);
       if (at) {
-        fresh.push([at.x, at.y, at.z, Math.round(this.rng.range(...F.amount))]);
+        fresh.push([
+          at.x,
+          at.y,
+          at.z,
+          Math.round(this.rng.range(...F.amount)),
+        ]);
       }
     }
 
     this.layOut(fresh);
   }
 
-  /** Serialize remaining daily cash using ground heights rather than hovering positions. */
+  /**
+   * Serialize remaining daily cash using ground heights rather than hovering
+   * positions.
+   */
   foundToday(): FoundCash[] {
-    return this.loot.filter((l) => l.found).map((l) => [l.pos.x, l.floor, l.pos.z, l.amount]);
+    return this.loot
+      .filter((l) => l.found)
+      .map((l) => [l.pos.x, l.floor, l.pos.z, l.amount]);
   }
 
   /** Replace daily cash with the supplied layout, preserving temporary drops. */
@@ -162,7 +181,10 @@ export class Money {
     this.scene.add(root);
   }
 
-  /** Advance and expire loot, collect landed pickups within `reach`, and credit their amounts to the balance. */
+  /**
+   * Advance and expire loot, collect landed pickups within `reach`, and credit
+   * their amounts to the balance.
+   */
   update(dt: number, pos: Vector3 | null, reach: number): Pickup[] {
     const got: Pickup[] = [];
     for (let i = this.loot.length - 1; i >= 0; i--) {
@@ -184,7 +206,11 @@ export class Money {
       }
 
       const r = l.root;
-      r.position.set(l.pos.x, l.pos.y + (l.landed ? Math.sin(l.age * BOB_RATE) * BOB : 0), l.pos.z);
+      r.position.set(
+        l.pos.x,
+        l.pos.y + (l.landed ? Math.sin(l.age * BOB_RATE) * BOB : 0),
+        l.pos.z,
+      );
       r.rotation.y += SPIN * dt;
       r.scale.setScalar(Math.min(1, (l.life - l.age) / FADE));
       const taken =

@@ -13,10 +13,18 @@ import { withCutaway } from '@/render/materials';
 import { radialGlowTexture } from '@/render/textures';
 
 /**
- * Glowing trajectory markers rendered as one point cloud. `size` is in screen pixels, `march` is pulses per second, and
- * `fade` is the fade-out duration in seconds.
+ * Glowing trajectory markers rendered as one point cloud. `size` is in screen
+ * pixels, `march` is pulses per second, and `fade` is the fade-out duration in
+ * seconds.
  */
-const LOOK = { color: '#ffe27a', dots: 34, size: 26, march: 1.4, dim: 0.5, fade: 1.2 };
+const LOOK = {
+  color: '#ffe27a',
+  dots: 34,
+  size: 26,
+  march: 1.4,
+  dim: 0.5,
+  fade: 1.2,
+};
 
 const _p = new Vector3();
 
@@ -31,8 +39,14 @@ export class ArcPath {
 
   constructor() {
     const n = LOOK.dots;
-    this.geo.setAttribute('position', new Float32BufferAttribute(new Float32Array(n * 3), 3));
-    this.geo.setAttribute('color', new Float32BufferAttribute(new Float32Array(n * 3), 3));
+    this.geo.setAttribute(
+      'position',
+      new Float32BufferAttribute(new Float32Array(n * 3), 3),
+    );
+    this.geo.setAttribute(
+      'color',
+      new Float32BufferAttribute(new Float32Array(n * 3), 3),
+    );
     this.mat = withCutaway(
       new PointsMaterial({
         map: radialGlowTexture(),
@@ -50,7 +64,10 @@ export class ArcPath {
     this.root.frustumCulled = false;
   }
 
-  /** Sample the curve at evenly spaced parameter values from 0 to 1. The callback writes each position into `out`. */
+  /**
+   * Sample the curve at evenly spaced parameter values from 0 to 1. The
+   * callback writes each position into `out`.
+   */
   set(at: (u: number, out: Vector3) => Vector3): void {
     const pos = this.geo.getAttribute('position') as Float32BufferAttribute;
     const n = LOOK.dots;
@@ -69,7 +86,10 @@ export class ArcPath {
     }
   }
 
-  /** Animate the markers and return whether they are still visible. Dispose after this returns false. */
+  /**
+   * Animate the markers and return whether they are still visible. Dispose
+   * after this returns false.
+   */
   update(dt: number): boolean {
     this.t += dt;
     let k = 1;
@@ -83,7 +103,11 @@ export class ArcPath {
     for (let i = 0; i < n; i++) {
       // Move the brightness peak from the start of the curve toward the landing point.
       const phase = (i / n - this.t * LOOK.march) % 1;
-      const b = (LOOK.dim + (1 - LOOK.dim) * Math.max(0, 1 - Math.abs(phase < 0 ? phase + 1 : phase) * 4)) * k;
+      const b =
+        (LOOK.dim +
+          (1 - LOOK.dim) *
+            Math.max(0, 1 - Math.abs(phase < 0 ? phase + 1 : phase) * 4)) *
+        k;
       col.setXYZ(i, this.base.r * b, this.base.g * b, this.base.b * b);
     }
 

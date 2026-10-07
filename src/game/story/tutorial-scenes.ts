@@ -17,10 +17,20 @@ import { ISO_ELEVATION } from '@/render/iso-camera';
 import { ITEM_ICONS } from '@/ui/item-icons';
 import type { GateDef, LevelData, RampDef } from '@/world/level-data';
 
-import { act, hold, type BeatBehavior, type RunningBehavior, type Scope } from './behaviors';
+import {
+  act,
+  hold,
+  type BeatBehavior,
+  type RunningBehavior,
+  type Scope,
+} from './behaviors';
 import { inView, npcScenes, player, type NpcSceneBindings } from './npc-scene';
 import type { StoryCamera } from './story-camera';
-import type { RoofStage, TutorialContext, TutorialEvent } from './tutorial-context';
+import type {
+  RoofStage,
+  TutorialContext,
+  TutorialEvent,
+} from './tutorial-context';
 
 const MIN_RUN = 9;
 const RUN_UP = 14;
@@ -44,7 +54,11 @@ const _toCamera = new Vector3();
 
 type SceneBehavior = BeatBehavior<TutorialContext, TutorialEvent, string>;
 
-export function coat(game: Pick<Game, 'waresShown'>, npc: Npc, open: boolean): void {
+export function coat(
+  game: Pick<Game, 'waresShown'>,
+  npc: Npc,
+  open: boolean,
+): void {
   npc.send({ type: 'flash', open });
   game.waresShown = open ? npc : null;
 }
@@ -54,10 +68,18 @@ export function doorOf(v: Vehicle): Pose {
 }
 
 export function gateAt(gate: GateDef): Vector3 {
-  return new Vector3((gate.min[0] + gate.max[0]) / 2, gate.min[1], (gate.min[2] + gate.max[2]) / 2);
+  return new Vector3(
+    (gate.min[0] + gate.max[0]) / 2,
+    gate.min[1],
+    (gate.min[2] + gate.max[2]) / 2,
+  );
 }
 
-export function tossBadge(npc: Npc, to: Vector3, camera: Pick<StoryCamera, 'track'>): NpcAction {
+export function tossBadge(
+  npc: Npc,
+  to: Vector3,
+  camera: Pick<StoryCamera, 'track'>,
+): NpcAction {
   const lingerSeconds = 1.5;
   const flying = new Vector3();
   return new Sequence(function* () {
@@ -70,7 +92,9 @@ export function tossBadge(npc: Npc, to: Vector3, camera: Pick<StoryCamera, 'trac
       thrown(seconds) {
         return shots.use(
           camera.track(seconds + lingerSeconds, () =>
-            npc.throwing?.active ? npc.prop('badge').getWorldPosition(flying) : flying.copy(to),
+            npc.throwing?.active
+              ? npc.prop('badge').getWorldPosition(flying)
+              : flying.copy(to),
           ),
         );
       },
@@ -83,12 +107,25 @@ export function tossBadge(npc: Npc, to: Vector3, camera: Pick<StoryCamera, 'trac
   });
 }
 
-export function moltenKeys(game: Pick<Game, 'hud'>, randy: Npc, pickup: Vehicle): void {
+export function moltenKeys(
+  game: Pick<Game, 'hud'>,
+  randy: Npc,
+  pickup: Vehicle,
+): void {
   pickup.ignition.heat = 'molten';
-  game.hud.toast('MOLTEN KEYS', `${ITEM_ICONS.moltenKeys}RANDY ADDS MOLTEN KEYS TO INVENTORY`, 'warn', NOTICE);
+  game.hud.toast(
+    'MOLTEN KEYS',
+    `${ITEM_ICONS.moltenKeys}RANDY ADDS MOLTEN KEYS TO INVENTORY`,
+    'warn',
+    NOTICE,
+  );
 
   if (!randy.stock?.slotOf('moltenKeys')) {
-    randy.stock?.slots.push({ id: 'molten-keys', kind: 'moltenKeys', count: 1 });
+    randy.stock?.slots.push({
+      id: 'molten-keys',
+      kind: 'moltenKeys',
+      count: 1,
+    });
   }
 
   if (randy.fire) {
@@ -96,7 +133,11 @@ export function moltenKeys(game: Pick<Game, 'hud'>, randy: Npc, pickup: Vehicle)
   }
 }
 
-export function meltedKeys(game: Pick<Game, 'hud' | 'inventory'>, randy: Npc, pickup: Vehicle): void {
+export function meltedKeys(
+  game: Pick<Game, 'hud' | 'inventory'>,
+  randy: Npc,
+  pickup: Vehicle,
+): void {
   const slots = randy.stock?.slots;
   const i = slots?.findIndex((s) => s.kind === 'moltenKeys') ?? -1;
   if (slots && i >= 0) {
@@ -119,7 +160,10 @@ export const roofScene: SceneBehavior = hold(
     }),
 );
 
-export function ledgerOnJump(_scope: Scope<string>, context: TutorialContext): RunningBehavior<TutorialEvent> {
+export function ledgerOnJump(
+  _scope: Scope<string>,
+  context: TutorialContext,
+): RunningBehavior<TutorialEvent> {
   return {
     tick() {
       const v = context.pickup;
@@ -130,25 +174,43 @@ export function ledgerOnJump(_scope: Scope<string>, context: TutorialContext): R
   };
 }
 
-export function imprintSign(c: TutorialContext): Sequence<TutorialContext, TutorialContext> {
+export function imprintSign(
+  c: TutorialContext,
+): Sequence<TutorialContext, TutorialContext> {
   return new Sequence(function* () {
     const im = c.progress.firstPhantom;
     if (!im) {
       return done;
     }
 
-    yield new WaitUntil<TutorialContext, TutorialContext>(() => c.pickup.grounded, { timeoutSeconds: 3 });
+    yield new WaitUntil<TutorialContext, TutorialContext>(
+      () => c.pickup.grounded,
+      {
+        timeoutSeconds: 3,
+      },
+    );
     const signHeight = 2.4;
     const cameraHeight = 5;
     const sign = im.at.clone().setY(im.at.y + signHeight);
     const focus = im.at.clone().setY(im.at.y + cameraHeight);
-    const sights = [-2, 0, 2].map((d) => im.at.clone().add(_side.set(d, 1, d * 0.3)));
+    const sights = [-2, 0, 2].map((d) =>
+      im.at.clone().add(_side.set(d, 1, d * 0.3)),
+    );
     const g = c.game;
-    g.iso.azimuth = g.iso.azimuthTarget = clearView(g.world.root, sights, g.iso.azimuth);
+    g.iso.azimuth = g.iso.azimuthTarget = clearView(
+      g.world.root,
+      sights,
+      g.iso.azimuth,
+    );
     using _shot = c.camera.cut({ focus, zoom: 16 });
     using _sign = releaseOnce(() => c.sign.cancel());
     g.hud.clearToasts();
-    c.sign.show(im.title, im.meta, `FILL ALL ${TUNING.garage.spots} SPOTS WITH PHANTOMS.`, () => undefined);
+    c.sign.show(
+      im.title,
+      im.meta,
+      `FILL ALL ${TUNING.garage.spots} SPOTS WITH PHANTOMS.`,
+      () => undefined,
+    );
     c.sign.place(null);
     yield new WaitUntil<TutorialContext, TutorialContext>(() => !c.sign.open, {
       timeoutSeconds: 15,
@@ -178,9 +240,14 @@ export const seatAtFire: SceneBehavior = hold(
     }),
 );
 
-export const faceCody: SceneBehavior = hold((c) => c.randy.attention.take({ face: null }));
+export const faceCody: SceneBehavior = hold((c) =>
+  c.randy.attention.take({ face: null }),
+);
 
-export function watchViews(scope: Scope<string>, context: TutorialContext): RunningBehavior<TutorialEvent> {
+export function watchViews(
+  scope: Scope<string>,
+  context: TutorialContext,
+): RunningBehavior<TutorialEvent> {
   context.progress.viewsSeen.clear();
   return {
     tick() {
@@ -188,7 +255,8 @@ export function watchViews(scope: Scope<string>, context: TutorialContext): Runn
         return;
       }
 
-      const view: CamView = context.game.cameraMode === 'iso' ? 'iso' : 'chase';
+      const view: CamView =
+        context.game.cameraMode === 'iso' ? 'iso' : 'chase';
       if (!context.progress.viewsSeen.has(view)) {
         context.progress.viewsSeen.add(view);
         scope.progress();
@@ -220,7 +288,10 @@ export function getIn(mode: 'refuse' | 'board'): SceneBehavior {
               scope.progress();
               g.board(v, true);
             } else if (context.outreach.free) {
-              context.outreach.speak([{ who: 'right', say: 'NO KEYS.', solo: true }], () => undefined);
+              context.outreach.speak(
+                [{ who: 'right', say: 'NO KEYS.', solo: true }],
+                () => undefined,
+              );
             }
           },
         });
@@ -229,11 +300,18 @@ export function getIn(mode: 'refuse' | 'board'): SceneBehavior {
   };
 }
 
-export function talkToRandy(_scope: Scope<string>, context: TutorialContext): RunningBehavior<TutorialEvent> {
+export function talkToRandy(
+  _scope: Scope<string>,
+  context: TutorialContext,
+): RunningBehavior<TutorialEvent> {
   const g = context.game;
   return {
     stop: g.addOffer(() => {
-      if (!g.player.visible || !context.outreach.free || g.npcs.talkable(g.player.pos, TALK_REACH) !== context.randy) {
+      if (
+        !g.player.visible ||
+        !context.outreach.free ||
+        g.npcs.talkable(g.player.pos, TALK_REACH) !== context.randy
+      ) {
         return null;
       }
 
@@ -247,7 +325,9 @@ export function talkToRandy(_scope: Scope<string>, context: TutorialContext): Ru
   };
 }
 
-export function directRandy(build: (context: TutorialContext) => NpcAction): SceneBehavior {
+export function directRandy(
+  build: (context: TutorialContext) => NpcAction,
+): SceneBehavior {
   return function start(scope, context) {
     const run = context.randy.direct([build(context)]);
     let finished = false;
@@ -279,7 +359,10 @@ const departure = npcScenes<'randy', 'roofExit', never>();
 export const PHONE_HANDOFF = handoff.holding(
   [handoff.attention('randy', player), handoff.camera('roof')],
   handoff.orElse(
-    handoff.sequence([handoff.face('randy', player), handoff.handOver('randy', 'burner', { seconds: 1.4, at: 0.7 })]),
+    handoff.sequence([
+      handoff.face('randy', player),
+      handoff.handOver('randy', 'burner', { seconds: 1.4, at: 0.7 }),
+    ]),
     handoff.give('randy', 'burner'),
   ),
 );
@@ -322,7 +405,10 @@ export function handPhone(
   return handoff.play(PHONE_HANDOFF, sceneBindings(game, randy, camera));
 }
 
-export function leaveRoof(scope: Scope<string>, context: TutorialContext): RunningBehavior<TutorialEvent> {
+export function leaveRoof(
+  scope: Scope<string>,
+  context: TutorialContext,
+): RunningBehavior<TutorialEvent> {
   const r = context.randy;
   const run = r.direct([
     departure.play(ROOF_DEPARTURE, {
@@ -377,11 +463,20 @@ export function coughing(after = 0): SceneBehavior {
         }
 
         wait = COUGH_EVERY;
-        context.game.events.emit('sfx', { name: 'engine-cough', at: tailpipe(v) });
+        context.game.events.emit('sfx', {
+          name: 'engine-cough',
+          at: tailpipe(v),
+        });
 
         if (!context.progress.noticedSmell) {
           context.progress.noticedSmell = true;
-          context.outreach.later([{ who: 'right', say: '...WHY DOES IT SMELL LIKE BARBECUE?', solo: true }]);
+          context.outreach.later([
+            {
+              who: 'right',
+              say: '...WHY DOES IT SMELL LIKE BARBECUE?',
+              solo: true,
+            },
+          ]);
         }
       },
     };
@@ -390,14 +485,22 @@ export function coughing(after = 0): SceneBehavior {
 
 export function tailpipe(v: Vehicle): Vector3 {
   const back = v.params.length / 2;
-  return new Vector3(v.pos.x - Math.sin(v.yaw) * back, v.pos.y + TAILPIPE, v.pos.z - Math.cos(v.yaw) * back);
+  return new Vector3(
+    v.pos.x - Math.sin(v.yaw) * back,
+    v.pos.y + TAILPIPE,
+    v.pos.z - Math.cos(v.yaw) * back,
+  );
 }
 
 export function settled(v: Vehicle): boolean {
   return v.grounded && Math.hypot(v.vel.x, v.vel.z) < IDLE_SPEED;
 }
 
-export function nearestCar(vehicles: readonly Vehicle[], at: Vector3, test: (v: Vehicle) => boolean): Vehicle | null {
+export function nearestCar(
+  vehicles: readonly Vehicle[],
+  at: Vector3,
+  test: (v: Vehicle) => boolean,
+): Vehicle | null {
   let best: Vehicle | null = null;
   let d = Infinity;
   for (const v of vehicles) {
@@ -415,7 +518,11 @@ export function nearestCar(vehicles: readonly Vehicle[], at: Vector3, test: (v: 
   return best;
 }
 
-export function stageOn(level: LevelData, garage: Garage, ground: (x: number, z: number) => number): RoofStage | null {
+export function stageOn(
+  level: LevelData,
+  garage: Garage,
+  ground: (x: number, z: number) => number,
+): RoofStage | null {
   const exit = level.gates.find((g) => g.kind === 'exit');
   const { min, max } = level.deck;
   const ex = exit ? exit.hinge[0] : max[0];
@@ -429,7 +536,10 @@ export function stageOn(level: LevelData, garage: Garage, ground: (x: number, z:
       continue;
     }
 
-    const d = Math.hypot((r.min[0] + r.max[0]) / 2 - ex, (r.min[2] + r.max[2]) / 2 - ez);
+    const d = Math.hypot(
+      (r.min[0] + r.max[0]) / 2 - ex,
+      (r.min[2] + r.max[2]) / 2 - ez,
+    );
     if (d < best) {
       best = d;
       kicker = r;
@@ -473,7 +583,9 @@ export function stageOn(level: LevelData, garage: Garage, ground: (x: number, z:
       s.center.y,
       s.center.z - Math.sin(s.def.yaw) * DOOR,
     );
-    const crowded = garage.spots.some((o) => o !== s && o.occupant && o.center.distanceTo(door) < 1.5);
+    const crowded = garage.spots.some(
+      (o) => o !== s && o.occupant && o.center.distanceTo(door) < 1.5,
+    );
     const score = Math.abs(run - RUN_UP) + (crowded ? 100 : 0);
     if (score < best) {
       best = score;
@@ -493,11 +605,20 @@ export function stageOn(level: LevelData, garage: Garage, ground: (x: number, z:
   const sx = -Math.cos(yaw);
   const sz = Math.sin(yaw);
   const launch = ax === 0 ? [k.dir, 0] : [0, k.dir];
-  const turn = sx * (launch[0] ?? 0) + sz * (launch[1] ?? 0) > 0 ? 'RIGHT' : 'LEFT';
+  const turn =
+    sx * (launch[0] ?? 0) + sz * (launch[1] ?? 0) > 0 ? 'RIGHT' : 'LEFT';
   const ahead = Math.max(...spot.def.size) / 2 + RANDY_AHEAD;
-  const randy = new Vector3(truck.x + fx * ahead - sx * RANDY_SIDE, truck.y, truck.z + fz * ahead - sz * RANDY_SIDE);
+  const randy = new Vector3(
+    truck.x + fx * ahead - sx * RANDY_SIDE,
+    truck.y,
+    truck.z + fz * ahead - sz * RANDY_SIDE,
+  );
   const randyYaw = Math.atan2(-sx * 0.87 - fx * 0.5, -sz * 0.87 - fz * 0.5);
-  const window = new Vector3(truck.x - sx + fx * 0.4, truck.y, truck.z - sz + fz * 0.4);
+  const window = new Vector3(
+    truck.x - sx + fx * 0.4,
+    truck.y,
+    truck.z - sz + fz * 0.4,
+  );
   const edges: [number, number, number][] = [
     [randy.x - min[0], -1, 0],
     [max[0] - randy.x, 1, 0],
@@ -509,8 +630,16 @@ export function stageOn(level: LevelData, garage: Garage, ground: (x: number, z:
   const tx = randy.x + ox * (gap + TOSS_PAST);
   const tz = randy.z + oz * (gap + TOSS_PAST);
   const mid = (k.min[across] + k.max[across]) / 2;
-  const startAt = new Vector3(ax === 0 ? along : mid, k.low, ax === 0 ? mid : along);
-  const lip = new Vector3(ax === 0 ? high : mid, k.max[1], ax === 0 ? mid : high);
+  const startAt = new Vector3(
+    ax === 0 ? along : mid,
+    k.low,
+    ax === 0 ? mid : along,
+  );
+  const lip = new Vector3(
+    ax === 0 ? high : mid,
+    k.max[1],
+    ax === 0 ? mid : high,
+  );
   return {
     spot,
     truck,
@@ -527,7 +656,11 @@ export function stageOn(level: LevelData, garage: Garage, ground: (x: number, z:
   };
 }
 
-export function stagedView(root: Object3D, sights: readonly Vector3[], yaw: number): number {
+export function stagedView(
+  root: Object3D,
+  sights: readonly Vector3[],
+  yaw: number,
+): number {
   const meshes = meshesOf(root);
   const side = Math.atan2(Math.cos(yaw), -Math.sin(yaw));
   let best = side;
@@ -543,7 +676,11 @@ export function stagedView(root: Object3D, sights: readonly Vector3[], yaw: numb
   return best;
 }
 
-export function clearView(root: Object3D, sights: readonly Vector3[], azimuth: number): number {
+export function clearView(
+  root: Object3D,
+  sights: readonly Vector3[],
+  azimuth: number,
+): number {
   const meshes = meshesOf(root);
   let best = azimuth;
   let fewest = Infinity;
@@ -569,11 +706,19 @@ function meshesOf(root: Object3D): Object3D[] {
   return meshes;
 }
 
-function hiddenFrom(meshes: Object3D[], sights: readonly Vector3[], azimuth: number): number {
+function hiddenFrom(
+  meshes: Object3D[],
+  sights: readonly Vector3[],
+  azimuth: number,
+): number {
   const ray = new Raycaster();
   ray.far = 80;
   const c = Math.cos(ISO_ELEVATION);
-  _toCamera.set(Math.sin(azimuth) * c, Math.sin(ISO_ELEVATION), Math.cos(azimuth) * c);
+  _toCamera.set(
+    Math.sin(azimuth) * c,
+    Math.sin(ISO_ELEVATION),
+    Math.cos(azimuth) * c,
+  );
   let hidden = 0;
   for (const p of sights) {
     ray.set(p, _toCamera);
@@ -594,7 +739,11 @@ export function roofExit(level: LevelData, from: Vector3): Vector3 {
         continue;
       }
 
-      const at = new Vector3((e.min[0] + e.max[0]) / 2, stop.y, (e.min[2] + e.max[2]) / 2);
+      const at = new Vector3(
+        (e.min[0] + e.max[0]) / 2,
+        stop.y,
+        (e.min[2] + e.max[2]) / 2,
+      );
       if (stop.facing === 'z+') {
         at.z = e.max[2] + EXIT_OUT;
       } else if (stop.facing === 'z-') {

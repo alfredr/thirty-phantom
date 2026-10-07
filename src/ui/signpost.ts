@@ -8,8 +8,9 @@ import './signpost.css';
 const DISMISS: readonly Control[] = ['interact', 'start'];
 
 /**
- * Show a dismissible signpost anchored to a projected world point. Call place() each frame with the anchor’s screen
- * position. A click, tap, or reserved control dismisses the sign and invokes its callback.
+ * Show a dismissible signpost anchored to a projected world point. Call
+ * place() each frame with the anchor’s screen position. A click, tap, or
+ * reserved control dismisses the sign and invokes its callback.
  */
 export class Signpost {
   private readonly root: HTMLDivElement;
@@ -42,8 +43,16 @@ export class Signpost {
     return this.root.classList.contains('on');
   }
 
-  /** Show a title, metadata line, and HTML body. Run onDismiss only on dismissal, not cancellation. */
-  show(title: string, meta: string, body: string, onDismiss: () => void): void {
+  /**
+   * Show a title, metadata line, and HTML body. Run onDismiss only on
+   * dismissal, not cancellation.
+   */
+  show(
+    title: string,
+    meta: string,
+    body: string,
+    onDismiss: () => void,
+  ): void {
     this.title.textContent = title;
     this.meta.textContent = meta;
     this.body.innerHTML = body;
@@ -51,7 +60,10 @@ export class Signpost {
     this.root.classList.add('on');
   }
 
-  /** Position the foot in CSS pixels. A null position hides the sign without dismissing it. */
+  /**
+   * Position the foot in CSS pixels. A null position hides the sign without
+   * dismissing it.
+   */
   place(at: { x: number; y: number } | null): void {
     this.root.style.visibility = at ? '' : 'hidden';
 

@@ -1,4 +1,10 @@
-import { Color, type DirectionalLight, type HemisphereLight, type Scene, Vector3 } from 'three';
+import {
+  Color,
+  type DirectionalLight,
+  type HemisphereLight,
+  type Scene,
+  Vector3,
+} from 'three';
 
 import { TUNING } from '@/config';
 import { invLerp, lerp, smoothstep } from '@/engine/core/math';
@@ -23,7 +29,10 @@ interface Look {
   lamps: number;
   signs: number;
   slime: number;
-  /** Bloom strength. Wide or strong bloom reads as a glowing fog over the whole frame. */
+  /**
+   * Bloom strength. Wide or strong bloom reads as a glowing fog over the whole
+   * frame.
+   */
   bloom: number;
   /** Grade exposure: brightens the lit picture without adding glow. */
   exposure: number;
@@ -38,8 +47,12 @@ interface Look {
 }
 
 /** The Look fields that blend as numbers, and the ones that blend as colors. */
-type NumKey = { [K in keyof Look]: Look[K] extends number ? K : never }[keyof Look];
-type ColorKey = { [K in keyof Look]: Look[K] extends string ? K : never }[keyof Look];
+type NumKey = {
+  [K in keyof Look]: Look[K] extends number ? K : never;
+}[keyof Look];
+type ColorKey = {
+  [K in keyof Look]: Look[K] extends string ? K : never;
+}[keyof Look];
 
 // Use fill light and exposure to keep night scenes readable without excessive bloom.
 const NIGHT: Look = {
@@ -191,7 +204,14 @@ export class DayNight {
   nightness = 1;
   readonly sunDir = new Vector3();
   private readonly tmp = new Color();
-  private readonly levels: ChannelLevels = { neon: 0, windows: 0, lamps: 0, signs: 0, slime: 0, always: 1 };
+  private readonly levels: ChannelLevels = {
+    neon: 0,
+    windows: 0,
+    lamps: 0,
+    signs: 0,
+    slime: 0,
+    always: 1,
+  };
 
   constructor(private readonly t: DayNightTargets) {}
 
@@ -205,7 +225,8 @@ export class DayNight {
     const [h1, b] = KEYS[i + 1] as [number, Look];
     const k = smoothstep(h0, h1, hours);
     const n = (key: NumKey): number => lerp(a[key], b[key], k);
-    const c = (out: Color, key: ColorKey): Color => mixColor(out, a[key], b[key], k);
+    const c = (out: Color, key: ColorKey): Color =>
+      mixColor(out, a[key], b[key], k);
     const { scene, gfx, mats, hemi, sun, pool } = this.t;
 
     c(hemi.color, 'hemiSky');
@@ -221,7 +242,13 @@ export class DayNight {
       // Move the daylight direction from east to west.
       const az = lerp(-1.9, 1.9, dayT);
       const el = 0.25 + Math.sin(dayT * Math.PI) * 0.75;
-      this.sunDir.set(Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el) * 0.6 - 0.4).normalize();
+      this.sunDir
+        .set(
+          Math.sin(az) * Math.cos(el),
+          Math.sin(el),
+          -Math.cos(az) * Math.cos(el) * 0.6 - 0.4,
+        )
+        .normalize();
     } else {
       this.sunDir.copy(MOONLIGHT);
     }
@@ -252,24 +279,36 @@ export class DayNight {
     su.scroll.value = scroll;
 
     // Animate the moon between the configured nightfall and sunrise times.
-    const sinceDusk = hours >= nightfall ? hours - nightfall : hours + 24 - nightfall;
+    const sinceDusk =
+      hours >= nightfall ? hours - nightfall : hours + 24 - nightfall;
     const nightLen = 24 - nightfall + sunrise;
     const up = hours >= nightfall || hours < sunrise;
     const rise = smoothstep(0, 0.6, sinceDusk);
     const set = 1 - smoothstep(nightLen - 0.6, nightLen, sinceDusk);
     su.moonAlpha.value = up ? smoothstep(0, 0.12, sinceDusk) * set : 0;
     const mp = su.moonPos.value;
-    mp.set(lerp(MOON_X, 0.69, invLerp(0, nightLen, sinceDusk)), lerp(0.74, MOON_Y, rise) - (1 - set) * 0.16);
+    mp.set(
+      lerp(MOON_X, 0.69, invLerp(0, nightLen, sinceDusk)),
+      lerp(0.74, MOON_Y, rise) - (1 - set) * 0.16,
+    );
     su.sunAlpha.value = isDay
-      ? smoothstep(sunrise - 0.4, sunrise + 0.5, hours) * (1 - smoothstep(nightfall - 0.6, nightfall, hours))
+      ? smoothstep(sunrise - 0.4, sunrise + 0.5, hours) *
+        (1 - smoothstep(nightfall - 0.6, nightfall, hours))
       : 0;
-    su.sunPos.value.set(lerp(0.08, 0.92, dayT), 0.8 + Math.sin(dayT * Math.PI) * 0.13);
+    su.sunPos.value.set(
+      lerp(0.08, 0.92, dayT),
+      0.8 + Math.sin(dayT * Math.PI) * 0.13,
+    );
     // Align the chase-view sun with its light direction. Map the isometric moon's displacement to angular offsets
     // from the moonlight direction.
     su.sunDirW.value.copy(this.sunDir);
     const moonAz = MOON_AZIMUTH + (mp.x - MOON_X);
     const moonEl = mp.y - su.bandStart.value;
-    su.moonDirW.value.set(Math.sin(moonAz) * Math.cos(moonEl), Math.sin(moonEl), Math.cos(moonAz) * Math.cos(moonEl));
+    su.moonDirW.value.set(
+      Math.sin(moonAz) * Math.cos(moonEl),
+      Math.sin(moonEl),
+      Math.cos(moonAz) * Math.cos(moonEl),
+    );
 
     gfx.bloom.strength = n('bloom');
     gfx.grade.uniforms.exposure.value = n('exposure');

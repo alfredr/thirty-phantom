@@ -34,12 +34,16 @@ export interface FootBarrier {
 
 const _from = new Vector3();
 
-/** Camera distance thresholds in meters and minimum opacity used to fade Cody when the camera approaches. */
+/**
+ * Camera distance thresholds in meters and minimum opacity used to fade Cody
+ * when the camera approaches.
+ */
 const FADE = { near: 0.4, far: 1.6, min: 0.15 };
 
 /**
- * Faded meshes render on GHOST_LAYER. Depth copies suppress rear surfaces, with polygon offset allowing the visible
- * front surface to pass. Separate shadow copies remain in the main scene so fading preserves cast shadows.
+ * Faded meshes render on GHOST_LAYER. Depth copies suppress rear surfaces,
+ * with polygon offset allowing the visible front surface to pass. Separate
+ * shadow copies remain in the main scene so fading preserves cast shadows.
  */
 const DEPTH_TWIN = withCurve(
   new MeshBasicMaterial({
@@ -50,10 +54,16 @@ const DEPTH_TWIN = withCurve(
     polygonOffsetUnits: 1,
   }),
 );
-const SHADOW_TWIN = new MeshBasicMaterial({ colorWrite: false, depthWrite: false });
+const SHADOW_TWIN = new MeshBasicMaterial({
+  colorWrite: false,
+  depthWrite: false,
+});
 SHADOW_TWIN.userData.noInk = true;
 
-/** Control Cody’s screen-relative walking, jumping, model form, and camera-proximity fading. */
+/**
+ * Control Cody’s screen-relative walking, jumping, model form, and
+ * camera-proximity fading.
+ */
 export class Player {
   readonly root = new Group();
   readonly pos = new Vector3();
@@ -63,7 +73,10 @@ export class Player {
   form: CodyForm = 'day';
   private readonly up = new Vector3();
   private readonly right = new Vector3();
-  /** Original material settings restored after fading. `hull` identifies the inverted-hull ink outline. */
+  /**
+   * Original material settings restored after fading. `hull` identifies the
+   * inverted-hull ink outline.
+   */
   private readonly looks: {
     mat: Material;
     opacity: number;
@@ -72,7 +85,10 @@ export class Player {
     side: Side;
     hull: boolean;
   }[] = [];
-  /** Original mesh layers, restored after temporary rendering on the ghost layer. */
+  /**
+   * Original mesh layers, restored after temporary rendering on the ghost
+   * layer.
+   */
   private readonly meshes: { mesh: Mesh; layers: number }[] = [];
   /** Depth and shadow copies enabled while the visible model is faded. */
   private readonly twins: Mesh[] = [];
@@ -90,7 +106,9 @@ export class Player {
     });
 
     for (const mesh of meshes) {
-      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      const mats = Array.isArray(mesh.material)
+        ? mesh.material
+        : [mesh.material];
       let hull = false;
       for (const mat of mats) {
         hull ||= mat.name === 'ink';
@@ -148,16 +166,19 @@ export class Player {
   }
 
   /**
-   * Ease Cody’s opacity according to camera distance from his body; null restores full opacity. While faded, move
-   * visible meshes to the ghost pass, hide ink outlines, and enable depth and shadow copies. The renderer must run the
-   * ghost pass whenever `faded` is true.
+   * Ease Cody’s opacity according to camera distance from his body; null
+   * restores full opacity. While faded, move visible meshes to the ghost pass,
+   * hide ink outlines, and enable depth and shadow copies. The renderer must
+   * run the ghost pass whenever `faded` is true.
    */
   seenFrom(eye: Vector3 | null, dt: number): void {
     let want = 1;
     if (eye) {
       const P = TUNING.player;
       const y = clamp(eye.y, this.pos.y, this.pos.y + P.height);
-      const d = Math.hypot(eye.x - this.pos.x, eye.y - y, eye.z - this.pos.z) - P.radius;
+      const d =
+        Math.hypot(eye.x - this.pos.x, eye.y - y, eye.z - this.pos.z) -
+        P.radius;
       want = FADE.min + (1 - FADE.min) * invLerp(FADE.near, FADE.far, d);
     }
 
@@ -203,7 +224,10 @@ export class Player {
     }
   }
 
-  /** Hidden while Cody is in a vehicle. Applies immediately: update() doesn't run while driving. */
+  /**
+   * Hidden while Cody is in a vehicle. Applies immediately: update() doesn't
+   * run while driving.
+   */
   get visible(): boolean {
     return this.root.visible;
   }
@@ -225,7 +249,10 @@ export class Player {
     return this.model.palm;
   }
 
-  /** Attach Cody to the saddle, reset his local transform, and show the riding pose. */
+  /**
+   * Attach Cody to the saddle, reset his local transform, and show the riding
+   * pose.
+   */
   mount(saddle: Object3D): void {
     saddle.add(this.root);
     this.root.position.set(0, 0, 0);
@@ -235,7 +262,10 @@ export class Player {
     this.visible = true;
   }
 
-  /** Reattach Cody to the world and exit the riding pose. The caller must then place him. */
+  /**
+   * Reattach Cody to the world and exit the riding pose. The caller must then
+   * place him.
+   */
   dismount(world: Object3D): void {
     if (this.root.parent === world) {
       return;
@@ -339,7 +369,12 @@ export class Player {
 
     const hs = Math.hypot(this.vel.x, this.vel.z);
     if (hs > 0.3) {
-      this.yaw = dampAngle(this.yaw, Math.atan2(this.vel.x, this.vel.z), 14, dt);
+      this.yaw = dampAngle(
+        this.yaw,
+        Math.atan2(this.vel.x, this.vel.z),
+        14,
+        dt,
+      );
     }
 
     this.sync(dt, hs);

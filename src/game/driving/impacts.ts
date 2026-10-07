@@ -12,12 +12,31 @@ import { carContacts } from './collisions';
 import type { Fleet } from './fleet';
 
 export type ImpactEvents = {
-  /** Velocity change or landing speed in m/s. dv is the larger received or dealt change; took is the received change. */
-  impact: { v: Vehicle; at: Vector3; dv: number; took: number; against: 'car' | 'wall' | 'ground' };
-  /** Prop damage and lamp landings. Positions, shatter bounds, and light colors are copied from the simulation. */
+  /**
+   * Velocity change or landing speed in m/s. dv is the larger received or
+   * dealt change; took is the received change.
+   */
+  impact: {
+    v: Vehicle;
+    at: Vector3;
+    dv: number;
+    took: number;
+    against: 'car' | 'wall' | 'ground';
+  };
+  /**
+   * Prop damage and lamp landings. Positions, shatter bounds, and light colors
+   * are copied from the simulation.
+   */
   prop:
     | { how: 'knocked'; kind: PropKind; at: Vector3; by: Vehicle | null }
-    | { how: 'shattered'; kind: PropKind; at: Vector3; by: Vehicle | null; min: Vector3; max: Vector3 }
+    | {
+        how: 'shattered';
+        kind: PropKind;
+        at: Vector3;
+        by: Vehicle | null;
+        min: Vector3;
+        max: Vector3;
+      }
     | { how: 'landed'; kind: PropKind; at: Vector3; light: Color };
   smashed: { at: Vector3; by: Vehicle };
   crushed: { car: Vehicle; by: Vehicle };
@@ -31,12 +50,18 @@ interface ImpactCallbacks {
 const _at = new Vector3();
 const _hardest = new Vector3();
 
-/** Apply collision consequences and keep uncontrolled wrecks moving until their drivers can leave. */
+/**
+ * Apply collision consequences and keep uncontrolled wrecks moving until their
+ * drivers can leave.
+ */
 export class VehicleImpacts {
   private readonly shaken = new Map<Vehicle, Vector3>();
 
   constructor(
-    private readonly world: Pick<BuiltWorld, 'collision' | 'props' | 'breakables'>,
+    private readonly world: Pick<
+      BuiltWorld,
+      'collision' | 'props' | 'breakables'
+    >,
     private readonly fleet: Pick<Fleet, 'vehicles' | 'abandon'>,
     private readonly garage: Pick<Garage, 'inFootprint'>,
     private readonly junk: Pick<Junk, 'hit' | 'crushed'>,
@@ -72,12 +97,18 @@ export class VehicleImpacts {
     };
   }
 
-  /** Wait for an uncontrolled car to settle before releasing its driver. Copy the threat's current position. */
+  /**
+   * Wait for an uncontrolled car to settle before releasing its driver. Copy
+   * the threat's current position.
+   */
   deferBail(car: Vehicle, from: Vector3): void {
     this.shaken.set(car, from.clone());
   }
 
-  /** Step wrecks not already moved this frame. Settled drivers leave during play if their car still exists. */
+  /**
+   * Step wrecks not already moved this frame. Settled drivers leave during
+   * play if their car still exists.
+   */
   update(dt: number, playing: boolean): void {
     for (const v of this.fleet.vehicles) {
       if (!v.crashing || v.role === 'player' || v.gone || v.steppedThisFrame) {
@@ -102,7 +133,10 @@ export class VehicleImpacts {
     }
   }
 
-  /** Handle damage and contacts after movement. loosen is the velocity-change threshold in m/s for visitor drivers. */
+  /**
+   * Handle damage and contacts after movement. loosen is the velocity-change
+   * threshold in m/s for visitor drivers.
+   */
   afterDrive(v: Vehicle, ev: DriveEvents, loosen = 0): void {
     for (const s of ev.smashed) {
       if (s.knockdown) {
@@ -113,11 +147,23 @@ export class VehicleImpacts {
     }
 
     if (ev.impact > 0) {
-      this.events.emit('impact', { v, at: v.pos.clone(), dv: ev.impact, took: ev.impact, against: 'wall' });
+      this.events.emit('impact', {
+        v,
+        at: v.pos.clone(),
+        dv: ev.impact,
+        took: ev.impact,
+        against: 'wall',
+      });
     }
 
     if (ev.landed > 0) {
-      this.events.emit('impact', { v, at: v.pos.clone(), dv: ev.landed, took: ev.landed, against: 'ground' });
+      this.events.emit('impact', {
+        v,
+        at: v.pos.clone(),
+        dv: ev.landed,
+        took: ev.landed,
+        against: 'ground',
+      });
     }
 
     if (!(v.crashing && v.resting)) {
@@ -200,9 +246,19 @@ export class VehicleImpacts {
   private knockProp(s: Solid, v: Vehicle): void {
     const fx = Math.sin(v.yaw);
     const fz = Math.cos(v.yaw);
-    const side = ((s.min[0] + s.max[0]) / 2 - v.pos.x) * -fz + ((s.min[2] + s.max[2]) / 2 - v.pos.z) * fx;
-    const kick = (side === 0 ? (Math.random() < 0.5 ? -1 : 1) : Math.sign(side)) * Math.hypot(v.vel.x, v.vel.z) * 0.8;
-    const kind = this.world.props.knock(s.id, v.vel.x - fz * kick, v.vel.z + fx * kick, v);
+    const side =
+      ((s.min[0] + s.max[0]) / 2 - v.pos.x) * -fz +
+      ((s.min[2] + s.max[2]) / 2 - v.pos.z) * fx;
+    const kick =
+      (side === 0 ? (Math.random() < 0.5 ? -1 : 1) : Math.sign(side)) *
+      Math.hypot(v.vel.x, v.vel.z) *
+      0.8;
+    const kind = this.world.props.knock(
+      s.id,
+      v.vel.x - fz * kick,
+      v.vel.z + fx * kick,
+      v,
+    );
     if (!kind) {
       return;
     }
@@ -218,7 +274,11 @@ export class VehicleImpacts {
 
     this.events.emit('prop', {
       kind,
-      at: new Vector3((s.min[0] + s.max[0]) / 2, v.pos.y + 1, (s.min[2] + s.max[2]) / 2),
+      at: new Vector3(
+        (s.min[0] + s.max[0]) / 2,
+        v.pos.y + 1,
+        (s.min[2] + s.max[2]) / 2,
+      ),
       how: 'knocked',
       by: v,
     });

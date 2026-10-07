@@ -3,7 +3,10 @@ export const steps = {
     const g = window.__game;
     g.start();
     window.__sim.run(30);
-    const car = g.vehicles.find((v) => v.role === 'parked' && v.insideDeck && v.form === 'car' && v.pos.y < 1);
+    const car = g.vehicles.find(
+      (v) =>
+        v.role === 'parked' && v.insideDeck && v.form === 'car' && v.pos.y < 1,
+    );
     if (car) {
       g.board(car, true);
       window.__sim.run(10);
@@ -35,19 +38,34 @@ export const steps = {
     }
 
     const back = best.d - car.params.length / 2 - 0.4;
-    car.place(car.pos.x + best.dx * back, car.pos.y, car.pos.z + best.dz * back, best.yaw, 0, 0, g.world.collision);
+    car.place(
+      car.pos.x + best.dx * back,
+      car.pos.y,
+      car.pos.z + best.dz * back,
+      best.yaw,
+      0,
+      0,
+      g.world.collision,
+    );
     g.garage.resync(car);
     return best;
   },
   promptShown: () => {
-    return document.querySelector('.hud-reset')?.classList.contains('show') ?? false;
+    return (
+      document.querySelector('.hud-reset')?.classList.contains('show') ?? false
+    );
   },
   drivable: (car) => {
     const g = window.__game;
-    const p = car.form === 'truck' ? g.debug.profiles.truck : g.debug.profiles.car;
-    const fits = g.nav.standable(car.pos.x, car.pos.y, car.pos.z, p, car.yaw) !== null;
+    const p =
+      car.form === 'truck' ? g.debug.profiles.truck : g.debug.profiles.car;
+    const fits =
+      g.nav.standable(car.pos.x, car.pos.y, car.pos.z, p, car.yaw) !== null;
     const clear = g.vehicles.every(
-      (o) => o === car || o.gone || o.pos.distanceTo(car.pos) > (o.params.length + car.params.length) / 2,
+      (o) =>
+        o === car ||
+        o.gone ||
+        o.pos.distanceTo(car.pos) > (o.params.length + car.params.length) / 2,
     );
     return { fits, clear, speed: Math.round(car.speed * 100) / 100 };
   },
@@ -91,7 +109,14 @@ export function wedgedCarResetsToOpenGround() {
   g.input.hold('KeyW', false);
   const drove = Math.round(car.pos.distanceTo(from) * 10) / 10;
   return {
-    ok: !early && resets === 1 && after.fits && after.clear && hidden && drove > 3 && crossings.length === 0,
+    ok:
+      !early &&
+      resets === 1 &&
+      after.fits &&
+      after.clear &&
+      hidden &&
+      drove > 3 &&
+      crossings.length === 0,
     promptAfter: shown.seconds + 2,
     pushed,
     resets,

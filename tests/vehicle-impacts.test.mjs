@@ -5,17 +5,26 @@ import { Color, Group, Vector3 } from 'three';
 
 import { loadModules } from './modules.mjs';
 
-const [{ VehicleImpacts }, { Vehicle }, { CollisionWorld }, { Emitter }] = await loadModules(
-  '/src/game/driving/impacts.ts',
-  '/src/actors/vehicles/vehicle.ts',
-  '/src/engine/physics/collision.ts',
-  '/src/engine/core/events.ts',
-);
+const [{ VehicleImpacts }, { Vehicle }, { CollisionWorld }, { Emitter }] =
+  await loadModules(
+    '/src/game/driving/impacts.ts',
+    '/src/actors/vehicles/vehicle.ts',
+    '/src/engine/physics/collision.ts',
+    '/src/engine/core/events.ts',
+  );
 
 const quiet = { smashed: [], impact: 0, landed: 0, hopped: false };
 
 function car(role = 'player', z = 0, speed = 0) {
-  const rig = { root: new Group(), body: new Group(), wheels: [], lights: [], materials: [], height: 1.5, scale: 1 };
+  const rig = {
+    root: new Group(),
+    body: new Group(),
+    wheels: [],
+    lights: [],
+    materials: [],
+    height: 1.5,
+    scale: 1,
+  };
   const v = new Vehicle('car', rig, '#fff', role);
   v.place(0, 0, z, 0, speed, 0, null);
   return v;
@@ -47,7 +56,12 @@ test('a parapet breaks once and its damage is repaired along with the props', ()
   const v = car();
   const { impacts, world, log } = setup([v]);
   const solid = world.collision.add([0, 1, 1], [2, 2, 2]);
-  const piece = { solid, group: new Group(), center: new Vector3(1, 1.5, 1.5), broken: false };
+  const piece = {
+    solid,
+    group: new Group(),
+    center: new Vector3(1, 1.5, 1.5),
+    broken: false,
+  };
   world.breakables.push(piece);
   solid.enabled = false;
   impacts.afterDrive(v, { ...quiet, smashed: [solid], impact: 3, landed: 4 });
@@ -107,7 +121,10 @@ test('small contacts release traffic drivers but leave visitors below the caller
     );
     assert.ok(debris[0][1].dv > 1.5 && debris[0][1].dv < 2.5);
     assert.equal(target.role, role === 'traffic' ? 'parked' : 'visitor');
-    assert.equal(log.filter(([name]) => name === 'abandon').length, role === 'traffic' ? 1 : 0);
+    assert.equal(
+      log.filter(([name]) => name === 'abandon').length,
+      role === 'traffic' ? 1 : 0,
+    );
     assert.equal(log.filter(([name]) => name === 'impact').length, 1);
   }
 });
@@ -157,7 +174,12 @@ test('wreck updates skip controlled, removed and already-stepped cars and change
       return quiet;
     },
   };
-  const skipped = [{ crashing: false }, { role: 'player' }, { gone: true }, { steppedThisFrame: true }].map((over) => ({
+  const skipped = [
+    { crashing: false },
+    { role: 'player' },
+    { gone: true },
+    { steppedThisFrame: true },
+  ].map((over) => ({
     ...wreck,
     ...over,
     drive() {

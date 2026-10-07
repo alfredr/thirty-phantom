@@ -25,8 +25,9 @@ import { type Wares, WaresPanel, sameWares } from './wares';
 import './hud.css';
 
 /**
- * Render action key caps for the current input device. Use keyboard labels, touch button labels, or TAP when no touch
- * button exists. data-action allows touch-controls.ts to dispatch a tap through the same control.
+ * Render action key caps for the current input device. Use keyboard labels,
+ * touch button labels, or TAP when no touch button exists. data-action allows
+ * touch-controls.ts to dispatch a tap through the same control.
  */
 export const kbd = (...actions: Control[]): string =>
   actions.map((a) => `<kbd data-action="${a}">${capLabel(a)}</kbd>`).join('');
@@ -39,15 +40,26 @@ function capLabel(a: Control): string {
   return touchGlyph(a) ?? 'TAP';
 }
 
-/** Replace recognized `{action}` placeholders with device-appropriate key caps. Preserve unknown placeholders. */
+/**
+ * Replace recognized `{action}` placeholders with device-appropriate key caps.
+ * Preserve unknown placeholders.
+ */
 export function keyText(text: string): string {
-  return text.replace(/\{(\w+)\}/g, (m, name: string) => (isControl(name) ? kbd(name) : m));
+  return text.replace(/\{(\w+)\}/g, (m, name: string) =>
+    isControl(name) ? kbd(name) : m,
+  );
 }
 
-/** Choose whether walking shows a desktop corner map in addition to the phone’s Map app. */
+/**
+ * Choose whether walking shows a desktop corner map in addition to the phone’s
+ * Map app.
+ */
 const MAP_ON_FOOT: 'phone' | 'corner' = 'phone';
 
-/** Generate Help app rows when displayed so control labels match the active input device. */
+/**
+ * Generate Help app rows when displayed so control labels match the active
+ * input device.
+ */
 export const helpRows = (): [keys: string, what: string][] => [
   [kbd('forward', 'left', 'back', 'right'), 'walk'],
   [kbd('interact'), 'steal / get in / talk'],
@@ -68,7 +80,9 @@ export const helpRows = (): [keys: string, what: string][] => [
   [kbd('nextPhase'), 'skip to next phase'],
   [kbd('reset'), 'reset a stuck car'],
   // Omit the mute shortcut when audio is disabled by ?sound=0.
-  ...(SOUND_ON ? [[kbd('mute'), 'sound on / off'] satisfies [string, string]] : []),
+  ...(SOUND_ON
+    ? [[kbd('mute'), 'sound on / off'] satisfies [string, string]]
+    : []),
   [kbd('help'), 'this list'],
 ];
 
@@ -88,13 +102,19 @@ const SUN_ICON =
 const MOON_ICON =
   '<svg class="phase-icon" viewBox="-12 -12 24 24"><path d="M3.5-9.3A9.94 9.94 0 1 0 9.3 3.5 7.5 7.5 0 0 1 3.5-9.3z"/></svg>';
 
-/** A banknote pointing right from the cash coin's center, turned `deg` clockwise. */
+/**
+ * A banknote pointing right from the cash coin's center, turned `deg`
+ * clockwise.
+ */
 const bill = (deg: number): string =>
   `<g transform="rotate(${deg})"><rect class="bill" x="10" y="-14" width="56" height="28" rx="3"/>` +
   '<rect class="bill-line" x="14" y="-10" width="48" height="20" rx="2"/><ellipse class="bill-seal" cx="44" cy="0" rx="6" ry="7"/></g>';
 const BILLS = `<svg class="cash-bills" viewBox="0 0 100 100"><g transform="translate(30 50)">${[-34, -10, 14].map(bill).join('')}</g></svg>`;
 
-/** "1:03 PM" with each digit in a fixed-width cell and two cells for the hour, so the clock never changes width. */
+/**
+ * "1:03 PM" with each digit in a fixed-width cell and two cells for the hour,
+ * so the clock never changes width.
+ */
 function clockCells(t: string): string {
   const [, h = '', m = '', ap = ''] = /^(\d+):(\d+) (\w+)$/.exec(t) ?? [];
   const cells = (d: string) => [...d].map((c) => `<i>${c}</i>`).join('');
@@ -104,7 +124,9 @@ function clockCells(t: string): string {
 export type HudMode = 'title' | 'foot' | 'drive';
 
 /** Display name and optional explanatory text for each camera mode. */
-const CAM_NAMES: Readonly<Record<CamMode, readonly [name: string, note: string]>> = {
+const CAM_NAMES: Readonly<
+  Record<CamMode, readonly [name: string, note: string]>
+> = {
   iso: ['TOP-DOWN', ''],
   chase: ['CHASE CAM', ''],
   auto: ['AUTO CAM', 'CHASE WHEN DRIVING'],
@@ -122,9 +144,15 @@ export interface Bubble {
 
 /** Game-state readers consumed by HUD bindings each frame. */
 export interface HudStatus {
-  /** Presentation mode: title before play, drive while controlling or transforming a vehicle, otherwise foot. */
+  /**
+   * Presentation mode: title before play, drive while controlling or
+   * transforming a vehicle, otherwise foot.
+   */
   mode(): HudMode;
-  /** Whether summoning is currently available, controlling visibility of its touch button. */
+  /**
+   * Whether summoning is currently available, controlling visibility of its
+   * touch button.
+   */
   summon(): boolean;
   hours(): number;
   phase(): Phase;
@@ -136,7 +164,10 @@ export interface HudStatus {
   ledger(): { logged: number; actual: number; phantom: number; max: number };
   /** Dashboard state while driving, or null on foot. */
   dash(): DashState | null;
-  /** GhASt level in [0, 1] and boost state while driving the truck; null otherwise. */
+  /**
+   * GhASt level in [0, 1] and boost state while driving the truck; null
+   * otherwise.
+   */
   ghast(): { fill: number; burning: boolean } | null;
   reset(): boolean;
 }
@@ -155,7 +186,10 @@ export interface DashState {
 /** Cache keys for HUD values updated only when their visible state changes. */
 type Shown = 'prompt' | 'bubble' | 'form' | 'air' | 'ghast';
 
-/** The DOM overlay: clock, occupancy board and cash, prompts, speech bubbles, dash, toasts, title and victory screens. */
+/**
+ * The DOM overlay: clock, occupancy board and cash, prompts, speech bubbles,
+ * dash, toasts, title and victory screens.
+ */
 export class Hud {
   readonly root: HTMLDivElement;
   private readonly clock = new ClockFace();
@@ -189,8 +223,8 @@ export class Hud {
   /** Game callback for an action selected from the inventory. */
   onItemAction: ((kind: string, actionId: string) => void) | null = null;
   /**
-   * The game's handler for buying from Randy: `n` from slot `slotId` (the whole stack can be more than Cody can pay
-   * for).
+   * The game's handler for buying from Randy: `n` from slot `slotId` (the
+   * whole stack can be more than Cody can pay for).
    */
   onBuy: ((slotId: string, n: number) => void) | null = null;
   private readonly shown = new Map<Shown, string | boolean>();
@@ -218,11 +252,20 @@ export class Hud {
 
     const cash = el('div', 'hud-cash', status, BILLS);
     this.cashEl = el('div', 'cash-coin', cash, '');
-    this.inv = new InventoryStrip(root, (kind, id) => this.onItemAction?.(kind, id), focus);
+    this.inv = new InventoryStrip(
+      root,
+      (kind, id) => this.onItemAction?.(kind, id),
+      focus,
+    );
     this.wares = new WaresPanel(root, (id, n) => this.onBuy?.(id, n), focus);
 
     this.prompt = el('div', 'hud-prompt plate', root);
-    this.reset = el('div', 'hud-prompt hud-reset plate', root, keyText('{reset} RESET'));
+    this.reset = el(
+      'div',
+      'hud-prompt hud-reset plate',
+      root,
+      keyText('{reset} RESET'),
+    );
     this.reset.dataset.action = 'reset';
     this.bubble = el('div', 'hud-bubble plate', root);
 
@@ -239,12 +282,21 @@ export class Hud {
     this.camEl = el('div', 'hud-cam plate', root);
     this.title = el('div', 'hud-title', container, TITLE);
     this.victory = el('div', 'hud-victory hide', container, VICTORY);
-    this.hudBits = [logo, status, this.inv.root, this.wares.root, this.marks.root];
+    this.hudBits = [
+      logo,
+      status,
+      this.inv.root,
+      this.wares.root,
+      this.marks.root,
+    ];
     this.fps = urlFlag('fps') ? el('div', 'fps', root, '') : null;
     this.drawMode('title');
   }
 
-  /** Store the value and return true only when it differs from the cached value. */
+  /**
+   * Store the value and return true only when it differs from the cached
+   * value.
+   */
   private changed(key: Shown, value: string | boolean): boolean {
     if (this.shown.get(key) === value) {
       return false;
@@ -254,7 +306,10 @@ export class Hud {
     return true;
   }
 
-  /** Clicking the title starts the game; the start key is read by Game like any other. */
+  /**
+   * Clicking the title starts the game; the start key is read by Game like any
+   * other.
+   */
   onStart(cb: () => void): void {
     this.title.addEventListener('click', () => {
       if (!this.title.classList.contains('hide')) {
@@ -263,13 +318,27 @@ export class Hud {
     });
   }
 
-  /** Register state readers and display callbacks; update() redraws changed values. */
+  /**
+   * Register state readers and display callbacks; update() redraws changed
+   * values.
+   */
   bind(s: HudStatus): void {
     const v = this.views;
     v.add({ read: () => s.mode(), draw: (m) => this.drawMode(m) });
-    v.add({ read: () => s.summon(), draw: (on) => (this.root.dataset.summon = on ? 'on' : '') });
-    v.add({ read: () => s.inventory(), same: sameInventory, draw: (items) => this.inv.set(items) });
-    v.add({ read: () => s.wares(), same: sameWares, draw: (wares) => this.wares.set(wares) });
+    v.add({
+      read: () => s.summon(),
+      draw: (on) => (this.root.dataset.summon = on ? 'on' : ''),
+    });
+    v.add({
+      read: () => s.inventory(),
+      same: sameInventory,
+      draw: (items) => this.inv.set(items),
+    });
+    v.add({
+      read: () => s.wares(),
+      same: sameWares,
+      draw: (wares) => this.wares.set(wares),
+    });
     // The dial moves each frame; the digits change only on the minute.
     v.add({ read: () => s.hours(), draw: (h) => this.clock.set(h) });
     v.add({
@@ -284,13 +353,23 @@ export class Hud {
       same: (a, b) => a.phase === b.phase && a.day === b.day,
       draw: ({ phase, day }) => {
         this.root.dataset.phase = phase;
-        this.phaseEl.innerHTML = phase === 'day' ? `${SUN_ICON}DAY ${day}` : `${MOON_ICON}NIGHT ${day}`;
+        this.phaseEl.innerHTML =
+          phase === 'day'
+            ? `${SUN_ICON}DAY ${day}`
+            : `${MOON_ICON}NIGHT ${day}`;
       },
     });
-    v.add({ read: () => s.cash(), draw: (amount, was) => this.drawCash(amount, was) });
+    v.add({
+      read: () => s.cash(),
+      draw: (amount, was) => this.drawCash(amount, was),
+    });
     v.add({
       read: () => s.ledger(),
-      same: (a, b) => a.logged === b.logged && a.actual === b.actual && a.phantom === b.phantom && a.max === b.max,
+      same: (a, b) =>
+        a.logged === b.logged &&
+        a.actual === b.actual &&
+        a.phantom === b.phantom &&
+        a.max === b.max,
       draw: (l) => this.sign.set(l.logged, l.actual, l.phantom, l.max),
     });
     v.add({
@@ -305,10 +384,15 @@ export class Hud {
           a.airborne === b.airborne),
       draw: (d) => d && this.drawDash(d),
     });
-    v.add({ read: () => s.reset(), draw: (on) => this.reset.classList.toggle('show', on) });
+    v.add({
+      read: () => s.reset(),
+      draw: (on) => this.reset.classList.toggle('show', on),
+    });
     v.add({
       read: () => s.ghast(),
-      same: (a, b) => a === b || (!!a && !!b && a.fill === b.fill && a.burning === b.burning),
+      same: (a, b) =>
+        a === b ||
+        (!!a && !!b && a.fill === b.fill && a.burning === b.burning),
       draw: (g) => this.drawGhast(g),
     });
   }
@@ -335,8 +419,8 @@ export class Hud {
   }
 
   /**
-   * Show the selected camera mode temporarily. With `flash`, include an introductory control hint and keep the
-   * notification visible longer.
+   * Show the selected camera mode temporarily. With `flash`, include an
+   * introductory control hint and keep the notification visible longer.
    */
   showCamera(m: CamMode, flash: boolean): void {
     const [name, note] = CAM_NAMES[m];
@@ -350,7 +434,10 @@ export class Hud {
     c.classList.add('show');
     c.classList.toggle('flash', flash);
     window.clearTimeout(this.camTimer);
-    this.camTimer = window.setTimeout(() => c.classList.remove('show', 'flash'), flash ? 5000 : 1800);
+    this.camTimer = window.setTimeout(
+      () => c.classList.remove('show', 'flash'),
+      flash ? 5000 : 1800,
+    );
   }
 
   /** Create dashboard and phone map views sharing one baked city image. */
@@ -362,8 +449,10 @@ export class Hud {
   }
 
   /**
-   * The minimaps this frame: one in the dash while driving (or, with MAP_ON_FOOT 'corner', in the corner on foot), and
-   * one in the phone's Map app while that's up (`phone`, its screen), driving or not. null hides them.
+   * The minimaps this frame: one in the dash while driving (or, with
+   * MAP_ON_FOOT 'corner', in the corner on foot), and one in the phone's Map
+   * app while that's up (`phone`, its screen), driving or not. null hides
+   * them.
    */
   setMap(v: MapView | null, phone: HTMLElement | null): void {
     const m = this.map;
@@ -399,7 +488,10 @@ export class Hud {
     pm.draw(v);
   }
 
-  /** Objective markers this frame (ui/objective-marks.ts): `project` puts a world point on screen, `from` is Cody. */
+  /**
+   * Objective markers this frame (ui/objective-marks.ts): `project` puts a
+   * world point on screen, `from` is Cody.
+   */
   setObjectives(
     list: readonly Objective[],
     cam: Camera,
@@ -423,11 +515,15 @@ export class Hud {
   }
 
   /**
-   * "F STEAL"-style prompt: `action`'s key cap, then the text, unless the text places its own caps (`{interact} UP
-   * {pay} DOWN`). A tap on touch does `action`, or a cap's own. null hides it.
+   * "F STEAL"-style prompt: `action`'s key cap, then the text, unless the text
+   * places its own caps (`{interact} UP {pay} DOWN`). A tap on touch does
+   * `action`, or a cap's own. null hides it.
    */
   setPrompt(text: string | null, action: Control = 'interact'): void {
-    const s = text === null ? '' : keyText(/\{\w+\}/.test(text) ? text : `{${action}} ${text}`);
+    const s =
+      text === null
+        ? ''
+        : keyText(/\{\w+\}/.test(text) ? text : `{${action}} ${text}`);
     if (!this.changed('prompt', s)) {
       return;
     }
@@ -441,7 +537,10 @@ export class Hud {
     this.prompt.classList.toggle('show', !!s);
   }
 
-  /** Show, move or hide the speech bubble. Content is only rebuilt when it changes. */
+  /**
+   * Show, move or hide the speech bubble. Content is only rebuilt when it
+   * changes.
+   */
   setBubble(b: Bubble | null): void {
     const key = b
       ? `${b.who}|${b.line}|${b.choices.map((c) => `${c.action}${c.label}${c.off ? 0 : 1}`).join('|')}`
@@ -469,7 +568,10 @@ export class Hud {
     this.bubble.style.top = `${Math.round(b.y)}px`;
   }
 
-  /** Update GhASt level and boost state. Null hides the dial and touch boost button and resets refill detection. */
+  /**
+   * Update GhASt level and boost state. Null hides the dial and touch boost
+   * button and resets refill detection.
+   */
   private drawGhast(g: { fill: number; burning: boolean } | null): void {
     const on = g !== null;
     if (this.changed('ghast', on)) {
@@ -515,7 +617,10 @@ export class Hud {
     }
   }
 
-  /** Control occupancy-board visibility for the tutorial’s first-phantom reveal. */
+  /**
+   * Control occupancy-board visibility for the tutorial’s first-phantom
+   * reveal.
+   */
   showLedger(on: boolean): void {
     this.sign.root.classList.toggle('held', !on);
   }
@@ -526,7 +631,13 @@ export class Hud {
 
   showVictory(): void {
     this.victory.classList.remove('hide');
-    this.victory.addEventListener('click', () => this.victory.classList.add('hide'), { once: true });
+    this.victory.addEventListener(
+      'click',
+      () => this.victory.classList.add('hide'),
+      {
+        once: true,
+      },
+    );
   }
 
   setFps(fps: number, info: string): void {

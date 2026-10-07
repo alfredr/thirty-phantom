@@ -4,7 +4,13 @@ export const steps = {
     g.start();
     window.__sim.run(30);
     g.clock.paused = true;
-    const ride = g.vehicles.find((v) => v.role === 'parked' && !v.insideDeck && v.form === 'car' && v.kind === 'sedan');
+    const ride = g.vehicles.find(
+      (v) =>
+        v.role === 'parked' &&
+        !v.insideDeck &&
+        v.form === 'car' &&
+        v.kind === 'sedan',
+    );
     if (!ride) {
       return null;
     }
@@ -28,7 +34,10 @@ export const steps = {
     g.debug.night();
     sim.until(() => g.player.form === 'night', 20, []);
     g.clock.paused = true;
-    const car = g.vehicles.find((v) => v.role === 'parked' && v.insideDeck && v.form === 'car' && v.pos.y < 1);
+    const car = g.vehicles.find(
+      (v) =>
+        v.role === 'parked' && v.insideDeck && v.form === 'car' && v.pos.y < 1,
+    );
     if (!car) {
       return null;
     }
@@ -45,8 +54,18 @@ export const steps = {
         const x = p.x + hx * t;
         const z = p.z + hz * t;
         for (const s of C.query(x - 1.9, z - 1.9, x + 1.9, z + 1.9)) {
-          const inside = s.min[0] < x + 1.9 && s.max[0] > x - 1.9 && s.min[2] < z + 1.9 && s.max[2] > z - 1.9;
-          if (inside && s.enabled && !own.includes(s) && s.max[1] > p.y + 1 && !passable(s)) {
+          const inside =
+            s.min[0] < x + 1.9 &&
+            s.max[0] > x - 1.9 &&
+            s.min[2] < z + 1.9 &&
+            s.max[2] > z - 1.9;
+          if (
+            inside &&
+            s.enabled &&
+            !own.includes(s) &&
+            s.max[1] > p.y + 1 &&
+            !passable(s)
+          ) {
             return true;
           }
         }
@@ -132,7 +151,14 @@ function breaksAtSpeed(kind) {
   }
 
   const ok = r.broke && r.open && r.knocked === 1 && r.past > 3;
-  return { ok, broke: r.broke, open: r.open, knocked: r.knocked, past: r.past, fastest: r.fastest };
+  return {
+    ok,
+    broke: r.broke,
+    open: r.open,
+    knocked: r.knocked,
+    past: r.past,
+    fastest: r.fastest,
+  };
 }
 
 function slowTouchLeavesIt(kind) {
@@ -148,7 +174,13 @@ function slowTouchLeavesIt(kind) {
   }
 
   const ok = !r.broke && !r.open && r.past < 0 && r.fastest < r.smashSpeed;
-  return { ok, broke: r.broke, past: r.past, fastest: r.fastest, smashSpeed: r.smashSpeed };
+  return {
+    ok,
+    broke: r.broke,
+    past: r.past,
+    fastest: r.fastest,
+    smashSpeed: r.smashSpeed,
+  };
 }
 
 function carAtSpeedLeavesIt(kind) {
@@ -211,8 +243,17 @@ function bigTreeNeedsABoostedHit(mode) {
     sim.run(30);
     g.input.setStick(0, 0);
     const past = Math.round(along() * 10) / 10;
-    const ok = fast && boost && burning && own.every((s) => !s.enabled) && past > 3;
-    return { ok, broke, burning, fastest: Math.round(fastest * 10) / 10, momentum, need, past };
+    const ok =
+      fast && boost && burning && own.every((s) => !s.enabled) && past > 3;
+    return {
+      ok,
+      broke,
+      burning,
+      fastest: Math.round(fastest * 10) / 10,
+      momentum,
+      need,
+      past,
+    };
   }
 
   g.input.setStick(0, 0);
@@ -222,7 +263,12 @@ function bigTreeNeedsABoostedHit(mode) {
   sim.run(45);
   g.input.setStick(0, 0);
   const backed = Math.round((hit - along()) * 10) / 10;
-  const ok = !(fast && boost) && burning === boost && own.every((s) => s.enabled) && hit < 0 && backed > 2;
+  const ok =
+    !(fast && boost) &&
+    burning === boost &&
+    own.every((s) => s.enabled) &&
+    hit < 0 &&
+    backed > 2;
   return {
     ok,
     broke,
@@ -236,10 +282,22 @@ function bigTreeNeedsABoostedHit(mode) {
 }
 
 export const cases = {
-  bigTreeNeedsABoostedHit: { run: bigTreeNeedsABoostedHit, inputs: ['boostedFast', 'boostedSlow', 'fastUnboosted'] },
-  truckBreaksAtSpeed: { run: breaksAtSpeed, inputs: ['headstone', 'deadTree'] },
-  slowTruckTouchLeavesIt: { run: slowTouchLeavesIt, inputs: ['headstone', 'deadTree'] },
-  carAtSpeedLeavesIt: { run: carAtSpeedLeavesIt, inputs: ['headstone', 'deadTree'] },
+  bigTreeNeedsABoostedHit: {
+    run: bigTreeNeedsABoostedHit,
+    inputs: ['boostedFast', 'boostedSlow', 'fastUnboosted'],
+  },
+  truckBreaksAtSpeed: {
+    run: breaksAtSpeed,
+    inputs: ['headstone', 'deadTree'],
+  },
+  slowTruckTouchLeavesIt: {
+    run: slowTouchLeavesIt,
+    inputs: ['headstone', 'deadTree'],
+  },
+  carAtSpeedLeavesIt: {
+    run: carAtSpeedLeavesIt,
+    inputs: ['headstone', 'deadTree'],
+  },
   vehicleKillsSometimesLeaveGhosts: {
     inputs: ['car', 'truck', 'phantom'],
     run: (form) => {
@@ -274,9 +332,16 @@ export const cases = {
       const kills = 30;
       const speed = ride.form === 'truck' ? 18 : 24;
       const nose = ride.params.length / 2;
-      const at = form === 'phantom' ? ride.pos.clone() : ride.pos.clone().set(30, 0, 0);
+      const at =
+        form === 'phantom' ? ride.pos.clone() : ride.pos.clone().set(30, 0, 0);
       const yaw = form === 'phantom' ? ride.yaw + Math.PI : Math.PI / 2;
-      const ahead = at.clone().set(at.x + Math.sin(yaw) * (nose + 0.2), at.y, at.z + Math.cos(yaw) * (nose + 0.2));
+      const ahead = at
+        .clone()
+        .set(
+          at.x + Math.sin(yaw) * (nose + 0.2),
+          at.y,
+          at.z + Math.cos(yaw) * (nose + 0.2),
+        );
       let dead = 0;
       for (let k = 0; k < kills; k++) {
         ride.place(at.x, at.y, at.z, yaw, speed, 0, null);
@@ -338,7 +403,11 @@ export function graveyardGhostsGatherAtNight() {
     return { ok: false, why: 'no weighted ghost zone' };
   }
 
-  const inside = (p) => p.x >= yard.min[0] && p.x <= yard.max[0] && p.z >= yard.min[2] && p.z <= yard.max[2];
+  const inside = (p) =>
+    p.x >= yard.min[0] &&
+    p.x <= yard.max[0] &&
+    p.z >= yard.min[2] &&
+    p.z <= yard.max[2];
   const there = () => g.ghosts.active().filter(inside).length;
   const gathered = there();
   const one = g.ghosts.active().find(inside).clone();
@@ -346,6 +415,17 @@ export function graveyardGhostsGatherAtNight() {
   sim.run(1);
   const after = there();
   const back = sim.until(() => there() === gathered, yard.respawn + 1, []);
-  const ok = gathered >= 24 && took === 1 && after === gathered - 1 && back.ok && back.seconds <= yard.respawn + 0.1;
-  return { ok, gathered, total: g.ghosts.active().length, respawn: yard.respawn, back: back.seconds };
+  const ok =
+    gathered >= 24 &&
+    took === 1 &&
+    after === gathered - 1 &&
+    back.ok &&
+    back.seconds <= yard.respawn + 0.1;
+  return {
+    ok,
+    gathered,
+    total: g.ghosts.active().length,
+    respawn: yard.respawn,
+    back: back.seconds,
+  };
 }

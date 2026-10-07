@@ -2,14 +2,20 @@ import { Keyring } from '@/actors/vehicles/ignition';
 
 import type { ItemKind } from './item-breeds';
 
-/** Inventory action identifiers. Availability is resolved by the interaction system. */
+/**
+ * Inventory action identifiers. Availability is resolved by the interaction
+ * system.
+ */
 export type ItemActionId = 'eat' | 'give';
 
 export function isItemAction(a: string): a is ItemActionId {
   return a === 'eat' || a === 'give';
 }
 
-/** Track item counts in insertion order. Removing the last item also removes its position in that order. */
+/**
+ * Track item counts in insertion order. Removing the last item also removes
+ * its position in that order.
+ */
 export class Inventory {
   readonly keys = new Keyring();
   private readonly counts = new Map<ItemKind, number>();

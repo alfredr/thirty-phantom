@@ -4,20 +4,30 @@ import type { ElevatorDef, Facing, V3 } from './level-data';
 import type { LevelWriter } from './level-writer';
 
 /**
- * Dimensions shared by static shaft generation, runtime cabins and doors in world/elevators.ts, and navigation links in
- * world/nav-grid.ts. Distances are in meters.
+ * Dimensions shared by static shaft generation, runtime cabins and doors in
+ * world/elevators.ts, and navigation links in world/nav-grid.ts. Distances are
+ * in meters.
  */
 export const LIFT = {
   /** Shaft walls. */
   wall: 0.3,
   /** Landing doors are this tall. */
   doorTop: 2.2,
-  /** The shaft rises this far above each stop's floor: the door, its lintel and room over the cab. */
+  /**
+   * The shaft rises this far above each stop's floor: the door, its lintel and
+   * room over the cab.
+   */
   head: 2.9,
-  /** The cab: inside height and floor slab thickness (its floor's top is the stop's floor). */
+  /**
+   * The cab: inside height and floor slab thickness (its floor's top is the
+   * stop's floor).
+   */
   cabHeight: 2.4,
   floor: 0.25,
-  /** Pit below the lowest stop, for the cab's floor slab and the buffers; its floor slab's thickness. */
+  /**
+   * Pit below the lowest stop, for the cab's floor slab and the buffers; its
+   * floor slab's thickness.
+   */
   pit: 1.2,
   slab: 0.3,
   /** The roof over the top of the shaft. */
@@ -27,9 +37,15 @@ export const LIFT = {
   /** Door trim: how far it stands proud of the wall, and how wide it is. */
   trim: 0.05,
   trimWidth: 0.12,
-  /** The call button's plate beside each door (along the wall from the door's edge, and up from the floor). */
+  /**
+   * The call button's plate beside each door (along the wall from the door's
+   * edge, and up from the floor).
+   */
   plate: { from: 0.25, to: 0.55, y0: 0.95, y1: 1.45 },
-  /** The arrival lantern, a bar over the door that lights while the cab is here: its bottom and height above the floor. */
+  /**
+   * The arrival lantern, a bar over the door that lights while the cab is
+   * here: its bottom and height above the floor.
+   */
   lantern: { y: 2.33, h: 0.08 },
   /** The ELEVATOR sign over each door: center height above the floor, and size. */
   sign: { y: 2.68, size: [1.5, 0.34] as [number, number] },
@@ -37,11 +53,18 @@ export const LIFT = {
 
 /** The axis a facing points along (0 = x, 2 = z) and which way along it. */
 export function facingAxis(f: Facing): { axis: 0 | 2; sign: 1 | -1 } {
-  return { axis: f === 'x+' || f === 'x-' ? 0 : 2, sign: f === 'x+' || f === 'z+' ? 1 : -1 };
+  return {
+    axis: f === 'x+' || f === 'x-' ? 0 : 2,
+    sign: f === 'x+' || f === 'z+' ? 1 : -1,
+  };
 }
 
 /** The middle of the shaft's footprint, at height y. */
-export function shaftCenter(def: ElevatorDef, y: number, out: V3 = [0, 0, 0]): V3 {
+export function shaftCenter(
+  def: ElevatorDef,
+  y: number,
+  out: V3 = [0, 0, 0],
+): V3 {
   out[0] = (def.min[0] + def.max[0]) / 2;
   out[1] = y;
   out[2] = (def.min[2] + def.max[2]) / 2;
@@ -49,11 +72,17 @@ export function shaftCenter(def: ElevatorDef, y: number, out: V3 = [0, 0, 0]): V
 }
 
 /**
- * Write a point on stop i's door centreline into `p` and return it. `out` is the distance from the shaft's inner face,
- * positive outward and negative into the cabin. The point lies at the stop's floor height. Throw if the stop does not
- * exist.
+ * Write a point on stop i's door centreline into `p` and return it. `out` is
+ * the distance from the shaft's inner face, positive outward and negative into
+ * the cabin. The point lies at the stop's floor height. Throw if the stop does
+ * not exist.
  */
-export function doorPoint(def: ElevatorDef, i: number, out: number, p: V3 = [0, 0, 0]): V3 {
+export function doorPoint(
+  def: ElevatorDef,
+  i: number,
+  out: number,
+  p: V3 = [0, 0, 0],
+): V3 {
   const s = def.stops[i];
   if (!s) {
     throw new Error(`elevator has no stop ${i}`);
@@ -66,11 +95,18 @@ export function doorPoint(def: ElevatorDef, i: number, out: number, p: V3 = [0, 
 }
 
 /** Where someone waits for the cab at stop i (and where they step out to). */
-export function landingPoint(def: ElevatorDef, i: number, p: V3 = [0, 0, 0]): V3 {
+export function landingPoint(
+  def: ElevatorDef,
+  i: number,
+  p: V3 = [0, 0, 0],
+): V3 {
   return doorPoint(def, i, LIFT.wall + LIFT.landing, p);
 }
 
-/** A box forming part of the elevator shaft, including structural walls, slabs, trim, or call-button plates. */
+/**
+ * A box forming part of the elevator shaft, including structural walls, slabs,
+ * trim, or call-button plates.
+ */
 export interface ShaftPart {
   min: V3;
   max: V3;
@@ -86,11 +122,15 @@ export interface ShaftSign {
 }
 
 /**
- * Generate shaft boxes and sign placements in `def` coordinates. Stops must be ordered from lowest to highest. Include
- * a doorway at each landing, the pit floor, and a roof with a lamp above the top stop. Consumers decide whether to
- * render these parts permanently or with an active interior.
+ * Generate shaft boxes and sign placements in `def` coordinates. Stops must be
+ * ordered from lowest to highest. Include a doorway at each landing, the pit
+ * floor, and a roof with a lamp above the top stop. Consumers decide whether
+ * to render these parts permanently or with an active interior.
  */
-export function shaftParts(def: ElevatorDef): { boxes: ShaftPart[]; signs: ShaftSign[] } {
+export function shaftParts(def: ElevatorDef): {
+  boxes: ShaftPart[];
+  signs: ShaftSign[];
+} {
   const L = LIFT;
   const t = L.wall;
   const { min, max, stops } = def;
@@ -116,8 +156,19 @@ export function shaftParts(def: ElevatorDef): { boxes: ShaftPart[]; signs: Shaft
     'concreteDark',
   );
 
-  /** A slab of wall on side f, `a0..a1` along it, standing `d0..d1` out from the shaft's inside face. */
-  const onSide = (f: Facing, a0: number, a1: number, y0: number, y1: number, d0: number, d1: number): [V3, V3] => {
+  /**
+   * A slab of wall on side f, `a0..a1` along it, standing `d0..d1` out from
+   * the shaft's inside face.
+   */
+  const onSide = (
+    f: Facing,
+    a0: number,
+    a1: number,
+    y0: number,
+    y1: number,
+    d0: number,
+    d1: number,
+  ): [V3, V3] => {
     const { axis, sign } = facingAxis(f);
     const face = sign > 0 ? max[axis] : min[axis];
     const c0 = face + sign * d0;
@@ -134,7 +185,8 @@ export function shaftParts(def: ElevatorDef): { boxes: ShaftPart[]; signs: Shaft
   };
 
   /** Along-the-wall extent of side f: the x sides take the corners. */
-  const span = (f: Facing): [number, number] => (facingAxis(f).axis === 0 ? [oz0, oz1] : [ix0, ix1]);
+  const span = (f: Facing): [number, number] =>
+    facingAxis(f).axis === 0 ? [oz0, oz1] : [ix0, ix1];
   const SIDES: Facing[] = ['x-', 'x+', 'z-', 'z+'];
 
   stops.forEach((s, i) => {
@@ -158,11 +210,43 @@ export function shaftParts(def: ElevatorDef): { boxes: ShaftPart[]; signs: Shaft
       box(onSide(f, d0, d1, s.y + L.doorTop, hi, 0, t), 'concreteDark');
       // trim round the door, the call button's plate, the sign over it
       const tw = L.trimWidth;
-      box(onSide(f, d0 - tw, d0, s.y, s.y + L.doorTop + tw, t, t + L.trim), 'metal', false);
-      box(onSide(f, d1, d1 + tw, s.y, s.y + L.doorTop + tw, t, t + L.trim), 'metal', false);
-      box(onSide(f, d0 - tw, d1 + tw, s.y + L.doorTop, s.y + L.doorTop + tw, t, t + L.trim), 'metal', false);
+      box(
+        onSide(f, d0 - tw, d0, s.y, s.y + L.doorTop + tw, t, t + L.trim),
+        'metal',
+        false,
+      );
+      box(
+        onSide(f, d1, d1 + tw, s.y, s.y + L.doorTop + tw, t, t + L.trim),
+        'metal',
+        false,
+      );
+      box(
+        onSide(
+          f,
+          d0 - tw,
+          d1 + tw,
+          s.y + L.doorTop,
+          s.y + L.doorTop + tw,
+          t,
+          t + L.trim,
+        ),
+        'metal',
+        false,
+      );
       const P = L.plate;
-      box(onSide(f, d1 + P.from, d1 + P.to, s.y + P.y0, s.y + P.y1, t, t + L.trim), 'metal', false);
+      box(
+        onSide(
+          f,
+          d1 + P.from,
+          d1 + P.to,
+          s.y + P.y0,
+          s.y + P.y1,
+          t,
+          t + L.trim,
+        ),
+        'metal',
+        false,
+      );
       const pos = doorPoint(def, i, t + 0.03);
       pos[1] = s.y + L.sign.y;
       signs.push({ pos, facing: f });
@@ -195,8 +279,9 @@ export function shaftParts(def: ElevatorDef): { boxes: ShaftPart[]; signs: Shaft
 }
 
 /**
- * Append shaft geometry, signs, and the elevator definition in the writer's coordinate frame. Add a pit cutout when the
- * definition's pit floor is below local Y=0.
+ * Append shaft geometry, signs, and the elevator definition in the writer's
+ * coordinate frame. Add a pit cutout when the definition's pit floor is below
+ * local Y=0.
  */
 export function writeElevator(w: LevelWriter, def: ElevatorDef): void {
   const { boxes, signs } = shaftParts(def);
@@ -213,7 +298,10 @@ export function writeElevator(w: LevelWriter, def: ElevatorDef): void {
   const [ix1, , iz1] = def.max;
   const t = LIFT.wall;
   if (pitFloor < 0) {
-    w.data.pits.push({ min: w.p([ix0 - t, pitFloor - LIFT.slab, iz0 - t]), max: w.p([ix1 + t, 0, iz1 + t]) });
+    w.data.pits.push({
+      min: w.p([ix0 - t, pitFloor - LIFT.slab, iz0 - t]),
+      max: w.p([ix1 + t, 0, iz1 + t]),
+    });
   }
 
   w.data.elevators.push({

@@ -29,7 +29,10 @@ export class LevelWriter {
     this.data = data ?? emptyLevel(name);
   }
 
-  /** Run `fn` with `o` added to the current coordinate offset, then restore the previous offset on normal return. */
+  /**
+   * Run `fn` with `o` added to the current coordinate offset, then restore the
+   * previous offset on normal return.
+   */
   at(o: V3, fn: () => void): void {
     const prev: V3 = [this.ox, this.oy, this.oz];
     this.ox += o[0];
@@ -45,8 +48,16 @@ export class LevelWriter {
 
   box(min: V3, max: V3, mat: MatKey, extra: BoxExtra = {}): BoxDef {
     const b: BoxDef = {
-      min: this.p([Math.min(min[0], max[0]), Math.min(min[1], max[1]), Math.min(min[2], max[2])]),
-      max: this.p([Math.max(min[0], max[0]), Math.max(min[1], max[1]), Math.max(min[2], max[2])]),
+      min: this.p([
+        Math.min(min[0], max[0]),
+        Math.min(min[1], max[1]),
+        Math.min(min[2], max[2]),
+      ]),
+      max: this.p([
+        Math.max(min[0], max[0]),
+        Math.max(min[1], max[1]),
+        Math.max(min[2], max[2]),
+      ]),
       mat,
       ...extra,
     };
@@ -65,10 +76,18 @@ export class LevelWriter {
     mat: MatKey,
     extra: BoxExtra = {},
   ): BoxDef {
-    return this.box([cx - sx / 2, y, cz - sz / 2], [cx + sx / 2, y + sy, cz + sz / 2], mat, extra);
+    return this.box(
+      [cx - sx / 2, y, cz - sz / 2],
+      [cx + sx / 2, y + sy, cz + sz / 2],
+      mat,
+      extra,
+    );
   }
 
-  /** A rim `t` thick around the rectangle x0..x1, z0..z1, from y0 up to y1 (parapets, pond and fountain edges). */
+  /**
+   * A rim `t` thick around the rectangle x0..x1, z0..z1, from y0 up to y1
+   * (parapets, pond and fountain edges).
+   */
   frame(
     x0: number,
     z0: number,
@@ -86,7 +105,15 @@ export class LevelWriter {
     this.box([x1 - t, y0, z0 + t], [x1, y1, z1 - t], mat, extra);
   }
 
-  ramp(min: V3, max: V3, axis: 'x' | 'z', dir: 1 | -1, low: number, mat: MatKey, kicker = false): RampDef {
+  ramp(
+    min: V3,
+    max: V3,
+    axis: 'x' | 'z',
+    dir: 1 | -1,
+    low: number,
+    mat: MatKey,
+    kicker = false,
+  ): RampDef {
     const r: RampDef = {
       min: this.p(min),
       max: this.p(max),
@@ -100,7 +127,13 @@ export class LevelWriter {
     return r;
   }
 
-  sign(pos: V3, size: [number, number], facing: Facing, style: SignStyle, lines: string[]): void {
+  sign(
+    pos: V3,
+    size: [number, number],
+    facing: Facing,
+    style: SignStyle,
+    lines: string[],
+  ): void {
     this.data.signs.push({ pos: this.p(pos), size, facing, style, lines });
   }
 
@@ -109,18 +142,28 @@ export class LevelWriter {
   }
 
   /**
-   * Append decor in the current coordinate frame. `yaw` is in radians; optional scale and stretch apply uniformly and
-   * along local X respectively. Return the appended definition.
+   * Append decor in the current coordinate frame. `yaw` is in radians;
+   * optional scale and stretch apply uniformly and along local X respectively.
+   * Return the appended definition.
    */
-  decor(kind: DecorKind, pos: V3, yaw = 0, extra: Pick<DecorDef, 'scale' | 'stretch'> = {}): DecorDef {
+  decor(
+    kind: DecorKind,
+    pos: V3,
+    yaw = 0,
+    extra: Pick<DecorDef, 'scale' | 'stretch'> = {},
+  ): DecorDef {
     const d: DecorDef = { kind, pos: this.p(pos), yaw, ...extra };
     this.data.decor.push(d);
     return d;
   }
 
-  /** Append a building after translating its bounds, doors, and core into the current frame. Return the new definition. */
+  /**
+   * Append a building after translating its bounds, doors, and core into the
+   * current frame. Return the new definition.
+   */
   building(def: BuildingDef): BuildingDef {
-    const along = (f: Facing): number => (f === 'z+' || f === 'z-' ? this.ox : this.oz);
+    const along = (f: Facing): number =>
+      f === 'z+' || f === 'z-' ? this.ox : this.oz;
     const b: BuildingDef = {
       ...def,
       min: this.p(def.min),

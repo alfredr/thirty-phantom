@@ -9,7 +9,10 @@ export interface ItemWorld {
   skipPhase(notice: { title: string; message: string }): void;
 }
 
-/** A shared use definition. Each selection binds it to an item in a fresh action. */
+/**
+ * A shared use definition. Each selection binds it to an item in a fresh
+ * action.
+ */
 export interface ItemUse {
   readonly id: ItemActionId;
   readonly label: string;
@@ -17,7 +20,10 @@ export interface ItemUse {
   use(w: ItemWorld, kind: ItemKind): boolean;
 }
 
-/** Consume a complete quantity, report its use, then apply the configured effect. */
+/**
+ * Consume a complete quantity, report its use, then apply the configured
+ * effect.
+ */
 export function consume(p: {
   readonly id: ItemActionId;
   readonly label: string;

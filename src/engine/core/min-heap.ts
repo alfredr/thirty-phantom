@@ -1,4 +1,7 @@
-/** A minimum-priority queue. Priorities are captured on insertion; equal priorities have no guaranteed order. */
+/**
+ * A minimum-priority queue. Priorities are captured on insertion; equal
+ * priorities have no guaranteed order.
+ */
 export class MinHeap<T> {
   private readonly values: T[] = [];
   private readonly priorities: number[] = [];
@@ -51,7 +54,10 @@ export class MinHeap<T> {
       }
 
       const right = left + 1;
-      const child = right < values.length && priorities[right]! < priorities[left]! ? right : left;
+      const child =
+        right < values.length && priorities[right]! < priorities[left]!
+          ? right
+          : left;
       if (priorities[child]! >= priority) {
         break;
       }

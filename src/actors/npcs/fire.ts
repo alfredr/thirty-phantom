@@ -14,13 +14,24 @@ export interface FireWorld {
   burned(at: Vector3): void;
 }
 
-/** Feeding duration in seconds, arc height and final depth below the rim in meters, and spin in rad/s. */
+/**
+ * Feeding duration in seconds, arc height and final depth below the rim in
+ * meters, and spin in rad/s.
+ */
 const FEED = { flight: 0.7, arc: 1.2, sink: 0.3, spin: 9 };
 /** Additional flame scale at full strength and decay duration in seconds. */
 const PLUME = { height: 2.2, width: 0.6, time: 1.6 };
 const FLARE = { height: 6, width: 2.4, time: 6 };
-/** Resting flame scale and flicker amplitudes, driven by two frequencies in rad/s. */
-const FLICKER = { rest: 0.8, height: 0.35, width: 0.12, rates: [7.3, 11.1] as const };
+/**
+ * Resting flame scale and flicker amplitudes, driven by two frequencies in
+ * rad/s.
+ */
+const FLICKER = {
+  rest: 0.8,
+  height: 0.35,
+  width: 0.12,
+  rates: [7.3, 11.1] as const,
+};
 
 interface Feed {
   item: Object3D;
@@ -68,7 +79,10 @@ export class Fire {
     );
   }
 
-  /** Launch a part into the fire and report its arrival after removing it from the scene. */
+  /**
+   * Launch a part into the fire and report its arrival after removing it from
+   * the scene.
+   */
   feed(kind: PartKind, from: Vector3): void {
     const item = buildJunk(kind);
     item.position.copy(from);
@@ -85,11 +99,14 @@ export class Fire {
     const blaze = this.flare * this.flare;
     this.flames.forEach((f, i) => {
       const a =
-        Math.sin(this.t * FLICKER.rates[0] + i * 1.7) * 0.6 + Math.sin(this.t * FLICKER.rates[1] + i * 2.9) * 0.4;
+        Math.sin(this.t * FLICKER.rates[0] + i * 1.7) * 0.6 +
+        Math.sin(this.t * FLICKER.rates[1] + i * 2.9) * 0.4;
       const wide = (1 + roar * PLUME.width) * (1 + this.flare * FLARE.width);
       f.scale.set(
         (1 + a * FLICKER.width) * wide,
-        (FLICKER.rest + a * FLICKER.height) * (1 + roar * PLUME.height) * (1 + blaze * FLARE.height),
+        (FLICKER.rest + a * FLICKER.height) *
+          (1 + roar * PLUME.height) *
+          (1 + blaze * FLARE.height),
         (1 - a * FLICKER.width) * wide,
       );
     });

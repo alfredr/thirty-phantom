@@ -4,7 +4,10 @@ import { keyName } from '@/game/controls';
 
 const files = new Set<string>();
 
-/** Reload when development changes are pending. The game calls this from its reload shortcut. */
+/**
+ * Reload when development changes are pending. The game calls this from its
+ * reload shortcut.
+ */
 export function reloadIfPending(): void {
   if (files.size) {
     location.reload();
@@ -39,7 +42,10 @@ if (import.meta.hot) {
 
     const list = [...files];
     const label = toast.querySelector('span')!;
-    label.textContent = list.length === 1 ? `Change ready: ${list[0]}` : `${list.length} changes ready`;
+    label.textContent =
+      list.length === 1
+        ? `Change ready: ${list[0]}`
+        : `${list.length} changes ready`;
     label.title = list.join('\n');
 
     if (!toast.isConnected) {

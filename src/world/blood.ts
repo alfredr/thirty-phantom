@@ -9,7 +9,11 @@ import {
 } from 'three';
 
 import { TUNING } from '@/config';
-import type { CollisionWorld, GroundHit, Solid } from '@/engine/physics/collision';
+import type {
+  CollisionWorld,
+  GroundHit,
+  Solid,
+} from '@/engine/physics/collision';
 import { GeometryBatch } from '@/render/geometry';
 import { FX_LAYER, fxDecal } from '@/render/layers';
 import { withCutaway } from '@/render/materials';
@@ -17,32 +21,43 @@ import { puddleTexture } from '@/render/textures';
 
 import { PUDDLE } from './slime';
 
-/** Capacity limits for drops and pools. Drops reuse slots cyclically; new pools replace the oldest when full. */
+/**
+ * Capacity limits for drops and pools. Drops reuse slots cyclically; new pools
+ * replace the oldest when full.
+ */
 const DROPS = 256;
 const POOLS = 96;
 /**
- * Pools spread as a film about 1 mm thick: radius = sqrt(volume / (pi * 1 mm)), so half a litre spreads out past a body
- * (about 0.4 m). No smaller than a visible speck, no bigger than POOL_MAX (m).
+ * Pools spread as a film about 1 mm thick: radius = sqrt(volume / (pi * 1
+ * mm)), so half a litre spreads out past a body (about 0.4 m). No smaller than
+ * a visible speck, no bigger than POOL_MAX (m).
  */
 const POOL_K = 1 / Math.sqrt(Math.PI * 0.001);
 const POOL_MIN = 0.08;
 const POOL_MAX = 1.6;
 /** Drops landing within this of a pool's edge join it (m). */
 const MERGE = 0.25;
-/** Share of a pool that dries away per second, and how long until it's gone dark (s). */
+/**
+ * Share of a pool that dries away per second, and how long until it's gone
+ * dark (s).
+ */
 const DRY = 1 / 240;
 const DARKEN = 90;
 const FRESH = new Color('#7a0a12');
 const DRIED = new Color('#2a0508');
-/** Drops are drawn as cubes this size per cube root of their volume (bigger than life, to read at play zoom). */
+/**
+ * Drops are drawn as cubes this size per cube root of their volume (bigger
+ * than life, to read at play zoom).
+ */
 const DROP_SIZE = 4;
 
 const _gh: GroundHit = { solid: null };
 const _c = new Color();
 
 /**
- * Simulate falling blood drops and persistent pools using fixed-capacity arrays and instanced meshes. Drops merge into
- * nearby pools on flat surfaces; pools spread with volume, evaporate, and darken with age.
+ * Simulate falling blood drops and persistent pools using fixed-capacity
+ * arrays and instanced meshes. Drops merge into nearby pools on flat surfaces;
+ * pools spread with volume, evaporate, and darken with age.
  */
 export class BloodSim {
   readonly root = new Group();
@@ -71,7 +86,13 @@ export class BloodSim {
   private readonly pm: Float32Array;
 
   constructor(private readonly world: CollisionWorld) {
-    const dropMat = withCutaway(new MeshStandardMaterial({ color: FRESH, roughness: 0.3, metalness: 0.1 }));
+    const dropMat = withCutaway(
+      new MeshStandardMaterial({
+        color: FRESH,
+        roughness: 0.3,
+        metalness: 0.1,
+      }),
+    );
     this.drops = new InstancedMesh(new BoxGeometry(1, 1, 1), dropMat, DROPS);
     this.drops.instanceMatrix.setUsage(DynamicDrawUsage);
     this.drops.frustumCulled = false;
@@ -108,10 +129,18 @@ export class BloodSim {
   }
 
   /**
-   * Emit a drop with volume `vol` in cubic meters at the given world position and velocity in meters per second. Reuse
-   * the next cyclic drop slot.
+   * Emit a drop with volume `vol` in cubic meters at the given world position
+   * and velocity in meters per second. Reuse the next cyclic drop slot.
    */
-  drip(x: number, y: number, z: number, vx: number, vy: number, vz: number, vol: number): void {
+  drip(
+    x: number,
+    y: number,
+    z: number,
+    vx: number,
+    vy: number,
+    vz: number,
+    vol: number,
+  ): void {
     const i = this.nextDrop;
     this.nextDrop = (i + 1) % DROPS;
     this.dx[i] = x;
@@ -124,10 +153,19 @@ export class BloodSim {
   }
 
   /**
-   * Emit `n` drops with randomized volume and upward velocity. Add horizontal velocity noise scaled by `spread` in
-   * meters per second.
+   * Emit `n` drops with randomized volume and upward velocity. Add horizontal
+   * velocity noise scaled by `spread` in meters per second.
    */
-  spray(x: number, y: number, z: number, vx: number, vz: number, n: number, spread: number, vol: number): void {
+  spray(
+    x: number,
+    y: number,
+    z: number,
+    vx: number,
+    vz: number,
+    n: number,
+    spread: number,
+    vol: number,
+  ): void {
     for (let k = 0; k < n; k++) {
       this.drip(
         x,
@@ -155,7 +193,13 @@ export class BloodSim {
       const y = (this.dy[i] as number) + vy * dt;
       const z = (this.dz[i] as number) + (this.dvz[i] as number) * dt;
       _gh.solid = null;
-      const floor = this.world.groundAt(x, z, (this.dy[i] as number) + 0.05, 0, _gh);
+      const floor = this.world.groundAt(
+        x,
+        z,
+        (this.dy[i] as number) + 0.05,
+        0,
+        _gh,
+      );
       const o = i * 16;
       if (y <= floor) {
         // Flat pool decals cannot follow ramps. The assertion accounts for groundAt mutating _gh.solid.
@@ -189,8 +233,8 @@ export class BloodSim {
   }
 
   /**
-   * Merge incoming blood into a nearby pool at the same height, or create a pool in an empty slot. Replace the oldest
-   * pool if all slots are occupied.
+   * Merge incoming blood into a nearby pool at the same height, or create a
+   * pool in an empty slot. Replace the oldest pool if all slots are occupied.
    */
   private pool(x: number, y: number, z: number, vol: number): void {
     let best = -1;
@@ -230,7 +274,8 @@ export class BloodSim {
     const a = Math.random() * Math.PI;
     this.pcos[i] = Math.cos(a);
     this.psin[i] = Math.sin(a);
-    this.paspect[i] = PUDDLE.aspect[0] + Math.random() * (PUDDLE.aspect[1] - PUDDLE.aspect[0]);
+    this.paspect[i] =
+      PUDDLE.aspect[0] + Math.random() * (PUDDLE.aspect[1] - PUDDLE.aspect[0]);
   }
 
   private dryPools(dt: number): void {
@@ -255,7 +300,9 @@ export class BloodSim {
       this.page[i] = age;
       // Ease the radius toward its volume-dependent target to avoid abrupt growth on impact.
       let r = this.pr[i] as number;
-      r += (Math.min(POOL_MAX, Math.max(POOL_MIN, POOL_K * Math.sqrt(vol))) - r) * k;
+      r +=
+        (Math.min(POOL_MAX, Math.max(POOL_MIN, POOL_K * Math.sqrt(vol))) - r) *
+        k;
       this.pr[i] = r;
       const sx = r * 2;
       const sz = sx * (this.paspect[i] as number);
@@ -273,7 +320,10 @@ export class BloodSim {
 
       // Stagger color updates because drying changes the tint slowly.
       if ((i + Math.floor(age * 4)) % 8 === 0) {
-        this.pools.setColorAt(i, _c.copy(FRESH).lerp(DRIED, Math.min(1, age / DARKEN)));
+        this.pools.setColorAt(
+          i,
+          _c.copy(FRESH).lerp(DRIED, Math.min(1, age / DARKEN)),
+        );
         colors = true;
       }
     }

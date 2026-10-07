@@ -11,7 +11,10 @@ import type { ItemKind } from './item-breeds';
 
 const J = TUNING.junk;
 
-/** Launch height in meters, maximum angular speed in rad/s, and gravity in m/s². */
+/**
+ * Launch height in meters, maximum angular speed in rad/s, and gravity in
+ * m/s².
+ */
 const BUMPER = 0.6;
 const TUMBLE = 9;
 const GRAVITY = 14;
@@ -55,8 +58,9 @@ interface Shed {
 }
 
 /**
- * Manage collectible debris with per-car part limits and a global debris limit. Parts tumble, bounce once, and expire
- * unless collected. Items placed with `lay` remain highlighted until collection.
+ * Manage collectible debris with per-car part limits and a global debris
+ * limit. Parts tumble, bounce once, and expire unless collected. Items placed
+ * with `lay` remain highlighted until collection.
  */
 export class Junk {
   private readonly parts: Part[] = [];
@@ -69,24 +73,37 @@ export class Junk {
     private readonly rng: Rng,
   ) {}
 
-  /** Shed parts when the impact velocity change `dv`, in m/s, exceeds the configured threshold. */
+  /**
+   * Shed parts when the impact velocity change `dv`, in m/s, exceeds the
+   * configured threshold.
+   */
   hit(car: Vehicle, at: Vector3, dv: number): void {
     const drops = car.breed.drops;
     if (!drops || dv < drops.crashDv) {
       return;
     }
 
-    this.lose(car, at, Math.min(drops.perHit, 1 + Math.floor((dv - drops.crashDv) / drops.perDv)));
+    this.lose(
+      car,
+      at,
+      Math.min(
+        drops.perHit,
+        1 + Math.floor((dv - drops.crashDv) / drops.perDv),
+      ),
+    );
   }
 
-  /** Request the configured number of parts for a crushed car, subject to shedding limits. */
+  /**
+   * Request the configured number of parts for a crushed car, subject to
+   * shedding limits.
+   */
   crushed(car: Vehicle): void {
     this.lose(car, car.pos, car.breed.drops?.crushed ?? 0);
   }
 
   /**
-   * Register an item at its current position as a permanent pickup. Attach it to the scene and highlight the ground at
-   * `floor`.
+   * Register an item at its current position as a permanent pickup. Attach it
+   * to the scene and highlight the ground at `floor`.
    */
   lay(kind: ItemKind, item: Object3D, floor: number, pickup?: Pickup): void {
     if (item.parent !== this.scene) {
@@ -94,7 +111,10 @@ export class Junk {
     }
 
     const highlight = new Highlight();
-    highlight.place(item.position, _g.set(item.position.x, floor, item.position.z));
+    highlight.place(
+      item.position,
+      _g.set(item.position.x, floor, item.position.z),
+    );
     this.scene.add(highlight.root);
     this.parts.push({
       kind,
@@ -112,7 +132,10 @@ export class Junk {
     });
   }
 
-  /** Advance debris and return items collected near `pos`. A null position disables collection. */
+  /**
+   * Advance debris and return items collected near `pos`. A null position
+   * disables collection.
+   */
   update(dt: number, pos: Vector3 | null): ItemKind[] {
     this.t += dt;
     const got: ItemKind[] = [];
@@ -176,7 +199,8 @@ export class Junk {
     // Launch outward through the impact point.
     const out = Math.atan2(at.x - car.pos.x, at.z - car.pos.z);
     for (let k = 0; k < n && s.parts < drops.perCar; k++) {
-      const tire = s.tires < car.rig.wheels.length && this.rng.next() < drops.tireShare;
+      const tire =
+        s.tires < car.rig.wheels.length && this.rng.next() < drops.tireShare;
       const kind = tire ? 'tire' : this.rng.pick(drops.parts);
       if (tire) {
         s.tires++;
@@ -187,7 +211,10 @@ export class Junk {
     }
 
     // Remove the oldest temporary debris first; permanent pickups are exempt.
-    for (let i = 0, n = this.parts.length; n > J.max && i < this.parts.length;) {
+    for (
+      let i = 0, n = this.parts.length;
+      n > J.max && i < this.parts.length;
+    ) {
       if ((this.parts[i] as Part).keep) {
         i++;
       } else {
@@ -207,7 +234,11 @@ export class Junk {
     this.parts.push({
       kind,
       pos,
-      vel: new Vector3(Math.sin(yaw) * fling, this.rng.range(...J.up), Math.cos(yaw) * fling),
+      vel: new Vector3(
+        Math.sin(yaw) * fling,
+        this.rng.range(...J.up),
+        Math.cos(yaw) * fling,
+      ),
       spin: new Vector3(
         this.rng.range(-TUMBLE, TUMBLE),
         this.rng.range(-TUMBLE, TUMBLE),
@@ -223,7 +254,10 @@ export class Junk {
     });
   }
 
-  /** Integrate flight and spin, bounce once, then settle flat while preserving yaw. */
+  /**
+   * Integrate flight and spin, bounce once, then settle flat while preserving
+   * yaw.
+   */
   private fly(p: Part, dt: number): void {
     p.vel.y -= GRAVITY * dt;
     p.pos.addScaledVector(p.vel, dt);
@@ -236,7 +270,8 @@ export class Junk {
       return;
     }
 
-    p.floor = this.nav.heightAt(p.pos.x, p.pos.y + LOOK_UP, p.pos.z) ?? p.floor;
+    p.floor =
+      this.nav.heightAt(p.pos.x, p.pos.y + LOOK_UP, p.pos.z) ?? p.floor;
 
     if (p.pos.y > p.floor) {
       return;
@@ -258,7 +293,9 @@ export class Junk {
   }
 
   where(kind: ItemKind): Vector3[] {
-    return this.parts.filter((p) => p.kind === kind && p.landed).map((p) => p.pos);
+    return this.parts
+      .filter((p) => p.kind === kind && p.landed)
+      .map((p) => p.pos);
   }
 
   private remove(i: number): void {

@@ -2,7 +2,10 @@ import { Group } from 'three';
 
 import { loadModules } from '../modules.mjs';
 
-const [{ Npc }, { proximityPitch }] = await loadModules('/src/actors/npcs/npcs.ts', '/src/actors/npcs/behaviors.ts');
+const [{ Npc }, { proximityPitch }] = await loadModules(
+  '/src/actors/npcs/npcs.ts',
+  '/src/actors/npcs/behaviors.ts',
+);
 
 export function planner() {
   const jobs = [];
@@ -46,7 +49,9 @@ export function randyAt(pos, yaw, fire) {
       palm: { burner: new Group() },
       props: { badge },
     }),
-    fire: fire ? { model: () => ({ root: new Group(), flames: [] }), rim: 1 } : undefined,
+    fire: fire
+      ? { model: () => ({ root: new Group(), flames: [] }), rim: 1 }
+      : undefined,
     pitch: proximityPitch({ rest: 4, hold: 3.5 }),
     trades: [],
   };
@@ -61,6 +66,11 @@ export function randyAt(pos, yaw, fire) {
     landed: () => undefined,
     fed: () => undefined,
   };
-  const def = { id: 'randy', pos: pos.toArray(), yaw, ...(fire ? { fire: fire.toArray() } : {}) };
+  const def = {
+    id: 'randy',
+    pos: pos.toArray(),
+    yaw,
+    ...(fire ? { fire: fire.toArray() } : {}),
+  };
   return new Npc(def, breed, world);
 }

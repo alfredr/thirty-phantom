@@ -18,7 +18,10 @@ export const SEDAN = {
 
 export type SedanParams = typeof SEDAN;
 
-/** Build a box sedan facing +Z. Muted default paint distinguishes it from monster trucks. */
+/**
+ * Build a box sedan facing +Z. Muted default paint distinguishes it from
+ * monster trucks.
+ */
 export function sedan(params: Partial<SedanParams> = {}) {
   const p = { ...SEDAN, ...params };
   const lower = box(...p.body).on(p.clearance);
@@ -29,9 +32,25 @@ export function sedan(params: Partial<SedanParams> = {}) {
     {
       paint: { color: p.color, roughness: 0.45, metalness: 0.35 },
       dark: { color: '#19131f', roughness: 0.7 },
-      glass: { color: '#1a1030', roughness: 0.12, metalness: 0.8, emissive: '#2a1450', emissiveIntensity: 0.25 },
-      head: { name: 'headlight', color: '#fff4d8', emissive: '#ffe7b0', emissiveIntensity: 0.2 },
-      tail: { name: 'taillight', color: '#5a0010', emissive: '#ff1a3a', emissiveIntensity: 0.6 },
+      glass: {
+        color: '#1a1030',
+        roughness: 0.12,
+        metalness: 0.8,
+        emissive: '#2a1450',
+        emissiveIntensity: 0.25,
+      },
+      head: {
+        name: 'headlight',
+        color: '#fff4d8',
+        emissive: '#ffe7b0',
+        emissiveIntensity: 0.2,
+      },
+      tail: {
+        name: 'taillight',
+        color: '#5a0010',
+        emissive: '#ff1a3a',
+        emissiveIntensity: 0.6,
+      },
       tire: { color: '#0f0b14', roughness: 0.9 },
       hub: { color: '#8a8398', metalness: 0.6, roughness: 0.35 },
     },
@@ -44,7 +63,10 @@ export function sedan(params: Partial<SedanParams> = {}) {
         solid(cabin.sized(1.6, 0.38, 0.08).onFace(cabin, '-z'), 'glass'),
         solid(box(2.04, 0.12, 4.0).onFace(lower, '-y'), 'dark'),
         ...(['+z', '-z'] as const).map((f) =>
-          solid(box(2.08, 0.22, 0.3).inside(lower, '-y').onFace(lower, f, -0.06), 'dark'),
+          solid(
+            box(2.08, 0.22, 0.3).inside(lower, '-y').onFace(lower, f, -0.06),
+            'dark',
+          ),
         ),
         ...SIDES.flatMap((s) => [
           solid(
@@ -69,16 +91,26 @@ export function sedan(params: Partial<SedanParams> = {}) {
 }
 
 /**
- * Scale authored sedan dimensions to match TUNING.car and the deck’s turning clearance. Apply the same scale to
- * procedural and imported rigs, including wheel radii.
+ * Scale authored sedan dimensions to match TUNING.car and the deck’s turning
+ * clearance. Apply the same scale to procedural and imported rigs, including
+ * wheel radii.
  */
 export const SEDAN_SCALE = 0.92;
 
 export function buildCarRig(color: string): VehicleRig {
-  return atSedanScale(vehicleRig(build(sedan({ color })), ['head', 'tail'], SEDAN.height * SEDAN_SCALE));
+  return atSedanScale(
+    vehicleRig(
+      build(sedan({ color })),
+      ['head', 'tail'],
+      SEDAN.height * SEDAN_SCALE,
+    ),
+  );
 }
 
-/** Shrink a sedan rig modelled at SEDAN's sizes (box-built or the GLB) to SEDAN_SCALE, wheels included. */
+/**
+ * Shrink a sedan rig modelled at SEDAN's sizes (box-built or the GLB) to
+ * SEDAN_SCALE, wheels included.
+ */
 export function atSedanScale(rig: VehicleRig): VehicleRig {
   rig.root.scale.setScalar(SEDAN_SCALE);
   rig.scale = SEDAN_SCALE;

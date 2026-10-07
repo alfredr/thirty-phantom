@@ -11,7 +11,10 @@ export interface ItemAmount {
   readonly n: number;
 }
 
-/** Exchange all carried input items for a reward per item. The recipient owns any follow-up animation. */
+/**
+ * Exchange all carried input items for a reward per item. The recipient owns
+ * any follow-up animation.
+ */
 export interface Exchange {
   readonly take: ItemKind;
   readonly give: { readonly kind: ItemKind; readonly perItem: number };
@@ -29,7 +32,10 @@ export interface Trade {
   readonly exchange: Exchange;
 }
 
-/** Discover exchanges declared by NPC breeds and execute their inventory transfers. */
+/**
+ * Discover exchanges declared by NPC breeds and execute their inventory
+ * transfers.
+ */
 export class Trades {
   /** Scenes can hide offers while still performing exchanges directly. */
   enabled = true;
@@ -62,7 +68,10 @@ export class Trades {
     return null;
   }
 
-  /** Scripts supply their own proximity rules. Availability and inventory are checked again at handover. */
+  /**
+   * Scripts supply their own proximity rules. Availability and inventory are
+   * checked again at handover.
+   */
   give(to: Npc, kind: ItemKind, from: Vector3): number {
     const exchange = to.breed.trades.find((e) => e.take === kind);
     if (!exchange || !transferable(exchange) || !exchange.ready(to)) {
@@ -84,5 +93,8 @@ export class Trades {
 }
 
 function transferable(exchange: Exchange): boolean {
-  return !ITEM_BREEDS[exchange.take].unavailable && !ITEM_BREEDS[exchange.give.kind].unavailable;
+  return (
+    !ITEM_BREEDS[exchange.take].unavailable &&
+    !ITEM_BREEDS[exchange.give.kind].unavailable
+  );
 }

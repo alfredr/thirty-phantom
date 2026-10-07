@@ -50,12 +50,25 @@ function walk(gates, from, step, frames) {
 
 test('Cody walking into a closed arm stops on his side of it', () => {
   const { gates } = gateWith();
-  const end = walk(gates, new Vector3(54, 0, 12), new Vector3(-7 * DT, 0, 0), 60);
+  const end = walk(
+    gates,
+    new Vector3(54, 0, 12),
+    new Vector3(-7 * DT, 0, 0),
+    60,
+  );
   assert.ok(end.x > 51.15, `stays outside, x = ${end.x}`);
-  assert.ok(Math.abs(end.x - (51.15 + RADIUS + 0.11)) < 1e-6, 'rests against the bar');
+  assert.ok(
+    Math.abs(end.x - (51.15 + RADIUS + 0.11)) < 1e-6,
+    'rests against the bar',
+  );
   assert.ok(Math.abs(end.z - 12) < 1e-9, 'slides only along the arm');
 
-  const inside = walk(gates, new Vector3(48, 0, 12), new Vector3(7 * DT, 0, 0), 60);
+  const inside = walk(
+    gates,
+    new Vector3(48, 0, 12),
+    new Vector3(7 * DT, 0, 0),
+    60,
+  );
   assert.ok(inside.x < 51.15, 'and from inside the deck too');
 });
 
@@ -67,9 +80,19 @@ test('running speed and a long frame cannot tunnel through the arm', () => {
 
 test('Cody cannot walk under the closed arm, but feet above the bar clear it', () => {
   const { gates } = gateWith();
-  const under = walk(gates, new Vector3(54, 0, 12), new Vector3(-0.2, 0, 0), 40);
+  const under = walk(
+    gates,
+    new Vector3(54, 0, 12),
+    new Vector3(-0.2, 0, 0),
+    40,
+  );
   assert.ok(under.x > 51.15);
-  const above = walk(gates, new Vector3(54, 1.4, 12), new Vector3(-0.2, 0, 0), 40);
+  const above = walk(
+    gates,
+    new Vector3(54, 1.4, 12),
+    new Vector3(-0.2, 0, 0),
+    40,
+  );
   assert.ok(above.x < 51.15, 'feet above the bar clear it');
 });
 
@@ -86,13 +109,28 @@ test('once the arm lifts he walks through, and a knocked-off arm stops nothing',
   }
 
   assert.ok(arm.tilt < 0.3, `the arm is up, tilt = ${arm.tilt}`);
-  const through = walk(gates, new Vector3(54, 0, 12), new Vector3(-0.2, 0, 0), 40);
+  const through = walk(
+    gates,
+    new Vector3(54, 0, 12),
+    new Vector3(-0.2, 0, 0),
+    40,
+  );
   assert.ok(through.x < 47, `walks under the raised arm, x = ${through.x}`);
-  const hinge = walk(gates, new Vector3(54, 0, 15.8), new Vector3(-0.2, 0, 0), 40);
+  const hinge = walk(
+    gates,
+    new Vector3(54, 0, 15.8),
+    new Vector3(-0.2, 0, 0),
+    40,
+  );
   assert.ok(hinge.x > 51.15, 'the stub by the hinge is still too low to pass');
 
   const down = gateWith();
   down.arm.up = false;
-  const loose = walk(down.gates, new Vector3(54, 0, 12), new Vector3(-0.2, 0, 0), 40);
+  const loose = walk(
+    down.gates,
+    new Vector3(54, 0, 12),
+    new Vector3(-0.2, 0, 0),
+    40,
+  );
   assert.ok(loose.x < 47);
 });

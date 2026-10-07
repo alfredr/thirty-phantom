@@ -1,4 +1,10 @@
-import { BoxGeometry, Group, Mesh, MeshStandardMaterial, type Scene } from 'three';
+import {
+  BoxGeometry,
+  Group,
+  Mesh,
+  MeshStandardMaterial,
+  type Scene,
+} from 'three';
 
 import { damp } from '@/engine/core/math';
 import type { CollisionWorld, Solid } from '@/engine/physics/collision';
@@ -25,7 +31,10 @@ export class Barriers {
   private k = 0;
 
   constructor(level: LevelData, scene: Scene, collision: CollisionWorld) {
-    const wood = new MeshStandardMaterial({ color: '#1f1030', roughness: 0.7 });
+    const wood = new MeshStandardMaterial({
+      color: '#1f1030',
+      roughness: 0.7,
+    });
     this.glow = new MeshStandardMaterial({
       color: '#3b1758',
       emissive: '#b46bff',
@@ -90,7 +99,11 @@ function build(
   const root = new Group();
   const mid = (a0 + a1) / 2;
   const width = c1 - c0;
-  root.position.set(along === 0 ? mid : (c0 + c1) / 2, roof, along === 0 ? (c0 + c1) / 2 : mid);
+  root.position.set(
+    along === 0 ? mid : (c0 + c1) / 2,
+    roof,
+    along === 0 ? (c0 + c1) / 2 : mid,
+  );
   root.rotation.y = along === 0 ? 0 : Math.PI / 2;
   const posts = Math.max(2, Math.round(width / SPACING) + 1);
   for (let i = 0; i < posts; i++) {

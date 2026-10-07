@@ -3,13 +3,19 @@ import { clamp, TAU } from '@/engine/core/math';
 import type { Skeleton } from './skeleton';
 
 export interface RiseSpec {
-  /** Rise duration, burial depth, and maximum random delay, in seconds and meters. */
+  /**
+   * Rise duration, burial depth, and maximum random delay, in seconds and
+   * meters.
+   */
   readonly duration: number;
   readonly depth: number;
   readonly delay: number;
 }
 
-/** Advance the emergence animation and notify effects at its start. Return true when fully above ground. */
+/**
+ * Advance the emergence animation and notify effects at its start. Return true
+ * when fully above ground.
+ */
 export function rise(s: Skeleton, st: { t: number }, dt: number): boolean {
   const was = st.t;
   st.t += dt;
@@ -51,7 +57,10 @@ export function pose(s: Skeleton, dt: number): void {
   if (hunt && hunt.swing > 0) {
     // Raise the arm, then complete the downward strike.
     const k = 1 - hunt.swing / hunt.spec.attack.every;
-    r.armR.rotation.x = k < 0.35 ? -2.4 * (k / 0.35) : -2.4 + 2.9 * Math.min(1, (k - 0.35) / 0.2);
+    r.armR.rotation.x =
+      k < 0.35
+        ? -2.4 * (k / 0.35)
+        : -2.4 + 2.9 * Math.min(1, (k - 0.35) / 0.2);
   }
 
   const staggered = s.mind.in('staggered');

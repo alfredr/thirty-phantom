@@ -1,9 +1,18 @@
-import { BoxGeometry, Group, Mesh, MeshStandardMaterial, type Vector3 } from 'three';
+import {
+  BoxGeometry,
+  Group,
+  Mesh,
+  MeshStandardMaterial,
+  type Vector3,
+} from 'three';
 
 import { withCutaway } from '@/render/materials';
 import { PALETTE } from '@/render/palette';
 
-/** Display a floating chevron pointing from the supplied position toward an objective. */
+/**
+ * Display a floating chevron pointing from the supplied position toward an
+ * objective.
+ */
 export class NavArrow {
   readonly root = new Group();
   private readonly mat: MeshStandardMaterial;
@@ -12,7 +21,11 @@ export class NavArrow {
 
   constructor() {
     this.mat = withCutaway(
-      new MeshStandardMaterial({ color: '#d6ff9a', emissive: PALETTE.slime, emissiveIntensity: 2.6 }),
+      new MeshStandardMaterial({
+        color: '#d6ff9a',
+        emissive: PALETTE.slime,
+        emissiveIntensity: 2.6,
+      }),
     );
     const bar = new BoxGeometry(0.34, 0.34, 1.6);
     const a = new Mesh(bar, this.mat);
@@ -37,7 +50,12 @@ export class NavArrow {
     this.mat.emissive.set(hex);
   }
 
-  update(dt: number, from: Vector3 | null, height: number, to: Vector3 | null): void {
+  update(
+    dt: number,
+    from: Vector3 | null,
+    height: number,
+    to: Vector3 | null,
+  ): void {
     this.t += dt;
 
     if (!from || !to) {
@@ -46,7 +64,11 @@ export class NavArrow {
     }
 
     this.root.visible = true;
-    this.root.position.set(from.x, from.y + height + 1.4 + Math.sin(this.t * 4) * 0.25, from.z);
+    this.root.position.set(
+      from.x,
+      from.y + height + 1.4 + Math.sin(this.t * 4) * 0.25,
+      from.z,
+    );
     this.root.rotation.y = Math.atan2(to.x - from.x, to.z - from.z);
   }
 }

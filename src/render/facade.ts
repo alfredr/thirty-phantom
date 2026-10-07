@@ -1,4 +1,9 @@
-import { type CanvasTexture, type MeshStandardMaterial, Vector4, type WebGLProgramParametersWithUniforms } from 'three';
+import {
+  type CanvasTexture,
+  type MeshStandardMaterial,
+  Vector4,
+  type WebGLProgramParametersWithUniforms,
+} from 'three';
 
 import { FACADE, FACE_CODE } from '@/world/facade-layout';
 
@@ -6,48 +11,70 @@ import { FACE_DATA } from './geometry';
 import { makeCanvas, toTexture } from './textures';
 
 /**
- * Facade shader tuning (meters unless noted). Windows are laid out per bay and storey from each face's FACE_DATA
- * (world/facade-layout.ts), and the rooms behind them are ray-cast in the fragment shader ("interior mapping", Joost
- * van Dongen 2008): a back wall, side walls, floor and ceiling, a furniture silhouette card part way in, and blinds or
- * curtains on some windows.
+ * Facade shader tuning (meters unless noted). Windows are laid out per bay and
+ * storey from each face's FACE_DATA (world/facade-layout.ts), and the rooms
+ * behind them are ray-cast in the fragment shader ("interior mapping", Joost
+ * van Dongen 2008): a back wall, side walls, floor and ceiling, a furniture
+ * silhouette card part way in, and blinds or curtains on some windows.
  */
 const LOOK = {
   /** Minimum window-frame thickness in meters and pixels. */
   frame: 0.07,
   framePx: 1.3,
-  /** Sill extension beyond punched or paired windows and sill height, in meters. */
+  /**
+   * Sill extension beyond punched or paired windows and sill height, in
+   * meters.
+   */
   sillRun: 0.1,
   sillHeight: 0.14,
-  /** Emission multiplier for physical room surfaces, scaled by the windows channel. */
+  /**
+   * Emission multiplier for physical room surfaces, scaled by the windows
+   * channel.
+   */
   roomGlow: 0.35,
   /** Height of the dark plinth on plain ground floors, in meters. */
   plinth: 0.6,
   /**
-   * Room depth in meters for upper floors, shops, and lobbies, followed by the range of furniture-card positions as a
-   * fraction of room depth.
+   * Room depth in meters for upper floors, shops, and lobbies, followed by the
+   * range of furniture-card positions as a fraction of room depth.
    */
   depth: [FACADE.room, 6, 8],
   card: [0.35, 0.65],
-  /** Base and additional per-floor probabilities of lit rooms, followed by the probability of an entirely dark floor. */
+  /**
+   * Base and additional per-floor probabilities of lit rooms, followed by the
+   * probability of an entirely dark floor.
+   */
   lit: 0.3,
   litSpread: 0.3,
   darkFloor: 0.2,
   /** Probability that a shop or lobby is lit at night. */
   litShop: 0.85,
-  /** Room emission strength, lamp attenuation coefficient in inverse square meters, and minimum attenuation factor. */
+  /**
+   * Room emission strength, lamp attenuation coefficient in inverse square
+   * meters, and minimum attenuation factor.
+   */
   glow: 0.6,
   falloff: 0.18,
   glowFloor: 0.2,
-  /** Daylight room brightness multiplier and sky-reflection weights at the bottom and top of a window. */
+  /**
+   * Daylight room brightness multiplier and sky-reflection weights at the
+   * bottom and top of a window.
+   */
   dayRoom: 0.32,
   reflect: [0.3, 0.55],
   /** Number of facade bays sharing one shop or lobby interior. */
   wideRoom: 3,
-  /** Probabilities of blinds and curtains, followed by the range of blind coverage as a fraction of window height. */
+  /**
+   * Probabilities of blinds and curtains, followed by the range of blind
+   * coverage as a fraction of window height.
+   */
   blinds: 0.22,
   curtains: 0.18,
   blindDrop: [0.25, 0.85],
-  /** Meters-per-pixel range over which interior ray casting fades to an average color. */
+  /**
+   * Meters-per-pixel range over which interior ray casting fades to an average
+   * color.
+   */
   farPx: [0.14, 0.3],
   /** Awnings: stripe width. */
   stripe: 0.45,
@@ -62,12 +89,15 @@ const G = FACADE.glazing;
 export const LIVE_MAX = 2;
 
 /**
- * Active interior footprints (x0, z0, x1, z1) and their highest rendered floor tops, set by world/interiors.ts. Discard
- * facade glass and door fragments within these bounds to reveal physical interiors and their window panes. Unused slots
- * contain empty rectangles.
+ * Active interior footprints (x0, z0, x1, z1) and their highest rendered floor
+ * tops, set by world/interiors.ts. Discard facade glass and door fragments
+ * within these bounds to reveal physical interiors and their window panes.
+ * Unused slots contain empty rectangles.
  */
 export const facadeUniforms = {
-  uLiveRect: { value: Array.from({ length: LIVE_MAX }, () => new Vector4(0, 0, -1, -1)) },
+  uLiveRect: {
+    value: Array.from({ length: LIVE_MAX }, () => new Vector4(0, 0, -1, -1)),
+  },
   uLiveTop: { value: new Array<number>(LIVE_MAX).fill(-1) },
 };
 
@@ -328,22 +358,37 @@ void facadePaint(inout vec3 col, vec3 wp) {
 }
 `;
 
-/** Build a four-by-two atlas of white furniture silhouettes on transparency. Leave the final tile empty. */
+/**
+ * Build a four-by-two atlas of white furniture silhouettes on transparency.
+ * Leave the final tile empty.
+ */
 function furnitureAtlas(): CanvasTexture {
   const T = 64;
   const { c, ctx } = makeCanvas(T * 4, T * 2);
   ctx.fillStyle = '#fff';
 
-  /** Return a rectangle drawing helper for tile k, using normalized coordinates with Y increasing from the floor. */
-  const tile = (k: number): ((x: number, y: number, w: number, h: number) => void) => {
+  /**
+   * Return a rectangle drawing helper for tile k, using normalized coordinates
+   * with Y increasing from the floor.
+   */
+  const tile = (
+    k: number,
+  ): ((x: number, y: number, w: number, h: number) => void) => {
     const x0 = (k % 4) * T;
     const floor = (Math.floor(k / 4) === 0 ? 2 : 1) * T;
-    return (x, y, w, h) => ctx.fillRect(x0 + x * T, floor - (y + h) * T, w * T, h * T);
+    return (x, y, w, h) =>
+      ctx.fillRect(x0 + x * T, floor - (y + h) * T, w * T, h * T);
   };
 
   const disc = (k: number, x: number, y: number, r: number): void => {
     ctx.beginPath();
-    ctx.arc((k % 4) * T + x * T, (Math.floor(k / 4) === 0 ? 2 : 1) * T - y * T, r * T, 0, Math.PI * 2);
+    ctx.arc(
+      (k % 4) * T + x * T,
+      (Math.floor(k / 4) === 0 ? 2 : 1) * T - y * T,
+      r * T,
+      0,
+      Math.PI * 2,
+    );
     ctx.fill();
   };
 
@@ -403,14 +448,18 @@ function furnitureAtlas(): CanvasTexture {
 let atlas: CanvasTexture | null = null;
 
 /**
- * Extend a world material's existing shader patches with facade rendering and return the material. FACE_DATA controls
- * windows, storefronts, awnings, and interior mapping. Room emission uses the material's existing emissive intensity so
- * day/night channels continue to control brightness.
+ * Extend a world material's existing shader patches with facade rendering and
+ * return the material. FACE_DATA controls windows, storefronts, awnings, and
+ * interior mapping. Room emission uses the material's existing emissive
+ * intensity so day/night channels continue to control brightness.
  */
 export function withFacade<T extends MeshStandardMaterial>(mat: T): T {
   const tex = (atlas ??= furnitureAtlas());
   const prev = mat.onBeforeCompile.bind(mat);
-  mat.onBeforeCompile = (shader: WebGLProgramParametersWithUniforms, renderer) => {
+  mat.onBeforeCompile = (
+    shader: WebGLProgramParametersWithUniforms,
+    renderer,
+  ) => {
     prev(shader, renderer);
     shader.uniforms.uFurniture = { value: tex };
     Object.assign(shader.uniforms, facadeUniforms);

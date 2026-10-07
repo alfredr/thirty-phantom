@@ -19,11 +19,30 @@ export const CITY = {
   graveyard: 0.25,
 };
 
-export type BlockKind = 'deck' | 'graveyard' | 'plaza' | 'shops' | 'towers' | 'midrise' | 'lot' | 'hotel';
+export type BlockKind =
+  | 'deck'
+  | 'graveyard'
+  | 'plaza'
+  | 'shops'
+  | 'towers'
+  | 'midrise'
+  | 'lot'
+  | 'hotel';
 
-export const GRAVES: readonly DecorKind[] = ['headstone', 'cross', 'obelisk', 'tomb'];
+export const GRAVES: readonly DecorKind[] = [
+  'headstone',
+  'cross',
+  'obelisk',
+  'tomb',
+];
 const DEAD_TREES = { count: 5, inset: 5, scale: [0.85, 1.2] as const };
-const GRAVEYARD_GHOSTS = { reach: 4, floor: 1, ceiling: 9, weight: 2, respawn: 8 };
+const GRAVEYARD_GHOSTS = {
+  reach: 4,
+  floor: 1,
+  ceiling: 9,
+  weight: 2,
+  respawn: 8,
+};
 
 export const BLOCK_LAYOUT: BlockKind[][] = [
   // [bx][bz]
@@ -32,67 +51,146 @@ export const BLOCK_LAYOUT: BlockKind[][] = [
   ['hotel', 'plaza', 'graveyard'],
 ];
 
-export function blockRect(bx: number, bz: number): [number, number, number, number] {
+export function blockRect(
+  bx: number,
+  bz: number,
+): [number, number, number, number] {
   const { pitch, road } = CITY;
-  return [bx * pitch + road / 2, bz * pitch + road / 2, (bx + 1) * pitch - road / 2, (bz + 1) * pitch - road / 2];
+  return [
+    bx * pitch + road / 2,
+    bz * pitch + road / 2,
+    (bx + 1) * pitch - road / 2,
+    (bz + 1) * pitch - road / 2,
+  ];
 }
 
 const FACADES: MatKey[] = ['facadeA', 'facadeB', 'facadeC'];
 const NEON = ['neon', 'neonPurple'] as const;
-const SHOP_SIGNS = [['OPEN', 'LATE'], ['GHOUL', 'GAS'], ['ROADIE'], ['BONE', 'DRY'], ['SLIME', 'DONUTS'], ['24 HRS']];
+const SHOP_SIGNS = [
+  ['OPEN', 'LATE'],
+  ['GHOUL', 'GAS'],
+  ['ROADIE'],
+  ['BONE', 'DRY'],
+  ['SLIME', 'DONUTS'],
+  ['24 HRS'],
+];
 
 /**
- * Append the Foxy Hotel with a podium, tower, neon signs, and canopied valet drop-off lane connected to the front
- * street.
+ * Append the Foxy Hotel with a podium, tower, neon signs, and canopied valet
+ * drop-off lane connected to the front street.
  */
-function foxyHotel(w: LevelWriter, x0: number, z0: number, x1: number, z1: number): void {
+function foxyHotel(
+  w: LevelWriter,
+  x0: number,
+  z0: number,
+  x1: number,
+  z1: number,
+): void {
   const SW = CITY.sidewalk;
   const cx = (x0 + x1) / 2;
   const front = z1 - 18;
   // lobby podium, tower
-  w.box([x0 + 6, 0, z0 + 4], [x1 - 6, SW + 7, front], 'stone', { top: 'roof', tint: 0.95 });
+  w.box([x0 + 6, 0, z0 + 4], [x1 - 6, SW + 7, front], 'stone', {
+    top: 'roof',
+    tint: 0.95,
+  });
   w.box([x0 + 10, SW + 7, z0 + 6], [x1 - 10, SW + 34, front - 4], 'facadeB', {
     top: 'roof',
     drip: 'top',
-    facade: { kind: 'wall', windows: 'paired', storey: 3.2, ground: 0, bay: 3.2, paint: '#4a3a60' },
+    facade: {
+      kind: 'wall',
+      windows: 'paired',
+      storey: 3.2,
+      ground: 0,
+      bay: 3.2,
+      paint: '#4a3a60',
+    },
   });
   w.sign([cx, SW + 29.5, front - 3.88], [17, 5.2], 'z+', 'foxy', ['FOXY']);
-  w.sign([cx, SW + 25.6, front - 3.88], [9, 1.7], 'z+', 'neonPurple', ['HOTEL']);
-  w.sign([x1 - 9.88, SW + 19, front - 6], [3, 13], 'x+', 'foxy', ['F', 'O', 'X', 'Y']);
+  w.sign([cx, SW + 25.6, front - 3.88], [9, 1.7], 'z+', 'neonPurple', [
+    'HOTEL',
+  ]);
+  w.sign([x1 - 9.88, SW + 19, front - 6], [3, 13], 'x+', 'foxy', [
+    'F',
+    'O',
+    'X',
+    'Y',
+  ]);
   // lobby front: glass, warm doors, a curb to step out onto
-  w.box([cx - 12, SW, front], [cx + 12, SW + 4.2, front + 0.1], 'glass', { solid: false });
-  w.box([cx - 2.5, SW + 0.15, front + 0.1], [cx + 2.5, SW + 3.2, front + 0.16], 'lampWarm', { solid: false });
-  w.sign([cx, SW + 6.3, front + 0.04], [14, 1.6], 'z+', 'foxy', ['FOXY HOTEL']);
-  w.box([x0 + 8, SW, front], [x1 - 8, SW + 0.15, front + 2.5], 'concreteLight');
+  w.box([cx - 12, SW, front], [cx + 12, SW + 4.2, front + 0.1], 'glass', {
+    solid: false,
+  });
+  w.box(
+    [cx - 2.5, SW + 0.15, front + 0.1],
+    [cx + 2.5, SW + 3.2, front + 0.16],
+    'lampWarm',
+    {
+      solid: false,
+    },
+  );
+  w.sign([cx, SW + 6.3, front + 0.04], [14, 1.6], 'z+', 'foxy', [
+    'FOXY HOTEL',
+  ]);
+  w.box(
+    [x0 + 8, SW, front],
+    [x1 - 8, SW + 0.15, front + 2.5],
+    'concreteLight',
+  );
   // drop-off lane with a driveway to the street at each end
   w.box([x0 + 8, SW, front + 2.5], [x1 - 8, SW + 0.02, front + 10], 'asphalt');
   w.box([x0 + 8, SW, front + 10], [x0 + 16, SW + 0.02, z1], 'asphalt');
   w.box([x1 - 16, SW, front + 10], [x1 - 8, SW + 0.02, z1], 'asphalt');
   // raised planter between the driveways, taller than a car can climb
-  w.box([x0 + 16, SW, front + 10.5], [x1 - 16, SW + 0.8, z1 - 1.5], 'stone', { top: 'grass' });
+  w.box([x0 + 16, SW, front + 10.5], [x1 - 16, SW + 0.8, z1 - 1.5], 'stone', {
+    top: 'grass',
+  });
   // Keep the canopy shallow enough to leave the valet visible in the isometric view.
-  w.box([cx - 14, SW + 4.6, front], [cx + 14, SW + 5.2, front + 4], 'metal', { drip: 'bottom' });
-  w.sign([cx, SW + 4.9, front + 4.04], [12, 0.55], 'z+', 'neonPurple', ['VALET PARKING']);
+  w.box([cx - 14, SW + 4.6, front], [cx + 14, SW + 5.2, front + 4], 'metal', {
+    drip: 'bottom',
+  });
+  w.sign([cx, SW + 4.9, front + 4.04], [12, 0.55], 'z+', 'neonPurple', [
+    'VALET PARKING',
+  ]);
 
   for (const x of [cx - 7, cx + 7]) {
-    w.box([x - 1.5, SW + 4.45, front + 1.7], [x + 1.5, SW + 4.6, front + 2.3], 'lampWarm', { solid: false });
+    w.box(
+      [x - 1.5, SW + 4.45, front + 1.7],
+      [x + 1.5, SW + 4.6, front + 2.3],
+      'lampWarm',
+      {
+        solid: false,
+      },
+    );
     w.lamp([x, SW + 4.6, front + 2], 'warm', 'ceiling');
   }
 
   // the valet's podium on the curb
   w.block(cx + 6, SW + 0.15, front + 1.6, 0.9, 1.1, 0.6, 'wood');
-  w.block(cx + 6, SW + 1.25, front + 1.6, 1.1, 0.08, 0.75, 'metalLight', { solid: false });
-  w.sign([cx + 6, SW + 0.85, front + 1.92], [0.8, 0.42], 'z+', 'foxy', ['VALET']);
-  w.data.valets.push({ pos: [cx + 4.6, SW + 0.15, front + 1.7], yaw: 0, crew: 2 });
+  w.block(cx + 6, SW + 1.25, front + 1.6, 1.1, 0.08, 0.75, 'metalLight', {
+    solid: false,
+  });
+  w.sign([cx + 6, SW + 0.85, front + 1.92], [0.8, 0.42], 'z+', 'foxy', [
+    'VALET',
+  ]);
+  w.data.valets.push({
+    pos: [cx + 4.6, SW + 0.15, front + 1.7],
+    yaw: 0,
+    crew: 2,
+  });
 }
 
 /**
- * Maximum wall-to-road-centre distance in meters for a street-facing facade, including road half-width, sidewalk, and
- * building setback.
+ * Maximum wall-to-road-centre distance in meters for a street-facing facade,
+ * including road half-width, sidewalk, and building setback.
  */
 const STREET_REACH = 10;
 
-function streetSides(x0: number, z0: number, x1: number, z1: number): Facing[] {
+function streetSides(
+  x0: number,
+  z0: number,
+  x1: number,
+  z1: number,
+): Facing[] {
   const { pitch, blocks, road: width } = CITY;
   const span = blocks * pitch;
   const road = (c: number, dir: 1 | -1): boolean => {
@@ -123,7 +221,15 @@ function streetSides(x0: number, z0: number, x1: number, z1: number): Facing[] {
   return out;
 }
 
-function building(w: LevelWriter, rng: Rng, x0: number, z0: number, x1: number, z1: number, h: number): void {
+function building(
+  w: LevelWriter,
+  rng: Rng,
+  x0: number,
+  z0: number,
+  x1: number,
+  z1: number,
+  h: number,
+): void {
   const base = CITY.sidewalk;
   const mat = rng.pick(FACADES);
   const drip = rng.chance(0.35);
@@ -145,7 +251,9 @@ function building(w: LevelWriter, rng: Rng, x0: number, z0: number, x1: number, 
 
   // roof parapet ring
   if (parapet) {
-    w.frame(x0, z0, x1, z1, 0.35, top, top + 0.7, 'concreteDark', { solid: false });
+    w.frame(x0, z0, x1, z1, 0.35, top, top + 0.7, 'concreteDark', {
+      solid: false,
+    });
   }
 
   // rooftop clutter (on a setback's roof when wholly on it, and never across its wall)
@@ -175,7 +283,9 @@ function building(w: LevelWriter, rng: Rng, x0: number, z0: number, x1: number, 
         [-1, 1],
         [1, 1],
       ] as const) {
-        w.block(cx + dx * 1.1, y, cz + dz * 1.1, 0.2, 2.4, 0.2, 'metal', { solid: false });
+        w.block(cx + dx * 1.1, y, cz + dz * 1.1, 0.2, 2.4, 0.2, 'metal', {
+          solid: false,
+        });
       }
 
       w.block(cx, y + 2.4, cz, 3, 2.6, 3, 'wood', { solid: false });
@@ -199,16 +309,44 @@ function building(w: LevelWriter, rng: Rng, x0: number, z0: number, x1: number, 
     const facing: Facing = rng.chance(0.5) ? 'z+' : 'x+';
     const lines = rng.pick(SHOP_SIGNS);
     if (facing === 'z+') {
-      w.box([(x0 + x1) / 2 - 3.5, top, z1 - 1.2], [(x0 + x1) / 2 + 3.5, top + 2.4, z1 - 1], 'metal', { solid: false });
-      w.sign([(x0 + x1) / 2, top + 1.2, z1 - 0.97], [7, 2.4], 'z+', rng.pick(NEON), lines);
+      w.box(
+        [(x0 + x1) / 2 - 3.5, top, z1 - 1.2],
+        [(x0 + x1) / 2 + 3.5, top + 2.4, z1 - 1],
+        'metal',
+        { solid: false },
+      );
+      w.sign(
+        [(x0 + x1) / 2, top + 1.2, z1 - 0.97],
+        [7, 2.4],
+        'z+',
+        rng.pick(NEON),
+        lines,
+      );
     } else {
-      w.box([x1 - 1.2, top, (z0 + z1) / 2 - 3.5], [x1 - 1, top + 2.4, (z0 + z1) / 2 + 3.5], 'metal', { solid: false });
-      w.sign([x1 - 0.97, top + 1.2, (z0 + z1) / 2], [7, 2.4], 'x+', rng.pick(NEON), lines);
+      w.box(
+        [x1 - 1.2, top, (z0 + z1) / 2 - 3.5],
+        [x1 - 1, top + 2.4, (z0 + z1) / 2 + 3.5],
+        'metal',
+        { solid: false },
+      );
+      w.sign(
+        [x1 - 0.97, top + 1.2, (z0 + z1) / 2],
+        [7, 2.4],
+        'x+',
+        rng.pick(NEON),
+        lines,
+      );
     }
   }
 }
 
-function lots(rng: Rng, x0: number, z0: number, x1: number, z1: number): [number, number, number, number][] {
+function lots(
+  rng: Rng,
+  x0: number,
+  z0: number,
+  x1: number,
+  z1: number,
+): [number, number, number, number][] {
   const r = rng.next();
   const g = 2;
   if (r < 0.2) {
@@ -241,7 +379,14 @@ function lots(rng: Rng, x0: number, z0: number, x1: number, z1: number): [number
   ];
 }
 
-function roundedLoop(x0: number, z0: number, x1: number, z1: number, r: number, reverse: boolean): V3[] {
+function roundedLoop(
+  x0: number,
+  z0: number,
+  x1: number,
+  z1: number,
+  r: number,
+  reverse: boolean,
+): V3[] {
   const pts: V3[] = [];
   const arcs: [number, number, number][] = [
     [x1 - r, z0 + r, -Math.PI / 2],
@@ -271,12 +416,22 @@ export function generateCity(w: LevelWriter, seed: number): void {
 
       const [x0, z0] = blockRect(bx, bz);
       const origin: V3 = [x0, 0, z0 + 6];
-      return [stairShaft(origin), elevatorShaft(origin)].map(([u0, v0, u1, v1]) => ({ u0, u1, v0, v1 }));
+      return [stairShaft(origin), elevatorShaft(origin)].map(
+        ([u0, v0, u1, v1]) => ({
+          u0,
+          u1,
+          v0,
+          v1,
+        }),
+      );
     }),
   );
 
   // Match the collision pits so the street surface does not cross the basement shafts.
-  for (const r of subtractRects({ u0: -90, u1: span + 90, v0: -90, v1: span + 90 }, shafts)) {
+  for (const r of subtractRects(
+    { u0: -90, u1: span + 90, v0: -90, v1: span + 90 },
+    shafts,
+  )) {
     w.box([r.u0, -1, r.v0], [r.u1, 0, r.v1], 'asphalt', { solid: false });
   }
 
@@ -289,13 +444,23 @@ export function generateCity(w: LevelWriter, seed: number): void {
         continue;
       }
 
-      w.box([c - 0.1, 0, t], [c + 0.1, 0.02, t + 2], 'marking', { solid: false });
-      w.box([t, 0, c - 0.1], [t + 2, 0.02, c + 0.1], 'marking', { solid: false });
+      w.box([c - 0.1, 0, t], [c + 0.1, 0.02, t + 2], 'marking', {
+        solid: false,
+      });
+      w.box([t, 0, c - 0.1], [t + 2, 0.02, c + 0.1], 'marking', {
+        solid: false,
+      });
     }
   }
 
   // Use taller buildings at low X/Z and shorter buildings in front to reduce foreground occlusion.
-  const ring = (x0: number, z0: number, x1: number, z1: number, tall: boolean): void => {
+  const ring = (
+    x0: number,
+    z0: number,
+    x1: number,
+    z1: number,
+    tall: boolean,
+  ): void => {
     w.box([x0, 0, z0], [x1, SW, z1], 'sidewalk');
     const alongX = x1 - x0 > z1 - z0;
     let t = alongX ? x0 : z0;
@@ -325,7 +490,10 @@ export function generateCity(w: LevelWriter, seed: number): void {
       const [x0, z0, x1, z1] = blockRect(bx, bz);
       if (kind === 'deck') {
         // Leave stair and elevator openings in the six-meter sidewalk before the deck at z0 + 6.
-        for (const r of subtractRects({ u0: x0, u1: x1, v0: z0, v1: z0 + 6 }, shafts)) {
+        for (const r of subtractRects(
+          { u0: x0, u1: x1, v0: z0, v1: z0 + 6 },
+          shafts,
+        )) {
           w.box([r.u0, 0, r.v0], [r.u1, SW, r.v1], 'sidewalk');
         }
 
@@ -352,11 +520,17 @@ export function generateCity(w: LevelWriter, seed: number): void {
           return;
         }
 
-        w.lamp([lx, kind === 'graveyard' ? CITY.graveyard : SW, lz], (bx + bz + i) % 2 ? 'purple' : 'green', 'street');
+        w.lamp(
+          [lx, kind === 'graveyard' ? CITY.graveyard : SW, lz],
+          (bx + bz + i) % 2 ? 'purple' : 'green',
+          'street',
+        );
       });
 
       // traffic loop hugging this block (inner lane of each road)
-      w.data.paths.push({ points: roundedLoop(x0 - 3, z0 - 3, x1 + 3, z1 + 3, 4.5, false) });
+      w.data.paths.push({
+        points: roundedLoop(x0 - 3, z0 - 3, x1 + 3, z1 + 3, 4.5, false),
+      });
 
       const ix0 = x0 + 2;
       const iz0 = z0 + 2;
@@ -365,13 +539,29 @@ export function generateCity(w: LevelWriter, seed: number): void {
       switch (kind) {
         case 'towers':
           for (const [a, b, c, d] of lots(rng, ix0, iz0, ix1, iz1)) {
-            building(w, rng, a + 0.5, b + 0.5, c - 0.5, d - 0.5, rng.range(24, 50));
+            building(
+              w,
+              rng,
+              a + 0.5,
+              b + 0.5,
+              c - 0.5,
+              d - 0.5,
+              rng.range(24, 50),
+            );
           }
 
           break;
         case 'midrise':
           for (const [a, b, c, d] of lots(rng, ix0, iz0, ix1, iz1)) {
-            building(w, rng, a + 0.5, b + 0.5, c - 0.5, d - 0.5, rng.range(12, 24));
+            building(
+              w,
+              rng,
+              a + 0.5,
+              b + 0.5,
+              c - 0.5,
+              d - 0.5,
+              rng.range(12, 24),
+            );
           }
 
           break;
@@ -386,7 +576,14 @@ export function generateCity(w: LevelWriter, seed: number): void {
 
           for (let i = 0; i < 3; i++) {
             const cz = iz0 + 24 + i * 6.2;
-            w.box([ix1 - 19, SW + 0.02, cz - 3.1], [ix1 - 1, SW + 0.04, cz - 2.95], 'marking', { solid: false });
+            w.box(
+              [ix1 - 19, SW + 0.02, cz - 3.1],
+              [ix1 - 1, SW + 0.04, cz - 2.95],
+              'marking',
+              {
+                solid: false,
+              },
+            );
             w.bay([ix1 - 7, SW + 0.02, cz], Math.PI / 2);
 
             if (rng.chance(0.8)) {
@@ -420,12 +617,29 @@ export function generateCity(w: LevelWriter, seed: number): void {
           const fx = (ix0 + ix1) / 2 - 8;
           const fz = iz0 + 12;
           w.frame(fx - 5, fz - 5, fx + 5, fz + 5, 0.6, SW, SW + 0.7, 'stone');
-          w.box([fx - 4.4, SW, fz - 4.4], [fx + 4.4, SW + 0.45, fz + 4.4], 'slimePool', { solid: false });
+          w.box(
+            [fx - 4.4, SW, fz - 4.4],
+            [fx + 4.4, SW + 0.45, fz + 4.4],
+            'slimePool',
+            {
+              solid: false,
+            },
+          );
           w.block(fx, SW, fz, 1.2, 3.2, 1.2, 'stone', { drip: 'top' });
-          w.block(fx, SW + 3.2, fz, 2.4, 0.4, 2.4, 'stone', { drip: 'bottom' });
+          w.block(fx, SW + 3.2, fz, 2.4, 0.4, 2.4, 'stone', {
+            drip: 'bottom',
+          });
           w.block(fx, SW + 3.6, fz, 0.7, 0.9, 0.7, 'slime', { solid: false });
           // kicker toward the deck
-          w.ramp([ix1 - 14, SW, iz0 + 4], [ix1 - 8, SW + 1.6, iz0 + 12], 'z', -1, SW, 'concrete', true);
+          w.ramp(
+            [ix1 - 14, SW, iz0 + 4],
+            [ix1 - 8, SW + 1.6, iz0 + 12],
+            'z',
+            -1,
+            SW,
+            'concrete',
+            true,
+          );
           break;
         }
 
@@ -434,8 +648,22 @@ export function generateCity(w: LevelWriter, seed: number): void {
 
           for (let i = 0; i <= 6; i++) {
             const lx = x0 + 6 + i * 6;
-            w.box([lx - 0.07, SW + 0.02, z0 + 6], [lx + 0.07, SW + 0.04, z0 + 12], 'marking', { solid: false });
-            w.box([lx - 0.07, SW + 0.02, z0 + 22], [lx + 0.07, SW + 0.04, z0 + 28], 'marking', { solid: false });
+            w.box(
+              [lx - 0.07, SW + 0.02, z0 + 6],
+              [lx + 0.07, SW + 0.04, z0 + 12],
+              'marking',
+              {
+                solid: false,
+              },
+            );
+            w.box(
+              [lx - 0.07, SW + 0.02, z0 + 22],
+              [lx + 0.07, SW + 0.04, z0 + 28],
+              'marking',
+              {
+                solid: false,
+              },
+            );
           }
 
           for (let i = 0; i < 6; i++) {
@@ -455,15 +683,39 @@ export function generateCity(w: LevelWriter, seed: number): void {
           // billboard
           const bxm = (x0 + x1) / 2;
           const bzm = z1 - 8;
-          w.box([bxm - 6.4, SW, bzm - 0.3], [bxm - 5.6, SW + 6, bzm + 0.3], 'metal');
-          w.box([bxm + 5.6, SW, bzm - 0.3], [bxm + 6.4, SW + 6, bzm + 0.3], 'metal');
-          w.box([bxm - 9.4, SW + 5.8, bzm - 0.4], [bxm + 9.4, SW + 13, bzm], 'metal', { solid: false, drip: 'top' });
+          w.box(
+            [bxm - 6.4, SW, bzm - 0.3],
+            [bxm - 5.6, SW + 6, bzm + 0.3],
+            'metal',
+          );
+          w.box(
+            [bxm + 5.6, SW, bzm - 0.3],
+            [bxm + 6.4, SW + 6, bzm + 0.3],
+            'metal',
+          );
+          w.box(
+            [bxm - 9.4, SW + 5.8, bzm - 0.4],
+            [bxm + 9.4, SW + 13, bzm],
+            'metal',
+            {
+              solid: false,
+              drip: 'top',
+            },
+          );
           w.sign([bxm, SW + 9.4, bzm + 0.03], [18.4, 7], 'z+', 'billboard', [
             '30',
             'PHANTOM CODYS',
             'LIFE IS BETTER OFF ROADIE',
           ]);
-          w.ramp([x1 - 14, SW, z0 + 34], [x1 - 6, SW + 1.8, z0 + 40], 'x', 1, SW, 'concrete', true);
+          w.ramp(
+            [x1 - 14, SW, z0 + 34],
+            [x1 - 6, SW + 1.8, z0 + 40],
+            'x',
+            1,
+            SW,
+            'concrete',
+            true,
+          );
           w.data.playerSpawn = [x0 + 12, SW, z0 + 17];
           break;
         }
@@ -471,8 +723,16 @@ export function generateCity(w: LevelWriter, seed: number): void {
         case 'graveyard': {
           const G = CITY.graveyard;
           // iron fence (panels cars knock over), gaps on north and west sides
-          const fence = (ax: number, az: number, bxp: number, bzp: number): void => {
-            w.data.fences.push({ min: w.p([ax, G, az]), max: w.p([bxp, G + 2, bzp]) });
+          const fence = (
+            ax: number,
+            az: number,
+            bxp: number,
+            bzp: number,
+          ): void => {
+            w.data.fences.push({
+              min: w.p([ax, G, az]),
+              max: w.p([bxp, G + 2, bzp]),
+            });
           };
 
           const midx = (x0 + x1) / 2;
@@ -486,24 +746,60 @@ export function generateCity(w: LevelWriter, seed: number): void {
           // mausoleum
           const mx0 = midx - 5;
           const mz0 = midz - 2;
-          w.box([mx0 - 0.5, G, mz0 - 0.5], [mx0 + 10.5, G + 0.4, mz0 + 8.5], 'stone');
-          w.box([mx0, G + 0.4, mz0], [mx0 + 10, G + 6.4, mz0 + 7], 'stone', { drip: 'top' });
-          w.box([mx0 - 0.6, G + 6.4, mz0 - 0.6], [mx0 + 10.6, G + 7, mz0 + 7.6], 'stone', { drip: 'bottom' });
-          w.box([mx0 + 1.5, G + 7, mz0 + 0.5], [mx0 + 8.5, G + 7.8, mz0 + 6.5], 'stone');
-          w.box([mx0 + 3.7, G + 0.4, mz0 + 7], [mx0 + 6.3, G + 3.8, mz0 + 7.08], 'doorGlow', { solid: false });
+          w.box(
+            [mx0 - 0.5, G, mz0 - 0.5],
+            [mx0 + 10.5, G + 0.4, mz0 + 8.5],
+            'stone',
+          );
+          w.box([mx0, G + 0.4, mz0], [mx0 + 10, G + 6.4, mz0 + 7], 'stone', {
+            drip: 'top',
+          });
+          w.box(
+            [mx0 - 0.6, G + 6.4, mz0 - 0.6],
+            [mx0 + 10.6, G + 7, mz0 + 7.6],
+            'stone',
+            {
+              drip: 'bottom',
+            },
+          );
+          w.box(
+            [mx0 + 1.5, G + 7, mz0 + 0.5],
+            [mx0 + 8.5, G + 7.8, mz0 + 6.5],
+            'stone',
+          );
+          w.box(
+            [mx0 + 3.7, G + 0.4, mz0 + 7],
+            [mx0 + 6.3, G + 3.8, mz0 + 7.08],
+            'doorGlow',
+            {
+              solid: false,
+            },
+          );
 
           for (const cx of [mx0 + 2.6, mx0 + 7.4]) {
-            w.box([cx - 0.4, G + 0.4, mz0 + 7], [cx + 0.4, G + 6.4, mz0 + 7.8], 'stone');
+            w.box(
+              [cx - 0.4, G + 0.4, mz0 + 7],
+              [cx + 0.4, G + 6.4, mz0 + 7.8],
+              'stone',
+            );
           }
 
-          w.sign([midx, G + 5, mz0 + 7.1], [4.6, 1.3], 'z+', 'neonPurple', ['HERE LIES', 'THE BADGE LOG']);
+          w.sign([midx, G + 5, mz0 + 7.1], [4.6, 1.3], 'z+', 'neonPurple', [
+            'HERE LIES',
+            'THE BADGE LOG',
+          ]);
 
           // tombstones
           for (let gx = 0; gx < 7; gx++) {
             for (let gz = 0; gz < 6; gz++) {
               const tx = x0 + 6 + gx * 5.8 + rng.range(-0.8, 0.8);
               const tz = z0 + 6 + gz * 6.6 + rng.range(-0.8, 0.8);
-              if (tx > mx0 - 3 && tx < mx0 + 13 && tz > mz0 - 3 && tz < mz0 + 11) {
+              if (
+                tx > mx0 - 3 &&
+                tx < mx0 + 13 &&
+                tz > mz0 - 3 &&
+                tz < mz0 + 11
+              ) {
                 continue;
               }
 
@@ -514,22 +810,45 @@ export function generateCity(w: LevelWriter, seed: number): void {
               w.decor(rng.pick(GRAVES), [tx, G, tz]);
 
               if (rng.chance(0.25)) {
-                w.puddle([tx + rng.range(-1, 1), G + 0.02, tz + 1.2], rng.range(0.5, 1));
+                w.puddle(
+                  [tx + rng.range(-1, 1), G + 0.02, tz + 1.2],
+                  rng.range(0.5, 1),
+                );
               }
             }
           }
 
           for (let i = 0; i < DEAD_TREES.count; i++) {
             const { inset, scale } = DEAD_TREES;
-            const at: V3 = [rng.range(x0 + inset, x1 - inset), G, rng.range(z0 + inset, z1 - inset)];
-            w.decor('deadTree', at, rng.range(0, TAU), { scale: rng.range(...scale) });
+            const at: V3 = [
+              rng.range(x0 + inset, x1 - inset),
+              G,
+              rng.range(z0 + inset, z1 - inset),
+            ];
+            w.decor('deadTree', at, rng.range(0, TAU), {
+              scale: rng.range(...scale),
+            });
           }
 
           // slime pond
           const px = x1 - 12;
           const pz = z1 - 10;
-          w.frame(px - 6, pz - 4.5, px + 6, pz + 4.5, 0.5, G, G + 0.4, 'stone');
-          w.box([px - 5.5, G, pz - 4], [px + 5.5, G + 0.12, pz + 4], 'slimePool', { solid: false });
+          w.frame(
+            px - 6,
+            pz - 4.5,
+            px + 6,
+            pz + 4.5,
+            0.5,
+            G,
+            G + 0.4,
+            'stone',
+          );
+          w.box(
+            [px - 5.5, G, pz - 4],
+            [px + 5.5, G + 0.12, pz + 4],
+            'slimePool',
+            { solid: false },
+          );
           const { reach, floor, ceiling, weight, respawn } = GRAVEYARD_GHOSTS;
           w.data.ghostZones.push({
             min: [x0 - reach, floor, z0 - reach],
@@ -547,7 +866,9 @@ export function generateCity(w: LevelWriter, seed: number): void {
   }
 
   // perimeter loop in the opposite sense gives two-way traffic on outer roads
-  w.data.paths.push({ points: roundedLoop(-3, -3, span + 3, span + 3, 4.5, true) });
+  w.data.paths.push({
+    points: roundedLoop(-3, -3, span + 3, span + 3, 4.5, true),
+  });
 
   for (let i = 0; i < 14; i++) {
     const c = rng.int(0, blocks) * pitch + rng.range(-4, 4);

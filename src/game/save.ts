@@ -8,12 +8,18 @@ import { type ItemKind, isItemKind } from './items/item-breeds';
 import type { FoundCash } from './items/money';
 
 const KEY = '30pc.save';
-/** Version 2 adds quest progress, shop stock, and daily cash. Version 1 remains readable. */
+/**
+ * Version 2 adds quest progress, shop stock, and daily cash. Version 1 remains
+ * readable.
+ */
 const VERSION = 2;
 /** Interval between save checks, in seconds of play. */
 const EVERY = 2;
 
-/** Persisted phantom placement and creation time. A null spot records an escape without a parking spot. */
+/**
+ * Persisted phantom placement and creation time. A null spot records an escape
+ * without a parking spot.
+ */
 export interface PhantomRecord {
   spot: number | null;
   at: [number, number, number];
@@ -24,8 +30,8 @@ export interface PhantomRecord {
 }
 
 /**
- * Persistent progress, inventory, shop stock, and daily cash. A null `found` value leaves the newly generated cash
- * layout in place on restore.
+ * Persistent progress, inventory, shop stock, and daily cash. A null `found`
+ * value leaves the newly generated cash layout in place on restore.
  */
 export interface SaveData {
   v: typeof VERSION;
@@ -39,8 +45,9 @@ export interface SaveData {
 }
 
 /**
- * Restore progress from localStorage on start unless the tutorial or ?fresh disables restoration. Skip writes during
- * the tutorial. Check for changes every two seconds and flush when the page is hidden.
+ * Restore progress from localStorage on start unless the tutorial or ?fresh
+ * disables restoration. Skip writes during the tutorial. Check for changes
+ * every two seconds and flush when the page is hidden.
  */
 export class SaveGame {
   /** Phantom records in creation order. */
@@ -64,7 +71,14 @@ export class SaveGame {
       this.flush();
     });
     ev.on('phantom', ({ at, spot, yaw, n, hours, day }) => {
-      this.phantoms.push({ spot: spot ? spot.def.id : null, at: [at.x, at.y, at.z], yaw, n, hours, day });
+      this.phantoms.push({
+        spot: spot ? spot.def.id : null,
+        at: [at.x, at.y, at.z],
+        yaw,
+        n,
+        hours,
+        day,
+      });
       this.wait = 0;
     });
     ev.on('frame', (dt) => {
@@ -156,10 +170,15 @@ function load(): SaveData | null {
   }
 }
 
-const isNum = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x);
-const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null;
+const isNum = (x: unknown): x is number =>
+  typeof x === 'number' && Number.isFinite(x);
+const isObj = (x: unknown): x is Record<string, unknown> =>
+  typeof x === 'object' && x !== null;
 
-/** Validate and normalize supported saves, discarding invalid individual records. */
+/**
+ * Validate and normalize supported saves, discarding invalid individual
+ * records.
+ */
 function parse(x: unknown): SaveData | null {
   if (
     !isObj(x) ||
@@ -194,7 +213,10 @@ function parse(x: unknown): SaveData | null {
   }
 
   // Preserve completed version 1 games without replaying the victory announcement.
-  const quests: Record<string, string> = x.v === 1 && phantoms.length >= TUNING.garage.spots ? { haunting: 'won' } : {};
+  const quests: Record<string, string> =
+    x.v === 1 && phantoms.length >= TUNING.garage.spots
+      ? { haunting: 'won' }
+      : {};
   if (isObj(x.quests)) {
     for (const [id, step] of Object.entries(x.quests)) {
       if (typeof step === 'string') {
@@ -204,8 +226,12 @@ function parse(x: unknown): SaveData | null {
   }
 
   const stock =
-    Array.isArray(x.stock) && x.stock.every((n) => isNum(n) && n >= 0) ? x.stock.map((n) => Math.round(Number(n))) : [];
-  const found = Array.isArray(x.found) ? x.found.flatMap((c) => foundCash(c)) : null;
+    Array.isArray(x.stock) && x.stock.every((n) => isNum(n) && n >= 0)
+      ? x.stock.map((n) => Math.round(Number(n)))
+      : [];
+  const found = Array.isArray(x.found)
+    ? x.found.flatMap((c) => foundCash(c))
+    : null;
   // Keep the rest of the save when the cash value is unreadable.
   return {
     v: VERSION,
@@ -225,7 +251,9 @@ function foundCash(x: unknown): FoundCash[] {
   }
 
   const [a, b, c, n]: unknown[] = x;
-  return isNum(a) && isNum(b) && isNum(c) && isNum(n) && n > 0 ? [[a, b, c, n]] : [];
+  return isNum(a) && isNum(b) && isNum(c) && isNum(n) && n > 0
+    ? [[a, b, c, n]]
+    : [];
 }
 
 function phantom(x: unknown): PhantomRecord | null {
@@ -235,7 +263,14 @@ function phantom(x: unknown): PhantomRecord | null {
 
   const at = vec3(x.at);
   const { spot, yaw, n, hours, day } = x;
-  if (!at || !(spot === null || isNum(spot)) || !isNum(yaw) || !isNum(n) || !isNum(hours) || !isNum(day)) {
+  if (
+    !at ||
+    !(spot === null || isNum(spot)) ||
+    !isNum(yaw) ||
+    !isNum(n) ||
+    !isNum(hours) ||
+    !isNum(day)
+  ) {
     return null;
   }
 

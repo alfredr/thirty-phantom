@@ -7,13 +7,17 @@ export interface Body {
 export const _ = Symbol('any');
 export type Any = typeof _;
 
-/** Grid coordinates stay unique within this many cells of the origin in each direction. */
+/**
+ * Grid coordinates stay unique within this many cells of the origin in each
+ * direction.
+ */
 const SPAN = 2048;
 
 /**
- * Index bodies for ground-plane proximity queries with a separate vertical tolerance. Rebuild before querying each
- * frame, and keep body positions fixed until all queries finish: the grid stores body references and pair results are
- * cached. Both radius and vertical tolerance comparisons are strict.
+ * Index bodies for ground-plane proximity queries with a separate vertical
+ * tolerance. Rebuild before querying each frame, and keep body positions fixed
+ * until all queries finish: the grid stores body references and pair results
+ * are cached. Both radius and vertical tolerance comparisons are strict.
  */
 export class Space<B extends Body> {
   private readonly cells = new Map<number, B[]>();
@@ -45,8 +49,18 @@ export class Space<B extends Body> {
   /** Everything within `r` of `a` on its level. */
   near(a: B, b: Any, r: number, level?: number): B[];
   /** Every ordered pair within `r` of each other on the same level. */
-  near(a: Any, b: Any, r: number, level?: number): readonly (readonly [B, B])[];
-  near(a: B | Any, b: B | Any, r: number, level = this.level): boolean | B[] | readonly (readonly [B, B])[] {
+  near(
+    a: Any,
+    b: Any,
+    r: number,
+    level?: number,
+  ): readonly (readonly [B, B])[];
+  near(
+    a: B | Any,
+    b: B | Any,
+    r: number,
+    level = this.level,
+  ): boolean | B[] | readonly (readonly [B, B])[] {
     if (a !== _ && b !== _) {
       return close(a, b, r, level);
     }
@@ -62,8 +76,16 @@ export class Space<B extends Body> {
     return this.allPairs(r, level);
   }
 
-  /** The nearest body within `r` of `a` on its level that passes `test`, or null. */
-  nearest(a: B, r: number, test: (b: B) => boolean = () => true, level = this.level): B | null {
+  /**
+   * The nearest body within `r` of `a` on its level that passes `test`, or
+   * null.
+   */
+  nearest(
+    a: B,
+    r: number,
+    test: (b: B) => boolean = () => true,
+    level = this.level,
+  ): B | null {
     let best: B | null = null;
     let bestDistance = r;
     for (const b of this.around(a, r, level)) {

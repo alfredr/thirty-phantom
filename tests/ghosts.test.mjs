@@ -9,9 +9,15 @@ const [{ Ghosts, shareOut }] = await loadModules('/src/fx/ghosts.ts');
 
 // Provide the canvas API needed to construct ghost textures for movement tests.
 function withCanvas(make) {
-  const originalDocument = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  const originalDocument = Object.getOwnPropertyDescriptor(
+    globalThis,
+    'document',
+  );
   const gradient = { addColorStop() {} };
-  const ctx = new Proxy({}, { get: (target, key) => (key in target ? target[key] : () => gradient) });
+  const ctx = new Proxy(
+    {},
+    { get: (target, key) => (key in target ? target[key] : () => gradient) },
+  );
   Object.defineProperty(globalThis, 'document', {
     configurable: true,
     value: { createElement: () => ({ getContext: () => ctx }) },
@@ -29,12 +35,15 @@ function withCanvas(make) {
 }
 
 function oneGhost() {
-  const ghosts = withCanvas(() => new Ghosts([{ min: [-10, 1, -10], max: [10, 3, 10] }], 1));
+  const ghosts = withCanvas(
+    () => new Ghosts([{ min: [-10, 1, -10], max: [10, 3, 10] }], 1),
+  );
   ghosts.update(1 / 60, 1);
   return { ghosts, sprite: ghosts.root.children[0] };
 }
 
-const stretched = (sprite) => Math.abs(sprite.scale.y) - Math.abs(sprite.scale.x) > 1e-6;
+const stretched = (sprite) =>
+  Math.abs(sprite.scale.y) - Math.abs(sprite.scale.x) > 1e-6;
 
 test('a ghost the intake lets go eases back into shape and drifts again', () => {
   const { ghosts, sprite } = oneGhost();
@@ -57,12 +66,20 @@ test('an intake pulls a ghost only while it is within reach', () => {
   const { ghosts, sprite } = oneGhost();
   ghosts.suck(sprite.position.clone().add(new Vector3(4, 0, 0)), 6, 0.1);
   const was = sprite.position.clone();
-  assert.equal(ghosts.suck(sprite.position.clone().add(new Vector3(20, 0, 0)), 6, 0.1), 0);
+  assert.equal(
+    ghosts.suck(sprite.position.clone().add(new Vector3(20, 0, 0)), 6, 0.1),
+    0,
+  );
   assert.deepEqual(sprite.position.toArray(), was.toArray());
 });
 
 const inZone = (p, z) =>
-  p.x >= z.min[0] && p.x <= z.max[0] && p.y >= z.min[1] && p.y <= z.max[1] && p.z >= z.min[2] && p.z <= z.max[2];
+  p.x >= z.min[0] &&
+  p.x <= z.max[0] &&
+  p.y >= z.min[1] &&
+  p.y <= z.max[1] &&
+  p.z >= z.min[2] &&
+  p.z <= z.max[2];
 
 test('ambient ghosts are shared out by zone weight', () => {
   assert.deepEqual(
@@ -108,7 +125,9 @@ test("a collected ghost returns after its zone's respawn time, or the default", 
 });
 
 test('active() lists collectable ghosts only while the ghosts show', () => {
-  const ghosts = withCanvas(() => new Ghosts([{ min: [-10, 1, -10], max: [10, 3, 10] }], 3));
+  const ghosts = withCanvas(
+    () => new Ghosts([{ min: [-10, 1, -10], max: [10, 3, 10] }], 3),
+  );
   ghosts.update(1 / 60, 1);
   assert.equal(ghosts.active().length, 3);
   ghosts.rise(new Vector3(30, 0, 30));

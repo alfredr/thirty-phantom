@@ -5,13 +5,17 @@ import { clamp, damp, dampAngle } from '@/engine/core/math';
 
 import { Shake } from './shake';
 
-/** Camera elevation for an isometric projection, in radians (approximately 35.264 degrees). */
+/**
+ * Camera elevation for an isometric projection, in radians (approximately
+ * 35.264 degrees).
+ */
 export const ISO_ELEVATION = Math.atan(1 / Math.SQRT2);
 /** Each mouse-wheel step zooms by this factor (both camera rigs). */
 export const ZOOM_STEP = 1.12;
 /**
- * Maximum height above the focus included in the shadow bounds, in world units. Limiting this height preserves shadow
- * resolution; taller roofs near the bottom of the view may fall outside the shadow map.
+ * Maximum height above the focus included in the shadow bounds, in world
+ * units. Limiting this height preserves shadow resolution; taller roofs near
+ * the bottom of the view may fall outside the shadow map.
  */
 const SHADOW_RISE = 20;
 const _corner = new Vector3();
@@ -19,13 +23,19 @@ const _right = new Vector3();
 const _up = new Vector3();
 const _fwd = new Vector3();
 
-/** Return the view scale for a viewport measured in CSS pixels, capped at 1. Both camera rigs use this scale. */
+/**
+ * Return the view scale for a viewport measured in CSS pixels, capped at 1.
+ * Both camera rigs use this scale.
+ */
 export function viewFit(w: number, h: number): number {
   const { shortSide, power } = TUNING.camera.fit;
   return Math.min(1, Math.pow(Math.min(w, h) / shortSide, power));
 }
 
-/** Orthographic isometric rig: smooth follow, 90-degree rotation steps, zoom, shake. */
+/**
+ * Orthographic isometric rig: smooth follow, 90-degree rotation steps, zoom,
+ * shake.
+ */
 export class IsoCamera {
   readonly camera: OrthographicCamera;
   readonly target = new Vector3();
@@ -33,7 +43,10 @@ export class IsoCamera {
   readonly viewDir = new Vector3();
   azimuth = Math.PI / 4;
   azimuthTarget = Math.PI / 4;
-  /** World units across the viewport's shorter dimension before applying viewFit. */
+  /**
+   * World units across the viewport's shorter dimension before applying
+   * viewFit.
+   */
   zoom: number = TUNING.camera.zoom;
   zoomTarget: number = TUNING.camera.zoom;
   private aspect = 1;
@@ -62,7 +75,11 @@ export class IsoCamera {
   }
 
   zoomBy(steps: number): void {
-    this.zoomTarget = clamp(this.zoomTarget * Math.pow(ZOOM_STEP, steps), TUNING.camera.minZoom, TUNING.camera.maxZoom);
+    this.zoomTarget = clamp(
+      this.zoomTarget * Math.pow(ZOOM_STEP, steps),
+      TUNING.camera.minZoom,
+      TUNING.camera.maxZoom,
+    );
   }
 
   addTrauma(t: number): void {
@@ -90,14 +107,16 @@ export class IsoCamera {
   }
 
   /**
-   * Additional upper extent for shadow fitting, measured from the screen centre in flat-world units. Curvature can
-   * expose ground beyond the camera's flat projection.
+   * Additional upper extent for shadow fitting, measured from the screen
+   * centre in flat-world units. Curvature can expose ground beyond the
+   * camera's flat projection.
    */
   shadowTop = 0;
 
   /**
-   * Write eight shadow-bound corners into `out` and return it. Intersect the viewport corner rays with the lowest
-   * visible floor and the height limited by SHADOW_RISE.
+   * Write eight shadow-bound corners into `out` and return it. Intersect the
+   * viewport corner rays with the lowest visible floor and the height limited
+   * by SHADOW_RISE.
    */
   shadowCorners(out: Vector3[]): Vector3[] {
     const cam = this.camera;
@@ -111,7 +130,10 @@ export class IsoCamera {
     let i = 0;
     for (const x of [cam.left, cam.right]) {
       for (const y of [cam.bottom, top]) {
-        _corner.copy(cam.position).addScaledVector(_right, x).addScaledVector(_up, y);
+        _corner
+          .copy(cam.position)
+          .addScaledVector(_right, x)
+          .addScaledVector(_up, y);
 
         for (const h of [lo, hi]) {
           const p = (out[i++] ??= new Vector3());
@@ -126,10 +148,19 @@ export class IsoCamera {
 
   private computeView(): void {
     const c = Math.cos(ISO_ELEVATION);
-    this.viewDir.set(Math.sin(this.azimuth) * c, Math.sin(ISO_ELEVATION), Math.cos(this.azimuth) * c);
+    this.viewDir.set(
+      Math.sin(this.azimuth) * c,
+      Math.sin(ISO_ELEVATION),
+      Math.cos(this.azimuth) * c,
+    );
   }
 
-  update(dt: number, focus: Vector3, lead: Vector3 | null, followRate = 6): void {
+  update(
+    dt: number,
+    focus: Vector3,
+    lead: Vector3 | null,
+    followRate = 6,
+  ): void {
     const fx = focus.x + (lead?.x ?? 0);
     const fy = focus.y + (lead?.y ?? 0);
     const fz = focus.z + (lead?.z ?? 0);
@@ -146,8 +177,15 @@ export class IsoCamera {
 
     const d = TUNING.camera.distance;
     const cam = this.camera;
-    cam.position.copy(this.target).addScaledVector(this.viewDir, d).add(this.shake);
-    cam.lookAt(this.target.x + this.shake.x, this.target.y + this.shake.y, this.target.z + this.shake.z);
+    cam.position
+      .copy(this.target)
+      .addScaledVector(this.viewDir, d)
+      .add(this.shake);
+    cam.lookAt(
+      this.target.x + this.shake.x,
+      this.target.y + this.shake.y,
+      this.target.z + this.shake.z,
+    );
     const h = this.viewHeight / 2;
     cam.left = -h * this.aspect;
     cam.right = h * this.aspect;

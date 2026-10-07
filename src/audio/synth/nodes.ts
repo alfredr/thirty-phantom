@@ -1,14 +1,26 @@
-/** Shared audio context, noise buffer, and distortion curves used by synthesis recipes. */
+/**
+ * Shared audio context, noise buffer, and distortion curves used by synthesis
+ * recipes.
+ */
 export interface Kit {
   readonly ctx: BaseAudioContext;
-  /** Six seconds of white noise, long enough to reduce audible repetition in continuous sounds. */
+  /**
+   * Six seconds of white noise, long enough to reduce audible repetition in
+   * continuous sounds.
+   */
   readonly noise: AudioBuffer;
-  /** Waveshaper curves: gentle saturation, and a harder one for grit and crunch. */
+  /**
+   * Waveshaper curves: gentle saturation, and a harder one for grit and
+   * crunch.
+   */
   readonly soft: Float32Array<ArrayBuffer>;
   readonly hard: Float32Array<ArrayBuffer>;
 }
 
-/** Normalized controls for continuous sounds: RPM, engine load, fire intensity, and motor speed. */
+/**
+ * Normalized controls for continuous sounds: RPM, engine load, fire intensity,
+ * and motor speed.
+ */
 export interface Controls {
   rpm?: number;
   load?: number;
@@ -20,21 +32,36 @@ export interface Controls {
 export interface Voice {
   /** Audio context time at which playback ends, or Infinity for a loop. */
   readonly end: number;
-  /** Stop all sources at audio context time `at`. The mixer fades loop output before stopping it. */
+  /**
+   * Stop all sources at audio context time `at`. The mixer fades loop output
+   * before stopping it.
+   */
   stop(at: number): void;
   set?(c: Controls, at: number): void;
-  /** Schedule upcoming sound events from audio context time `at`. Called each frame for audible loops. */
+  /**
+   * Schedule upcoming sound events from audio context time `at`. Called each
+   * frame for audible loops.
+   */
   tick?(at: number): void;
 }
 
 export function makeKit(ctx: BaseAudioContext): Kit {
-  const noise = ctx.createBuffer(1, Math.round(ctx.sampleRate * 6), ctx.sampleRate);
+  const noise = ctx.createBuffer(
+    1,
+    Math.round(ctx.sampleRate * 6),
+    ctx.sampleRate,
+  );
   const d = noise.getChannelData(0);
   for (let i = 0; i < d.length; i++) {
     d[i] = Math.random() * 2 - 1;
   }
 
-  return { ctx, noise, soft: curve((x) => Math.tanh(1.5 * x) / Math.tanh(1.5)), hard: curve((x) => Math.tanh(4 * x)) };
+  return {
+    ctx,
+    noise,
+    soft: curve((x) => Math.tanh(1.5 * x) / Math.tanh(1.5)),
+    hard: curve((x) => Math.tanh(4 * x)),
+  };
 }
 
 function curve(f: (x: number) => number): Float32Array<ArrayBuffer> {
@@ -46,7 +73,8 @@ function curve(f: (x: number) => number): Float32Array<ArrayBuffer> {
   return c;
 }
 
-export const rand = (a: number, b: number): number => a + (b - a) * Math.random();
+export const rand = (a: number, b: number): number =>
+  a + (b - a) * Math.random();
 
 /** Track a voice's source nodes so they can be stopped together. */
 export class Sources {
@@ -85,8 +113,16 @@ export function osc(
   return s ? s.add(o) : o;
 }
 
-/** Start looping white noise at context time `t` from a random buffer offset. Optionally stop at `end`. */
-export function noise(k: Kit, s: Sources | null, t: number, end?: number): AudioBufferSourceNode {
+/**
+ * Start looping white noise at context time `t` from a random buffer offset.
+ * Optionally stop at `end`.
+ */
+export function noise(
+  k: Kit,
+  s: Sources | null,
+  t: number,
+  end?: number,
+): AudioBufferSourceNode {
   const n = k.ctx.createBufferSource();
   n.buffer = k.noise;
   n.loop = true;
@@ -99,7 +135,13 @@ export function noise(k: Kit, s: Sources | null, t: number, end?: number): Audio
   return s ? s.add(n) : n;
 }
 
-export function filter(k: Kit, type: BiquadFilterType, f: number, q = 0.7, gain = 0): BiquadFilterNode {
+export function filter(
+  k: Kit,
+  type: BiquadFilterType,
+  f: number,
+  q = 0.7,
+  gain = 0,
+): BiquadFilterNode {
   const b = k.ctx.createBiquadFilter();
   b.type = type;
   b.frequency.value = f;
@@ -120,8 +162,17 @@ export function shape(k: Kit, c: Float32Array<ArrayBuffer>): WaveShaperNode {
   return w;
 }
 
-/** Create an envelope with a linear attack over `a` seconds and an exponential decay lasting roughly `d` seconds. */
-export function strike(k: Kit, t: number, peak: number, a: number, d: number): GainNode {
+/**
+ * Create an envelope with a linear attack over `a` seconds and an exponential
+ * decay lasting roughly `d` seconds.
+ */
+export function strike(
+  k: Kit,
+  t: number,
+  peak: number,
+  a: number,
+  d: number,
+): GainNode {
   const g = k.ctx.createGain();
   g.gain.setValueAtTime(0, t);
   g.gain.linearRampToValueAtTime(peak, t + a);
@@ -138,11 +189,22 @@ export function chain(...nodes: [AudioNode, ...AudioNode[]]): void {
 }
 
 /** Modulate an audio parameter with an oscillator scaled by `depth`. */
-export function wobble(k: Kit, lfo: AudioNode, depth: number, param: AudioParam): void {
+export function wobble(
+  k: Kit,
+  lfo: AudioNode,
+  depth: number,
+  param: AudioParam,
+): void {
   lfo.connect(amp(k, depth)).connect(param);
 }
 
-/** Compensate for the lower energy of narrow-band noise. `bw` is the filter bandwidth in Hz. */
+/**
+ * Compensate for the lower energy of narrow-band noise. `bw` is the filter
+ * bandwidth in Hz.
+ */
 export function loud(k: Kit, bw: number): number {
-  return Math.min(10, Math.sqrt(k.ctx.sampleRate / 2 / Math.max(bw, 20)) * 0.35);
+  return Math.min(
+    10,
+    Math.sqrt(k.ctx.sampleRate / 2 / Math.max(bw, 20)) * 0.35,
+  );
 }

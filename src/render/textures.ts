@@ -7,7 +7,10 @@ import { PALETTE } from './palette';
 
 export type Ctx = CanvasRenderingContext2D;
 
-export function makeCanvas(w: number, h: number): { c: HTMLCanvasElement; ctx: Ctx } {
+export function makeCanvas(
+  w: number,
+  h: number,
+): { c: HTMLCanvasElement; ctx: Ctx } {
   const c = document.createElement('canvas');
   c.width = w;
   c.height = h;
@@ -19,7 +22,10 @@ export function makeCanvas(w: number, h: number): { c: HTMLCanvasElement; ctx: C
   return { c, ctx };
 }
 
-export function toTexture(c: HTMLCanvasElement, opts: { repeat?: boolean; srgb?: boolean } = {}): CanvasTexture {
+export function toTexture(
+  c: HTMLCanvasElement,
+  opts: { repeat?: boolean; srgb?: boolean } = {},
+): CanvasTexture {
   const t = new CanvasTexture(c);
   if (opts.srgb !== false) {
     t.colorSpace = SRGBColorSpace;
@@ -35,8 +41,17 @@ export function toTexture(c: HTMLCanvasElement, opts: { repeat?: boolean; srgb?:
   return t;
 }
 
-/** Add seeded RGB grain in place, with a slightly stronger blue component. Preserve alpha. */
-export function addNoise(ctx: Ctx, w: number, h: number, rng: Rng, amount: number): void {
+/**
+ * Add seeded RGB grain in place, with a slightly stronger blue component.
+ * Preserve alpha.
+ */
+export function addNoise(
+  ctx: Ctx,
+  w: number,
+  h: number,
+  rng: Rng,
+  amount: number,
+): void {
   const img = ctx.getImageData(0, 0, w, h);
   const d = img.data;
   for (let i = 0; i < d.length; i += 4) {
@@ -50,7 +65,14 @@ export function addNoise(ctx: Ctx, w: number, h: number, rng: Rng, amount: numbe
 }
 
 /** Draw a soft blob that wraps across tile edges so the texture stays seamless. */
-function wrappedBlob(ctx: Ctx, S: number, x: number, y: number, r: number, color: string): void {
+function wrappedBlob(
+  ctx: Ctx,
+  S: number,
+  x: number,
+  y: number,
+  r: number,
+  color: string,
+): void {
   for (const ox of [-S, 0, S]) {
     for (const oy of [-S, 0, S]) {
       const cx = x + ox;
@@ -68,8 +90,15 @@ function wrappedBlob(ctx: Ctx, S: number, x: number, y: number, r: number, color
   }
 }
 
-/** Create a seeded, repeating concrete texture using `base`, with stains, pores, cracks, and optional panel seams. */
-export function concreteTexture(base: string, seed: number, seams = true): CanvasTexture {
+/**
+ * Create a seeded, repeating concrete texture using `base`, with stains,
+ * pores, cracks, and optional panel seams.
+ */
+export function concreteTexture(
+  base: string,
+  seed: number,
+  seams = true,
+): CanvasTexture {
   const S = 256;
   const { c, ctx } = makeCanvas(S, S);
   const rng = new Rng(seed);
@@ -84,7 +113,9 @@ export function concreteTexture(base: string, seed: number, seams = true): Canva
       rng.range(0, S),
       rng.range(0, S),
       rng.range(12, 70),
-      dark ? `rgba(25,12,40,${rng.range(0.05, 0.14)})` : `rgba(255,245,255,${rng.range(0.03, 0.08)})`,
+      dark
+        ? `rgba(25,12,40,${rng.range(0.05, 0.14)})`
+        : `rgba(255,245,255,${rng.range(0.03, 0.08)})`,
     );
   }
 
@@ -141,7 +172,12 @@ export function concreteTexture(base: string, seed: number, seams = true): Canva
     const cy = rng.range(0, S);
     for (let k = 0; k < 40; k++) {
       ctx.fillStyle = `rgba(14,6,22,${rng.range(0.2, 0.5)})`;
-      ctx.fillRect(cx + rng.range(-14, 14), cy + rng.range(-14, 14), rng.int(1, 3), rng.int(1, 3));
+      ctx.fillRect(
+        cx + rng.range(-14, 14),
+        cy + rng.range(-14, 14),
+        rng.int(1, 3),
+        rng.int(1, 3),
+      );
     }
   }
 
@@ -166,16 +202,32 @@ export function asphaltTexture(seed: number): CanvasTexture {
   ctx.fillRect(0, 0, S, S);
 
   for (let i = 0; i < 30; i++) {
-    wrappedBlob(ctx, S, rng.range(0, S), rng.range(0, S), rng.range(20, 80), `rgba(10,4,18,${rng.range(0.08, 0.2)})`);
+    wrappedBlob(
+      ctx,
+      S,
+      rng.range(0, S),
+      rng.range(0, S),
+      rng.range(20, 80),
+      `rgba(10,4,18,${rng.range(0.08, 0.2)})`,
+    );
   }
 
   for (let i = 0; i < 6; i++) {
-    wrappedBlob(ctx, S, rng.range(0, S), rng.range(0, S), rng.range(10, 30), 'rgba(120,80,170,0.10)');
+    wrappedBlob(
+      ctx,
+      S,
+      rng.range(0, S),
+      rng.range(0, S),
+      rng.range(10, 30),
+      'rgba(120,80,170,0.10)',
+    );
   }
 
   for (let i = 0; i < 3000; i++) {
     const v = rng.chance(0.5);
-    ctx.fillStyle = v ? `rgba(160,150,180,${rng.range(0.05, 0.18)})` : `rgba(0,0,0,${rng.range(0.1, 0.3)})`;
+    ctx.fillStyle = v
+      ? `rgba(160,150,180,${rng.range(0.05, 0.18)})`
+      : `rgba(0,0,0,${rng.range(0.1, 0.3)})`;
     ctx.fillRect(rng.int(0, S - 1), rng.int(0, S - 1), 1, 1);
   }
 
@@ -210,7 +262,14 @@ export function sidewalkTexture(seed: number): CanvasTexture {
   ctx.fillRect(0, 0, S, S);
 
   for (let i = 0; i < 20; i++) {
-    wrappedBlob(ctx, S, rng.range(0, S), rng.range(0, S), rng.range(15, 50), `rgba(20,10,35,${rng.range(0.06, 0.15)})`);
+    wrappedBlob(
+      ctx,
+      S,
+      rng.range(0, S),
+      rng.range(0, S),
+      rng.range(15, 50),
+      `rgba(20,10,35,${rng.range(0.06, 0.15)})`,
+    );
   }
 
   ctx.fillStyle = 'rgba(15,6,25,0.5)';
@@ -243,7 +302,9 @@ export function grassTexture(seed: number): CanvasTexture {
   }
 
   for (let i = 0; i < 2500; i++) {
-    ctx.fillStyle = rng.chance(0.5) ? 'rgba(90,120,60,0.25)' : 'rgba(5,10,5,0.35)';
+    ctx.fillStyle = rng.chance(0.5)
+      ? 'rgba(90,120,60,0.25)'
+      : 'rgba(5,10,5,0.35)';
     ctx.fillRect(rng.int(0, S - 1), rng.int(0, S - 1), 1, rng.int(1, 3));
   }
 
@@ -260,7 +321,10 @@ export function shade(hex: string, k: number): string {
 
 let radialGlow: CanvasTexture | null = null;
 
-/** White radial falloff used by additive glow decals and light pools. Built once and shared. */
+/**
+ * White radial falloff used by additive glow decals and light pools. Built
+ * once and shared.
+ */
 export function radialGlowTexture(): CanvasTexture {
   return (radialGlow ??= buildRadialGlow());
 }
@@ -298,7 +362,13 @@ export function puddleTexture(seed: number): CanvasTexture {
     const a = rng.range(0, TAU);
     const d = rng.range(0, 50);
     ctx.beginPath();
-    ctx.arc(128 + Math.cos(a) * d, 128 + Math.sin(a) * d, rng.range(28, 60), 0, TAU);
+    ctx.arc(
+      128 + Math.cos(a) * d,
+      128 + Math.sin(a) * d,
+      rng.range(28, 60),
+      0,
+      TAU,
+    );
     ctx.fill();
   }
 

@@ -31,13 +31,23 @@ export interface SpotRuntime {
   glowMat: MeshBasicMaterial;
 }
 
-/** Test whether `p` lies inside the painted rectangle and within 1.2 meters of its floor. */
+/**
+ * Test whether `p` lies inside the painted rectangle and within 1.2 meters of
+ * its floor.
+ */
 export function inSpot(s: SpotRuntime, p: Vector3): boolean {
   const [w, d] = s.def.size;
-  return Math.abs(p.x - s.center.x) < w / 2 && Math.abs(p.z - s.center.z) < d / 2 && Math.abs(p.y - s.center.y) < 1.2;
+  return (
+    Math.abs(p.x - s.center.x) < w / 2 &&
+    Math.abs(p.z - s.center.z) < d / 2 &&
+    Math.abs(p.y - s.center.y) < 1.2
+  );
 }
 
-/** Format spot and level numbers for display, converting both from zero-based indices. */
+/**
+ * Format spot and level numbers for display, converting both from zero-based
+ * indices.
+ */
 export function spotLabel(s: SpotRuntime): string {
   return `SPOT ${s.def.id + 1}, LEVEL ${s.def.level + 1}`;
 }
@@ -46,7 +56,10 @@ export function spotLabel(s: SpotRuntime): string {
 const SPOT_BELOW = 0.3;
 const SPOT_ABOVE = 2;
 
-/** Build a spot region with horizontal padding in meters; negative padding shrinks it. */
+/**
+ * Build a spot region with horizontal padding in meters; negative padding
+ * shrinks it.
+ */
 export function spotZone(s: SpotRuntime, pad: number): ZoneDef {
   const [w, d] = s.def.size;
   const c = s.center;
@@ -64,8 +77,9 @@ export interface Crossing {
 }
 
 /**
- * Track badge counts, physical occupancy, and phantom imprints. Phantom occupancy is the badge count minus the number
- * of vehicles physically inside.
+ * Track badge counts, physical occupancy, and phantom imprints. Phantom
+ * occupancy is the badge count minus the number of vehicles physically
+ * inside.
  */
 export class Garage {
   readonly root = new Group();
@@ -73,7 +87,8 @@ export class Garage {
   logged = 0;
   phantoms = 0;
   private readonly ghostMat: MeshStandardMaterial;
-  private readonly phantomRigs: { g: Group; base: number; phase: number }[] = [];
+  private readonly phantomRigs: { g: Group; base: number; phase: number }[] =
+    [];
   private readonly edges = new WeakMap<Vehicle, [Vector3, Vector3]>();
   private readonly badged = new WeakSet<Vehicle>();
   private t = 0;
@@ -97,13 +112,23 @@ export class Garage {
           toneMapped: false,
         }),
       );
-      const glow = new Mesh(new PlaneGeometry(def.size[0] * 1.3, def.size[1] * 1.2), glowMat);
+      const glow = new Mesh(
+        new PlaneGeometry(def.size[0] * 1.3, def.size[1] * 1.2),
+        glowMat,
+      );
       glow.rotation.x = -Math.PI / 2;
       glow.position.set(def.center[0], def.center[1] + 0.06, def.center[2]);
       glow.layers.set(FX_LAYER);
       glow.renderOrder = 2;
       this.root.add(glow);
-      return { def, center: new Vector3(...def.center), occupant: null, phantom: null, glow, glowMat };
+      return {
+        def,
+        center: new Vector3(...def.center),
+        occupant: null,
+        phantom: null,
+        glow,
+        glowMat,
+      };
     });
     this.ghostMat = withCutaway(
       new MeshStandardMaterial({
@@ -120,7 +145,13 @@ export class Garage {
 
   inFootprint(p: Vector3): boolean {
     const { min, max } = this.nav;
-    return p.x > min[0] && p.x < max[0] && p.z > min[2] && p.z < max[2] && p.y < max[1];
+    return (
+      p.x > min[0] &&
+      p.x < max[0] &&
+      p.z > min[2] &&
+      p.z < max[2] &&
+      p.y < max[1]
+    );
   }
 
   /** Count vehicles inside the deck, excluding removed vehicles. */
@@ -145,12 +176,15 @@ export class Garage {
 
   /** Return the spot’s reservation holder. The game supplies the claim lookup. */
   bookedBy: (s: SpotRuntime) => object | null = () => null;
-  /** Return a vehicle physically standing in the spot, including one not registered as its occupant. */
+  /**
+   * Return a vehicle physically standing in the spot, including one not
+   * registered as its occupant.
+   */
   standingIn: (s: SpotRuntime) => Vehicle | null = () => null;
 
   /**
-   * Test availability against phantoms, occupants, reservations, and physically present vehicles. Ignore `except` in
-   * vehicle checks.
+   * Test availability against phantoms, occupants, reservations, and
+   * physically present vehicles. Ignore `except` in vehicle checks.
    */
   isFree(s: SpotRuntime, except?: Vehicle): boolean {
     const booked = this.bookedBy(s);
@@ -163,7 +197,10 @@ export class Garage {
     );
   }
 
-  /** Return the nearest available spot, restricting the search when `floor` is non-null. */
+  /**
+   * Return the nearest available spot, restricting the search when `floor` is
+   * non-null.
+   */
   nearestFree(p: Vector3, floor: number | null): SpotRuntime | null {
     let best: SpotRuntime | null = null;
     let bd = Infinity;
@@ -191,7 +228,10 @@ export class Garage {
     return this.spots.filter((s) => this.isFree(s));
   }
 
-  /** Return an available spot on the highest floor, breaking ties by lowest spot ID. */
+  /**
+   * Return an available spot on the highest floor, breaking ties by lowest
+   * spot ID.
+   */
   topFree(): SpotRuntime | null {
     let best: SpotRuntime | null = null;
     for (const s of this.spots) {
@@ -199,7 +239,11 @@ export class Garage {
         continue;
       }
 
-      if (!best || s.def.level > best.def.level || (s.def.level === best.def.level && s.def.id < best.def.id)) {
+      if (
+        !best ||
+        s.def.level > best.def.level ||
+        (s.def.level === best.def.level && s.def.id < best.def.id)
+      ) {
         best = s;
       }
     }
@@ -226,7 +270,9 @@ export class Garage {
 
     const dx = Math.max(min[0] - p.x, p.x - max[0]);
     const dz = Math.max(min[2] - p.z, p.z - max[2]);
-    return dx <= 0 && dz <= 0 ? Math.max(dx, dz) : Math.hypot(Math.max(dx, 0), Math.max(dz, 0));
+    return dx <= 0 && dz <= 0
+      ? Math.max(dx, dz)
+      : Math.hypot(Math.max(dx, 0), Math.max(dz, 0));
   }
 
   resync(v: Vehicle): void {
@@ -329,7 +375,11 @@ export class Garage {
         : spot.def.yaw
       : yaw;
     this.root.add(rig.root);
-    this.phantomRigs.push({ g: rig.root, base: rig.root.position.y, phase: Math.random() * 6 });
+    this.phantomRigs.push({
+      g: rig.root,
+      base: rig.root.position.y,
+      phase: Math.random() * 6,
+    });
 
     if (spot) {
       spot.phantom = rig.root;
@@ -358,6 +408,7 @@ export class Garage {
       p.g.position.y = p.base + 0.25 + Math.sin(this.t * 1.6 + p.phase) * 0.18;
     }
 
-    this.ghostMat.emissiveIntensity = 0.55 + Math.sin(this.t * 5) * 0.08 + Math.random() * 0.06;
+    this.ghostMat.emissiveIntensity =
+      0.55 + Math.sin(this.t * 5) * 0.08 + Math.random() * 0.06;
   }
 }

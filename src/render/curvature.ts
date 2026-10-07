@@ -20,40 +20,56 @@ import { smoothstep } from '@/engine/core/math';
 import { urlChoice } from '@/engine/core/url-flags';
 
 /**
- * Render the isometric world on a sphere centred beneath the camera focus. Horizontal distance becomes arc length;
- * height extends vertically or along the sphere's radius according to `lean`.
+ * Render the isometric world on a sphere centred beneath the camera focus.
+ * Horizontal distance becomes arc length; height extends vertically or along
+ * the sphere's radius according to `lean`.
  *
- * This affects rendering and culling only. Physics, lighting, shadows, and texture coordinates use flat positions. A
- * zero radius disables the bend for a render; disabling CURVE_ON also skips material patches and subdivision.
+ * This affects rendering and culling only. Physics, lighting, shadows, and
+ * texture coordinates use flat positions. A zero radius disables the bend for
+ * a render; disabling CURVE_ON also skips material patches and subdivision.
  */
 
-/** Whether the world can curve (TUNING.camera.curve.on, or ?curve=0 / ?curve=1). */
+/**
+ * Whether the world can curve (TUNING.camera.curve.on, or ?curve=0 /
+ * ?curve=1).
+ */
 export const CURVE_ON = ((): boolean => {
   const flag = urlChoice('curve', ['0', '1']);
   return flag ? flag === '1' : TUNING.camera.curve.on;
 })();
 
-/** Subdivision grid spacing in meters for render/geometry.ts, or zero when curvature is disabled. */
+/**
+ * Subdivision grid spacing in meters for render/geometry.ts, or zero when
+ * curvature is disabled.
+ */
 export const CURVE_TILE: number = CURVE_ON ? TUNING.camera.curve.tile : 0;
 
 /**
- * Maximum bend angle in radians. Sink geometry near this limit to prevent the distant city from wrapping around the
- * sphere and reappearing beneath the focus.
+ * Maximum bend angle in radians. Sink geometry near this limit to prevent the
+ * distant city from wrapping around the sphere and reappearing beneath the
+ * focus.
  */
 const PHI_MAX = 2.6;
 /** Angular interval in radians over which geometry sinks before PHI_MAX. */
 const SINK = 0.25;
 
 export const curveUniforms = {
-  /** xyz: the bend's centre (the iso view's focus); w: the planet's radius, 0 for flat. */
+  /**
+   * xyz: the bend's centre (the iso view's focus); w: the planet's radius, 0
+   * for flat.
+   */
   uCurve: { value: new Vector4() },
-  /** How far heights stand out along the sphere's radius rather than straight up, 0..1. */
+  /**
+   * How far heights stand out along the sphere's radius rather than straight
+   * up, 0..1.
+   */
   uCurveLean: { value: 0 },
 };
 
 /**
- * Current isometric bend parameters for HUD projection and culling. curveCull activates these uniforms only during the
- * isometric render so other renders using shared materials remain flat. A zero w disables curvature.
+ * Current isometric bend parameters for HUD projection and culling. curveCull
+ * activates these uniforms only during the isometric render so other renders
+ * using shared materials remain flat. A zero w disables curvature.
  */
 export const curveFrame = { planet: new Vector4(), lean: 0 };
 
@@ -76,7 +92,10 @@ vec3 curveBend(vec3 p) {
 }
 `;
 
-/** The vertex's world position, as three's chunks build it (instancing and batching included). */
+/**
+ * The vertex's world position, as three's chunks build it (instancing and
+ * batching included).
+ */
 const WORLD = /* glsl */ `
     vec4 curveWp = vec4(transformed, 1.0);
     #ifdef USE_BATCHING
@@ -89,11 +108,15 @@ const WORLD = /* glsl */ `
 `;
 
 /**
- * Patch supported mesh or sprite shaders to project curved world positions. Mesh lighting retains flat mvPosition;
- * sprites bend at their centres. If provided, `bent` names an existing vec3 receiving the mesh's bent position. Return
- * false when neither supported shader pattern is present.
+ * Patch supported mesh or sprite shaders to project curved world positions.
+ * Mesh lighting retains flat mvPosition; sprites bend at their centres. If
+ * provided, `bent` names an existing vec3 receiving the mesh's bent position.
+ * Return false when neither supported shader pattern is present.
  */
-export function curveVertex(shader: WebGLProgramParametersWithUniforms, bent = ''): boolean {
+export function curveVertex(
+  shader: WebGLProgramParametersWithUniforms,
+  bent = '',
+): boolean {
   const vs = shader.vertexShader;
   const out = bent ? `${bent} = curveBent;` : '';
   let next: string;
@@ -119,8 +142,9 @@ export function curveVertex(shader: WebGLProgramParametersWithUniforms, bent = '
 const curved = new WeakSet<Material>();
 
 /**
- * Install the curvature shader patch once per material and return it. Skip patching when CURVE_ON is false. Cloned
- * materials must be patched separately because cloning does not preserve onBeforeCompile.
+ * Install the curvature shader patch once per material and return it. Skip
+ * patching when CURVE_ON is false. Cloned materials must be patched separately
+ * because cloning does not preserve onBeforeCompile.
  */
 export function withCurve<T extends Material>(mat: T): T {
   if (!CURVE_ON || curved.has(mat)) {
@@ -139,14 +163,18 @@ export function withCurve<T extends Material>(mat: T): T {
   return mat;
 }
 
-/** Record a material already patched by the cutaway code so curveSweep does not patch it again. */
+/**
+ * Record a material already patched by the cutaway code so curveSweep does not
+ * patch it again.
+ */
 export function markCurved(mat: Material): void {
   curved.add(mat);
 }
 
 /**
- * Patch all unregistered materials under `root` and request shader recompilation. Call again after adding objects or
- * cloning materials. Do nothing when curvature is disabled.
+ * Patch all unregistered materials under `root` and request shader
+ * recompilation. Call again after adding objects or cloning materials. Do
+ * nothing when curvature is disabled.
  */
 export function curveSweep(root: Object3D): void {
   if (!CURVE_ON) {
@@ -198,8 +226,9 @@ export function curvePoint(p: Vector3): Vector3 {
 }
 
 /**
- * Return the flat-world screen height needed to cover ground visible at the curved viewport's top edge. `halfH` is the
- * viewport half-height in world units and `elevation` is the camera elevation in radians.
+ * Return the flat-world screen height needed to cover ground visible at the
+ * curved viewport's top edge. `halfH` is the viewport half-height in world
+ * units and `elevation` is the camera elevation in radians.
  */
 export function curveTop(halfH: number, elevation: number): number {
   const R = curveFrame.planet.w;
@@ -208,15 +237,17 @@ export function curveTop(halfH: number, elevation: number): number {
   }
 
   // A surface point at angle phi projects R * (cos(phi - elevation) - cos(elevation)) above the focus.
-  const phi = elevation - Math.acos(Math.min(1, Math.cos(elevation) + halfH / R));
+  const phi =
+    elevation - Math.acos(Math.min(1, Math.cos(elevation) + halfH / R));
   return R * phi * Math.sin(elevation);
 }
 
 // ---------------------------------------------------------------- culling
 
 /**
- * Curvature-aware culling state for the active isometric camera. Test each object's bent bounding sphere against the
- * view frustum and the planet horizon, expanding its radius to account for height-dependent stretching.
+ * Curvature-aware culling state for the active isometric camera. Test each
+ * object's bent bounding sphere against the view frustum and the planet
+ * horizon, expanding its radius to account for height-dependent stretching.
  */
 const cull = {
   camera: null as OrthographicCamera | null,
@@ -232,10 +263,15 @@ const _c = new Vector3();
 const _spriteCentre = new Vector2(0.5, 0.5);
 
 /**
- * Activate curveFrame for an isometric render and configure its culling frustum. The optional cutaway centre uses bent
- * world coordinates. Pass null to restore flat rendering for subsequent passes.
+ * Activate curveFrame for an isometric render and configure its culling
+ * frustum. The optional cutaway centre uses bent world coordinates. Pass null
+ * to restore flat rendering for subsequent passes.
  */
-export function curveCull(camera: OrthographicCamera | null, cutCenter?: Vector3, cutRadius = 0): void {
+export function curveCull(
+  camera: OrthographicCamera | null,
+  cutCenter?: Vector3,
+  cutRadius = 0,
+): void {
   const u = curveUniforms;
   cull.camera = camera && curveFrame.planet.w > 0 ? camera : null;
   cull.cutRadius = cutCenter ? cutRadius : 0;
@@ -253,11 +289,18 @@ export function curveCull(camera: OrthographicCamera | null, cutCenter?: Vector3
   u.uCurveLean.value = curveFrame.lean;
   camera.updateMatrixWorld();
   _m.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
-  cull.frustum.setFromProjectionMatrix(_m, camera.coordinateSystem, camera.reversedDepth);
+  cull.frustum.setFromProjectionMatrix(
+    _m,
+    camera.coordinateSystem,
+    camera.reversedDepth,
+  );
   camera.getWorldDirection(cull.toCam).negate();
 }
 
-/** Compare planes to identify the main camera frustum without relying on object identity. */
+/**
+ * Compare planes to identify the main camera frustum without relying on object
+ * identity.
+ */
 function isMain(f: Frustum): boolean {
   const a = f.planes;
   const b = cull.frustum.planes;
@@ -277,12 +320,18 @@ function isMain(f: Frustum): boolean {
   return true;
 }
 
-/** Bend and expand the world-space sphere `_s`, then test its visibility against the frustum and horizon. */
+/**
+ * Bend and expand the world-space sphere `_s`, then test its visibility
+ * against the frustum and horizon.
+ */
 function bentVisible(): boolean {
   const c = curveFrame.planet;
   const R = c.w;
   // Bound the radial expansion caused by leaning geometry above or below the focus height.
-  const tall = Math.max(Math.abs(_s.center.y + _s.radius - c.y), Math.abs(_s.center.y - _s.radius - c.y));
+  const tall = Math.max(
+    Math.abs(_s.center.y + _s.radius - c.y),
+    Math.abs(_s.center.y - _s.radius - c.y),
+  );
   const stretch = 1 + (curveFrame.lean * tall) / R;
   curvePoint(_s.center);
   _s.radius *= stretch;
@@ -305,7 +354,8 @@ function bentVisible(): boolean {
   // Reject spheres fully hidden behind the curved street surface.
   _c.set(_s.center.x - c.x, _s.center.y + R, _s.center.z - c.z);
   const along = _c.dot(cull.toCam);
-  const perp = Math.sqrt(Math.max(_c.lengthSq() - along * along, 0)) + _s.radius;
+  const perp =
+    Math.sqrt(Math.max(_c.lengthSq() - along * along, 0)) + _s.radius;
   return perp >= R || along + _s.radius >= Math.sqrt(R * R - perp * perp);
 }
 
@@ -313,7 +363,9 @@ function objectSphere(o: Mesh | Line | Points): void {
   const own = (o as { boundingSphere?: Sphere | null }).boundingSphere;
   if (own !== undefined) {
     if (own === null) {
-      (o as unknown as { computeBoundingSphere(): void }).computeBoundingSphere();
+      (
+        o as unknown as { computeBoundingSphere(): void }
+      ).computeBoundingSphere();
     }
 
     _s.copy((o as unknown as { boundingSphere: Sphere }).boundingSphere);
@@ -331,7 +383,10 @@ function objectSphere(o: Mesh | Line | Points): void {
 if (CURVE_ON) {
   for (const cls of [Mesh, Line, Points]) {
     const flat = cls.prototype.intersectsFrustum;
-    cls.prototype.intersectsFrustum = function (this: Mesh | Line | Points, f: Frustum): boolean {
+    cls.prototype.intersectsFrustum = function (
+      this: Mesh | Line | Points,
+      f: Frustum,
+    ): boolean {
       if (!cull.camera || !isMain(f)) {
         return flat.call(this, f);
       }
@@ -342,7 +397,10 @@ if (CURVE_ON) {
   }
 
   const flatSprite = Sprite.prototype.intersectsFrustum;
-  Sprite.prototype.intersectsFrustum = function (this: Sprite, f: Frustum): boolean {
+  Sprite.prototype.intersectsFrustum = function (
+    this: Sprite,
+    f: Frustum,
+  ): boolean {
     if (!cull.camera || !isMain(f)) {
       return flatSprite.call(this, f);
     }

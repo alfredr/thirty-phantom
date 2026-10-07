@@ -5,18 +5,27 @@ import { Vector3 } from 'three';
 
 import { loadModules } from './modules.mjs';
 
-const [{ Focus }, { KEYS }, { Leases }, { RandyTalk }, { ValetTalk }] = await loadModules(
-  '/src/engine/input/input.ts',
-  '/src/game/controls.ts',
-  '/src/engine/sim/leases.ts',
-  '/src/game/randy/talk.ts',
-  '/src/game/valets/talk.ts',
-);
+const [{ Focus }, { KEYS }, { Leases }, { RandyTalk }, { ValetTalk }] =
+  await loadModules(
+    '/src/engine/input/input.ts',
+    '/src/game/controls.ts',
+    '/src/engine/sim/leases.ts',
+    '/src/game/randy/talk.ts',
+    '/src/game/valets/talk.ts',
+  );
 
 function randyTalk(tires = 1) {
   const focus = new Focus(KEYS);
-  const randy = { pos: new Vector3(), breed: { name: 'RANDY' }, attention: new Leases() };
-  const talk = new RandyTalk(focus, {}, { tires: () => tires, give: () => true });
+  const randy = {
+    pos: new Vector3(),
+    breed: { name: 'RANDY' },
+    attention: new Leases(),
+  };
+  const talk = new RandyTalk(
+    focus,
+    {},
+    { tires: () => tires, give: () => true },
+  );
   return { focus, randy, talk };
 }
 
@@ -32,7 +41,10 @@ for (const close of ['explicit', 'distance', 'timeout', 'last line']) {
     if (close === 'explicit') {
       talk.close();
     } else {
-      talk.update(close === 'timeout' ? 13 : 3, new Vector3(close === 'distance' ? 10 : 0, 0, 0));
+      talk.update(
+        close === 'timeout' ? 13 : 3,
+        new Vector3(close === 'distance' ? 10 : 0, 0, 0),
+      );
     }
 
     assert.equal(talk.active, false);
@@ -54,7 +66,11 @@ test('replacing a conversation releases the old session without releasing a newe
   assert.equal(randy.attention.top, scene);
   assert.equal(focus.owns('interact'), false);
   shot();
-  assert.equal(randy.attention.top, null, 'expired conversation attention must not return');
+  assert.equal(
+    randy.attention.top,
+    null,
+    'expired conversation attention must not return',
+  );
 });
 
 test('failed focus acquisition releases conversation attention', () => {
@@ -71,8 +87,15 @@ test('failed focus acquisition releases conversation attention', () => {
 test('reopening a valet conversation ends its previous attention before acquiring the next', () => {
   const focus = new Focus(KEYS);
   const events = [];
-  const valet = { walker: { pos: new Vector3() }, state: 'idle', send: (e) => events.push(e.type) };
-  const talk = new ValetTalk({ setPrompt() {} }, {}, {}, {}, focus, { me: () => new Vector3(), onShift: () => false });
+  const valet = {
+    walker: { pos: new Vector3() },
+    state: 'idle',
+    send: (e) => events.push(e.type),
+  };
+  const talk = new ValetTalk({ setPrompt() {} }, {}, {}, {}, focus, {
+    me: () => new Vector3(),
+    onShift: () => false,
+  });
   talk.start(valet);
   talk.start(valet);
   assert.deepEqual(events, ['talk', 'talkEnded', 'talk']);

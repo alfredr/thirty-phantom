@@ -1,7 +1,19 @@
 import type { V3 } from '@/engine/core/math';
 import { PALETTE } from '@/render/palette';
 
-import { box, build, cone, cylinder, group, model, NO_CAST, pivot, SIDES, solid, sphere } from './part';
+import {
+  box,
+  build,
+  cone,
+  cylinder,
+  group,
+  model,
+  NO_CAST,
+  pivot,
+  SIDES,
+  solid,
+  sphere,
+} from './part';
 import { FACE_INK } from './person';
 import { characterRig, limb, type CharacterRig } from './rig';
 
@@ -83,7 +95,13 @@ export function codyDay(params: Partial<CodyDayParams> = {}) {
           [0, torso.top, 0],
           [
             solid(head, 'skin'),
-            solid(head.sized(0.5, 0.16, 0.48).onFace(head, '+y', 0.04).move(0, 0, -0.01), 'hair'),
+            solid(
+              head
+                .sized(0.5, 0.16, 0.48)
+                .onFace(head, '+y', 0.04)
+                .move(0, 0, -0.01),
+              'hair',
+            ),
             solid(
               head
                 .sized(0.5, 0.3, 0.12)
@@ -91,7 +109,14 @@ export function codyDay(params: Partial<CodyDayParams> = {}) {
                 .y(head.top - 0.12),
               'hair',
             ),
-            solid(head.sized(0.28, 0.07, 0.05).onFace(head, '+z', 0.01).move(0, -0.1), 'ink', NO_CAST),
+            solid(
+              head
+                .sized(0.28, 0.07, 0.05)
+                .onFace(head, '+z', 0.01)
+                .move(0, -0.1),
+              'ink',
+              NO_CAST,
+            ),
             ...SIDES.map((s) =>
               solid(
                 head
@@ -118,19 +143,41 @@ export const CODY_NIGHT = {
   stance: 0.14,
   /** Height of the robe skirt’s animation pivot, in meters. */
   waist: 1.0,
-  /** Skirt cone dimensions: hem and waist radii, hem height in meters, and radial segment count. */
+  /**
+   * Skirt cone dimensions: hem and waist radii, hem height in meters, and
+   * radial segment count.
+   */
   skirt: { hem: 0.52, top: 0.36, bottom: 0.1, sides: 9 },
-  /** The robe above the waist: radius at the bottom and the shoulders, height, sides. */
+  /**
+   * The robe above the waist: radius at the bottom and the shoulders, height,
+   * sides.
+   */
   torso: { bottom: 0.36, top: 0.27, height: 0.7, sides: 8 },
-  /** Shoulder mantle radii, height, radial segments, and rise above the torso top. Distances are in meters. */
+  /**
+   * Shoulder mantle radii, height, radial segments, and rise above the torso
+   * top. Distances are in meters.
+   */
   mantle: { hem: 0.5, neck: 0.18, height: 0.4, sides: 7, rise: 0.06 },
   arm: [0.16, 0.62, 0.18] as V3,
-  /** Shoulders: how far below the torso's top (under the mantle) the arms hang from, and how far out. */
+  /**
+   * Shoulders: how far below the torso's top (under the mantle) the arms hang
+   * from, and how far out.
+   */
   shoulder: { drop: 0.22, out: 0.3 },
-  /** Bell sleeve round each arm: radius at the shoulder and the cuff, sides, how far the cuff hangs past the arm. */
+  /**
+   * Bell sleeve round each arm: radius at the shoulder and the cuff, sides,
+   * how far the cuff hangs past the arm.
+   */
   sleeve: { top: 0.09, cuff: 0.23, sides: 7, past: 0.1 },
-  /** Hood ellipsoid radii, opening half-width and half-height, and forward reach of its sides and brim. */
-  hood: { radii: [0.32, 0.34, 0.31] as V3, hollow: [0.19, 0.25] as [number, number], reach: 0.29 },
+  /**
+   * Hood ellipsoid radii, opening half-width and half-height, and forward
+   * reach of its sides and brim.
+   */
+  hood: {
+    radii: [0.32, 0.34, 0.31] as V3,
+    hollow: [0.19, 0.25] as [number, number],
+    reach: 0.29,
+  },
   /** Mask ellipsoid radii and roll angle in radians. */
   face: { radii: [0.115, 0.19, 0.05] as V3, roll: 0.06 },
   /** Rags hanging off the hem: [angle round from the front (radians), length]. */
@@ -145,15 +192,19 @@ export const CODY_NIGHT = {
     [5.1, 0.14],
     [5.8, 0.2],
   ] as [number, number][],
-  /** Angular positions of slime patches around the hem, measured from forward in radians. */
+  /**
+   * Angular positions of slime patches around the hem, measured from forward
+   * in radians.
+   */
   soaked: [0.6, 2.7, 4.6],
 };
 
 export type CodyNightParams = typeof CODY_NIGHT;
 
 /**
- * Build Cody’s night form on the shared character rig, including an independently animated robe skirt. Layer the
- * mantle, bell sleeves, and hood around an asymmetric pale mask, with emissive eyes and slime hem details.
+ * Build Cody’s night form on the shared character rig, including an
+ * independently animated robe skirt. Layer the mantle, bell sleeves, and hood
+ * around an asymmetric pale mask, with emissive eyes and slime hem details.
  */
 export function codyNight(params: Partial<CodyNightParams> = {}) {
   const p = { ...CODY_NIGHT, ...params };
@@ -177,12 +228,26 @@ export function codyNight(params: Partial<CodyNightParams> = {}) {
       robe: { color: p.robe, roughness: 1 },
       robeDark: { color: p.robeDark, roughness: 1 },
       inner: { color: '#05020a', roughness: 1 },
-      mask: { color: p.mask, roughness: 0.6, emissive: '#b8a8d8', emissiveIntensity: 0.12 },
-      eyes: { color: '#c8ff8a', emissive: PALETTE.slime, emissiveIntensity: 1.5 },
+      mask: {
+        color: p.mask,
+        roughness: 0.6,
+        emissive: '#b8a8d8',
+        emissiveIntensity: 0.12,
+      },
+      eyes: {
+        color: '#c8ff8a',
+        emissive: PALETTE.slime,
+        emissiveIntensity: 1.5,
+      },
       crack: { color: '#2b2330', roughness: 0.8 },
       stain: { color: '#857a6b', roughness: 0.9 },
       bone: { color: '#d9d2e6', roughness: 0.6 },
-      trim: { color: PALETTE.slime, emissive: '#59ff00', emissiveIntensity: 1.4, softInk: true },
+      trim: {
+        color: PALETTE.slime,
+        emissive: '#59ff00',
+        emissiveIntensity: 1.4,
+        softInk: true,
+      },
     },
     [
       group({ name: 'body' }, [
@@ -199,10 +264,16 @@ export function codyNight(params: Partial<CodyNightParams> = {}) {
           'robe',
           [0, p.waist, 0],
           [
-            cone(skirt.hem, skirt.top, skirtH, skirt.sides, 'robe', { at: [0, skirt.bottom + skirtH / 2, 0] }),
+            cone(skirt.hem, skirt.top, skirtH, skirt.sides, 'robe', {
+              at: [0, skirt.bottom + skirtH / 2, 0],
+            }),
             ...p.tatters.map(([a, len]) =>
               cone(0, 0.075, len, 4, 'robe', {
-                at: [Math.sin(a) * hemR, skirt.bottom - len / 2 + 0.01, Math.cos(a) * hemR],
+                at: [
+                  Math.sin(a) * hemR,
+                  skirt.bottom - len / 2 + 0.01,
+                  Math.cos(a) * hemR,
+                ],
                 rot: [0, a, 0],
               }),
             ),
@@ -219,7 +290,9 @@ export function codyNight(params: Partial<CodyNightParams> = {}) {
             ),
           ],
         ),
-        cone(torso.bottom, torso.top, torso.height, torso.sides, 'robe', { at: [0, p.waist + torso.height / 2, 0] }),
+        cone(torso.bottom, torso.top, torso.height, torso.sides, 'robe', {
+          at: [0, p.waist + torso.height / 2, 0],
+        }),
         cone(mantle.hem, mantle.neck, mantle.height, mantle.sides, 'robe', {
           at: [0, torsoTop + mantle.rise - mantle.height / 2, 0],
         }),
@@ -230,12 +303,17 @@ export function codyNight(params: Partial<CodyNightParams> = {}) {
           const h = p.arm[1] + sleeve.past;
           const cuffY = arm.top - h;
           return limb(s < 0 ? 'armL' : 'armR', arm, 'robe', [
-            cone(sleeve.cuff, sleeve.top, h, sleeve.sides, 'robe', { at: [arm.center[0], arm.top - h / 2, 0] }),
+            cone(sleeve.cuff, sleeve.top, h, sleeve.sides, 'robe', {
+              at: [arm.center[0], arm.top - h / 2, 0],
+            }),
             cylinder(sleeve.cuff * 0.85, 0.01, sleeve.sides, 'robeDark', {
               at: [arm.center[0], cuffY - 0.006, 0],
               ...NO_CAST,
             }),
-            solid(box(0.1, 0.14, 0.08).at(arm.center[0], cuffY - 0.02, 0.07), 'bone'),
+            solid(
+              box(0.1, 0.14, 0.08).at(arm.center[0], cuffY - 0.02, 0.07),
+              'bone',
+            ),
           ]);
         }),
         pivot(
@@ -243,27 +321,45 @@ export function codyNight(params: Partial<CodyNightParams> = {}) {
           [0, torsoTop, 0],
           [
             // Layer the hood around a dark inset to frame the mask.
-            sphere(hood.radii, [12, 9], 'robe', { at: [0, headY + 0.02, -0.1] }),
-            sphere([hood.hollow[0], hood.hollow[1], 0.1], [12, 8], 'inner', { at: [0, headY - 0.02, mc[2] - 0.07] }),
+            sphere(hood.radii, [12, 9], 'robe', {
+              at: [0, headY + 0.02, -0.1],
+            }),
+            sphere([hood.hollow[0], hood.hollow[1], 0.1], [12, 8], 'inner', {
+              at: [0, headY - 0.02, mc[2] - 0.07],
+            }),
             ...SIDES.map((s) =>
               sphere([0.07, 0.27, 0.16], [8, 8], 'robe', {
                 at: [s * 0.22, headY - 0.04, hood.reach - 0.16],
                 rot: [0, 0, s * 0.08],
               }),
             ),
-            sphere([0.25, 0.07, 0.16], [10, 6], 'robe', { at: [0, headY + 0.2, hood.reach - 0.16], rot: [0.2, 0, 0] }),
+            sphere([0.25, 0.07, 0.16], [10, 6], 'robe', {
+              at: [0, headY + 0.2, hood.reach - 0.16],
+              rot: [0.2, 0, 0],
+            }),
             // Keep mask details aligned with its roll angle.
-            sphere(face.radii, [14, 10], 'mask', { at: mc, rot: [0, 0, face.roll] }),
+            sphere(face.radii, [14, 10], 'mask', {
+              at: mc,
+              rot: [0, 0, face.roll],
+            }),
             ...SIDES.map((s) => {
               // Use asymmetric eye angles to preserve the mask’s crooked expression.
               const a = s > 0 ? 0.5 : 0.3;
               return group({ cast: false }, [
-                sphere([0.028, 0.03, 0.012], [10, 6], 'inner', { at: onFace(s * 0.05, 0.05), rot: [0, 0, face.roll] }),
+                sphere([0.028, 0.03, 0.012], [10, 6], 'inner', {
+                  at: onFace(s * 0.05, 0.05),
+                  rot: [0, 0, face.roll],
+                }),
                 cone(0, 0.02, 0.06, 6, 'inner', {
-                  at: onFace(s * (0.05 + Math.sin(a) * 0.03), 0.05 - Math.cos(a) * 0.03),
+                  at: onFace(
+                    s * (0.05 + Math.sin(a) * 0.03),
+                    0.05 - Math.cos(a) * 0.03,
+                  ),
                   rot: [0, 0, face.roll + s * a],
                 }),
-                sphere(0.007, [6, 4], 'eyes', { at: onFace(s * 0.05, 0.045, 0.008) }),
+                sphere(0.007, [6, 4], 'eyes', {
+                  at: onFace(s * 0.05, 0.045, 0.008),
+                }),
               ]);
             }),
             sphere([0.026, 0.062, 0.012], [10, 8], 'inner', {
@@ -271,9 +367,30 @@ export function codyNight(params: Partial<CodyNightParams> = {}) {
               rot: [0, 0, face.roll - 0.17],
               ...NO_CAST,
             }),
-            solid(box(0.008, 0.06, 0.012).at(...onFace(-0.04, 0.13)), 'crack', { rot: [0, 0, 0.4], ...NO_CAST }),
-            solid(box(0.007, 0.05, 0.012).at(...onFace(-0.052, 0.085)), 'crack', { rot: [0, 0, -0.3], ...NO_CAST }),
-            solid(box(0.016, 0.08, 0.01).at(...onFace(0.074, -0.025)), 'stain', { rot: [0, 0, face.roll], ...NO_CAST }),
+            solid(
+              box(0.008, 0.06, 0.012).at(...onFace(-0.04, 0.13)),
+              'crack',
+              {
+                rot: [0, 0, 0.4],
+                ...NO_CAST,
+              },
+            ),
+            solid(
+              box(0.007, 0.05, 0.012).at(...onFace(-0.052, 0.085)),
+              'crack',
+              {
+                rot: [0, 0, -0.3],
+                ...NO_CAST,
+              },
+            ),
+            solid(
+              box(0.016, 0.08, 0.01).at(...onFace(0.074, -0.025)),
+              'stain',
+              {
+                rot: [0, 0, face.roll],
+                ...NO_CAST,
+              },
+            ),
           ],
         ),
       ]),
@@ -281,10 +398,14 @@ export function codyNight(params: Partial<CodyNightParams> = {}) {
   );
 }
 
-export function buildCodyDay(params: Partial<CodyDayParams> = {}): CharacterRig {
+export function buildCodyDay(
+  params: Partial<CodyDayParams> = {},
+): CharacterRig {
   return characterRig(build(codyDay(params)));
 }
 
-export function buildCodyNight(params: Partial<CodyNightParams> = {}): CharacterRig {
+export function buildCodyNight(
+  params: Partial<CodyNightParams> = {},
+): CharacterRig {
   return characterRig(build(codyNight(params)));
 }

@@ -1,7 +1,13 @@
 import { Vector3 } from 'three';
 
 import { damp } from '@/engine/core/math';
-import { type EventOf, mind, type MindEvent, type State, type StateOf } from '@/engine/sim/mind';
+import {
+  type EventOf,
+  mind,
+  type MindEvent,
+  type State,
+  type StateOf,
+} from '@/engine/sim/mind';
 
 import { rise } from './presentation';
 import type { Skeleton } from './skeleton';
@@ -13,7 +19,10 @@ export interface FollowSpec {
   readonly stray: number;
 }
 
-/** Separate start and stop distances prevent oscillation at the edge of following range. */
+/**
+ * Separate start and stop distances prevent oscillation at the edge of
+ * following range.
+ */
 export class Following {
   private returning = false;
 
@@ -33,7 +42,10 @@ export class Following {
 
 const _separation = new Vector3();
 
-/** Prefer prey, follow the summoner without prey, and otherwise make room for nearby pack members. */
+/**
+ * Prefer prey, follow the summoner without prey, and otherwise make room for
+ * nearby pack members.
+ */
 function huntOrFollow(s: Skeleton, dt: number): void {
   let goal = s.hunting?.update(dt) ?? null;
   if (goal) {
@@ -49,7 +61,12 @@ function huntOrFollow(s: Skeleton, dt: number): void {
   if (goal) {
     s.movement.go(goal, _separation, spacing.weight, dt);
   } else if (push > spacing.settled) {
-    s.movement.walk(_separation.x, _separation.z, spacing.amble * Math.min(1, push * 2), dt);
+    s.movement.walk(
+      _separation.x,
+      _separation.z,
+      spacing.amble * Math.min(1, push * 2),
+      dt,
+    );
   } else {
     s.speed = damp(s.speed, 0, 6, dt);
   }
@@ -69,7 +86,11 @@ export type UndeadEvent =
   /** Stagger for the supplied duration in seconds after a vehicle impact. */
   MindEvent<'struck', { t: number }>;
 
-const stagger = (_s: Skeleton, _st: Undead, { t }: EventOf<UndeadEvent, 'struck'>): StateOf<Undead, 'staggered'> => ({
+const stagger = (
+  _s: Skeleton,
+  _st: Undead,
+  { t }: EventOf<UndeadEvent, 'struck'>,
+): StateOf<Undead, 'staggered'> => ({
   at: 'staggered',
   t,
 });

@@ -30,15 +30,16 @@ export interface TalkHooks {
 }
 
 /**
- * Handover terms: highest available floor for free, a tip, or a bribe; any available spot if a requested tip is
- * declined.
+ * Handover terms: highest available floor for free, a tip, or a bribe; any
+ * available spot if a requested tip is declined.
  */
 type Deal = 'top' | 'tipped' | 'bribed' | 'anywhere';
 
 /**
- * Negotiate a parking handover while the valet faces Cody. The first car receives top-floor service free; later
- * requests may require an increasing tip. Preserve the quoted tip until a non-bribed handover. Returning valets instead
- * require the configured bribe.
+ * Negotiate a parking handover while the valet faces Cody. The first car
+ * receives top-floor service free; later requests may require an increasing
+ * tip. Preserve the quoted tip until a non-bribed handover. Returning valets
+ * instead require the configured bribe.
  */
 export class ValetTalk extends Conversation<Valet, Deal> {
   /** Completed handover count and number of tip requests. */
@@ -70,7 +71,10 @@ export class ValetTalk extends Conversation<Valet, Deal> {
     this.bribe = valet.state === 'returning';
 
     if (!this.bribe && this.tip === null) {
-      this.tip = this.handed > 0 && this.rng.chance(V.tipChance) ? V.tipBase * V.tipGrowth ** this.asked++ : 0;
+      this.tip =
+        this.handed > 0 && this.rng.chance(V.tipChance)
+          ? V.tipBase * V.tipGrowth ** this.asked++
+          : 0;
     }
 
     const line = this.bribe
@@ -84,13 +88,21 @@ export class ValetTalk extends Conversation<Valet, Deal> {
     this.hud.setPrompt(null);
   }
 
-  /** Record an entry if the valet did not cross the gate and announce the parked spot. */
+  /**
+   * Record an entry if the valet did not cross the gate and announce the
+   * parked spot.
+   */
   parked(spot: SpotRuntime, valet: Valet): void {
     if (!valet.badged) {
       this.garage.logged++;
     }
 
-    this.hud.toast('VALET PARKED IT', `${spotLabel(spot)}. ENTRY LOGGED.`, 'purple', 2.4);
+    this.hud.toast(
+      'VALET PARKED IT',
+      `${spotLabel(spot)}. ENTRY LOGGED.`,
+      'purple',
+      2.4,
+    );
   }
 
   protected where(valet: Valet): Vector3 {
@@ -109,13 +121,30 @@ export class ValetTalk extends Conversation<Valet, Deal> {
     const V = TUNING.valet;
     const tip = this.tip ?? 0;
     if (this.bribe) {
-      return [{ action: 'pay', label: `PAY $${V.bribe}: TOP FLOOR`, off: this.hooks.cash() < V.bribe, does: 'bribed' }];
+      return [
+        {
+          action: 'pay',
+          label: `PAY $${V.bribe}: TOP FLOOR`,
+          off: this.hooks.cash() < V.bribe,
+          does: 'bribed',
+        },
+      ];
     }
 
     if (tip > 0) {
       return [
-        { action: 'pay', label: `PAY $${tip}: TOP FLOOR`, off: this.hooks.cash() < tip, does: 'tipped' },
-        { action: 'interact', label: 'JUST PARK IT', off: false, does: 'anywhere' },
+        {
+          action: 'pay',
+          label: `PAY $${tip}: TOP FLOOR`,
+          off: this.hooks.cash() < tip,
+          does: 'tipped',
+        },
+        {
+          action: 'interact',
+          label: 'JUST PARK IT',
+          off: false,
+          does: 'anywhere',
+        },
       ];
     }
 
@@ -130,13 +159,20 @@ export class ValetTalk extends Conversation<Valet, Deal> {
   protected chose(valet: Valet, deal: Deal): void {
     const car = this.hooks.carToTake();
     const free = this.garage.freeSpots();
-    const spot = deal === 'anywhere' ? (free.length ? this.rng.pick(free) : null) : this.garage.topFree();
+    const spot =
+      deal === 'anywhere'
+        ? free.length
+          ? this.rng.pick(free)
+          : null
+        : this.garage.topFree();
     if (!car) {
       this.lastLine('NO KEYS, NO SERVICE.');
     } else if (!spot) {
       this.lastLine(DECK_FULL);
     } else if (
-      deal === 'bribed' ? this.hooks.pay(TUNING.valet.bribe) : deal !== 'tipped' || this.hooks.pay(this.tip ?? 0)
+      deal === 'bribed'
+        ? this.hooks.pay(TUNING.valet.bribe)
+        : deal !== 'tipped' || this.hooks.pay(this.tip ?? 0)
     ) {
       this.hooks.handOff(car, valet);
       this.valets.take(valet, car, spot);

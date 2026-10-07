@@ -1,4 +1,10 @@
-import { BufferGeometry, Color, Float32BufferAttribute, Uint32BufferAttribute, Vector3 } from 'three';
+import {
+  BufferGeometry,
+  Color,
+  Float32BufferAttribute,
+  Uint32BufferAttribute,
+  Vector3,
+} from 'three';
 
 import { type Rect, subtractRects } from '@/engine/core/geometry';
 import { lerp, type V3 } from '@/engine/core/math';
@@ -12,7 +18,9 @@ const _outward = new Vector3();
 
 /** Box faces, in the order box() emits them: +X, -X, +Z, -Z, +Y, -Y. */
 export type BoxFace = 0 | 1 | 2 | 3 | 4 | 5;
-export const BOX_FACES: Readonly<Record<BoxFace, { axis: 0 | 1 | 2; dir: 1 | -1 }>> = {
+export const BOX_FACES: Readonly<
+  Record<BoxFace, { axis: 0 | 1 | 2; dir: 1 | -1 }>
+> = {
   0: { axis: 0, dir: 1 },
   1: { axis: 0, dir: -1 },
   2: { axis: 2, dir: 1 },
@@ -23,7 +31,10 @@ export const BOX_FACES: Readonly<Record<BoxFace, { axis: 0 | 1 | 2; dir: 1 | -1 
 const ALL_FACES: readonly BoxFace[] = [0, 1, 2, 3, 4, 5];
 const NO_BOTTOM: readonly BoxFace[] = [0, 1, 2, 3, 4];
 
-/** The faces box() emits by default: all but the bottom when it sits on the ground. */
+/**
+ * The faces box() emits by default: all but the bottom when it sits on the
+ * ground.
+ */
 export function boxFaces(min: V3): readonly BoxFace[] {
   // Keep undersides below ground because they can form visible basement ceilings.
   return Math.abs(min[1]) > 0.001 ? ALL_FACES : NO_BOTTOM;
@@ -40,12 +51,16 @@ export interface BoxOptions {
   map?: (face: BoxFace) => FaceMap | undefined;
 }
 
-/** The vertex attribute FaceMap data goes in (vec4; zero on quads without a map). */
+/**
+ * The vertex attribute FaceMap data goes in (vec4; zero on quads without a
+ * map).
+ */
 export const FACE_DATA = 'faceData';
 
 /**
- * Transform world-space UVs by subtracting (u0, v0) and dividing by (su, sv). This aligns texture cells with face
- * edges. The four FACE_DATA values have material-specific meanings.
+ * Transform world-space UVs by subtracting (u0, v0) and dividing by (su, sv).
+ * This aligns texture cells with face edges. The four FACE_DATA values have
+ * material-specific meanings.
  */
 export interface FaceMap {
   u0: number;
@@ -71,8 +86,9 @@ export function faceRect(min: V3, max: V3, axis: Axis): Rect {
 const NO_DATA = [0, 0, 0, 0] as const;
 
 /**
- * Return subdivision fractions along edge a-b, including 0 and 1. Align axis-aligned edges with the CURVE_TILE grid and
- * divide slanted edges evenly. Leave vertical edges and edges no longer than one tile unsplit.
+ * Return subdivision fractions along edge a-b, including 0 and 1. Align
+ * axis-aligned edges with the CURVE_TILE grid and divide slanted edges evenly.
+ * Leave vertical edges and edges no longer than one tile unsplit.
  */
 function gridCuts(a: V3, b: V3): number[] {
   const dx = b[0] - a[0];
@@ -117,14 +133,17 @@ function bilerp(p: readonly V3[], u: number, v: number): V3 {
   return out;
 }
 
-/** Side length in meters for world geometry batches and slime simulation groups. */
+/**
+ * Side length in meters for world geometry batches and slime simulation
+ * groups.
+ */
 export const CHUNK = 48;
 /** White vertex color preserves the material's base color. */
 export const NO_TINT = new Color(1, 1, 1);
 
 /**
- * Accumulates quads into one indexed BufferGeometry with world-space UVs (so textures line up across neighbouring
- * blocks) and per-vertex colors.
+ * Accumulates quads into one indexed BufferGeometry with world-space UVs (so
+ * textures line up across neighbouring blocks) and per-vertex colors.
  */
 export class GeometryBatch {
   private readonly pos: number[] = [];
@@ -132,7 +151,10 @@ export class GeometryBatch {
   private readonly uv: number[] = [];
   private readonly col: number[] = [];
   private readonly idx: number[] = [];
-  /** Per-vertex FACE_DATA, allocated when first needed and zero-filled for unmapped vertices. */
+  /**
+   * Per-vertex FACE_DATA, allocated when first needed and zero-filled for
+   * unmapped vertices.
+   */
   private data: number[] | null = null;
 
   get empty(): boolean {
@@ -145,9 +167,10 @@ export class GeometryBatch {
   }
 
   /**
-   * Add a planar quad a-b-c-d. If `center` is given, winding is fixed so the face points away from it (convex solids).
-   * Shade multiplies vertex color per corner. `map` gives it its own UVs and FACE_DATA instead of world-space UVs over
-   * `uvScale`.
+   * Add a planar quad a-b-c-d. If `center` is given, winding is fixed so the
+   * face points away from it (convex solids). Shade multiplies vertex color
+   * per corner. `map` gives it its own UVs and FACE_DATA instead of
+   * world-space UVs over `uvScale`.
    */
   quad(
     a: V3,
@@ -187,7 +210,8 @@ export class GeometryBatch {
       const vs = gridCuts(pts[0]!, pts[3]!);
       if (us.length > 2 || vs.length > 2) {
         const at = (u: number, v: number): V3 => bilerp(pts, u, v);
-        const sat = (u: number, v: number): number => lerp(lerp(sh[0], sh[1], u), lerp(sh[3], sh[2], u), v);
+        const sat = (u: number, v: number): number =>
+          lerp(lerp(sh[0], sh[1], u), lerp(sh[3], sh[2], u), v);
         for (let j = 0; j + 1 < vs.length; j++) {
           for (let i = 0; i + 1 < us.length; i++) {
             const [u0, u1, v0, v1] = [us[i]!, us[i + 1]!, vs[j]!, vs[j + 1]!];
@@ -209,7 +233,10 @@ export class GeometryBatch {
     this.emit(pts as [V3, V3, V3, V3], n, sh, color, uvScale, map);
   }
 
-  /** Append one quad with its normal, UVs, colors, optional face data, and triangle indices. */
+  /**
+   * Append one quad with its normal, UVs, colors, optional face data, and
+   * triangle indices.
+   */
   private emit(
     pts: readonly [V3, V3, V3, V3],
     n: Vector3,
@@ -258,15 +285,31 @@ export class GeometryBatch {
   }
 
   /**
-   * Append an axis-aligned box with optional face selection, rectangular holes, and UV mappings. By default, omit the
-   * bottom at ground level and shade vertical faces with a contact-AO gradient (see world/coplanar.ts).
+   * Append an axis-aligned box with optional face selection, rectangular
+   * holes, and UV mappings. By default, omit the bottom at ground level and
+   * shade vertical faces with a contact-AO gradient (see world/coplanar.ts).
    */
-  box(min: V3, max: V3, color: Color, uvScale: number, ao = true, opts: BoxOptions = {}): void {
-    const c: V3 = [(min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2];
+  box(
+    min: V3,
+    max: V3,
+    color: Color,
+    uvScale: number,
+    ao = true,
+    opts: BoxOptions = {},
+  ): void {
+    const c: V3 = [
+      (min[0] + max[0]) / 2,
+      (min[1] + max[1]) / 2,
+      (min[2] + max[2]) / 2,
+    ];
     const h = max[1] - min[1];
     const lo = opts.lo ?? (ao ? (h < 1.5 ? 0.78 : h < 6 ? 0.62 : 0.5) : 1);
     const shade = (axis: number, dir: number, p: V3): number =>
-      axis !== 1 ? lo + ((1 - lo) * (p[1] - min[1])) / (h || 1) : dir > 0 ? 1 : 0.7;
+      axis !== 1
+        ? lo + ((1 - lo) * (p[1] - min[1])) / (h || 1)
+        : dir > 0
+          ? 1
+          : 0.7;
     for (const f of opts.faces ?? boxFaces(min)) {
       const { axis, dir } = BOX_FACES[f];
       const [ua, va] = faceAxes(axis);
@@ -288,14 +331,30 @@ export class GeometryBatch {
           p[va] = v;
           return p;
         }) as [V3, V3, V3, V3];
-        const sh = pts.map((p) => shade(axis, dir, p)) as [number, number, number, number];
+        const sh = pts.map((p) => shade(axis, dir, p)) as [
+          number,
+          number,
+          number,
+          number,
+        ];
         this.quad(pts[0], pts[1], pts[2], pts[3], color, uvScale, c, sh, map);
       }
     }
   }
 
-  /** Solid wedge: base at min.y, sloped top rising from `low` to max.y along `axis` in direction `dir`. */
-  wedge(min: V3, max: V3, axis: 'x' | 'z', dir: 1 | -1, low: number, color: Color, uvScale: number): void {
+  /**
+   * Solid wedge: base at min.y, sloped top rising from `low` to max.y along
+   * `axis` in direction `dir`.
+   */
+  wedge(
+    min: V3,
+    max: V3,
+    axis: 'x' | 'z',
+    dir: 1 | -1,
+    low: number,
+    color: Color,
+    uvScale: number,
+  ): void {
     const [x0, y0, z0] = min;
     const [x1, , z1] = max;
     const high = max[1];
@@ -310,22 +369,82 @@ export class GeometryBatch {
 
     const c: V3 = [(x0 + x1) / 2, (y0 + (low + high) / 2) / 2, (z0 + z1) / 2];
     const lo = 0.65;
-    this.quad(P(0, 0, true), P(1, 0, true), P(1, 1, true), P(0, 1, true), color, uvScale, c);
-    this.quad(P(0, 0, false), P(1, 0, false), P(1, 0, true), P(0, 0, true), color, uvScale, c, [lo, lo, 1, 1]);
-    this.quad(P(0, 1, false), P(1, 1, false), P(1, 1, true), P(0, 1, true), color, uvScale, c, [lo, lo, 1, 1]);
-    this.quad(P(1, 0, false), P(1, 1, false), P(1, 1, true), P(1, 0, true), color, uvScale, c, [lo, lo, 1, 1]);
+    this.quad(
+      P(0, 0, true),
+      P(1, 0, true),
+      P(1, 1, true),
+      P(0, 1, true),
+      color,
+      uvScale,
+      c,
+    );
+    this.quad(
+      P(0, 0, false),
+      P(1, 0, false),
+      P(1, 0, true),
+      P(0, 0, true),
+      color,
+      uvScale,
+      c,
+      [lo, lo, 1, 1],
+    );
+    this.quad(
+      P(0, 1, false),
+      P(1, 1, false),
+      P(1, 1, true),
+      P(0, 1, true),
+      color,
+      uvScale,
+      c,
+      [lo, lo, 1, 1],
+    );
+    this.quad(
+      P(1, 0, false),
+      P(1, 1, false),
+      P(1, 1, true),
+      P(1, 0, true),
+      color,
+      uvScale,
+      c,
+      [lo, lo, 1, 1],
+    );
 
     if (low - y0 > 0.01) {
-      this.quad(P(0, 0, false), P(0, 1, false), P(0, 1, true), P(0, 0, true), color, uvScale, c, [lo, lo, 1, 1]);
+      this.quad(
+        P(0, 0, false),
+        P(0, 1, false),
+        P(0, 1, true),
+        P(0, 0, true),
+        color,
+        uvScale,
+        c,
+        [lo, lo, 1, 1],
+      );
     }
 
     if (y0 > 0.001) {
-      this.quad(P(0, 0, false), P(1, 0, false), P(1, 1, false), P(0, 1, false), color, uvScale, c);
+      this.quad(
+        P(0, 0, false),
+        P(1, 0, false),
+        P(1, 1, false),
+        P(0, 1, false),
+        color,
+        uvScale,
+        c,
+      );
     }
   }
 
   /** Horizontal quad (decals/puddles) with 0..1 UVs, facing up. */
-  flat(cx: number, y: number, cz: number, sx: number, sz: number, color: Color, rot = 0): void {
+  flat(
+    cx: number,
+    y: number,
+    cz: number,
+    sx: number,
+    sz: number,
+    color: Color,
+    rot = 0,
+  ): void {
     const base = this.pos.length / 3;
     const cs = Math.cos(rot);
     const sn = Math.sin(rot);
@@ -368,9 +487,15 @@ export class GeometryBatch {
   }
 }
 
-/** Give a stock geometry an all-white vertex color attribute (world materials use vertexColors). */
+/**
+ * Give a stock geometry an all-white vertex color attribute (world materials
+ * use vertexColors).
+ */
 export function whiteColors<T extends BufferGeometry>(g: T): T {
   const n = g.getAttribute('position').count;
-  g.setAttribute('color', new Float32BufferAttribute(new Float32Array(n * 3).fill(1), 3));
+  g.setAttribute(
+    'color',
+    new Float32BufferAttribute(new Float32Array(n * 3).fill(1), 3),
+  );
   return g;
 }

@@ -14,7 +14,11 @@ const NEAR = 40;
 const EMPTY = 0.05;
 
 type GhostServices = { readonly game: Game };
-type GhostBehavior<C> = BeatBehavior<C & GhostServices, MindEvent<string>, string>;
+type GhostBehavior<C> = BeatBehavior<
+  C & GhostServices,
+  MindEvent<string>,
+  string
+>;
 
 export function spawnTrail(g: Game, from: Vehicle): void {
   for (const turn of TRAIL_TURNS) {
@@ -38,15 +42,25 @@ export function spawnTrail(g: Game, from: Vehicle): void {
   }
 
   for (const d of TRAIL) {
-    g.raiseGhost(new Vector3(from.pos.x + Math.sin(from.yaw) * d, from.pos.y, from.pos.z + Math.cos(from.yaw) * d));
+    g.raiseGhost(
+      new Vector3(
+        from.pos.x + Math.sin(from.yaw) * d,
+        from.pos.y,
+        from.pos.z + Math.cos(from.yaw) * d,
+      ),
+    );
   }
 }
 
-export function ghostTrail<C>(selectVehicle: (context: C) => Vehicle): GhostBehavior<C> {
+export function ghostTrail<C>(
+  selectVehicle: (context: C) => Vehicle,
+): GhostBehavior<C> {
   return act((context) => spawnTrail(context.game, selectVehicle(context)));
 }
 
-export function ghostSupply<C>(selectVehicle: (context: C) => Vehicle): GhostBehavior<C> {
+export function ghostSupply<C>(
+  selectVehicle: (context: C) => Vehicle,
+): GhostBehavior<C> {
   return function start(scope, context) {
     let lastSpawnAt = -Infinity;
     return {
@@ -57,7 +71,9 @@ export function ghostSupply<C>(selectVehicle: (context: C) => Vehicle): GhostBeh
           return;
         }
 
-        const ghostsNearby = game.activeGhosts().some((ghost) => ghost.distanceTo(vehicle.pos) < NEAR);
+        const ghostsNearby = game
+          .activeGhosts()
+          .some((ghost) => ghost.distanceTo(vehicle.pos) < NEAR);
         if (ghostsNearby) {
           return;
         }

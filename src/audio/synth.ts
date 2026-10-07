@@ -1,4 +1,11 @@
-import { fire, town, night, type FireP, type TownP, type NightP } from './synth/ambience';
+import {
+  fire,
+  town,
+  night,
+  type FireP,
+  type TownP,
+  type NightP,
+} from './synth/ambience';
 import {
   foley,
   whoosh,
@@ -17,7 +24,16 @@ import {
   type MorphP,
   type StingerP,
 } from './synth/effects';
-import { horn, motor, spark, crank, type HornP, type MotorP, type SparkP, type CrankP } from './synth/machines';
+import {
+  horn,
+  motor,
+  spark,
+  crank,
+  type HornP,
+  type MotorP,
+  type SparkP,
+  type CrankP,
+} from './synth/machines';
 import type { Kit, Voice } from './synth/nodes';
 
 interface Params {
@@ -59,10 +75,18 @@ const RECIPES: { [R in keyof Params]: Recipe<Params[R]> } = {
 };
 
 export type RecipeName = keyof Params;
-/** Synthesis recipe and parameters, with an optional gain multiplier for the mixer. */
-export type Synth = { [R in RecipeName]: { synth: R; p: Params[R]; vol?: number } }[RecipeName];
+/**
+ * Synthesis recipe and parameters, with an optional gain multiplier for the
+ * mixer.
+ */
+export type Synth = {
+  [R in RecipeName]: { synth: R; p: Params[R]; vol?: number };
+}[RecipeName];
 
-/** Start the selected synthesis recipe at audio context time `t`, connected to `out`. */
+/**
+ * Start the selected synthesis recipe at audio context time `t`, connected to
+ * `out`.
+ */
 export function synthesize<R extends RecipeName>(
   k: Kit,
   out: AudioNode,

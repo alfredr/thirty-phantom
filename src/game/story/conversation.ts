@@ -7,7 +7,10 @@ import type { Control } from '@/game/controls';
 /** Speech bubble height above the speaker’s feet, in meters. */
 const SPEAKER_HEAD = 2.5;
 
-/** A conversation choice with its binding, display label, disabled flag, and action payload. */
+/**
+ * A conversation choice with its binding, display label, disabled flag, and
+ * action payload.
+ */
 export interface Choice<D> {
   action: Control;
   label: string;
@@ -15,7 +18,10 @@ export interface Choice<D> {
   does: D;
 }
 
-/** Conversation limits: separation in meters, total duration in seconds, and final-line duration in seconds. */
+/**
+ * Conversation limits: separation in meters, total duration in seconds, and
+ * final-line duration in seconds.
+ */
 export interface Pacing {
   readonly breakAt: number;
   readonly timeout: number;
@@ -31,11 +37,18 @@ export interface Said {
 }
 
 /**
- * Manage a conversation’s lifetime and input focus. Close on separation, timeout, completion, or subclass cancellation.
- * Subclasses supply dialogue, choices, and attention for the session.
+ * Manage a conversation’s lifetime and input focus. Close on separation,
+ * timeout, completion, or subclass cancellation. Subclasses supply dialogue,
+ * choices, and attention for the session.
  */
 export abstract class Conversation<Who, D> {
-  private talk: { who: Who; t: number; line: string; closing: number; held: Disposables } | null = null;
+  private talk: {
+    who: Who;
+    t: number;
+    line: string;
+    closing: number;
+    held: Disposables;
+  } | null = null;
   private readonly head = new Vector3();
 
   constructor(
@@ -47,7 +60,10 @@ export abstract class Conversation<Who, D> {
     return this.talk !== null;
   }
 
-  /** Advance the conversation and return its display state, or null when closed. `me` is Cody’s position. */
+  /**
+   * Advance the conversation and return its display state, or null when
+   * closed. `me` is Cody’s position.
+   */
   update(dt: number, me: Vector3): Said | null {
     const talk = this.talk;
     if (!talk) {
@@ -67,8 +83,17 @@ export abstract class Conversation<Who, D> {
       return null;
     }
 
-    const choices = this.offered().map(({ action, label, off }) => ({ action, label, off }));
-    return { at: this.head.copy(at).setY(at.y + SPEAKER_HEAD), who: this.name(talk.who), line: talk.line, choices };
+    const choices = this.offered().map(({ action, label, off }) => ({
+      action,
+      label,
+      off,
+    }));
+    return {
+      at: this.head.copy(at).setY(at.y + SPEAKER_HEAD),
+      who: this.name(talk.who),
+      line: talk.line,
+      choices,
+    };
   }
 
   /** Close the conversation and release its focus and attention. */

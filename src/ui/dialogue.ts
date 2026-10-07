@@ -10,7 +10,10 @@ export type Side = 'left' | 'right';
 export interface DialogueLine {
   who: Side;
   say: string;
-  /** Run when this line is displayed to synchronize scene actions with dialogue. */
+  /**
+   * Run when this line is displayed to synchronize scene actions with
+   * dialogue.
+   */
   cue?: () => void;
   until?: () => boolean;
   look?: string;
@@ -19,7 +22,10 @@ export interface DialogueLine {
 /** Reserve interaction and start controls to advance the conversation. */
 const NEXT: readonly Control[] = ['interact', 'start'];
 
-/** Present scripted lines between two portraits, highlight the speaker, and advance on reserved controls or taps. */
+/**
+ * Present scripted lines between two portraits, highlight the speaker, and
+ * advance on reserved controls or taps.
+ */
 export class Dialogue {
   private readonly root: HTMLDivElement;
   private readonly frames: Record<Side, HTMLDivElement>;
@@ -38,7 +44,12 @@ export class Dialogue {
     const box = el('div', 'dialogue-box', this.root);
     this.name = el('div', 'dialogue-name', box);
     this.text = el('div', 'dialogue-text', box);
-    el('div', 'dialogue-next', box, matchMedia('(pointer: coarse)').matches ? 'TAP' : 'F');
+    el(
+      'div',
+      'dialogue-next',
+      box,
+      matchMedia('(pointer: coarse)').matches ? 'TAP' : 'F',
+    );
     // Place the dialogue text between the two portraits.
     this.root.append(this.frames.left, box, this.frames.right);
     this.root.addEventListener('click', () => this.next());
@@ -57,7 +68,10 @@ export class Dialogue {
     return this.done !== null;
   }
 
-  /** A portrait image (data URL) for one side; until then it shows an ink silhouette. */
+  /**
+   * A portrait image (data URL) for one side; until then it shows an ink
+   * silhouette.
+   */
   setPortrait(side: Side, url: string): void {
     const img = this.frames[side].querySelector('img') as HTMLImageElement;
     img.src = url;
@@ -68,7 +82,10 @@ export class Dialogue {
     el('div', 'portrait-look', this.frames[side], html).dataset.look = name;
   }
 
-  /** Play `lines` from the first; `onDone` runs after the last one is dismissed. */
+  /**
+   * Play `lines` from the first; `onDone` runs after the last one is
+   * dismissed.
+   */
   play(lines: readonly DialogueLine[], onDone: () => void): void {
     this.lines = lines;
     this.i = 0;
@@ -107,7 +124,9 @@ export class Dialogue {
     this.frames.right.classList.toggle('talking', line.who === 'right');
     this.root.dataset.who = line.who;
 
-    for (const look of this.frames[line.who].querySelectorAll<HTMLElement>('.portrait-look')) {
+    for (const look of this.frames[line.who].querySelectorAll<HTMLElement>(
+      '.portrait-look',
+    )) {
       look.classList.toggle('on', look.dataset.look === line.look);
     }
 

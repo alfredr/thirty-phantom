@@ -14,7 +14,13 @@ import {
   SHELTER,
   worldBox,
 } from './decor-models';
-import { BLOCK_LAYOUT, type BlockKind, blockRect, CITY, GRAVES } from './gen-city';
+import {
+  BLOCK_LAYOUT,
+  type BlockKind,
+  blockRect,
+  CITY,
+  GRAVES,
+} from './gen-city';
 import type { BoxDef, DecorDef, LevelData, V3 } from './level-data';
 import type { LevelWriter } from './level-writer';
 import { guardrailHeight, lampHeight, railingHeight } from './prop-models';
@@ -33,40 +39,69 @@ interface Room {
 const LAND = {
   /** Minimum decor clearance from traffic-lane centrelines. */
   lane: 2.6,
-  /** Clearance behind a kicker for approach, beyond its launch edge, and to either side of both. */
+  /**
+   * Clearance behind a kicker for approach, beyond its launch edge, and to
+   * either side of both.
+   */
   kicker: { runup: 14, launch: 10, side: 3 },
-  /** Ground-level door and window clearance depth, with the materials used to identify them. */
+  /**
+   * Ground-level door and window clearance depth, with the materials used to
+   * identify them.
+   */
   doorstep: 1.6,
   doors: ['glass', 'doorGlow', 'lampWarm'] as readonly MatKey[],
-  /** A door or window counts as street level when its bottom is within this of the ground. */
+  /**
+   * A door or window counts as street level when its bottom is within this of
+   * the ground.
+   */
   doorLow: 1,
   /** Clearance in front of signs across their full height. */
   signFront: 2.5,
   /** Kept round a parked car (half its length and width, padded). */
   stall: [3.2, 1.6] as [number, number],
-  /** Valet clearance along the crew's -X line and in other horizontal directions. */
+  /**
+   * Valet clearance along the crew's -X line and in other horizontal
+   * directions.
+   */
   valet: [4.5, 1.6] as [number, number],
-  /** Reservation depth below fixture bases and vertical clearance on each side of ceiling-lamp heads. */
+  /**
+   * Reservation depth below fixture bases and vertical clearance on each side
+   * of ceiling-lamp heads.
+   */
   under: 1,
   lampHead: 0.5,
   /** Height of ground-clearance probes for lawns and tree grates. */
   knee: 0.5,
-  /** Round a lamp post, a fence or railing, an elevator shaft (its landings), the player's spawn. */
+  /**
+   * Round a lamp post, a fence or railing, an elevator shaft (its landings),
+   * the player's spawn.
+   */
   lamp: 0.45,
   fence: 0.3,
   elevator: 2.5,
   spawn: 3,
   /**
-   * Street-tree placement: curb inset, candidate fractions along a block side, descending scale choices, and pedestrian
-   * clearance width and height behind trunks.
+   * Street-tree placement: curb inset, candidate fractions along a block side,
+   * descending scale choices, and pedestrian clearance width and height behind
+   * trunks.
    */
-  street: { inset: 1.2, at: [0.125, 0.3125, 0.6875, 0.875], scales: [1, 0.85, 0.72], walk: 0.95, head: 2 },
-  /** The iron grate round a street tree's foot (its side); ground decals are this thick. */
+  street: {
+    inset: 1.2,
+    at: [0.125, 0.3125, 0.6875, 0.875],
+    scales: [1, 0.85, 0.72],
+    walk: 0.95,
+    head: 2,
+  },
+  /**
+   * The iron grate round a street tree's foot (its side); ground decals are
+   * this thick.
+   */
   grate: 1.3,
   decal: 0.02,
   /**
-   * Garden dimensions and placement limits: paved borders, centrepiece rings, path width, minimum lawn size, tree
-   * spacing and jitter, candidate tree scales, and corner-shrub offsets and scale range.
+   * Garden dimensions and placement limits: paved borders, centrepiece rings,
+   * path width, minimum lawn size, tree spacing and jitter, candidate tree
+   * scales, and corner-shrub offsets and scale range.
    */
   park: {
     border: 1.5,
@@ -83,17 +118,26 @@ const LAND = {
   },
   /** Minimum pocket-garden dimensions and rear-corner shrub inset. */
   pocket: { min: 4, bush: 1 },
-  /** Spacing, flower-pair offset, and shrub scale for the Foxy's raised planter. */
+  /**
+   * Spacing, flower-pair offset, and shrub scale for the Foxy's raised
+   * planter.
+   */
   foxy: { step: 1.6, pair: 1, bush: 0.9 },
   /** Minimum street-edge lawn length for hedges, with hedge inset and end gaps. */
   hedge: { min: 4, inset: 0.55, end: 0.6 },
-  /** Flower-row inset and spacing, color-run length, and outward probe distance used to find lawn edges beside pavement. */
+  /**
+   * Flower-row inset and spacing, color-run length, and outward probe distance
+   * used to find lawn edges beside pavement.
+   */
   beds: { inset: 0.8, step: 1.4, run: 3, probe: 0.3 },
-  /** Bench inset from the centrepiece ring's outer edge and clearance beside each path. */
+  /**
+   * Bench inset from the centrepiece ring's outer edge and clearance beside
+   * each path.
+   */
   bench: { back: 0.55, gap: 0.3 },
   /**
-   * Deck-front planter size, height, curb offset, candidate side fractions, reservation margin, shrub scale, flower end
-   * inset, and bench separation.
+   * Deck-front planter size, height, curb offset, candidate side fractions,
+   * reservation margin, shrub scale, flower end inset, and bench separation.
    */
   planter: {
     size: [3.6, 1.1] as [number, number],
@@ -106,8 +150,8 @@ const LAND = {
     bench: 1.6,
   },
   /**
-   * Graveyard placement limits: perimeter inset and spacing, maximum cypress and flower counts, gate clearance,
-   * grave-flower offset, and plant scales.
+   * Graveyard placement limits: perimeter inset and spacing, maximum cypress
+   * and flower counts, gate clearance, grave-flower offset, and plant scales.
    */
   graveyard: {
     inset: 2.4,
@@ -119,7 +163,10 @@ const LAND = {
     sizes: [0.85, 1.1] as [number, number],
     posy: 0.8,
   },
-  /** A lot or driveway this near the curb opens onto the street: the strip between them stays clear for cars. */
+  /**
+   * A lot or driveway this near the curb opens onto the street: the strip
+   * between them stays clear for cars.
+   */
   lotReach: 4.5,
   /** Bus shelters stand this far back from the curb (to their front). */
   shelter: 0.9,
@@ -130,21 +177,42 @@ const LAND = {
 /** Overlaps smaller than this don't count: touching isn't overlapping. */
 const EPS = 1e-3;
 const overlaps = (a: Rect, b: Rect): boolean =>
-  a[0] < b[2] - EPS && b[0] < a[2] - EPS && a[1] < b[3] - EPS && b[1] < a[3] - EPS;
-const grow = (r: Rect, d: number): Rect => [r[0] - d, r[1] - d, r[2] + d, r[3] + d];
+  a[0] < b[2] - EPS &&
+  b[0] < a[2] - EPS &&
+  a[1] < b[3] - EPS &&
+  b[1] < a[3] - EPS;
+const grow = (r: Rect, d: number): Rect => [
+  r[0] - d,
+  r[1] - d,
+  r[2] + d,
+  r[3] + d,
+];
 const width = (r: Rect): number => r[2] - r[0];
 const depth = (r: Rect): number => r[3] - r[1];
-const boxRect = (b: { min: V3; max: V3 }): Rect => [b.min[0], b.min[2], b.max[0], b.max[2]];
-const inside = (r: Rect, x: number, z: number): boolean => x >= r[0] && x <= r[2] && z >= r[1] && z <= r[3];
+const boxRect = (b: { min: V3; max: V3 }): Rect => [
+  b.min[0],
+  b.min[2],
+  b.max[0],
+  b.max[2],
+];
+const inside = (r: Rect, x: number, z: number): boolean =>
+  x >= r[0] && x <= r[2] && z >= r[1] && z <= r[3];
 
 function spaceOf(d: DecorDef): LocalBox[] {
   const turn = DECOR[d.kind].round ? 0 : d.yaw;
-  return DECOR[d.kind].space.map((b) => worldBox(b, d.pos, turn, d.scale ?? 1, d.stretch ?? 1));
+  return DECOR[d.kind].space.map((b) =>
+    worldBox(b, d.pos, turn, d.scale ?? 1, d.stretch ?? 1),
+  );
 }
 
 function footprint(d: DecorDef): Rect {
   return spaceOf(d).reduce<Rect>(
-    (r, [min, max]) => [Math.min(r[0], min[0]), Math.min(r[1], min[2]), Math.max(r[2], max[0]), Math.max(r[3], max[2])],
+    (r, [min, max]) => [
+      Math.min(r[0], min[0]),
+      Math.min(r[1], min[2]),
+      Math.max(r[2], max[0]),
+      Math.max(r[3], max[2]),
+    ],
     [Infinity, Infinity, -Infinity, -Infinity],
   );
 }
@@ -170,12 +238,22 @@ function outward(half: number): number[] {
   return out;
 }
 
-/** Positions are kept to the centimeter in the level file, yaws and sizes to three places. */
+/**
+ * Positions are kept to the centimeter in the level file, yaws and sizes to
+ * three places.
+ */
 const cm = (v: number): number => Math.round(v * 100) / 100;
 const milli = (v: number): number => Math.round(v * 1000) / 1000;
 
 /** Distance from (px, pz) to the segment a-b. */
-function segDist(px: number, pz: number, ax: number, az: number, bx: number, bz: number): number {
+function segDist(
+  px: number,
+  pz: number,
+  ax: number,
+  az: number,
+  bx: number,
+  bz: number,
+): number {
   const dx = bx - ax;
   const dz = bz - az;
   const l2 = dx * dx + dz * dz;
@@ -184,10 +262,17 @@ function segDist(px: number, pz: number, ax: number, az: number, bx: number, bz:
 }
 
 /**
- * Estimate rectangle-to-segment distance using rectangle corners and segment endpoints. Return zero when either segment
- * endpoint lies inside the rectangle.
+ * Estimate rectangle-to-segment distance using rectangle corners and segment
+ * endpoints. Return zero when either segment endpoint lies inside the
+ * rectangle.
  */
-function rectSegDist(r: Rect, ax: number, az: number, bx: number, bz: number): number {
+function rectSegDist(
+  r: Rect,
+  ax: number,
+  az: number,
+  bx: number,
+  bz: number,
+): number {
   if (inside(r, ax, az) || inside(r, bx, bz)) {
     return 0;
   }
@@ -202,7 +287,12 @@ function rectSegDist(r: Rect, ax: number, az: number, bx: number, bz: number): n
   for (let i = 0; i < 4; i++) {
     const [cx, cz] = corners[i] as [number, number];
     const [ex, ez] = corners[(i + 1) % 4] as [number, number];
-    d = Math.min(d, segDist(cx, cz, ax, az, bx, bz), segDist(ax, az, cx, cz, ex, ez), segDist(bx, bz, cx, cz, ex, ez));
+    d = Math.min(
+      d,
+      segDist(cx, cz, ax, az, bx, bz),
+      segDist(ax, az, cx, cz, ex, ez),
+      segDist(bx, bz, cx, cz, ex, ez),
+    );
   }
 
   return d;
@@ -212,8 +302,9 @@ function rectSegDist(r: Rect, ax: number, az: number, bx: number, bz: number): n
 const CELL = 8;
 
 /**
- * Track reserved volumes and traffic lanes for decor placement. Seed reservations from existing geometry and gameplay
- * access areas, then reserve each newly placed item so later decor avoids it.
+ * Track reserved volumes and traffic lanes for decor placement. Seed
+ * reservations from existing geometry and gameplay access areas, then reserve
+ * each newly placed item so later decor avoids it.
  */
 class Site {
   private readonly cells = new Map<number, Room[]>();
@@ -232,9 +323,15 @@ class Site {
       }
 
       // Reserve asphalt and parking paint regardless of the proposed decor height.
-      const drive = (b.mat === 'asphalt' || b.mat === 'marking') && b.min[1] > -EPS;
-      const door = LAND.doors.includes(b.mat) && b.min[1] < CITY.sidewalk + LAND.doorLow;
-      this.take(grow(boxRect(b), door ? LAND.doorstep : 0), drive ? -ALL : b.min[1], drive ? ALL : b.max[1]);
+      const drive =
+        (b.mat === 'asphalt' || b.mat === 'marking') && b.min[1] > -EPS;
+      const door =
+        LAND.doors.includes(b.mat) && b.min[1] < CITY.sidewalk + LAND.doorLow;
+      this.take(
+        grow(boxRect(b), door ? LAND.doorstep : 0),
+        drive ? -ALL : b.min[1],
+        drive ? ALL : b.max[1],
+      );
     }
 
     for (const r of level.ramps) {
@@ -250,23 +347,31 @@ class Site {
       const lowAtMin = r.dir === 1;
       if (r.axis === 'x') {
         this.take(
-          lowAtMin ? [x0 - runup, z0 - side, x0, z1 + side] : [x1, z0 - side, x1 + runup, z1 + side],
+          lowAtMin
+            ? [x0 - runup, z0 - side, x0, z1 + side]
+            : [x1, z0 - side, x1 + runup, z1 + side],
           -ALL,
           ALL,
         );
         this.take(
-          lowAtMin ? [x1, z0 - side, x1 + launch, z1 + side] : [x0 - launch, z0 - side, x0, z1 + side],
+          lowAtMin
+            ? [x1, z0 - side, x1 + launch, z1 + side]
+            : [x0 - launch, z0 - side, x0, z1 + side],
           -ALL,
           ALL,
         );
       } else {
         this.take(
-          lowAtMin ? [x0 - side, z0 - runup, x1 + side, z0] : [x0 - side, z1, x1 + side, z1 + runup],
+          lowAtMin
+            ? [x0 - side, z0 - runup, x1 + side, z0]
+            : [x0 - side, z1, x1 + side, z1 + runup],
           -ALL,
           ALL,
         );
         this.take(
-          lowAtMin ? [x0 - side, z1, x1 + side, z1 + launch] : [x0 - side, z0 - launch, x1 + side, z0],
+          lowAtMin
+            ? [x0 - side, z1, x1 + side, z1 + launch]
+            : [x0 - side, z0 - launch, x1 + side, z0],
           -ALL,
           ALL,
         );
@@ -276,7 +381,11 @@ class Site {
     for (const l of level.lamps) {
       const [x, y, z] = l.pos;
       const street = l.kind === 'street';
-      this.take(grow([x, z, x, z], LAND.lamp), y - (street ? under : lampHead), y + (street ? lampHeight() : lampHead));
+      this.take(
+        grow([x, z, x, z], LAND.lamp),
+        y - (street ? under : lampHead),
+        y + (street ? lampHeight() : lampHead),
+      );
     }
 
     for (const p of [...level.bays, ...level.parked]) {
@@ -308,8 +417,13 @@ class Site {
         Math.max(r.a[0], r.b[0]),
         Math.max(r.a[2], r.b[2]),
       ];
-      const tall = r.style === 'guardrail' ? guardrailHeight() : railingHeight();
-      this.take(grow(rect, LAND.fence), Math.min(r.a[1], r.b[1]) - under, Math.max(r.a[1], r.b[1]) + tall);
+      const tall =
+        r.style === 'guardrail' ? guardrailHeight() : railingHeight();
+      this.take(
+        grow(rect, LAND.fence),
+        Math.min(r.a[1], r.b[1]) - under,
+        Math.max(r.a[1], r.b[1]) + tall,
+      );
     }
 
     for (const e of level.elevators) {
@@ -360,8 +474,16 @@ class Site {
   /** Keep `r` clear between heights y0 and y1 from now on. */
   take(r: Rect, y0: number, y1: number): void {
     const room: Room = { r, y0, y1 };
-    for (let ix = Math.floor(r[0] / CELL); ix <= Math.floor(r[2] / CELL); ix++) {
-      for (let iz = Math.floor(r[1] / CELL); iz <= Math.floor(r[3] / CELL); iz++) {
+    for (
+      let ix = Math.floor(r[0] / CELL);
+      ix <= Math.floor(r[2] / CELL);
+      ix++
+    ) {
+      for (
+        let iz = Math.floor(r[1] / CELL);
+        iz <= Math.floor(r[3] / CELL);
+        iz++
+      ) {
         const k = this.key(ix, iz);
         const list = this.cells.get(k);
         if (list) {
@@ -376,8 +498,16 @@ class Site {
   /** Nothing over `r` between heights y0 and y1, and no traffic lane near it. */
   free(r: Rect, y0: number, y1: number): boolean {
     const st = ++this.stamp;
-    for (let ix = Math.floor(r[0] / CELL); ix <= Math.floor(r[2] / CELL); ix++) {
-      for (let iz = Math.floor(r[1] / CELL); iz <= Math.floor(r[3] / CELL); iz++) {
+    for (
+      let ix = Math.floor(r[0] / CELL);
+      ix <= Math.floor(r[2] / CELL);
+      ix++
+    ) {
+      for (
+        let iz = Math.floor(r[1] / CELL);
+        iz <= Math.floor(r[3] / CELL);
+        iz++
+      ) {
         for (const room of this.cells.get(this.key(ix, iz)) ?? []) {
           if (this.seen.get(room) === st) {
             continue;
@@ -385,7 +515,11 @@ class Site {
 
           this.seen.set(room, st);
 
-          if (room.y1 > y0 + EPS && room.y0 < y1 - EPS && overlaps(room.r, r)) {
+          if (
+            room.y1 > y0 + EPS &&
+            room.y0 < y1 - EPS &&
+            overlaps(room.r, r)
+          ) {
             return false;
           }
         }
@@ -409,7 +543,10 @@ class Site {
   }
 }
 
-/** Append decor and static collision while reserving space for later placements. */
+/**
+ * Append decor and static collision while reserving space for later
+ * placements.
+ */
 class Planter {
   constructor(
     readonly w: LevelWriter,
@@ -417,7 +554,10 @@ class Planter {
     readonly rng: Rng,
   ) {}
 
-  /** Return whether all transformed reservation boxes for this decor fit the site. */
+  /**
+   * Return whether all transformed reservation boxes for this decor fit the
+   * site.
+   */
   fits(kind: DecorKind, pos: V3, yaw = 0, s = 1, stretch = 1): boolean {
     const turn = DECOR[kind].round ? 0 : yaw;
     return DECOR[kind].space.every((b) => {
@@ -427,8 +567,9 @@ class Planter {
   }
 
   /**
-   * Append decor without checking fit, round stored placement values, and reserve its transformed space. Append
-   * collision only for static decor; breakable collision is built at runtime.
+   * Append decor without checking fit, round stored placement values, and
+   * reserve its transformed space. Append collision only for static decor;
+   * breakable collision is built at runtime.
    */
   put(kind: DecorKind, pos: V3, yaw = 0, s = 1, stretch = 1): void {
     const p: V3 = [cm(pos[0]), cm(pos[1]), cm(pos[2])];
@@ -449,7 +590,10 @@ class Planter {
     }
   }
 
-  /** Append and reserve the decor only if fits() succeeds. Return whether it was placed. */
+  /**
+   * Append and reserve the decor only if fits() succeeds. Return whether it
+   * was placed.
+   */
   tryPut(kind: DecorKind, pos: V3, yaw = 0, s = 1, stretch = 1): boolean {
     if (!this.fits(kind, pos, yaw, s, stretch)) {
       return false;
@@ -459,13 +603,18 @@ class Planter {
     return true;
   }
 
-  /** Append and reserve a thin ground decal at height y if its volume is free. Return whether it was placed. */
+  /**
+   * Append and reserve a thin ground decal at height y if its volume is free.
+   * Return whether it was placed.
+   */
   decal(r: Rect, y: number, mat: MatKey): boolean {
     if (!this.site.free(r, y, y + LAND.decal)) {
       return false;
     }
 
-    this.w.box([r[0], y, r[1]], [r[2], y + LAND.decal, r[3]], mat, { solid: false });
+    this.w.box([r[0], y, r[1]], [r[2], y + LAND.decal, r[3]], mat, {
+      solid: false,
+    });
     this.site.take(r, y, y + LAND.decal);
     return true;
   }
@@ -477,10 +626,15 @@ class Planter {
 }
 
 /**
- * Divide an axis-aligned hedge run into evenly stretched modules and try each placement independently. Skip obstructed
- * modules.
+ * Divide an axis-aligned hedge run into evenly stretched modules and try each
+ * placement independently. Skip obstructed modules.
  */
-function hedgeRun(p: Planter, a: [number, number], b: [number, number], y: number): void {
+function hedgeRun(
+  p: Planter,
+  a: [number, number],
+  b: [number, number],
+  y: number,
+): void {
   const alongX = Math.abs(b[0] - a[0]) > Math.abs(b[1] - a[1]);
   const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
   const mod = DECOR.hedge.space[0] as LocalBox;
@@ -489,12 +643,23 @@ function hedgeRun(p: Planter, a: [number, number], b: [number, number], y: numbe
   const stretch = len / n / unit;
   for (let i = 0; i < n; i++) {
     const t = (i + 0.5) / n;
-    p.tryPut('hedge', [a[0] + (b[0] - a[0]) * t, y, a[1] + (b[1] - a[1]) * t], alongX ? 0 : Math.PI / 2, 1, stretch);
+    p.tryPut(
+      'hedge',
+      [a[0] + (b[0] - a[0]) * t, y, a[1] + (b[1] - a[1]) * t],
+      alongX ? 0 : Math.PI / 2,
+      1,
+      stretch,
+    );
   }
 }
 
 /** A row of flower clumps from a to b, colors alternating in runs. */
-function flowerRow(p: Planter, a: [number, number], b: [number, number], y: number): void {
+function flowerRow(
+  p: Planter,
+  a: [number, number],
+  b: [number, number],
+  y: number,
+): void {
   const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
   const n = Math.floor(len / LAND.beds.step) + 1;
   const first = p.rng.chance(0.5);
@@ -509,8 +674,16 @@ function flowerRow(p: Planter, a: [number, number], b: [number, number], y: numb
   }
 }
 
-/** Try trees on a jittered lawn grid, reducing scale until each candidate fits or all scales fail. */
-function lawnTrees(p: Planter, lawn: Rect, y: number, kinds: readonly DecorKind[]): void {
+/**
+ * Try trees on a jittered lawn grid, reducing scale until each candidate fits
+ * or all scales fail.
+ */
+function lawnTrees(
+  p: Planter,
+  lawn: Rect,
+  y: number,
+  kinds: readonly DecorKind[],
+): void {
   const { treeGap, treeEdge, jitter, scales } = LAND.park;
   // Collapse undersized inset dimensions to the lawn centre before placing trees.
   const g = grow(lawn, -treeEdge);
@@ -524,10 +697,16 @@ function lawnTrees(p: Planter, lawn: Rect, y: number, kinds: readonly DecorKind[
   const nz = Math.max(1, Math.round(depth(r) / treeGap) + 1);
   for (let i = 0; i < nx; i++) {
     for (let j = 0; j < nz; j++) {
-      const x = nx === 1 ? (r[0] + r[2]) / 2 : r[0] + (width(r) * i) / (nx - 1);
-      const z = nz === 1 ? (r[1] + r[3]) / 2 : r[1] + (depth(r) * j) / (nz - 1);
+      const x =
+        nx === 1 ? (r[0] + r[2]) / 2 : r[0] + (width(r) * i) / (nx - 1);
+      const z =
+        nz === 1 ? (r[1] + r[3]) / 2 : r[1] + (depth(r) * j) / (nz - 1);
       const kind = p.rng.pick(kinds);
-      const pos: V3 = [x + p.rng.range(-jitter, jitter), y, z + p.rng.range(-jitter, jitter)];
+      const pos: V3 = [
+        x + p.rng.range(-jitter, jitter),
+        y,
+        z + p.rng.range(-jitter, jitter),
+      ];
       const yaw = p.spin();
       for (const s of scales) {
         if (p.tryPut(kind, pos, yaw, s)) {
@@ -539,10 +718,14 @@ function lawnTrees(p: Planter, lawn: Rect, y: number, kinds: readonly DecorKind[
 }
 
 /**
- * Merge lawn spans touching the specified area edge. Return (start, end, edgeCoordinate) triples, excluding runs
- * shorter than LAND.hedge.min.
+ * Merge lawn spans touching the specified area edge. Return (start, end,
+ * edgeCoordinate) triples, excluding runs shorter than LAND.hedge.min.
  */
-function edgeRuns(lawns: readonly Rect[], area: Rect, side: 'x0' | 'x1' | 'z0' | 'z1'): [number, number, number][] {
+function edgeRuns(
+  lawns: readonly Rect[],
+  area: Rect,
+  side: 'x0' | 'x1' | 'z0' | 'z1',
+): [number, number, number][] {
   const i = { x0: 0, z0: 1, x1: 2, z1: 3 }[side];
   const alongX = side === 'z0' || side === 'z1';
   const edge = area[i] as number;
@@ -564,11 +747,19 @@ function edgeRuns(lawns: readonly Rect[], area: Rect, side: 'x0' | 'x1' | 'z0' |
 }
 
 /**
- * Try gazebo placements ordered by sampled lawn clearance, breaking ties by distance from (cx, cz). Place the first
- * fitting candidate; leave the site unchanged if none fits.
+ * Try gazebo placements ordered by sampled lawn clearance, breaking ties by
+ * distance from (cx, cz). Place the first fitting candidate; leave the site
+ * unchanged if none fits.
  */
-function gazeboSpot(p: Planter, lawns: readonly Rect[], cx: number, cz: number, y: number): void {
-  const onLawn = (x: number, z: number): boolean => lawns.some((l) => inside(l, x, z));
+function gazeboSpot(
+  p: Planter,
+  lawns: readonly Rect[],
+  cx: number,
+  cz: number,
+  y: number,
+): void {
+  const onLawn = (x: number, z: number): boolean =>
+    lawns.some((l) => inside(l, x, z));
   // Expand radial clearance in STEP increments, checking ROUND sample points per ring.
   const ROUND = 16;
   const STEP = 0.25;
@@ -609,9 +800,10 @@ function gazeboSpot(p: Planter, lawns: readonly Rect[], cx: number, cz: number, 
 }
 
 /**
- * Plant around a centrepiece with half-size `core` at (cx, cz), preserving a paved ring and paths to each side of
- * `area`. Add lawns, hedges, trees, flowers, and inward-facing benches where space permits; optionally place a gazebo
- * first.
+ * Plant around a centrepiece with half-size `core` at (cx, cz), preserving a
+ * paved ring and paths to each side of `area`. Add lawns, hedges, trees,
+ * flowers, and inward-facing benches where space permits; optionally place a
+ * gazebo first.
  */
 function garden(
   p: Planter,
@@ -633,10 +825,16 @@ function garden(
     [area[0], cz - h, paved[0], cz + h],
     [paved[2], cz - h, area[2], cz + h],
   ];
-  const holes = [paved, ...paths].map(([u0, v0, u1, v1]) => ({ u0, v0, u1, v1 }));
-  let lawns: Rect[] = subtractRects({ u0: area[0], v0: area[1], u1: area[2], v1: area[3] }, holes).map(
-    (f) => [f.u0, f.v0, f.u1, f.v1] as Rect,
-  );
+  const holes = [paved, ...paths].map(([u0, v0, u1, v1]) => ({
+    u0,
+    v0,
+    u1,
+    v1,
+  }));
+  let lawns: Rect[] = subtractRects(
+    { u0: area[0], v0: area[1], u1: area[2], v1: area[3] },
+    holes,
+  ).map((f) => [f.u0, f.v0, f.u1, f.v1] as Rect);
   // Carve lawn footprints around existing reservations before planting.
   lawns = lawns.flatMap((l) => carve(p, l, SW));
   lawns = lawns.filter((l) => width(l) >= minLawn && depth(l) >= minLawn);
@@ -674,9 +872,14 @@ function garden(
 
   // Place flower beds along paved lawn edges, excluding boundaries shared by two lawns.
   const { inset: bi, step, probe } = LAND.beds;
-  const onLawn = (x: number, z: number): boolean => lawns.some((l) => inside(l, x, z));
+  const onLawn = (x: number, z: number): boolean =>
+    lawns.some((l) => inside(l, x, z));
   for (const l of lawns) {
-    const edges: { a: [number, number]; b: [number, number]; out: [number, number] }[] = [
+    const edges: {
+      a: [number, number];
+      b: [number, number];
+      out: [number, number];
+    }[] = [
       { a: [l[0], l[1]], b: [l[2], l[1]], out: [0, -1] },
       { a: [l[0], l[3]], b: [l[2], l[3]], out: [0, 1] },
       { a: [l[0], l[1]], b: [l[0], l[3]], out: [-1, 0] },
@@ -701,8 +904,13 @@ function garden(
           continue;
         }
 
-        const purple = Math.floor(i / LAND.beds.run) % 2 === 0 ? first : !first;
-        p.tryPut(purple ? 'flowersPurple' : 'flowersSlime', [ex - out[0] * bi, y, ez - out[1] * bi], p.spin());
+        const purple =
+          Math.floor(i / LAND.beds.run) % 2 === 0 ? first : !first;
+        p.tryPut(
+          purple ? 'flowersPurple' : 'flowersSlime',
+          [ex - out[0] * bi, y, ez - out[1] * bi],
+          p.spin(),
+        );
       }
     }
   }
@@ -734,8 +942,9 @@ function garden(
 const CARVE = 0.5;
 
 /**
- * Sample the requested footprint for ground-level clearance, then merge clear cells into non-overlapping rectangles.
- * Return an empty list when the footprint cannot hold a grid cell.
+ * Sample the requested footprint for ground-level clearance, then merge clear
+ * cells into non-overlapping rectangles. Return an empty list when the
+ * footprint cannot hold a grid cell.
  */
 function carve(p: Planter, r: Rect, y: number): Rect[] {
   // Mark unreserved cells at approximately CARVE spacing before assembling lawn rectangles.
@@ -795,29 +1004,47 @@ function carve(p: Planter, r: Rect, y: number): Rect[] {
         }
       }
 
-      out.push([r[0] + i * sx, r[1] + j * sz, r[0] + (i1 + 1) * sx, r[1] + (j1 + 1) * sz]);
+      out.push([
+        r[0] + i * sx,
+        r[1] + j * sz,
+        r[0] + (i1 + 1) * sx,
+        r[1] + (j1 + 1) * sz,
+      ]);
     }
   }
 
   return out;
 }
 
-/** Boxes in the block whose footprint is at least this wide and which stand this tall: buildings, not furniture. */
+/**
+ * Boxes in the block whose footprint is at least this wide and which stand
+ * this tall: buildings, not furniture.
+ */
 const BUILDING = { wide: 6, tall: 3 };
 
 /** Return boxes whose footprints overlap r and satisfy pick. */
-function boxesIn(level: LevelData, r: Rect, pick: (b: BoxDef) => boolean): BoxDef[] {
+function boxesIn(
+  level: LevelData,
+  r: Rect,
+  pick: (b: BoxDef) => boolean,
+): BoxDef[] {
   return level.boxes.filter((b) => overlaps(boxRect(b), r) && pick(b));
 }
 
-/** Plant a park around the existing slime fountain in the open area north of the shops, subject to reserved access. */
+/**
+ * Plant a park around the existing slime fountain in the open area north of
+ * the shops, subject to reserved access.
+ */
 function squarePark(p: Planter, block: Rect): void {
   const L = p.w.data;
   const pool = boxesIn(L, block, (b) => b.mat === 'slimePool')[0];
   const shops = boxesIn(
     L,
     block,
-    (b) => b.solid !== false && b.max[0] - b.min[0] >= BUILDING.wide && b.max[1] - b.min[1] >= BUILDING.tall,
+    (b) =>
+      b.solid !== false &&
+      b.max[0] - b.min[0] >= BUILDING.wide &&
+      b.max[1] - b.min[1] >= BUILDING.tall,
   );
   const open = Math.min(block[3], ...shops.map((b) => b.min[2]));
   const area = grow([block[0], block[1], block[2], open], -LAND.park.border);
@@ -829,22 +1056,39 @@ function squarePark(p: Planter, block: Rect): void {
   const pr = boxRect(pool);
   const rim = boxesIn(L, grow(pr, 1), (b) => b.mat === 'stone').map(boxRect);
   const [x0, z0, x1, z1] = rim.reduce(
-    (u, r) => [Math.min(u[0], r[0]), Math.min(u[1], r[1]), Math.max(u[2], r[2]), Math.max(u[3], r[3])],
+    (u, r) => [
+      Math.min(u[0], r[0]),
+      Math.min(u[1], r[1]),
+      Math.max(u[2], r[2]),
+      Math.max(u[3], r[3]),
+    ],
     pr,
   );
-  garden(p, area, (x0 + x1) / 2, (z0 + z1) / 2, Math.max(x1 - x0, z1 - z0) / 2, {
-    gazebo: true,
-    trees: ['tree', 'tree', 'pine'],
-  });
+  garden(
+    p,
+    area,
+    (x0 + x1) / 2,
+    (z0 + z1) / 2,
+    Math.max(x1 - x0, z1 - z0) / 2,
+    {
+      gazebo: true,
+      trees: ['tree', 'tree', 'pine'],
+    },
+  );
 }
 
-/** Plant a fountain garden between the plaza lot and nearby structures, then try a street-facing bus shelter beside it. */
+/**
+ * Plant a fountain garden between the plaza lot and nearby structures, then
+ * try a street-facing bus shelter beside it.
+ */
 function plazaGarden(p: Planter, block: Rect): void {
   const L = p.w.data;
   const SW = CITY.sidewalk;
-  const lot = boxesIn(L, block, (b) => b.mat === 'asphalt' && b.min[1] > EPS).sort(
-    (a, b) => width(boxRect(b)) - width(boxRect(a)),
-  )[0];
+  const lot = boxesIn(
+    L,
+    block,
+    (b) => b.mat === 'asphalt' && b.min[1] > EPS,
+  ).sort((a, b) => width(boxRect(b)) - width(boxRect(a)))[0];
   if (!lot) {
     return;
   }
@@ -865,7 +1109,10 @@ function plazaGarden(p: Planter, block: Rect): void {
   const cx = (area[0] + area[2]) / 2;
   const cz = (area[1] + area[3]) / 2;
   p.tryPut('fountain', [cx, SW, cz]);
-  garden(p, area, cx, cz, FOUNTAIN.basin.r + 0.2, { ring: LAND.park.pocketRing, trees: ['tree'] });
+  garden(p, area, cx, cz, FOUNTAIN.basin.r + 0.2, {
+    ring: LAND.park.pocketRing,
+    trees: ['tree'],
+  });
   // a bus shelter facing the street, east of the garden
   const z = block[3] - LAND.shelter - SHELTER.d / 2;
   for (let x = area[2] + SHELTER.w; x < block[2] - SHELTER.w; x += LAND.scan) {
@@ -876,8 +1123,9 @@ function plazaGarden(p: Planter, block: Rect): void {
 }
 
 /**
- * Plant low shrubs and flowers on the Foxy's raised planter to preserve valet visibility. Add corner gardens,
- * podium-side hedges, and a side-street shelter where space permits.
+ * Plant low shrubs and flowers on the Foxy's raised planter to preserve valet
+ * visibility. Add corner gardens, podium-side hedges, and a side-street
+ * shelter where space permits.
  */
 function hotelGrounds(p: Planter, block: Rect): void {
   const L = p.w.data;
@@ -894,8 +1142,16 @@ function hotelGrounds(p: Planter, block: Rect): void {
     for (let i = 0; i <= n; i++) {
       const x = x0 + step / 2 + (run * i) / Math.max(1, n);
       if (i % 2) {
-        p.tryPut(i % 4 === 1 ? 'flowersPurple' : 'flowersSlime', [x, y, zc - pair], p.spin());
-        p.tryPut(i % 4 === 1 ? 'flowersSlime' : 'flowersPurple', [x, y, zc + pair], p.spin());
+        p.tryPut(
+          i % 4 === 1 ? 'flowersPurple' : 'flowersSlime',
+          [x, y, zc - pair],
+          p.spin(),
+        );
+        p.tryPut(
+          i % 4 === 1 ? 'flowersSlime' : 'flowersPurple',
+          [x, y, zc + pair],
+          p.spin(),
+        );
       } else {
         p.tryPut('bush', [x, y, zc], p.spin(), bush);
       }
@@ -903,10 +1159,16 @@ function hotelGrounds(p: Planter, block: Rect): void {
   }
 
   // Use the widest hotel box as the podium footprint.
-  const podium = boxesIn(L, block, (b) => b.solid !== false && b.max[1] - b.min[1] >= BUILDING.tall).sort(
-    (a, b) => width(boxRect(b)) - width(boxRect(a)),
-  )[0];
-  const lanes = boxesIn(L, block, (b) => b.mat === 'asphalt' && b.min[1] > EPS);
+  const podium = boxesIn(
+    L,
+    block,
+    (b) => b.solid !== false && b.max[1] - b.min[1] >= BUILDING.tall,
+  ).sort((a, b) => width(boxRect(b)) - width(boxRect(a)))[0];
+  const lanes = boxesIn(
+    L,
+    block,
+    (b) => b.mat === 'asphalt' && b.min[1] > EPS,
+  );
   if (!podium || !lanes.length) {
     return;
   }
@@ -940,7 +1202,10 @@ function hotelGrounds(p: Planter, block: Rect): void {
   }
 }
 
-/** A small garden on open pavement: lawn with trees down it, bushes at the back corners and flowers along the front. */
+/**
+ * A small garden on open pavement: lawn with trees down it, bushes at the back
+ * corners and flowers along the front.
+ */
 function pocket(p: Planter, r: Rect): void {
   const SW = CITY.sidewalk;
   const { min, bush } = LAND.pocket;
@@ -948,7 +1213,9 @@ function pocket(p: Planter, r: Rect): void {
     return;
   }
 
-  const lawns = carve(p, r, SW).filter((l) => width(l) >= LAND.park.lawn && depth(l) >= LAND.park.lawn);
+  const lawns = carve(p, r, SW).filter(
+    (l) => width(l) >= LAND.park.lawn && depth(l) >= LAND.park.lawn,
+  );
   const y = SW + LAND.decal;
   for (const l of lawns) {
     if (!p.decal(l, SW, 'grass')) {
@@ -964,8 +1231,8 @@ function pocket(p: Planter, r: Rect): void {
 }
 
 /**
- * Add low deck-front planters with shrubs and flowers, plus street-facing benches, while preserving clear views of the
- * deck.
+ * Add low deck-front planters with shrubs and flowers, plus street-facing
+ * benches, while preserving clear views of the deck.
  */
 function deckFront(p: Planter, block: Rect): void {
   const SW = CITY.sidewalk;
@@ -983,7 +1250,11 @@ function deckFront(p: Planter, block: Rect): void {
     p.site.take(r, SW, SW + h);
     const y = SW + h;
     p.tryPut('bush', [x, y, z], p.spin(), LAND.planter.bush);
-    p.tryPut('flowersPurple', [x - len / 2 + LAND.planter.end, y, z], p.spin());
+    p.tryPut(
+      'flowersPurple',
+      [x - len / 2 + LAND.planter.end, y, z],
+      p.spin(),
+    );
     p.tryPut('flowersSlime', [x + len / 2 - LAND.planter.end, y, z], p.spin());
 
     for (const side of [-1, 1]) {
@@ -992,10 +1263,14 @@ function deckFront(p: Planter, block: Rect): void {
   }
 }
 
-/** The graveyard: dark cypresses inside its fence, and purple flowers left on some of the graves. */
+/**
+ * The graveyard: dark cypresses inside its fence, and purple flowers left on
+ * some of the graves.
+ */
 function graveyardPlanting(p: Planter, block: Rect): void {
   const G = CITY.graveyard;
-  const { inset, step, cypresses, flowers, gate, grave, sizes, posy } = LAND.graveyard;
+  const { inset, step, cypresses, flowers, gate, grave, sizes, posy } =
+    LAND.graveyard;
   const ring: [number, number][] = [];
   const r = grow(block, -inset);
   for (let x = r[0]; x <= r[2]; x += step) {
@@ -1033,18 +1308,33 @@ function graveyardPlanting(p: Planter, block: Rect): void {
       break;
     }
 
-    if (p.tryPut('flowersPurple', [(r[0] + r[2]) / 2, G, r[3] + grave], p.spin(), posy)) {
+    if (
+      p.tryPut(
+        'flowersPurple',
+        [(r[0] + r[2]) / 2, G, r[3] + grave],
+        p.spin(),
+        posy,
+      )
+    ) {
       k++;
     }
   }
 }
 
-/** Street trees along a block's sidewalks wherever they fit (with a walkway left behind them), each in an iron grate. */
+/**
+ * Street trees along a block's sidewalks wherever they fit (with a walkway
+ * left behind them), each in an iron grate.
+ */
 function streetTrees(p: Planter, block: Rect): void {
   const SW = CITY.sidewalk;
   const [x0, z0, x1, z1] = block;
   const { inset, at, scales, walk, head } = LAND.street;
-  const sides: { a: [number, number]; d: [number, number]; n: [number, number]; len: number }[] = [
+  const sides: {
+    a: [number, number];
+    d: [number, number];
+    n: [number, number];
+    len: number;
+  }[] = [
     { a: [x0, z0], d: [1, 0], n: [0, 1], len: x1 - x0 },
     { a: [x0, z1], d: [1, 0], n: [0, -1], len: x1 - x0 },
     { a: [x0, z0], d: [0, 1], n: [1, 0], len: z1 - z0 },
@@ -1083,9 +1373,16 @@ function streetTrees(p: Planter, block: Rect): void {
   }
 }
 
-/** Keep clear the sidewalk between the block's curb and any lot or driveway near it, where cars cross to get in. */
+/**
+ * Keep clear the sidewalk between the block's curb and any lot or driveway
+ * near it, where cars cross to get in.
+ */
 function lotMouths(p: Planter, block: Rect): void {
-  const lots = boxesIn(p.w.data, block, (b) => b.mat === 'asphalt' && b.min[1] > EPS);
+  const lots = boxesIn(
+    p.w.data,
+    block,
+    (b) => b.mat === 'asphalt' && b.min[1] > EPS,
+  );
   const reach = LAND.lotReach;
   for (const b of lots) {
     const [x0, z0, x1, z1] = boxRect(b);
@@ -1107,7 +1404,10 @@ function lotMouths(p: Planter, block: Rect): void {
   }
 }
 
-/** Reserve a connection from each kicker's approach area to the nearer block edge so vehicles can enter from the street. */
+/**
+ * Reserve a connection from each kicker's approach area to the nearer block
+ * edge so vehicles can enter from the street.
+ */
 function kickerApproach(p: Planter, block: Rect): void {
   const { runup, side } = LAND.kicker;
   for (const r of p.w.data.ramps) {
@@ -1120,30 +1420,52 @@ function kickerApproach(p: Planter, block: Rect): void {
       const lo = r.dir === 1 ? z0 - runup : z1;
       const hi = r.dir === 1 ? z0 : z1 + runup;
       const east = block[2] - (x1 + side) < x0 - side - block[0];
-      p.site.take(east ? [x1 + side, lo, block[2], hi] : [block[0], lo, x0 - side, hi], -Infinity, Infinity);
+      p.site.take(
+        east ? [x1 + side, lo, block[2], hi] : [block[0], lo, x0 - side, hi],
+        -Infinity,
+        Infinity,
+      );
     } else {
       const lo = r.dir === 1 ? x0 - runup : x1;
       const hi = r.dir === 1 ? x0 : x1 + runup;
       const south = block[3] - (z1 + side) < z0 - side - block[1];
-      p.site.take(south ? [lo, z1 + side, hi, block[3]] : [lo, block[1], hi, z0 - side], -Infinity, Infinity);
+      p.site.take(
+        south ? [lo, z1 + side, hi, block[3]] : [lo, block[1], hi, z0 - side],
+        -Infinity,
+        Infinity,
+      );
     }
   }
 }
 
-/** Blocks that get street trees: the ones with sidewalks and nothing of their own planted on every side. */
-const STREET_TREES: readonly BlockKind[] = ['towers', 'midrise', 'lot', 'shops', 'plaza', 'hotel'];
+/**
+ * Blocks that get street trees: the ones with sidewalks and nothing of their
+ * own planted on every side.
+ */
+const STREET_TREES: readonly BlockKind[] = [
+  'towers',
+  'midrise',
+  'lot',
+  'shops',
+  'plaza',
+  'hotel',
+];
 
 /**
- * Append seeded landscaping after city and deck generation. Reserve lot entrances and kicker approaches first, then
- * plant each block by use and add street trees. Placement checks account for existing geometry, traffic lanes, and
- * previously added decor.
+ * Append seeded landscaping after city and deck generation. Reserve lot
+ * entrances and kicker approaches first, then plant each block by use and add
+ * street trees. Placement checks account for existing geometry, traffic lanes,
+ * and previously added decor.
  */
 export function generateLandscape(w: LevelWriter, seed: number): void {
   const p = new Planter(w, new Site(w.data), new Rng(seed));
   const blocks: { kind: BlockKind; rect: Rect }[] = [];
   for (let bx = 0; bx < CITY.blocks; bx++) {
     for (let bz = 0; bz < CITY.blocks; bz++) {
-      blocks.push({ kind: BLOCK_LAYOUT[bx]?.[bz] ?? 'towers', rect: blockRect(bx, bz) });
+      blocks.push({
+        kind: BLOCK_LAYOUT[bx]?.[bz] ?? 'towers',
+        rect: blockRect(bx, bz),
+      });
     }
   }
 

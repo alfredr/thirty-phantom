@@ -105,20 +105,26 @@ void main() {
 `;
 
 /**
- * Render scene color, floating-point depth, and view-space normals, then composite outlines at silhouettes and creases.
- * Materials tagged by softInk() receive thin, faint silhouettes without crease lines.
+ * Render scene color, floating-point depth, and view-space normals, then
+ * composite outlines at silhouettes and creases. Materials tagged by softInk()
+ * receive thin, faint silhouettes without crease lines.
  */
 export class SceneOutlinePass extends Pass {
   private readonly sceneRT: WebGLRenderTarget;
   private readonly normalRT: WebGLRenderTarget;
-  private readonly normalMat: MeshNormalMaterial = MaterialLibrary.normalMaterial();
-  private readonly softNormalMat: MeshNormalMaterial = MaterialLibrary.normalMaterial(true);
+  private readonly normalMat: MeshNormalMaterial =
+    MaterialLibrary.normalMaterial();
+  private readonly softNormalMat: MeshNormalMaterial =
+    MaterialLibrary.normalMaterial(true);
   private readonly swapMeshes: Mesh[] = [];
   private readonly swapMats: (Material | Material[])[] = [];
   private readonly quad: FullScreenQuad;
   readonly material: ShaderMaterial;
   private readonly tmpColor = new Color();
-  /** World units per pixel, set by the renderer each frame (orthographic view only). */
+  /**
+   * World units per pixel, set by the renderer each frame (orthographic view
+   * only).
+   */
   worldPerPixel = 0.04;
   private heightPx: number;
 
@@ -134,7 +140,11 @@ export class SceneOutlinePass extends Pass {
     const depthTexture = new DepthTexture(w, h, FloatType);
     depthTexture.minFilter = NearestFilter;
     depthTexture.magFilter = NearestFilter;
-    this.sceneRT = new WebGLRenderTarget(w, h, { type: HalfFloatType, depthTexture, samples: 4 });
+    this.sceneRT = new WebGLRenderTarget(w, h, {
+      type: HalfFloatType,
+      depthTexture,
+      samples: 4,
+    });
     this.normalRT = new WebGLRenderTarget(w, h, { type: UnsignedByteType });
     this.material = new ShaderMaterial({
       uniforms: {
@@ -151,9 +161,15 @@ export class SceneOutlinePass extends Pass {
         softInk: { value: 0.45 },
         isPersp: { value: 0 },
         tanHalf: { value: new Vector2(1, 1) },
-        /** World units per pixel: constant in the iso view, per unit of view depth in the chase view. */
+        /**
+         * World units per pixel: constant in the iso view, per unit of view
+         * depth in the chase view.
+         */
         pixelWorld: { value: 0.04 },
-        /** World-space pixel-size range over which fine outlines fade, reducing visual noise on distant detail. */
+        /**
+         * World-space pixel-size range over which fine outlines fade, reducing
+         * visual noise on distant detail.
+         */
         inkFade: { value: new Vector2(0.06, 0.16) },
       },
       vertexShader: FULLSCREEN_VERT,
@@ -175,12 +191,24 @@ export class SceneOutlinePass extends Pass {
     (this.material.uniforms.texel?.value as Vector2).set(1 / w, 1 / h);
   }
 
-  /** Invisible replacement material excludes noInk surfaces from the normal pass. */
+  /**
+   * Invisible replacement material excludes noInk surfaces from the normal
+   * pass.
+   */
   private readonly noInkMat = new MeshBasicMaterial({ visible: false });
   private readonly pickNormal = (m: Material): Material =>
-    !m.visible ? m : m.userData.noInk ? this.noInkMat : m.userData.softInk ? this.softNormalMat : this.normalMat;
+    !m.visible
+      ? m
+      : m.userData.noInk
+        ? this.noInkMat
+        : m.userData.softInk
+          ? this.softNormalMat
+          : this.normalMat;
 
-  /** Per-mesh swap rather than scene.overrideMaterial, so each material can pick its ink class. */
+  /**
+   * Per-mesh swap rather than scene.overrideMaterial, so each material can
+   * pick its ink class.
+   */
   private readonly swapIn = (o: Object3D): void => {
     const m = o as Mesh;
     if (!m.isMesh) {
@@ -189,14 +217,19 @@ export class SceneOutlinePass extends Pass {
 
     this.swapMeshes.push(m);
     this.swapMats.push(m.material);
-    m.material = Array.isArray(m.material) ? m.material.map(this.pickNormal) : this.pickNormal(m.material);
+    m.material = Array.isArray(m.material)
+      ? m.material.map(this.pickNormal)
+      : this.pickNormal(m.material);
   };
 
   setThickness(px: number): void {
     (this.material.uniforms.thickness as { value: number }).value = px;
   }
 
-  override render(renderer: WebGLRenderer, writeBuffer: WebGLRenderTarget): void {
+  override render(
+    renderer: WebGLRenderer,
+    writeBuffer: WebGLRenderTarget,
+  ): void {
     const u = this.material.uniforms;
     renderer.setRenderTarget(this.sceneRT);
     renderer.clear();
@@ -220,7 +253,9 @@ export class SceneOutlinePass extends Pass {
     renderer.render(this.scene, this.camera);
 
     for (let i = 0; i < this.swapMeshes.length; i++) {
-      (this.swapMeshes[i] as Mesh).material = this.swapMats[i] as Material | Material[];
+      (this.swapMeshes[i] as Mesh).material = this.swapMats[i] as
+        | Material
+        | Material[];
     }
 
     this.swapMeshes.length = 0;

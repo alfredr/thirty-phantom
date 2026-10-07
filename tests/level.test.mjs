@@ -3,36 +3,57 @@ import { test } from 'node:test';
 
 import { loadModules } from './modules.mjs';
 
-const [{ parseLevel }, { generateLevel }, { loadLevel }, { emptyLevel }, { stairShaft, elevatorShaft }] =
-  await loadModules(
-    '/src/world/parse-level.ts',
-    '/src/world/generate-level.ts',
-    '/src/world/load-level.ts',
-    '/src/world/level-data.ts',
-    '/src/world/gen-deck.ts',
-  );
+const [
+  { parseLevel },
+  { generateLevel },
+  { loadLevel },
+  { emptyLevel },
+  { stairShaft, elevatorShaft },
+] = await loadModules(
+  '/src/world/parse-level.ts',
+  '/src/world/generate-level.ts',
+  '/src/world/load-level.ts',
+  '/src/world/level-data.ts',
+  '/src/world/gen-deck.ts',
+);
 const generated = JSON.parse(JSON.stringify(generateLevel()));
 
 test('the street surface leaves the basement stair and elevator shafts open', () => {
   const [x, , z] = generated.deck.min;
   const shafts = [stairShaft([x, 0, z]), elevatorShaft([x, 0, z])];
-  const ground = generated.boxes.filter((b) => b.mat === 'asphalt' && b.min[1] < 0 && b.max[1] === 0);
+  const ground = generated.boxes.filter(
+    (b) => b.mat === 'asphalt' && b.min[1] < 0 && b.max[1] === 0,
+  );
   assert.ok(ground.length > 0, 'retain the surrounding street surface');
 
   for (const [x0, z0, x1, z1] of shafts) {
     for (const b of ground) {
-      const overlaps = b.min[0] < x1 && b.max[0] > x0 && b.min[2] < z1 && b.max[2] > z0;
-      assert.equal(overlaps, false, 'no street slab may cross a shaft opening');
+      const overlaps =
+        b.min[0] < x1 && b.max[0] > x0 && b.min[2] < z1 && b.max[2] > z0;
+      assert.equal(
+        overlaps,
+        false,
+        'no street slab may cross a shaft opening',
+      );
     }
   }
 
-  const area = ground.reduce((sum, b) => sum + (b.max[0] - b.min[0]) * (b.max[2] - b.min[2]), 0);
-  const holes = shafts.reduce((sum, [x0, z0, x1, z1]) => sum + (x1 - x0) * (z1 - z0), 0);
+  const area = ground.reduce(
+    (sum, b) => sum + (b.max[0] - b.min[0]) * (b.max[2] - b.min[2]),
+    0,
+  );
+  const holes = shafts.reduce(
+    (sum, [x0, z0, x1, z1]) => sum + (x1 - x0) * (z1 - z0),
+    0,
+  );
   const minX = Math.min(...ground.map((b) => b.min[0]));
   const maxX = Math.max(...ground.map((b) => b.max[0]));
   const minZ = Math.min(...ground.map((b) => b.min[2]));
   const maxZ = Math.max(...ground.map((b) => b.max[2]));
-  assert.ok(Math.abs(area + holes - (maxX - minX) * (maxZ - minZ)) < 1e-8, 'remove only the two shaft openings');
+  assert.ok(
+    Math.abs(area + holes - (maxX - minX) * (maxZ - minZ)) < 1e-8,
+    'remove only the two shaft openings',
+  );
 });
 
 test('generated cities round-trip through the level parser', () => {
@@ -71,12 +92,29 @@ test('custom levels can omit optional sections', () => {
 });
 
 test('rejects malformed root values and explicit nulls', () => {
-  for (const data of [null, [], 'level', {}, { version: 2, boxes: [] }, { version: 1 }]) {
+  for (const data of [
+    null,
+    [],
+    'level',
+    {},
+    { version: 2, boxes: [] },
+    { version: 1 },
+  ]) {
     assert.throws(() => parseLevel(data), /level/);
   }
 
-  for (const key of ['boxes', 'ramps', 'spots', 'deck', 'playerSpawn', 'name']) {
-    assert.throws(() => parseLevel({ ...generated, [key]: null }), new RegExp(`level\\.${key}`));
+  for (const key of [
+    'boxes',
+    'ramps',
+    'spots',
+    'deck',
+    'playerSpawn',
+    'name',
+  ]) {
+    assert.throws(
+      () => parseLevel({ ...generated, [key]: null }),
+      new RegExp(`level\\.${key}`),
+    );
   }
 });
 
@@ -88,7 +126,10 @@ test('requires an explicit supported version, geometry, spawn, and deck', () => 
   }
 
   for (const version of [0, 2, 1.1, '1', null]) {
-    assert.throws(() => parseLevel({ ...generated, version }), /level\.version: unsupported format version/);
+    assert.throws(
+      () => parseLevel({ ...generated, version }),
+      /level\.version: unsupported format version/,
+    );
   }
 });
 
@@ -271,7 +312,11 @@ test('rejects invalid nested values with a field path', () => {
 
 test('the loader accepts valid levels and falls back on malformed data or fetch errors', async (t) => {
   const warn = t.mock.method(console, 'warn', () => {});
-  const fetch = t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify(generated)));
+  const fetch = t.mock.method(
+    globalThis,
+    'fetch',
+    async () => new Response(JSON.stringify(generated)),
+  );
   assert.deepEqual(await loadLevel('/custom.json'), generated);
   assert.equal(warn.mock.callCount(), 0);
 

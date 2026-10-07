@@ -1,6 +1,13 @@
 import type { Vector3 } from 'three';
 
-import { type EventOf, Mind, mind, type MindEvent, type State, type StateOf } from '@/engine/sim/mind';
+import {
+  type EventOf,
+  Mind,
+  mind,
+  type MindEvent,
+  type State,
+  type StateOf,
+} from '@/engine/sim/mind';
 import type { ItemAmount } from '@/game/items/trades';
 
 import type { Npc } from './npcs';
@@ -15,17 +22,29 @@ export type Pitch =
   | State<'pitching', { t: number }>
   /** Keep the coat open until browsing ends. */
   | State<'browsing'>
-  /** Let a scene control coat opening and facing: a point, a yaw in radians, or null for Cody’s position. */
+  /**
+   * Let a scene control coat opening and facing: a point, a yaw in radians, or
+   * null for Cody’s position.
+   */
   | State<'directed', { open: boolean; face: Facing }>;
 
 /** Fire-feeding states, independent of the coat presentation. */
 export type Work =
   /** Wait for an exchange. */
   | State<'idle'>
-  /** Launch items from a fixed hand position, retaining the reward until feeding completes. */
-  | State<'feeding', { left: number; reward: ItemAmount; t: number; from: Vector3 }>;
+  /**
+   * Launch items from a fixed hand position, retaining the reward until
+   * feeding completes.
+   */
+  | State<
+      'feeding',
+      { left: number; reward: ItemAmount; t: number; from: Vector3 }
+    >;
 
-/** Events accepted by the pitch and work state machines; each state handles only its declared events. */
+/**
+ * Events accepted by the pitch and work state machines; each state handles
+ * only its declared events.
+ */
 export type NpcEvent =
   /** Give a scene control of facing and coat presentation. */
   | MindEvent<'held', { face: Facing }>
@@ -40,17 +59,28 @@ export type NpcEvent =
   /** Start feeding `n` items from the supplied hand position. */
   | MindEvent<'given', { n: number; reward: ItemAmount; from: Vector3 }>;
 
-const directed = (_n: Npc, _s: Pitch, { face }: EventOf<NpcEvent, 'held'>): StateOf<Pitch, 'directed'> => ({
+const directed = (
+  _n: Npc,
+  _s: Pitch,
+  { face }: EventOf<NpcEvent, 'held'>,
+): StateOf<Pitch, 'directed'> => ({
   at: 'directed',
   open: false,
   face,
 });
 
-/** Cycle proximity-based pitches, hold the coat open during browsing, and defer to directed scenes. */
-export function proximityPitch(timing: { readonly rest: number; readonly hold: number }) {
+/**
+ * Cycle proximity-based pitches, hold the coat open during browsing, and defer
+ * to directed scenes.
+ */
+export function proximityPitch(timing: {
+  readonly rest: number;
+  readonly hold: number;
+}) {
   const def = mind<Npc, Pitch, NpcEvent>({
     resting: {
-      tick: (n, s, dt) => ((s.t += dt) > timing.rest && n.near ? { at: 'pitching', t: 0 } : null),
+      tick: (n, s, dt) =>
+        (s.t += dt) > timing.rest && n.near ? { at: 'pitching', t: 0 } : null,
       on: { held: directed },
     },
     pitching: {
@@ -77,7 +107,8 @@ export function proximityPitch(timing: { readonly rest: number; readonly hold: n
       },
     },
   });
-  return (n: Npc): Mind<Npc, Pitch, NpcEvent> => new Mind(def, n, { at: 'resting', t: 0 });
+  return (n: Npc): Mind<Npc, Pitch, NpcEvent> =>
+    new Mind(def, n, { at: 'resting', t: 0 });
 }
 
 /** Process one exchange at a time, launching items before reporting the reward. */
@@ -91,7 +122,13 @@ export function feedItems(spec: {
     idle: {
       // Prime the timer so the first item launches on the next tick.
       on: {
-        given: (_n, _s, { n, reward, from }) => ({ at: 'feeding', left: n, reward, t: spec.every, from: from.clone() }),
+        given: (_n, _s, { n, reward, from }) => ({
+          at: 'feeding',
+          left: n,
+          reward,
+          t: spec.every,
+          from: from.clone(),
+        }),
       },
     },
     feeding: {
@@ -118,5 +155,6 @@ export function feedItems(spec: {
       },
     },
   });
-  return (n: Npc): Mind<Npc, Work, NpcEvent> => new Mind(def, n, { at: 'idle' });
+  return (n: Npc): Mind<Npc, Work, NpcEvent> =>
+    new Mind(def, n, { at: 'idle' });
 }

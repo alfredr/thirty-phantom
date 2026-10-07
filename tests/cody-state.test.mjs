@@ -5,7 +5,9 @@ import { Vector3 } from 'three';
 
 import { loadModules } from './modules.mjs';
 
-const [{ CodyState, FRIGHTENING }] = await loadModules('/src/game/cody/cody-state.ts');
+const [{ CodyState, FRIGHTENING }] = await loadModules(
+  '/src/game/cody/cody-state.ts',
+);
 
 function cody(form) {
   const player = { form, pos: new Vector3(1, 0, 2) };
@@ -53,7 +55,10 @@ test('who frightens: his form on foot, the truck at the wheel, never the clock',
   assert.equal(driving.at, truck.pos);
   assert.equal(FRIGHTENING.has(driving.kind), true);
   // NPCs do not perceive Cody inside an ordinary car or during a vehicle transformation.
-  assert.equal(state.presence({ form: 'car', pos: new Vector3() }, false), null);
+  assert.equal(
+    state.presence({ form: 'car', pos: new Vector3() }, false),
+    null,
+  );
   assert.equal(state.presence(null, true), null);
   // Phantom Cody also frightens NPCs while on foot.
   player.form = 'night';

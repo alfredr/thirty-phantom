@@ -55,10 +55,21 @@ test('buying caps the count by cash and stock and reports the completed transfer
   const price = stock.price('brisket');
   money.cash = price * 2 + 1;
   shop.update(new Vector3(1, 0, 0));
-  assert.deepEqual(shop.buy(slot.id, 128), { kind: 'brisket', n: 2, cost: price * 2 });
+  assert.deepEqual(shop.buy(slot.id, 128), {
+    kind: 'brisket',
+    n: 2,
+    cost: price * 2,
+  });
   assert.equal(slot.count, 126);
   assert.equal(inventory.count('brisket'), 2);
-  assert.deepEqual(deeds, [{ deed: { how: 'got', kind: 'brisket', n: 2 }, cash: 1, inventory: 2, stock: 126 }]);
+  assert.deepEqual(deeds, [
+    {
+      deed: { how: 'got', kind: 'brisket', n: 2 },
+      cash: 1,
+      inventory: 2,
+      stock: 126,
+    },
+  ]);
   money.cash = price * 10;
   slot.count = 1;
   assert.equal(shop.buy(slot.id, 10).n, 1);
@@ -95,7 +106,11 @@ test('displaying stock during a scene never opens the shop for purchases', () =>
 test('gifts and free purchases transfer finite counts without charging cash', () => {
   const { shop, stock, inventory, money, deeds, randy } = setup();
   money.cash = 0;
-  assert.deepEqual(shop.gift(randy, 'brisket'), { kind: 'brisket', n: 1, cost: 0 });
+  assert.deepEqual(shop.gift(randy, 'brisket'), {
+    kind: 'brisket',
+    n: 1,
+    cost: 0,
+  });
   assert.equal(stock.slotOf('brisket').count, 127);
   const phone = stock.slotOf('burner');
   shop.update(new Vector3(1, 0, 0));
@@ -118,7 +133,11 @@ test('invalid purchase requests and a scene taking Randy cannot move stock', () 
 
   assert.equal(shop.buy('missing', 1), null);
   randy.send({ type: 'held' });
-  assert.equal(shop.buy(slot.id, 1), null, 'the old browsing state must not authorize a purchase');
+  assert.equal(
+    shop.buy(slot.id, 1),
+    null,
+    'the old browsing state must not authorize a purchase',
+  );
   assert.equal(slot.count, 128);
   assert.equal(inventory.count('brisket'), 0);
   assert.deepEqual(deeds, []);

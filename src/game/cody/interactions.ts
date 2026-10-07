@@ -9,7 +9,11 @@ import { Doing, resolveFully } from '@/engine/sim/action';
 import { bestOffers } from '@/engine/sim/offers';
 import type { Control } from '@/game/controls';
 import type { Inventory, ItemActionId } from '@/game/items/inventory';
-import { ITEM_BREEDS, type ItemKind, isItemKind } from '@/game/items/item-breeds';
+import {
+  ITEM_BREEDS,
+  type ItemKind,
+  isItemKind,
+} from '@/game/items/item-breeds';
 import type { RandyTalk } from '@/game/randy/talk';
 import type { ValetService } from '@/game/valets/valet';
 import type { InvItem } from '@/ui/inventory';
@@ -38,7 +42,10 @@ const ENTER_HEIGHT = 1.8;
 const PROMPT_CONTROLS: readonly Control[] = ['hop', 'interact', 'pay'];
 const ACT_CONTROLS: readonly Control[] = ['interact', 'pay', 'summon', 'hop'];
 
-/** Sources of nearby interaction candidates; Play supplies action rules and effects. */
+/**
+ * Sources of nearby interaction candidates; Play supplies action rules and
+ * effects.
+ */
 interface InteractionWorld {
   readonly player: Pick<Player, 'pos'>;
   readonly vehicles: readonly Vehicle[];
@@ -85,7 +92,10 @@ export class Interactions {
     return () => this.offerSources.delete(source);
   }
 
-  /** Resolve item actions at selection time because targets may have moved since the menu was rendered. */
+  /**
+   * Resolve item actions at selection time because targets may have moved
+   * since the menu was rendered.
+   */
   useItem(kind: string, id: string): void {
     if (!isItemKind(kind)) {
       return;
@@ -113,7 +123,8 @@ export class Interactions {
     return items.concat(
       [...inventory.keys.held].map((keys) => ({
         kind: `keys-${keys.car.id}`,
-        name: keys.heat === 'cool' ? `KEYS FOR ${keys.car.plate}` : 'MELTED KEYS',
+        name:
+          keys.heat === 'cool' ? `KEYS FOR ${keys.car.plate}` : 'MELTED KEYS',
         icon: ITEM_BREEDS.keys.icon,
         count: 1,
         actions: [],
@@ -122,8 +133,9 @@ export class Interactions {
   }
 
   /**
-   * Resolve one offer per control, update prompts, and perform pressed actions. Show a refusal when resolution fails.
-   * Focus layers consume their controls before this update.
+   * Resolve one offer per control, update prompts, and perform pressed
+   * actions. Show a refusal when resolution fails. Focus layers consume their
+   * controls before this update.
    */
   update(): void {
     const { offers, refusals } = bestOffers(this.play, this.candidates());
@@ -134,7 +146,11 @@ export class Interactions {
     });
     const [first] = shown;
     this.view.prompt(
-      first ? shown.map(({ control, label }) => `{${control}} ${label}`).join(' &nbsp;') : null,
+      first
+        ? shown
+            .map(({ control, label }) => `{${control}} ${label}`)
+            .join(' &nbsp;')
+        : null,
       first?.control,
     );
 
@@ -153,7 +169,10 @@ export class Interactions {
     }
   }
 
-  /** Collect candidates for the current context. Order vehicle candidates by distance before resolution. */
+  /**
+   * Collect candidates for the current context. Order vehicle candidates by
+   * distance before resolution.
+   */
   private candidates(): CodyCandidate[] {
     if (this.world.blocked()) {
       return [];
@@ -165,17 +184,37 @@ export class Interactions {
       const { handOverSpeed, talkReach } = TUNING.valet;
       const valet =
         v.form === 'car' && v.grounded && Math.abs(v.speed) < handOverSpeed
-          ? this.world.valet.talkable(v.pos, talkReach.car, this.play.conditions.valetsOnShift())
+          ? this.world.valet.talkable(
+              v.pos,
+              talkReach.car,
+              this.play.conditions.valetsOnShift(),
+            )
           : null;
       if (valet) {
-        out.push({ control: 'interact', rank: RANK.valet, action: new TalkToValet({ valet }) });
+        out.push({
+          control: 'interact',
+          rank: RANK.valet,
+          action: new TalkToValet({ valet }),
+        });
       }
 
-      out.push({ control: 'interact', rank: RANK.getOut, action: new GetOut({ car: v }) });
-      out.push({ control: 'pay', rank: RANK.vehicle, action: new Hotwire({ car: v }) });
+      out.push({
+        control: 'interact',
+        rank: RANK.getOut,
+        action: new GetOut({ car: v }),
+      });
+      out.push({
+        control: 'pay',
+        rank: RANK.vehicle,
+        action: new Hotwire({ car: v }),
+      });
 
       if (v.crashing && v.resting) {
-        out.push({ control: 'hop', rank: RANK.getOut, action: new RockOver() });
+        out.push({
+          control: 'hop',
+          rank: RANK.getOut,
+          action: new RockOver(),
+        });
       }
 
       return out;
@@ -189,31 +228,60 @@ export class Interactions {
       }
     }
 
-    const valet = this.world.valet.talkable(p, TUNING.valet.talkReach.foot, this.play.conditions.valetsOnShift());
+    const valet = this.world.valet.talkable(
+      p,
+      TUNING.valet.talkReach.foot,
+      this.play.conditions.valetsOnShift(),
+    );
     if (valet) {
-      out.push({ control: 'interact', rank: RANK.valet, action: new TalkToValet({ valet }) });
+      out.push({
+        control: 'interact',
+        rank: RANK.valet,
+        action: new TalkToValet({ valet }),
+      });
     }
 
     const randy = this.world.randyTalk.talkable(p);
     if (randy) {
-      out.push({ control: 'interact', rank: RANK.randy, action: new TalkToRandy({ randy }) });
+      out.push({
+        control: 'interact',
+        rank: RANK.randy,
+        action: new TalkToRandy({ randy }),
+      });
     }
 
     const cab = this.world.elevators.cabAt(p);
-    const landing = cab ? null : this.world.elevators.landingAt(p, TUNING.elevator.callReach);
+    const landing = cab
+      ? null
+      : this.world.elevators.landingAt(p, TUNING.elevator.callReach);
     if (cab) {
-      out.push({ control: 'interact', rank: RANK.elevator, action: new PickFloor({ cab, dir: 1 }) });
-      out.push({ control: 'pay', rank: RANK.elevator, action: new PickFloor({ cab, dir: -1 }) });
+      out.push({
+        control: 'interact',
+        rank: RANK.elevator,
+        action: new PickFloor({ cab, dir: 1 }),
+      });
+      out.push({
+        control: 'pay',
+        rank: RANK.elevator,
+        action: new PickFloor({ cab, dir: -1 }),
+      });
     } else if (landing && !landing.elevator.openAt(landing.stop)) {
       out.push({
         control: 'interact',
         rank: RANK.elevator,
-        action: new CallElevator({ elevator: landing.elevator, stop: landing.stop }),
+        action: new CallElevator({
+          elevator: landing.elevator,
+          stop: landing.stop,
+        }),
       });
     }
 
     for (const car of this.vehiclesInReach(p)) {
-      out.push({ control: 'interact', rank: RANK.vehicle, action: new InteractWithVehicle({ car }) });
+      out.push({
+        control: 'interact',
+        rank: RANK.vehicle,
+        action: new InteractWithVehicle({ car }),
+      });
     }
 
     out.push({ control: 'summon', rank: 0, action: new Summon() });
@@ -233,7 +301,9 @@ export class Interactions {
   }
 
   /** Resolve supported inventory actions and omit any that currently fail. */
-  private itemOffers(kind: ItemKind): { id: ItemActionId; action: CodyAction; label: string }[] {
+  private itemOffers(
+    kind: ItemKind,
+  ): { id: ItemActionId; action: CodyAction; label: string }[] {
     const candidates: [ItemActionId, CodyAction][] = [];
     const use = ITEM_BREEDS[kind].use;
     if (use) {
@@ -247,7 +317,9 @@ export class Interactions {
 
     return candidates.flatMap(([id, action]) => {
       const resolved = resolveFully(this.play, action);
-      return 'fail' in resolved ? [] : [{ id, action: resolved, label: resolved.label(this.play) }];
+      return 'fail' in resolved
+        ? []
+        : [{ id, action: resolved, label: resolved.label(this.play) }];
     });
   }
 }

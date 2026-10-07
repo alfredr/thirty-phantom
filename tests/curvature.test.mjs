@@ -16,7 +16,9 @@ import {
 
 import { loadModules } from './modules.mjs';
 
-const [{ curveCull, curveFrame }] = await loadModules('/src/render/curvature.ts');
+const [{ curveCull, curveFrame }] = await loadModules(
+  '/src/render/curvature.ts',
+);
 
 function setup(t, radius = 2) {
   const camera = new OrthographicCamera(-12, 12, 12, -12, 1, 700);
@@ -29,7 +31,10 @@ function setup(t, radius = 2) {
   const center = focus.clone().add(new Vector3(0, 1.2, 0));
   curveCull(camera, center, radius);
   const frustum = new Frustum().setFromProjectionMatrix(
-    new Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse),
+    new Matrix4().multiplyMatrices(
+      camera.projectionMatrix,
+      camera.matrixWorldInverse,
+    ),
     camera.coordinateSystem,
     camera.reversedDepth,
   );
@@ -49,7 +54,11 @@ function objectAt(Type, center) {
 test('the x-ray opening keeps underground actors and effects visible', (t) => {
   const { center, frustum } = setup(t);
   for (const Type of [Mesh, Line, Points, Sprite]) {
-    assert.equal(objectAt(Type, center).intersectsFrustum(frustum), true, Type.name);
+    assert.equal(
+      objectAt(Type, center).intersectsFrustum(frustum),
+      true,
+      Type.name,
+    );
   }
 });
 
@@ -64,11 +73,17 @@ test('objects crossing the x-ray edge remain visible, while buried objects outsi
 test('closing the x-ray window restores ground occlusion without hiding objects above ground', (t) => {
   const { center, frustum } = setup(t, 0);
   assert.equal(objectAt(Mesh, center).intersectsFrustum(frustum), false);
-  assert.equal(objectAt(Mesh, center.clone().setY(1.2)).intersectsFrustum(frustum), true);
+  assert.equal(
+    objectAt(Mesh, center.clone().setY(1.2)).intersectsFrustum(frustum),
+    true,
+  );
 });
 
 test('the x-ray window still respects the camera frustum', (t) => {
   const { center, frustum } = setup(t, 1000);
-  const offscreen = objectAt(Mesh, center.clone().add(new Vector3(100, 0, -100)));
+  const offscreen = objectAt(
+    Mesh,
+    center.clone().add(new Vector3(100, 0, -100)),
+  );
   assert.equal(offscreen.intersectsFrustum(frustum), false);
 });

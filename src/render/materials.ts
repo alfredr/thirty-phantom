@@ -16,25 +16,42 @@ import type { MatKey } from '@/world/level-kinds';
 import { CURVE_ON, curveVertex, markCurved } from './curvature';
 import { withFacade } from './facade';
 import { PALETTE } from './palette';
-import { asphaltTexture, concreteTexture, grassTexture, hazardTexture, sidewalkTexture } from './textures';
+import {
+  asphaltTexture,
+  concreteTexture,
+  grassTexture,
+  hazardTexture,
+  sidewalkTexture,
+} from './textures';
 
 export { MAT_KEYS, type MatKey } from '@/world/level-kinds';
 
 /**
- * Occlusion cutaway shared by every world material. Inside a cylinder along the view ray through the focus point,
- * fragments are dropped if they sit between the camera and the focus (above the focus floor), or anywhere above the
- * ceiling over the focus, so the player stays visible under parking-deck slabs and behind towers.
+ * Occlusion cutaway shared by every world material. Inside a cylinder along
+ * the view ray through the focus point, fragments are dropped if they sit
+ * between the camera and the focus (above the focus floor), or anywhere above
+ * the ceiling over the focus, so the player stays visible under parking-deck
+ * slabs and behind towers.
  */
 export const cutUniforms = {
   uCutCenter: { value: new Vector3() },
   uCutDir: { value: new Vector3(0, 1, 0) },
   uCutRadius: { value: 0 },
   uCutMinY: { value: 0 },
-  /** Fragments must be at least this far in front of the focus (keeps the focus actor itself intact). */
+  /**
+   * Fragments must be at least this far in front of the focus (keeps the focus
+   * actor itself intact).
+   */
   uCutNear: { value: 0.8 },
-  /** Everything above this height is cut, in front of the focus or not (the slab overhead). */
+  /**
+   * Everything above this height is cut, in front of the focus or not (the
+   * slab overhead).
+   */
   uCutCeil: { value: 1e9 },
-  /** HDR color of the cutaway rim. Values above 1 produce bloom without excessive glare. */
+  /**
+   * HDR color of the cutaway rim. Values above 1 produce bloom without
+   * excessive glare.
+   */
   uCutRim: { value: new Color(0.45, 1.6, 0.1) },
   /** World-space dirt strength for materials compiled with GRIME. */
   uGrime: { value: 1 },
@@ -104,8 +121,9 @@ const CUT_VERT = /* glsl */ `#include <project_vertex>
 `;
 
 /**
- * Mark a material for a thin silhouette without crease lines. This keeps outlines from obscuring small glowing surfaces
- * such as slime, drips, and splats. Return the same material.
+ * Mark a material for a thin silhouette without crease lines. This keeps
+ * outlines from obscuring small glowing surfaces such as slime, drips, and
+ * splats. Return the same material.
  */
 export function softInk<T extends Material>(mat: T): T {
   mat.userData.softInk = true;
@@ -114,7 +132,10 @@ export function softInk<T extends Material>(mat: T): T {
 
 const patched = new WeakSet<Material>();
 
-/** Install the cutaway shader patch once per material and return it. Clones must be patched separately. */
+/**
+ * Install the cutaway shader patch once per material and return it. Clones
+ * must be patched separately.
+ */
 export function withCutaway<T extends Material>(mat: T): T {
   if (patched.has(mat)) {
     return mat;
@@ -122,7 +143,10 @@ export function withCutaway<T extends Material>(mat: T): T {
 
   patched.add(mat);
   const prev = mat.onBeforeCompile.bind(mat);
-  mat.onBeforeCompile = (shader: WebGLProgramParametersWithUniforms, renderer) => {
+  mat.onBeforeCompile = (
+    shader: WebGLProgramParametersWithUniforms,
+    renderer,
+  ) => {
     prev(shader, renderer);
     Object.assign(shader.uniforms, cutUniforms);
     shader.vertexShader =
@@ -159,9 +183,18 @@ export function withCutaway<T extends Material>(mat: T): T {
   return mat;
 }
 
-export type EmissiveChannel = 'neon' | 'windows' | 'lamps' | 'signs' | 'slime' | 'always';
+export type EmissiveChannel =
+  | 'neon'
+  | 'windows'
+  | 'lamps'
+  | 'signs'
+  | 'slime'
+  | 'always';
 
-/** The facade material's emissive strength at full night (the 'windows' channel scales it). */
+/**
+ * The facade material's emissive strength at full night (the 'windows' channel
+ * scales it).
+ */
 export const FACADE_GLOW = 1.5;
 
 interface GlowSpec {
@@ -171,27 +204,44 @@ interface GlowSpec {
 }
 
 /**
- * Emissive glass settings shared by world lamps and street-lamp props. Limit intensity to retain bloom without
- * excessive glare from ceiling fixtures in the chase view.
+ * Emissive glass settings shared by world lamps and street-lamp props. Limit
+ * intensity to retain bloom without excessive glare from ceiling fixtures in
+ * the chase view.
  */
 export const LAMP_GLASS: Readonly<Record<LampColor, GlowSpec>> = {
   green: { color: '#e9ffd0', emissive: '#9dff3a', emissiveIntensity: 3.6 },
-  purple: { color: '#f0dcff', emissive: PALETTE.purpleHot, emissiveIntensity: 3.6 },
-  warm: { color: '#fff1d0', emissive: PALETTE.windowWarm, emissiveIntensity: 2.8 },
+  purple: {
+    color: '#f0dcff',
+    emissive: PALETTE.purpleHot,
+    emissiveIntensity: 3.6,
+  },
+  warm: {
+    color: '#fff1d0',
+    emissive: PALETTE.windowWarm,
+    emissiveIntensity: 2.8,
+  },
 };
-/** Dark painted metal (railings, poles), and dark glass (a dead lamp head, windows). */
+/**
+ * Dark painted metal (railings, poles), and dark glass (a dead lamp head,
+ * windows).
+ */
 export const METAL = { color: '#2a2233', roughness: 0.55, metalness: 0.4 };
 export const GLASS = { color: '#1a1030', roughness: 0.2, metalness: 0.6 };
 /**
- * Landscaping materials for world/decor-models.ts. Leaves, needles, and bark share roughness so part.ts baked() can
- * combine them into one mesh. Petals use the neon channel for stronger emission at night.
+ * Landscaping materials for world/decor-models.ts. Leaves, needles, and bark
+ * share roughness so part.ts baked() can combine them into one mesh. Petals
+ * use the neon channel for stronger emission at night.
  */
 export const FOLIAGE = { color: '#33573f', roughness: 0.9 };
 export const NEEDLES = { color: '#24453f', roughness: 0.9 };
 export const BARK = { color: '#3b2a33', roughness: 0.9 };
 export const PETALS = {
   slime: { color: '#d2ff6a', emissive: PALETTE.slime, emissiveIntensity: 1 },
-  purple: { color: '#f0dcff', emissive: PALETTE.purpleHot, emissiveIntensity: 1 },
+  purple: {
+    color: '#f0dcff',
+    emissive: PALETTE.purpleHot,
+    emissiveIntensity: 1,
+  },
 } as const;
 
 /** World units covered by one texture repeat, per material. */
@@ -215,9 +265,22 @@ interface EmissiveEntry {
 
 export type ChannelLevels = Record<EmissiveChannel, number>;
 
-/** A world material: vertex-colored, cut away near the camera, with grime unless `grime` is false. */
-function worldMat(p: MeshStandardMaterialParameters, grime = true): MeshStandardMaterial {
-  const m = withCutaway(new MeshStandardMaterial({ roughness: 0.92, metalness: 0, vertexColors: true, ...p }));
+/**
+ * A world material: vertex-colored, cut away near the camera, with grime
+ * unless `grime` is false.
+ */
+function worldMat(
+  p: MeshStandardMaterialParameters,
+  grime = true,
+): MeshStandardMaterial {
+  const m = withCutaway(
+    new MeshStandardMaterial({
+      roughness: 0.92,
+      metalness: 0,
+      vertexColors: true,
+      ...p,
+    }),
+  );
   if (grime) {
     m.defines = { ...m.defines, GRIME: '' };
   }
@@ -241,24 +304,35 @@ export class MaterialLibrary {
     this.set('concrete', worldMat({ map: concrete }));
     this.set('concreteDark', worldMat({ map: concreteDark }));
     this.set('concreteLight', worldMat({ map: concreteLight }));
-    this.set('asphalt', worldMat({ map: asphaltTexture(31), roughness: 0.85 }));
+    this.set(
+      'asphalt',
+      worldMat({ map: asphaltTexture(31), roughness: 0.85 }),
+    );
     this.set('sidewalk', worldMat({ map: sidewalkTexture(32) }));
     this.set('roof', worldMat({ map: roofTex }));
     this.set('stone', worldMat({ map: stoneTex, color: '#cfc8dc' }));
     this.set('grass', worldMat({ map: grassTexture(33) }));
     this.set('wood', worldMat({ color: '#2a1d2e', roughness: 1 }));
     this.set('metal', worldMat(METAL));
-    this.set('metalLight', worldMat({ color: '#7b748a', roughness: 0.5, metalness: 0.5 }));
+    this.set(
+      'metalLight',
+      worldMat({ color: '#7b748a', roughness: 0.5, metalness: 0.5 }),
+    );
     this.set('glass', worldMat(GLASS, false));
     this.set('hazard', worldMat({ map: hazardTexture('#2a1040', '#9b3cf0') }));
     this.facade(['facadeA', 'facadeB', 'facadeC']);
 
     // Keep emission low on large slime surfaces to limit overall bloom.
-    this.glow('slime', PALETTE.slime, '#59ff00', 0.55, 'slime', { roughness: 0.35 });
-    this.glow('slimePool', '#4dd10a', '#59ff00', 1.0, 'slime', { roughness: 0.2 });
+    this.glow('slime', PALETTE.slime, '#59ff00', 0.55, 'slime', {
+      roughness: 0.35,
+    });
+    this.glow('slimePool', '#4dd10a', '#59ff00', 1.0, 'slime', {
+      roughness: 0.2,
+    });
     this.glow('neonGreen', '#c8ff8a', PALETTE.slime, 3.2, 'neon');
     this.glow('neonPurple', '#e4c4ff', PALETTE.purpleHot, 3.2, 'neon');
-    const lamp = (key: MatKey, g: GlowSpec): void => this.glow(key, g.color, g.emissive, g.emissiveIntensity, 'lamps');
+    const lamp = (key: MatKey, g: GlowSpec): void =>
+      this.glow(key, g.color, g.emissive, g.emissiveIntensity, 'lamps');
     lamp('lampGreen', LAMP_GLASS.green);
     lamp('lampPurple', LAMP_GLASS.purple);
     lamp('lampWarm', LAMP_GLASS.warm);
@@ -276,11 +350,18 @@ export class MaterialLibrary {
   }
 
   /**
-   * Assign one shared material to all facade keys so their geometry can batch together. Vertex colors provide paint;
-   * render/facade.ts supplies windows and interior imagery, with emission controlled by the windows channel.
+   * Assign one shared material to all facade keys so their geometry can batch
+   * together. Vertex colors provide paint; render/facade.ts supplies windows
+   * and interior imagery, with emission controlled by the windows channel.
    */
   private facade(keys: readonly MatKey[]): void {
-    const m = withFacade(worldMat({ emissive: '#ffffff', emissiveIntensity: FACADE_GLOW, roughness: 0.9 }));
+    const m = withFacade(
+      worldMat({
+        emissive: '#ffffff',
+        emissiveIntensity: FACADE_GLOW,
+        roughness: 0.9,
+      }),
+    );
     m.name = 'facade';
 
     for (const k of keys) {
@@ -298,7 +379,16 @@ export class MaterialLibrary {
     channel: EmissiveChannel,
     extra: MeshStandardMaterialParameters = {},
   ): void {
-    const m = worldMat({ color, emissive, emissiveIntensity: intensity, roughness: 0.5, ...extra }, false);
+    const m = worldMat(
+      {
+        color,
+        emissive,
+        emissiveIntensity: intensity,
+        roughness: 0.5,
+        ...extra,
+      },
+      false,
+    );
     if (channel === 'slime') {
       softInk(m);
     }
@@ -316,8 +406,15 @@ export class MaterialLibrary {
     return m;
   }
 
-  /** Track a material whose emissive strength follows the day/night channel levels. */
-  register(mat: MeshStandardMaterial, channel: EmissiveChannel, base = mat.emissiveIntensity): void {
+  /**
+   * Track a material whose emissive strength follows the day/night channel
+   * levels.
+   */
+  register(
+    mat: MeshStandardMaterial,
+    channel: EmissiveChannel,
+    base = mat.emissiveIntensity,
+  ): void {
     this.emissive.push({ mat, base, channel });
   }
 
@@ -328,13 +425,17 @@ export class MaterialLibrary {
   }
 
   /**
-   * Normal material for the ink-outline pass (with the same cutaway so holes match). Alpha tags the ink class: 1 = full
-   * ink, 0.5 = soft ink, 0 (cleared) = background.
+   * Normal material for the ink-outline pass (with the same cutaway so holes
+   * match). Alpha tags the ink class: 1 = full ink, 0.5 = soft ink, 0
+   * (cleared) = background.
    */
   static normalMaterial(soft = false): MeshNormalMaterial {
     // NoBlending leaves OPAQUE undefined, preserving the opacity value in the normal pass alpha channel.
     return withCutaway(
-      new MeshNormalMaterial({ side: DoubleSide, ...(soft ? { opacity: 0.5, blending: NoBlending } : {}) }),
+      new MeshNormalMaterial({
+        side: DoubleSide,
+        ...(soft ? { opacity: 0.5, blending: NoBlending } : {}),
+      }),
     );
   }
 }

@@ -1,6 +1,9 @@
 // Randy at his fire: his pitch, his shop, and the tire trade. Each case runs in the page (see tools/scenarios.mjs).
 
-/** Place Cody on foot the requested number of meters in front of Randy. Return Randy, or null if he is missing. */
+/**
+ * Place Cody on foot the requested number of meters in front of Randy. Return
+ * Randy, or null if he is missing.
+ */
 const standBy = (meters) => {
   const g = window.__game;
   const sim = window.__sim;
@@ -13,13 +16,20 @@ const standBy = (meters) => {
 
   const P = g.player.pos.constructor;
   g.player.place(
-    new P(r.pos.x + Math.sin(r.homeYaw) * meters, r.pos.y, r.pos.z + Math.cos(r.homeYaw) * meters),
+    new P(
+      r.pos.x + Math.sin(r.homeYaw) * meters,
+      r.pos.y,
+      r.pos.z + Math.cos(r.homeYaw) * meters,
+    ),
     r.homeYaw + Math.PI,
   );
   return r;
 };
 
-/** Verify that Randy keeps his coat open while Cody browses, then closes it when Cody leaves. */
+/**
+ * Verify that Randy keeps his coat open while Cody browses, then closes it
+ * when Cody leaves.
+ */
 export function keepsHisCoatOpenWhileCodyBrowses() {
   const g = window.__game;
   const sim = window.__sim;
@@ -42,7 +52,10 @@ export function keepsHisCoatOpenWhileCodyBrowses() {
   };
 }
 
-/** Verify immediate payment for tires, refusal of another trade during feeding, and a return to roasting. */
+/**
+ * Verify immediate payment for tires, refusal of another trade during feeding,
+ * and a return to roasting.
+ */
 export function paysForTiresAtOnceThenBurnsThem() {
   const g = window.__game;
   const sim = window.__sim;
@@ -56,10 +69,17 @@ export function paysForTiresAtOnceThenBurnsThem() {
   const taker = g.trades.offer('tire', g.player.pos)?.to;
   const gave = taker ? g.trades.give(taker, 'tire', g.player.pos) : 0;
   const paidAtOnce = g.inventory.count('brisket') - before;
-  const busy = r.work.state.at === 'feeding' && g.trades.offer('tire', g.player.pos) === null;
+  const busy =
+    r.work.state.at === 'feeding' &&
+    g.trades.offer('tire', g.player.pos) === null;
   const done = sim.until(() => r.work.state.at === 'idle', 5, []);
   return {
-    ok: gave === 2 && paidAtOnce === 2 && busy && done.ok && g.trades.offer('tire', g.player.pos)?.to === r,
+    ok:
+      gave === 2 &&
+      paidAtOnce === 2 &&
+      busy &&
+      done.ok &&
+      g.trades.offer('tire', g.player.pos)?.to === r,
     gave,
     paidAtOnce,
     busyWhileBurning: busy,
@@ -67,7 +87,10 @@ export function paysForTiresAtOnceThenBurnsThem() {
   };
 }
 
-/** Verify that a scene can hold Randy and control his coat, then release him to resume pitching. */
+/**
+ * Verify that a scene can hold Randy and control his coat, then release him to
+ * resume pitching.
+ */
 export function aSceneDirectsHim() {
   const g = window.__game;
   const sim = window.__sim;
@@ -92,7 +115,10 @@ export function aSceneDirectsHim() {
   };
 }
 
-/** Use the interact key to start a conversation and trade tires, then verify that the conversation releases Randy. */
+/**
+ * Use the interact key to start a conversation and trade tires, then verify
+ * that the conversation releases Randy.
+ */
 export function talkToGiveHimTires() {
   const g = window.__game;
   const sim = window.__sim;
@@ -110,7 +136,9 @@ export function talkToGiveHimTires() {
   const bubble = document.querySelector('.hud-bubble')?.textContent ?? '';
   g.input.press('KeyF');
   sim.run(2);
-  const gave = g.inventory.count('tire') === 0 && g.inventory.count('brisket') === brisket + 2;
+  const gave =
+    g.inventory.count('tire') === 0 &&
+    g.inventory.count('brisket') === brisket + 2;
   const over = sim.until(() => !g.randyTalk.active, 6, []);
   return {
     ok: talking && /GIVE 2 TIRES/.test(bubble) && gave && over.ok && !r.held,
@@ -122,7 +150,10 @@ export function talkToGiveHimTires() {
   };
 }
 
-/** Verify that carrying tires adds Randy’s objective marker and trading them removes it. */
+/**
+ * Verify that carrying tires adds Randy’s objective marker and trading them
+ * removes it.
+ */
 export function tiresPutRandyOnTheMap() {
   const g = window.__game;
   const sim = window.__sim;
@@ -142,10 +173,18 @@ export function tiresPutRandyOnTheMap() {
   g.input.press('KeyF');
   sim.run(2);
   const after = marked();
-  return { ok: !before && carrying && !after && g.inventory.count('tire') === 0, before, carrying, after };
+  return {
+    ok: !before && carrying && !after && g.inventory.count('tire') === 0,
+    before,
+    carrying,
+    after,
+  };
 }
 
-/** Disabling RandyTalk prevents the interact key from starting a conversation or trading tires. */
+/**
+ * Disabling RandyTalk prevents the interact key from starting a conversation
+ * or trading tires.
+ */
 export function noTalkDuringTheTutorial() {
   const g = window.__game;
   const sim = window.__sim;
@@ -159,10 +198,16 @@ export function noTalkDuringTheTutorial() {
   sim.run(2);
   g.input.press('KeyF');
   sim.run(2);
-  return { ok: !g.randyTalk.active && !r.held && g.inventory.count('tire') === 1, talking: g.randyTalk.active };
+  return {
+    ok: !g.randyTalk.active && !r.held && g.inventory.count('tire') === 1,
+    talking: g.randyTalk.active,
+  };
 }
 
-/** The bound shop redraws after a purchase and inventory actions change when Randy is out of reach. */
+/**
+ * The bound shop redraws after a purchase and inventory actions change when
+ * Randy is out of reach.
+ */
 export function shopAndInventoryFollowState() {
   const g = window.__game;
   const sim = window.__sim;
@@ -185,13 +230,19 @@ export function shopAndInventoryFollowState() {
   const stable = document.querySelector(selector) === before;
   g.input.press('Digit2');
   sim.run(3);
-  const bought = g.inventory.count('brisket') === 1 && g.money.cash === price && slot.count === 127;
+  const bought =
+    g.inventory.count('brisket') === 1 &&
+    g.money.cash === price &&
+    slot.count === 127;
   const redrawn =
     document.querySelector(selector) !== before &&
     document.querySelector(`${selector} .ware-count`)?.textContent === '127';
   g.inventory.add('tire');
   sim.run(2);
-  const tireTag = () => [...document.querySelectorAll('.inv-item')].find((el) => el.textContent.includes('TIRE'));
+  const tireTag = () =>
+    [...document.querySelectorAll('.inv-item')].find((el) =>
+      el.textContent.includes('TIRE'),
+    );
   const canGive = tireTag()?.classList.contains('usable');
   const P = g.player.pos.constructor;
   g.player.place(new P(r.pos.x + 12, r.pos.y, r.pos.z), 0);
@@ -209,7 +260,10 @@ export function shopAndInventoryFollowState() {
   };
 }
 
-/** Thrown props keep their item kind through landing and collection; the original returns to its model. */
+/**
+ * Thrown props keep their item kind through landing and collection; the
+ * original returns to its model.
+ */
 export function throwsNamedProps() {
   const g = window.__game;
   const sim = window.__sim;
@@ -226,12 +280,21 @@ export function throwsNamedProps() {
   to.z += 3;
   r.throwing.throw('burner', to);
   const landed = sim.until(() => !r.throwing.active, 8, []);
-  const restored = phone.parent === parent && phone.position.equals(pos) && !phone.visible;
+  const restored =
+    phone.parent === parent && phone.position.equals(pos) && !phone.visible;
   const collected = g.junk.update(0, to);
-  return { ok: landed.ok && restored && collected.includes('burner'), landed: landed.ok, restored, collected };
+  return {
+    ok: landed.ok && restored && collected.includes('burner'),
+    landed: landed.ok,
+    restored,
+    collected,
+  };
 }
 
-/** Eating advances to the next phase, while tutorial overrides and an active fade prevent extra skips. */
+/**
+ * Eating advances to the next phase, while tutorial overrides and an active
+ * fade prevent extra skips.
+ */
 export const cases = {
   mealSkipsPhase: {
     inputs: ['day', 'night'],
@@ -245,16 +308,24 @@ export const cases = {
       g.skipAfterEating = false;
       g.hud.onItemAction('brisket', 'eat');
       sim.run(120);
-      const suppressed = g.clock.phase === phase && g.inventory.count('brisket') === 2;
+      const suppressed =
+        g.clock.phase === phase && g.inventory.count('brisket') === 2;
       let transitions = 0;
-      g.events.on(phase === 'day' ? 'nightfall' : 'sunrise', () => transitions++);
+      g.events.on(
+        phase === 'day' ? 'nightfall' : 'sunrise',
+        () => transitions++,
+      );
       g.skipAfterEating = true;
       g.hud.onItemAction('brisket', 'eat');
       g.hud.onItemAction('brisket', 'eat');
       const singleMeal = g.inventory.count('brisket') === 1;
       sim.run(150);
       return {
-        ok: suppressed && singleMeal && g.clock.phase !== phase && transitions === 1,
+        ok:
+          suppressed &&
+          singleMeal &&
+          g.clock.phase !== phase &&
+          transitions === 1,
         suppressed,
         singleMeal,
         phase: g.clock.phase,
