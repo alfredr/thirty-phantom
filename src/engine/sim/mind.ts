@@ -23,7 +23,7 @@ export type EventOf<E extends MindEvent<string>, T extends E['type']> = E &
  * Handle an event in a specific state. Return the next state, or null to keep
  * the current state.
  */
-export type Handler<
+type Handler<
   Self,
   S extends State<string>,
   K extends S['at'],
@@ -31,7 +31,7 @@ export type Handler<
   T extends E['type'],
 > = (self: Self, state: StateOf<S, K>, event: EventOf<E, T>) => S | null;
 
-export interface StateHandlers<
+interface StateHandlers<
   Self,
   S extends State<string>,
   K extends S['at'],

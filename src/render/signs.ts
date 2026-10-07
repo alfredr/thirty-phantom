@@ -8,7 +8,7 @@ import { withCutaway } from './materials';
 import { PALETTE } from './palette';
 import { addNoise, makeCanvas, toTexture, type Ctx } from './textures';
 
-export { SIGN_STYLES, type SignStyle } from '@/world/level-kinds';
+export { type SignStyle } from '@/world/level-kinds';
 
 export interface SignTextures {
   map: CanvasTexture;

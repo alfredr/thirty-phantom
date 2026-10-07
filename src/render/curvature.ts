@@ -53,7 +53,7 @@ const PHI_MAX = 2.6;
 /** Angular interval in radians over which geometry sinks before PHI_MAX. */
 const SINK = 0.25;
 
-export const curveUniforms = {
+const curveUniforms = {
   /**
    * xyz: the bend's centre (the iso view's focus); w: the planet's radius, 0
    * for flat.

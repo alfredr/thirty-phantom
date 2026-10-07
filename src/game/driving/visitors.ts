@@ -181,7 +181,7 @@ export class Arrive extends DriverJob<ArriveStep> {
 }
 
 /** Drive from a parked stall to a traffic lane and rejoin when aligned. */
-export class Leave extends DriverJob<DriveStep> {
+class Leave extends DriverJob<DriveStep> {
   constructor(
     readonly p: {
       car: Vehicle;

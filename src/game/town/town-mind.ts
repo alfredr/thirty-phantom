@@ -185,7 +185,7 @@ const frighten = (
  * a newly reported threat direction; recovered casualties flee with an injury-
  * dependent pace.
  */
-export const TOWN_MIND = mind<Townsperson, Doing, TownEvent>({
+const TOWN_MIND = mind<Townsperson, Doing, TownEvent>({
   pause: {
     exit: (p) => p.walker.cancelPlan(),
     tick: (p, s, dt) => {

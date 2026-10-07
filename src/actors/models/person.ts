@@ -48,7 +48,7 @@ export const FACE_INK = { color: '#1a0f14', roughness: 0.9 };
  * A city person on the shared rig layout (body, head, armL/R, legL/R). Feet at
  * y=0, faces +Z.
  */
-export function person(o: Outfit) {
+function person(o: Outfit) {
   const b = BODY;
   const jacket = box(...b.torso).on(b.hip);
   const shirt = jacket

@@ -126,13 +126,13 @@ export class MapApp implements PhoneApp {
 }
 
 /** Image source and caption for the phone’s photo gallery. */
-export interface Photo {
+interface Photo {
   src: string;
   caption: string;
 }
 
 /** Static photo gallery entries. */
-export const PHOTOS: readonly Photo[] = [];
+const PHOTOS: readonly Photo[] = [];
 
 /** The phone's camera roll. */
 export class Photos implements PhoneApp {

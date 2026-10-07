@@ -183,7 +183,7 @@ export class GameClock {
   }
 }
 
-export function ease(gap: number, normal: number): number {
+function ease(gap: number, normal: number): number {
   if (gap <= NEAREST) {
     return gap;
   }

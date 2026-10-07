@@ -448,19 +448,6 @@ export class Rest extends Action<DriveWorld, DriveWorld> {
   }
 }
 
-/** Request that the driver leave the car and flee from the supplied position. */
-export class Bail extends Action<DriveWorld, DriveWorld> {
-  constructor(readonly p: { car: Vehicle; from: Vector3 }) {
-    super();
-  }
-
-  perform(w: DriveWorld): Result<DriveAction> {
-    const { car, from } = this.p;
-    w.bail(car, from);
-    return done;
-  }
-}
-
 /** Return the car to traffic with the supplied threat position. */
 export class Rejoin extends Action<DriveWorld, DriveWorld> {
   constructor(readonly p: { car: Vehicle; from: Vector3 }) {
@@ -605,7 +592,7 @@ export function steerClear(step: DriveStep, at: Vector3): DriveStep | null {
 }
 
 /** Return braking input proportional to speed and opposed to travel. */
-export function brakes(car: Vehicle): DriveInput {
+function brakes(car: Vehicle): DriveInput {
   return {
     throttle:
       -Math.sign(car.speed) * Math.min(1, Math.abs(car.speed) * BRAKE_GAIN),

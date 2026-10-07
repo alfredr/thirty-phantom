@@ -82,7 +82,7 @@ export const BULB = {
   below: 0.6,
 };
 
-export function bulbSize(
+function bulbSize(
   w: number,
   f: number,
   free: boolean,

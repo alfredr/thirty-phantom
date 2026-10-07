@@ -33,13 +33,13 @@ export interface RoofStage {
   readonly roof: number;
 }
 
-export interface Imprint {
+interface Imprint {
   readonly at: Vector3;
   readonly title: string;
   readonly meta: string;
 }
 
-export interface TutorialProgress {
+interface TutorialProgress {
   firstPhantom: Imprint | null;
   noticedSmell: boolean;
   readonly viewsSeen: Set<CamView>;

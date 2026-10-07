@@ -69,7 +69,7 @@ export function spotZone(s: SpotRuntime, pad: number): ZoneDef {
   };
 }
 
-export type CrossingKind = 'logged-in' | 'logged-out' | 'escaped' | 'snuck-in';
+type CrossingKind = 'logged-in' | 'logged-out' | 'escaped' | 'snuck-in';
 
 export interface Crossing {
   vehicle: Vehicle;

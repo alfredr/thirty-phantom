@@ -8,7 +8,7 @@ import type { ClaimKind } from '@/game/rules/claim-kinds';
  * Query a pool of eligible entities. Handles identify individual entities; the
  * source owns their state. Distances are in meters.
  */
-export interface Targets<T extends object = object> {
+interface Targets<T extends object = object> {
   nearest(
     at: Vector3,
     reach: number,
@@ -22,7 +22,7 @@ export interface Targets<T extends object = object> {
   position(target: T, out: Vector3): boolean;
 }
 
-export type Hit = 'hit' | 'downed' | 'killed';
+type Hit = 'hit' | 'downed' | 'killed';
 
 /** A target source that can receive the game's injury-producing melee attacks. */
 export interface Prey extends Targets {

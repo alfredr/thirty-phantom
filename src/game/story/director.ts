@@ -4,9 +4,9 @@ import type { BeatBehavior, RunningBehavior, Scope } from './behaviors';
 
 const MAX_MOVES = 16;
 
-export type Next<C, Id extends string> = Id | null | ((c: C) => Id | null);
+type Next<C, Id extends string> = Id | null | ((c: C) => Id | null);
 
-export type Beat<C, Ev extends MindEvent<string>, Id extends string> = {
+type Beat<C, Ev extends MindEvent<string>, Id extends string> = {
   readonly parts: readonly BeatBehavior<C, Ev, Id>[];
   readonly next: Next<C, Id>;
 };

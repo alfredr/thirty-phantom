@@ -8,7 +8,7 @@ export type Conflict = 'refuse' | 'evict' | 'merge';
  * Limit the number of rows sharing these column values. Capacity defaults to
  * one.
  */
-export interface Key<R> {
+interface Key<R> {
   readonly on: readonly (keyof R)[];
   readonly cap?: number | ((row: R) => number);
 }

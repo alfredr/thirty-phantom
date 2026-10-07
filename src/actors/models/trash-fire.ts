@@ -30,7 +30,7 @@ export interface TrashFire {
 }
 
 /** The can, feet at y=0, with flames rising out of its top. */
-export function trashFire() {
+function trashFire() {
   return model(
     {
       can: { color: '#4a4650', roughness: 0.55, metalness: 0.6 },

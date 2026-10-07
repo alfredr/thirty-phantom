@@ -5,7 +5,7 @@ import type { ElevatorStop, Facing, RailDef, V3 } from './level-data';
 import type { LevelWriter } from './level-writer';
 
 /** Deck dimensions in local (deck) coordinates. */
-export const DECK = {
+const DECK = {
   W: 48,
   D: 36,
   /**

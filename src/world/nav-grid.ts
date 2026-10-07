@@ -91,7 +91,7 @@ export function bodyOf(p: NavProfile): NavProfile {
  * Return the vehicle turning radius plus steering slack, in meters, or zero
  * for pedestrians.
  */
-export function turnRadius(p: NavProfile): number {
+function turnRadius(p: NavProfile): number {
   const v = p.vehicle;
   return v ? v.wheelBase / Math.tan(v.maxSteer) + TURN_SLACK : 0;
 }

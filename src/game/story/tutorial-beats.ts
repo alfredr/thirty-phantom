@@ -116,7 +116,7 @@ export type ErrandId = 'cooled' | 'handed';
 
 type TutorialBehavior = BeatBehavior<TutorialContext, TutorialEvent, BeatId>;
 
-export const GHAST =
+const GHAST =
   '<span class="ghast-word">G<small>h</small>AS<small>t</small></span>';
 const LOCKED = "THE DOORS WON'T OPEN. THE TRUCK LIKES YOU.";
 const GET_IN = 'WALK UP TO THE DRIVER DOOR. {interact} GET IN.';

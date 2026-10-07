@@ -91,7 +91,7 @@ type Rows = {
  * collision feedback is restricted to Cody’s ride. Audio is handled by
  * src/audio/sound.ts.
  */
-export const EFFECTS: Rows = {
+const EFFECTS: Rows = {
   keysFound: ({ plate }, s) => s.toast(`KEYS FOR ${plate}`, '', '', 2.5),
   hotwired: (_e, s) => s.toast('HOTWIRED!', '', '', 1.8),
   // Debris inherits half the vehicle’s horizontal velocity.

@@ -297,7 +297,7 @@ function onFace(
  * Randy on the shared rig layout (body, head, armL/R, legL/R) plus
  * flapL/flapR. Feet at y=0, faces +Z.
  */
-export function randy() {
+function randy() {
   const S = SHAPE;
   const torsoTop = S.hip + S.torsoH;
   const top = torsoTop + 0.02;

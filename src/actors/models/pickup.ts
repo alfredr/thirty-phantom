@@ -8,7 +8,7 @@ import { vehicleRig, wheels, type VehicleRig, type WheelSpec } from './rig';
  * footprint and turning circle (TUNING.pickup), so valet routes planned for a
  * sedan work for it too.
  */
-export const PICKUP = {
+const PICKUP = {
   color: '#6a6478',
   /** Lower body [width, height, length]: hood, cab floor and bed. */
   body: [1.84, 0.6, 3.92] as V3,
@@ -23,10 +23,10 @@ export const PICKUP = {
   height: 1.74,
 };
 
-export type PickupParams = typeof PICKUP;
+type PickupParams = typeof PICKUP;
 
 /** Build a pickup facing +Z with an open bed and muted default paint. */
-export function pickup(params: Partial<PickupParams> = {}) {
+function pickup(params: Partial<PickupParams> = {}) {
   const p = { ...PICKUP, ...params };
   const lower = box(...p.body).on(p.clearance);
   const cab = box(...p.cab)

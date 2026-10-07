@@ -32,7 +32,7 @@ const FOLLOW = 0.05;
  * inverse-distance falloff and fade to silence over the final 40% of the
  * range.
  */
-export function falloff(d: number, range: number): number {
+function falloff(d: number, range: number): number {
   if (d >= range) {
     return 0;
   }

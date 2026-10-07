@@ -17,7 +17,8 @@ Use Node.js 24. The repository also pins this version for [mise](https://mise.jd
 npm ci
 npm run dev          # Start the development server at http://localhost:5173
 npm run fmt          # Apply lint fixes and format source files
-npm run check        # Check lint, formatting, types, and unit tests
+npm run check        # Check lint, formatting, types, dead code, and unit tests
+npm run deadcode     # Find unused files, exports, types, and dependencies
 npm run build        # Check types and build the game into dist/
 npm run preview      # Serve the production build at http://localhost:4173
 ```
@@ -30,9 +31,13 @@ Code changes display a reload prompt so a file save does not interrupt the game.
 Installing dependencies also installs the Husky pre-commit hook. The hook and CI both run
 `npm run check`.
 
+`npm run deadcode` runs Knip with the live scenarios, type tests, and Vite test
+loader accounted for. It also runs as part of `check`. An unused export may still
+be used inside its own file; removing the `export` is often enough.
+
 ### Code conventions
 
-Oxfmt formats TypeScript and JavaScript at 120 columns, wraps doc comments, and sorts
+Oxfmt formats TypeScript and JavaScript at 79 columns, wraps doc comments, and sorts
 imports. It does not format CSS. Oxlint requires braces around conditional and loop bodies,
 plus blank lines around multiline blocks. A variable declaration may sit directly above
 the block that uses it. Oxlint also rejects `instanceof` through

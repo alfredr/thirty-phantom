@@ -676,7 +676,7 @@ export function stagedView(
   return best;
 }
 
-export function clearView(
+function clearView(
   root: Object3D,
   sights: readonly Vector3[],
   azimuth: number,
@@ -731,7 +731,7 @@ function hiddenFrom(
   return hidden;
 }
 
-export function roofExit(level: LevelData, from: Vector3): Vector3 {
+function roofExit(level: LevelData, from: Vector3): Vector3 {
   let best: Vector3 | null = null;
   for (const e of level.elevators) {
     for (const stop of e.stops) {

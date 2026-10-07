@@ -69,6 +69,3 @@ export function easeOutElastic(t: number): number {
 
   return Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * (TAU / 3)) + 1;
 }
-
-export const easeInOut = (t: number): number =>
-  t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;

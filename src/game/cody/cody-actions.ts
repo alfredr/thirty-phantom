@@ -77,19 +77,19 @@ abstract class Board extends Action<Play, Play> {
  * Label possession as ordinary entry while the tutorial keeps Cody in daytime
  * form.
  */
-export class Possess extends Board {
+class Possess extends Board {
   label({ cody }: Play): string {
     return `${cody.phantom ? 'POSSESS' : 'GET IN'} &nbsp;☾`;
   }
 }
 
-export class Steal extends Board {
+class Steal extends Board {
   label(): string {
     return `STEAL · ${this.p.car.plate}`;
   }
 }
 
-export class GetIn extends Board {
+class GetIn extends Board {
   label(): string {
     return `GET IN · ${this.p.car.plate}`;
   }

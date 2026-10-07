@@ -268,7 +268,7 @@ export type GameEvents = RideEvents &
     reset: { v: Vehicle };
   };
 
-export type ScriptSound =
+type ScriptSound =
   | 'keys-clink'
   | 'gas-glug'
   | 'fire-flare'

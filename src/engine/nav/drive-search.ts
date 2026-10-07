@@ -141,7 +141,7 @@ interface Node {
  * Return the minimum planned turning radius in meters, including reserved
  * steering capacity.
  */
-export function driveRadius(v: VehicleParams): number {
+function driveRadius(v: VehicleParams): number {
   return v.wheelBase / Math.tan(v.maxSteer * LOCK);
 }
 
@@ -159,7 +159,7 @@ const tables = new Map<string, Float32Array>();
  * non-holonomic-without-obstacles heuristic. Cache by wheelbase and maximum
  * steering angle.
  */
-export function turnTable(v: VehicleParams): Float32Array {
+function turnTable(v: VehicleParams): Float32Array {
   const id = `${v.wheelBase}|${v.maxSteer}`;
   const known = tables.get(id);
   if (known) {

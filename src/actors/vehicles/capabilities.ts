@@ -78,7 +78,7 @@ export type SmokeExhaust = Readonly<typeof TUNING.vehicle.exhaust>;
  * One spectral exhaust mode. Size is start/end in meters; life and interval
  * are seconds.
  */
-export interface ExhaustPuff {
+interface ExhaustPuff {
   readonly every: number;
   readonly color: Color;
   readonly scatter: number;

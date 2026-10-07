@@ -24,7 +24,7 @@ import {
   sidewalkTexture,
 } from './textures';
 
-export { MAT_KEYS, type MatKey } from '@/world/level-kinds';
+export { type MatKey } from '@/world/level-kinds';
 
 /**
  * Occlusion cutaway shared by every world material. Inside a cylinder along

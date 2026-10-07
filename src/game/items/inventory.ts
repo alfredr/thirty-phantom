@@ -8,10 +8,6 @@ import type { ItemKind } from './item-breeds';
  */
 export type ItemActionId = 'eat' | 'give';
 
-export function isItemAction(a: string): a is ItemActionId {
-  return a === 'eat' || a === 'give';
-}
-
 /**
  * Track item counts in insertion order. Removing the last item also removes
  * its position in that order.

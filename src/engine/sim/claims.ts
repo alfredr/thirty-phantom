@@ -4,7 +4,7 @@ import { type Owner, Relation } from './relation';
  * Capacity limits for a claim kind. Omit perHolder to allow unlimited targets
  * per holder.
  */
-export interface ClaimRule {
+interface ClaimRule {
   readonly perTarget: number;
   readonly perHolder?: number;
 }

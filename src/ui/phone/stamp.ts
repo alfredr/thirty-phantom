@@ -18,7 +18,7 @@ export const stampAt = (t: GameTime): Stamp => ({
   wall: new Date(),
 });
 
-export const dayLabel = (t: GameTime): string =>
+const dayLabel = (t: GameTime): string =>
   `${GameClock.phaseAt(t.hours) === 'day' ? 'DAY' : 'NIGHT'} ${t.day}`;
 
 const two = (n: number): string => String(n).padStart(2, '0');

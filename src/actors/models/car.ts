@@ -16,13 +16,13 @@ export const SEDAN = {
   height: 1.75,
 };
 
-export type SedanParams = typeof SEDAN;
+type SedanParams = typeof SEDAN;
 
 /**
  * Build a box sedan facing +Z. Muted default paint distinguishes it from
  * monster trucks.
  */
-export function sedan(params: Partial<SedanParams> = {}) {
+function sedan(params: Partial<SedanParams> = {}) {
   const p = { ...SEDAN, ...params };
   const lower = box(...p.body).on(p.clearance);
   const cabin = box(...p.cabin)

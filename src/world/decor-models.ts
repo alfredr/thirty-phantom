@@ -19,7 +19,7 @@ import { PALETTE } from '@/render/palette';
 import type { DecorKind } from './level-kinds';
 import { restTilt } from './props';
 
-export { DECOR_KINDS, type DecorKind } from './level-kinds';
+export { type DecorKind } from './level-kinds';
 
 /**
  * Decor models use a base at the origin and face +Z. build-decor.ts batches
@@ -71,7 +71,7 @@ const column = <M extends string>(
   z = 0,
 ): Part<M> => cylinder(r, h, seg, mat, { at: [x, y0 + h / 2, z] });
 
-export const TREE = {
+const TREE = {
   /** Trunk: radius at the foot and under the crown, its height, sides. */
   trunk: { r0: 0.2, r1: 0.13, h: 3.3, seg: 7 },
   /**
@@ -91,7 +91,7 @@ export const TREE = {
 };
 
 /** A broadleaf street tree: a tapered trunk under a lumpy crown of blobs. */
-export function roundTree(p = TREE): Model<'bark' | 'leaf'> {
+function roundTree(p = TREE): Model<'bark' | 'leaf'> {
   const t = p.trunk;
   return model({ bark: BARK, leaf: FOLIAGE }, [
     cone(t.r0, t.r1, t.h, t.seg, 'bark', { at: [0, t.h / 2, 0] }),
@@ -101,7 +101,7 @@ export function roundTree(p = TREE): Model<'bark' | 'leaf'> {
   ]);
 }
 
-export const PINE = {
+const PINE = {
   /** Trunk: radius at the foot and the top, height, sides. */
   trunk: { r0: 0.2, r1: 0.1, h: 1.6, seg: 6 },
   /** Tiers from the bottom: base height, radius, height; and the cones' sides. */
@@ -114,7 +114,7 @@ export const PINE = {
 };
 
 /** Build a conifer from a tapered trunk and stacked foliage cones. */
-export function pine(p = PINE): Model<'bark' | 'needles'> {
+function pine(p = PINE): Model<'bark' | 'needles'> {
   const t = p.trunk;
   return model({ bark: BARK, needles: NEEDLES }, [
     cone(t.r0, t.r1, t.h, t.seg, 'bark', { at: [0, t.h / 2, 0] }),
@@ -124,7 +124,7 @@ export function pine(p = PINE): Model<'bark' | 'needles'> {
   ]);
 }
 
-export const CYPRESS = {
+const CYPRESS = {
   /** Trunk stub: radius, height, sides. */
   trunk: { r: 0.14, h: 0.8, seg: 6 },
   /**
@@ -137,7 +137,7 @@ export const CYPRESS = {
 };
 
 /** A tall, dark, flame-shaped cypress: graveyards and formal edges. */
-export function cypress(p = CYPRESS): Model<'bark' | 'needles'> {
+function cypress(p = CYPRESS): Model<'bark' | 'needles'> {
   return model({ bark: BARK, needles: NEEDLES }, [
     column(p.trunk.r, 0, p.trunk.h, p.trunk.seg, 'bark'),
     sphere(p.body.r, p.seg, 'needles', { at: [0, p.body.y, 0] }),
@@ -145,7 +145,7 @@ export function cypress(p = CYPRESS): Model<'bark' | 'needles'> {
   ]);
 }
 
-export const BUSH = {
+const BUSH = {
   /** Blobs (x, y, z, radius): about 1.6 m across and 1.1 m tall. */
   blobs: [
     [0, 0.5, 0, 0.6],
@@ -160,14 +160,14 @@ export const BUSH = {
  * Build a shrub from overlapping foliage spheres. Collision is defined
  * separately in DECOR.
  */
-export function bush(p = BUSH): Model<'leaf'> {
+function bush(p = BUSH): Model<'leaf'> {
   return model(
     { leaf: FOLIAGE },
     p.blobs.map(([x, y, z, r]) => sphere(r, p.seg, 'leaf', { at: [x, y, z] })),
   );
 }
 
-export const HEDGE = {
+const HEDGE = {
   /**
    * One module along x (runs stretch modules to fit), its depth, and the
    * trimmed body's height.
@@ -185,7 +185,7 @@ export const HEDGE = {
 };
 
 /** A trimmed hedge module: a box of leaves with a lumpy top. */
-export function hedge(p = HEDGE): Model<'leaf'> {
+function hedge(p = HEDGE): Model<'leaf'> {
   const step = p.len / p.lumps;
   return model({ leaf: FOLIAGE }, [
     solid(box(p.len, p.body, p.depth).on(0), 'leaf'),
@@ -198,9 +198,9 @@ export function hedge(p = HEDGE): Model<'leaf'> {
 }
 
 /** Overall height of a hedge module. */
-export const hedgeHeight = (p = HEDGE): number => p.body + p.lump[1];
+const hedgeHeight = (p = HEDGE): number => p.body + p.lump[1];
 
-export const FLOWERS = {
+const FLOWERS = {
   /**
    * The leafy mound they grow from (radii, middle height: half sunk in the
    * bed).
@@ -229,10 +229,7 @@ export const FLOWERS = {
  * Build a foliage mound with rotated box-shaped flower heads using the
  * supplied petal material.
  */
-export function flowers(
-  petals: MatSpec,
-  p = FLOWERS,
-): Model<'leaf' | 'petal'> {
+function flowers(petals: MatSpec, p = FLOWERS): Model<'leaf' | 'petal'> {
   const head = (x: number, y: number, z: number): Part<'petal'> =>
     solid(box(p.head, p.head, p.head).at(x, y, z), 'petal', {
       rot: [Math.PI / 4, Math.PI / 4, 0],
@@ -286,7 +283,7 @@ export const FOUNTAIN = {
  * A tiered park fountain: a round stone basin with a lip, a column, two bowls
  * and a jet, all brimming with glowing water.
  */
-export function fountain(p = FOUNTAIN): Model<'stone' | 'water'> {
+function fountain(p = FOUNTAIN): Model<'stone' | 'water'> {
   const b = p.basin;
   const bowlY = b.h + p.column.h;
   const stemY = bowlY + p.bowl.h;
@@ -331,7 +328,7 @@ export function fountain(p = FOUNTAIN): Model<'stone' | 'water'> {
  * Height from the fountain base to the jet endpoint, excluding its spherical
  * cap.
  */
-export const fountainHeight = (p = FOUNTAIN): number =>
+const fountainHeight = (p = FOUNTAIN): number =>
   p.basin.h + p.column.h + p.bowl.h + p.stem.h + p.top.h + p.jet.h;
 
 export const GAZEBO = {
@@ -373,7 +370,7 @@ function corner(i: number, n: number, r: number): [number, number] {
  * An open octagonal gazebo: a timber floor, posts, low rails with two
  * doorways, and a purple pointed roof.
  */
-export function gazebo(p = GAZEBO): Model<'timber' | 'roof'> {
+function gazebo(p = GAZEBO): Model<'timber' | 'roof'> {
   const n = p.sides;
   const turn = Math.PI / n;
   const top = p.floor.h + p.post.h;
@@ -465,9 +462,7 @@ export const SHELTER = {
  * glass back and end, a bench inside, and a glowing ad panel at the other
  * end.
  */
-export function shelter(
-  p = SHELTER,
-): Model<'iron' | 'glass' | 'timber' | 'ad'> {
+function shelter(p = SHELTER): Model<'iron' | 'glass' | 'timber' | 'ad'> {
   const hw = p.w / 2;
   const hd = p.d / 2;
   const b = p.bench;
@@ -553,7 +548,7 @@ export const BENCH = {
 };
 
 /** A park bench: timber slats on two iron end frames. */
-export function bench(p = BENCH): Model<'iron' | 'timber'> {
+function bench(p = BENCH): Model<'iron' | 'timber'> {
   const hd = p.depth / 2;
   const f = p.frame.w;
   const parts: Part<'iron' | 'timber'>[] = [];
@@ -595,7 +590,7 @@ export function bench(p = BENCH): Model<'iron' | 'timber'> {
   return model({ iron: METAL, timber: TIMBER }, parts);
 }
 
-export const DEAD_TREE = {
+const DEAD_TREE = {
   trunk: { r0: 0.34, r1: 0.1, h: 6, seg: 6 },
   branches: [
     [0.3, 3.0, 2.4, 1.0, 0.13],
@@ -608,7 +603,7 @@ export const DEAD_TREE = {
   taper: 0.25,
 };
 
-export function deadTree(p = DEAD_TREE): Model<'bark'> {
+function deadTree(p = DEAD_TREE): Model<'bark'> {
   const t = p.trunk;
   return model({ bark: BARK }, [
     cone(t.r0, t.r1, t.h, t.seg, 'bark', { at: [0, t.h / 2, 0] }),
@@ -626,9 +621,9 @@ export function deadTree(p = DEAD_TREE): Model<'bark'> {
   ]);
 }
 
-export const HEADSTONE = { w: 1, h: 1.05, d: 0.3, seg: 12 };
+const HEADSTONE = { w: 1, h: 1.05, d: 0.3, seg: 12 };
 
-export function headstone(p = HEADSTONE): Model<'stone'> {
+function headstone(p = HEADSTONE): Model<'stone'> {
   return model({ stone: STONE }, [
     slab([-p.w / 2, 0, -p.d / 2], [p.w / 2, p.h, p.d / 2], 'stone'),
     cylinder(p.w / 2, p.d, p.seg, 'stone', {
@@ -638,9 +633,9 @@ export function headstone(p = HEADSTONE): Model<'stone'> {
   ]);
 }
 
-export const CROSS = { post: 0.28, h: 1.8, arm: { w: 1, y: 1.15 } };
+const CROSS = { post: 0.28, h: 1.8, arm: { w: 1, y: 1.15 } };
 
-export function cross(p = CROSS): Model<'stone'> {
+function cross(p = CROSS): Model<'stone'> {
   const t = p.post / 2;
   return model({ stone: STONE }, [
     slab([-t, 0, -t], [t, p.h, t], 'stone'),
@@ -652,13 +647,13 @@ export function cross(p = CROSS): Model<'stone'> {
   ]);
 }
 
-export const OBELISK = {
+const OBELISK = {
   base: { w: 0.9, h: 0.3 },
   shaft: { w: 0.5, h: 2.2 },
   tip: { r: 0.22, h: 0.4 },
 };
 
-export function obelisk(p = OBELISK): Model<'stone'> {
+function obelisk(p = OBELISK): Model<'stone'> {
   const b = p.base.w / 2;
   const s = p.shaft.w / 2;
   const top = p.base.h + p.shaft.h;
@@ -672,12 +667,12 @@ export function obelisk(p = OBELISK): Model<'stone'> {
   ]);
 }
 
-export const TOMB = {
+const TOMB = {
   slab: { w: 1.4, h: 0.5, d: 2.2 },
   stone: { w: 1, h: 1, d: 0.3, z: -0.9 },
 };
 
-export function tomb(p = TOMB): Model<'stone'> {
+function tomb(p = TOMB): Model<'stone'> {
   const { w, h, d } = p.slab;
   const s = p.stone;
   return model({ stone: STONE }, [

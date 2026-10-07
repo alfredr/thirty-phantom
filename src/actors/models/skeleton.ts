@@ -18,7 +18,7 @@ import { type CharacterRig, characterRig, limb } from './rig';
  * Bone dimensions matching BODY proportions for shared gait and ragdoll
  * support.
  */
-export const SKELETON = {
+const SKELETON = {
   bone: 0.09,
   knob: 0.15,
   pelvis: [0.44, 0.14, 0.22] as V3,
@@ -40,7 +40,7 @@ export const SKELETON = {
  * at y=0, facing +Z): bone limbs with knobbly joints, a ribcage on a spine,
  * and a skull with green-glowing eyes.
  */
-export function skeleton(p = SKELETON) {
+function skeleton(p = SKELETON) {
   const b = BODY;
   // Use the shared torso bounds for attachments without rendering a solid torso.
   const torso = box(...b.torso).on(b.hip);

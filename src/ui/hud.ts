@@ -29,7 +29,7 @@ import './hud.css';
  * touch button labels, or TAP when no touch button exists. data-action allows
  * touch-controls.ts to dispatch a tap through the same control.
  */
-export const kbd = (...actions: Control[]): string =>
+const kbd = (...actions: Control[]): string =>
   actions.map((a) => `<kbd data-action="${a}">${capLabel(a)}</kbd>`).join('');
 
 function capLabel(a: Control): string {

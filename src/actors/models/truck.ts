@@ -28,7 +28,7 @@ import {
 } from './part';
 import { vehicleRig, wheels, type VehicleRig, type WheelSpec } from './rig';
 
-export const TRUCK = {
+const TRUCK = {
   /** Livery lettering along the sides, and the roundel number. */
   name: 'ROADIE',
   number: '30',
@@ -92,7 +92,7 @@ function along(
  * glowing rims, name/number livery with slime pouring off every edge, roof
  * light bar. The green underglow is added by buildTruckRig.
  */
-export function monsterTruck(params: Partial<TruckParams> = {}) {
+function monsterTruck(params: Partial<TruckParams> = {}) {
   const p = { ...TRUCK, ...params };
   const rng = new Rng(p.seed);
   const liv = truckLivery(p);

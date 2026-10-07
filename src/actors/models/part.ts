@@ -157,7 +157,7 @@ export class Box {
 export const box = (sx: number, sy: number, sz: number): Box =>
   new Box([sx, sy, sz]);
 
-export type Shape =
+type Shape =
   | { kind: 'box'; size: V3 }
   /**
    * `top` is the radius at the top when it differs from the bottom's (a cone

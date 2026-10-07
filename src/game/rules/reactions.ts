@@ -28,9 +28,9 @@ export type Thing =
     };
 
 export type ThingKind = Thing['kind'];
-export type ThingOf<K extends ThingKind> = Extract<Thing, { kind: K }>;
+type ThingOf<K extends ThingKind> = Extract<Thing, { kind: K }>;
 
-export function isKind<K extends ThingKind>(
+function isKind<K extends ThingKind>(
   thing: Thing,
   kind: K,
 ): thing is ThingOf<K> {
@@ -61,7 +61,7 @@ export interface Perception {
  * Perceiver and target categories, distance limits, and the response to a
  * visible match.
  */
-export interface ReactionSpec<K extends ThingKind> {
+interface ReactionSpec<K extends ThingKind> {
   readonly who: K;
   readonly sees: readonly ThingKind[];
   readonly within: number;
@@ -78,7 +78,7 @@ export interface Reaction {
  * Build a reaction that queries nearby perceivers for each eligible target.
  * Check kind and vertical range before testing visibility.
  */
-export function reaction<K extends ThingKind>({
+function reaction<K extends ThingKind>({
   who,
   sees,
   within,

@@ -12,7 +12,7 @@ const LEATHER = '#5a3424';
 const BILL_GLOW = 0.35;
 
 /** A stack of bills with a paper band, resting on y=0, long side along z. */
-export function cash() {
+function cash() {
   const stack = box(0.16, 0.07, 0.3).on(0);
   return model(
     {
@@ -32,7 +32,7 @@ export function cash() {
 }
 
 /** A folded leather wallet, bills showing at the top edge. */
-export function wallet() {
+function wallet() {
   const body = box(0.2, 0.06, 0.14).on(0);
   return model(
     {

@@ -11,7 +11,7 @@ export const SOUND_ON: boolean =
   flag === null ? TUNING.audio.on : flag !== '0';
 
 /** Log audio cues when the URL explicitly enables sound. */
-export const SOUND_LOG: boolean = SOUND_ON && flag !== null;
+const SOUND_LOG: boolean = SOUND_ON && flag !== null;
 
 /** Write a prefixed console message when audio logging is enabled. */
 export function soundLog(

@@ -35,7 +35,7 @@ export const CODY_DAY = {
 export type CodyDayParams = typeof CODY_DAY;
 
 /** Daytime Cody: green hoodie, jeans, mustache. Feet at y=0, faces +Z. */
-export function codyDay(params: Partial<CodyDayParams> = {}) {
+function codyDay(params: Partial<CodyDayParams> = {}) {
   const p = { ...CODY_DAY, ...params };
   const torso = box(...p.torso).on(p.hip - 0.02);
   const head = box(...p.head).on(torso.top + 0.02);
@@ -206,7 +206,7 @@ export type CodyNightParams = typeof CODY_NIGHT;
  * independently animated robe skirt. Layer the mantle, bell sleeves, and hood
  * around an asymmetric pale mask, with emissive eyes and slime hem details.
  */
-export function codyNight(params: Partial<CodyNightParams> = {}) {
+function codyNight(params: Partial<CodyNightParams> = {}) {
   const p = { ...CODY_NIGHT, ...params };
   const { skirt, torso, mantle, sleeve, hood, face } = p;
   const torsoTop = p.waist + torso.height;

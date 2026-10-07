@@ -32,7 +32,7 @@ import type { LevelWriter } from './level-writer';
  * Decorative parts use existing materials and remain shallow to avoid street
  * lamps. Geometry is appended as level boxes for material/chunk batching.
  */
-export const BUILDING = {
+const BUILDING = {
   /** Homes over shops: storey height, ground floor height. */
   home: { storey: 3.0, ground: 4.2 },
   /** Offices: taller storeys over a lobby. */
@@ -784,7 +784,7 @@ export function roofAt(
  * paint, and deterministic seed. Prioritize a lobby doorway, otherwise the
  * longest street front. Return null without a street front.
  */
-export function walkInDef(
+function walkInDef(
   look: BuildingLook,
   x0: number,
   z0: number,

@@ -73,7 +73,7 @@ export interface FaceMap {
 export type Axis = 0 | 1 | 2;
 
 /** Map a box face's u and v coordinates to the next two axes in cyclic order. */
-export function faceAxes(axis: Axis): [Axis, Axis] {
+function faceAxes(axis: Axis): [Axis, Axis] {
   return [((axis + 1) % 3) as Axis, ((axis + 2) % 3) as Axis];
 }
 

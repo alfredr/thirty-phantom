@@ -5,13 +5,7 @@ import type { Vehicle } from '@/actors/vehicles/vehicle';
 import { bodyOffsets } from '@/engine/physics/vehicle-params';
 
 /** Body categories used to filter steering obstacles. */
-export type BodyKind =
-  | 'person'
-  | 'down'
-  | 'still'
-  | 'cody'
-  | 'skeleton'
-  | 'car';
+type BodyKind = 'person' | 'down' | 'still' | 'cody' | 'skeleton' | 'car';
 
 /**
  * A body registered for the current frame. Position and velocity reference the
@@ -37,7 +31,7 @@ export interface Body {
 }
 
 /** Shared zero velocity. Callers must not mutate it. */
-export const NO_VELOCITY: Readonly<Vector3> = new Vector3();
+const NO_VELOCITY: Readonly<Vector3> = new Vector3();
 
 /**
  * Body registration data. Optional flags default to false, identity fields to

@@ -62,7 +62,7 @@ export interface DriveEvents {
   hopped: boolean;
 }
 
-export const NO_INPUT: Readonly<DriveInput> = {
+const NO_INPUT: Readonly<DriveInput> = {
   throttle: 0,
   steer: 0,
   hop: false,

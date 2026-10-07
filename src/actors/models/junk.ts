@@ -131,7 +131,7 @@ function part(kind: PartKind) {
 }
 
 /** A car part lying on the ground. */
-export function junk(kind: PartKind) {
+function junk(kind: PartKind) {
   return model(MATS, [group({ name: kind }, part(kind))]);
 }
 

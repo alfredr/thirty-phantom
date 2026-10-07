@@ -15,7 +15,7 @@ import {
 } from './part';
 import { BIKE_WHEELS, vehicleRig, type VehicleRig } from './rig';
 
-export const MOTORCYCLE = {
+const MOTORCYCLE = {
   color: '#6a6478',
   /** Default jacket color for the built-in rider. */
   jacket: '#2a2230',
@@ -28,14 +28,14 @@ export const MOTORCYCLE = {
   saddle: [0, 0.98, -0.3] as V3,
 };
 
-export type MotorcycleParams = typeof MOTORCYCLE;
+type MotorcycleParams = typeof MOTORCYCLE;
 
 /**
  * Build a motorcycle facing +Z. Parent wheels and rider to the suspension body
  * so the whole model leans around its ground-contact line. Keep the built-in
  * rider separate from the saddle attachment used by Cody.
  */
-export function motorcycle(params: Partial<MotorcycleParams> = {}) {
+function motorcycle(params: Partial<MotorcycleParams> = {}) {
   const p = { ...MOTORCYCLE, ...params };
   const { r, w } = p.wheel;
   const wheel = (name: string, z: number): Part<'tire' | 'hub'> =>

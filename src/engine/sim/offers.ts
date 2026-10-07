@@ -8,7 +8,7 @@ export interface Candidate<C extends string, S, W extends S> {
 }
 
 /** A resolved action and its display label for a control. */
-export interface Offer<C extends string, S, W extends S> {
+interface Offer<C extends string, S, W extends S> {
   readonly control: C;
   readonly rank: number;
   readonly action: Action<S, W>;

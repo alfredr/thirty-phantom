@@ -28,7 +28,7 @@ const STALL = { load: 0.15, miss: 0.3 };
  * Return the night ambience weight, from 0 to 1, with smooth transitions
  * around sunrise and nightfall.
  */
-export function nightness(hours: number): number {
+function nightness(hours: number): number {
   const { sunrise, nightfall } = TUNING.clock;
   const w = A.dusk;
   return (

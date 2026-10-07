@@ -34,7 +34,7 @@ export interface RampConfig<C> {
 
 type RampServices = { readonly game: Game; readonly recovery: Recovery };
 
-export function launchOf(k: RampDef): Vector3 {
+function launchOf(k: RampDef): Vector3 {
   return k.axis === 'x' ? new Vector3(k.dir, 0, 0) : new Vector3(0, 0, k.dir);
 }
 

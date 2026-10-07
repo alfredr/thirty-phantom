@@ -230,7 +230,7 @@ function against(
  * width W along the wall, and `d` spans depth D inward, measured inside the
  * linings.
  */
-export interface RoomFrame {
+interface RoomFrame {
   W: number;
   D: number;
   box(
@@ -247,7 +247,7 @@ export interface RoomFrame {
   ): [number, number, number, number];
 }
 
-export function roomFrame(min: V3, max: V3, facing: Facing): RoomFrame {
+function roomFrame(min: V3, max: V3, facing: Facing): RoomFrame {
   const t = INTERIOR.wall + INTERIOR.lining;
   const [x0, z0, x1, z1] = [min[0] + t, min[2] + t, max[0] - t, max[2] - t];
   const alongX = facing === 'z+' || facing === 'z-';

@@ -149,13 +149,13 @@ export type Facade = Required<Omit<FacadeDef, 'paint' | 'street'>> &
   Pick<FacadeDef, 'paint' | 'street'>;
 
 /** Default paint colors for facade materials when a box does not specify paint. */
-export const FACADE_PAINT: Readonly<Partial<Record<MatKey, string>>> = {
+const FACADE_PAINT: Readonly<Partial<Record<MatKey, string>>> = {
   facadeA: '#4a4258',
   facadeB: '#3c3550',
   facadeC: '#5a5368',
 };
 
-export function isFacade(mat: MatKey): boolean {
+function isFacade(mat: MatKey): boolean {
   return FACADE_PAINT[mat] !== undefined;
 }
 
@@ -203,7 +203,7 @@ export function doorBay(bays: number): number {
 }
 
 /** Outward directions of the four vertical box faces. */
-export const FACE_FACING: Readonly<Record<0 | 1 | 2 | 3, Facing>> = {
+const FACE_FACING: Readonly<Record<0 | 1 | 2 | 3, Facing>> = {
   0: 'x+',
   1: 'x-',
   2: 'z+',
@@ -216,7 +216,7 @@ export const FACE_FACING: Readonly<Record<0 | 1 | 2 | 3, Facing>> = {
  * signed so it increases left to right seen from outside): its u at the left
  * edge, and its length.
  */
-export function faceSpan(
+function faceSpan(
   min: readonly number[],
   max: readonly number[],
   face: 0 | 1 | 2 | 3,

@@ -20,7 +20,7 @@ type GhostBehavior<C> = BeatBehavior<
   string
 >;
 
-export function spawnTrail(g: Game, from: Vehicle): void {
+function spawnTrail(g: Game, from: Vehicle): void {
   for (const turn of TRAIL_TURNS) {
     const a = from.yaw + turn;
     const points: Vector3[] = [];

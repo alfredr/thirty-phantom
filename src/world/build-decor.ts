@@ -44,7 +44,7 @@ const _s = new Vector3();
  * Write the decor's translation, yaw, scale, and local-X stretch into `out`,
  * then return it.
  */
-export function decorMatrix(d: DecorDef, out = new Matrix4()): Matrix4 {
+function decorMatrix(d: DecorDef, out = new Matrix4()): Matrix4 {
   const s = d.scale ?? 1;
   return out
     .makeRotationY(d.yaw)
