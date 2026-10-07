@@ -3,8 +3,14 @@ import { test } from 'node:test';
 
 import { loadModules } from './modules.mjs';
 
-const [{ Director, steps }] = await loadModules('/src/game/story/director.ts');
-const { all, on } = steps();
+const [{ Director, steps }, { Action, done, fail, instead, running }, { Sequence, Wait }, { releaseOnce }] =
+  await loadModules(
+    '/src/game/story/director.ts',
+    '/src/engine/sim/action.ts',
+    '/src/engine/sim/sequence.ts',
+    '/src/engine/core/disposable.ts',
+  );
+const { all, on, hold, run } = steps();
 
 test('parallel parts retire on completion while their siblings keep running', () => {
   const log = [];
@@ -79,4 +85,136 @@ test('an empty parallel group completes immediately', () => {
   const director = new Director({ empty: { parts: [all([])], next: null } }, {}, { prefix: 'test' });
   director.start('empty');
   assert.equal(director.beat, null);
+});
+
+test('beat resources stay held without an action and release in reverse order on exit', () => {
+  const log = [];
+  const resource = (name) => () => {
+    log.push(`take:${name}`);
+    return releaseOnce(() => log.push(`release:${name}`));
+  };
+
+  const director = new Director(
+    { scene: { parts: [hold(resource('camera'), resource('attention')), on('leave')], next: null } },
+    {},
+    { prefix: 'test' },
+  );
+  director.start('scene');
+  director.tick(100);
+  assert.equal(director.beat, 'scene');
+  assert.deepEqual(log, ['take:camera', 'take:attention']);
+  director.send({ type: 'leave' });
+  assert.deepEqual(log, ['take:camera', 'take:attention', 'release:attention', 'release:camera']);
+});
+
+test('failed acquisition releases earlier beat resources', () => {
+  const log = [];
+  const part = hold(
+    () => releaseOnce(() => log.push('released')),
+    () => {
+      throw new Error('unavailable');
+    },
+  );
+  assert.throws(() => part.create({}, {}), /unavailable/);
+  assert.deepEqual(log, ['released']);
+});
+
+test('a resource cleanup failure does not prevent the remaining beat resources from releasing', () => {
+  const log = [];
+  const active = hold(
+    () => releaseOnce(() => log.push('released')),
+    () =>
+      releaseOnce(() => {
+        throw new Error('cleanup failed');
+      }),
+  ).create({}, {});
+  assert.throws(() => active.stop(), AggregateError);
+  active.stop();
+  assert.deepEqual(log, ['released']);
+});
+
+test('a running action is cancelled when its beat ends, including its generator resources', () => {
+  const log = [];
+  const action = () =>
+    new Sequence(function* () {
+      const held = releaseOnce(() => log.push('release'));
+      try {
+        yield new Wait(5);
+        log.push('finished');
+        return done;
+      } finally {
+        held();
+      }
+    });
+  const director = new Director({ scene: { parts: [run(action), on('leave')], next: null } }, {}, { prefix: 'test' });
+  director.start('scene');
+  director.tick(1);
+  director.send({ type: 'leave' });
+  director.tick(10);
+  assert.deepEqual(log, ['release']);
+  assert.equal(director.beat, null);
+});
+
+test('the director resolves and replaces actions before advancing the beat', () => {
+  const log = [];
+  class Finish extends Action {
+    perform() {
+      log.push('finish');
+      return done;
+    }
+    stop() {
+      log.push('stop:finish');
+    }
+  }
+  class Begin extends Action {
+    perform(_w, dt) {
+      return dt > 0 ? instead(new Finish()) : running;
+    }
+    stop() {
+      log.push('stop:begin');
+    }
+  }
+  class Choose extends Action {
+    resolve() {
+      return new Begin();
+    }
+    perform() {
+      assert.fail('a resolved action must not run');
+    }
+  }
+  const director = new Director({ scene: { parts: [run(() => new Choose())], next: null } }, {}, { prefix: 'test' });
+  director.start('scene');
+  assert.equal(director.beat, 'scene');
+  director.tick(1);
+  assert.equal(director.beat, null);
+  assert.deepEqual(log, ['stop:begin', 'finish', 'stop:finish']);
+});
+
+test('an immediate action advances the beat and releases resources acquired before it', () => {
+  let releases = 0;
+  const director = new Director(
+    { scene: { parts: [hold(() => releaseOnce(() => releases++)), run(() => new Wait(0))], next: null } },
+    {},
+    { prefix: 'test' },
+  );
+  director.start('scene');
+  assert.equal(director.beat, null);
+  assert.equal(releases, 1);
+});
+
+test('an action failure reports struggle once and leaves the beat pending', () => {
+  let struggles = 0;
+  class Refused extends Action {
+    perform() {
+      return fail('NO ROUTE');
+    }
+  }
+  const active = run(() => new Refused()).create(
+    { struggle: () => struggles++, done: () => assert.fail('failed beat advanced') },
+    {},
+  );
+  active.tick(1);
+  active.tick(1);
+  active.stop();
+  assert.equal(struggles, 1);
 });

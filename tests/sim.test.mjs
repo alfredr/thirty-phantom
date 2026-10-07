@@ -260,3 +260,236 @@ test('a mind moves on events and ticks, and holds its own state data', () => {
     ['enter', 'blue'],
   ]);
 });
+
+class Step extends Action {
+  constructor(perform, stop = () => {}) {
+    super();
+    this.perform = perform;
+    this.stop = stop;
+  }
+}
+
+test('an action can cancel itself on its first perform without being requeued', () => {
+  const { w, doing, outcomes } = world();
+  let stops = 0;
+  const act = new Step(
+    () => {
+      assert.equal(
+        doing.isRunning((a) => a === act),
+        true,
+      );
+      doing.cancel(act);
+      return running;
+    },
+    () => stops++,
+  );
+  assert.deepEqual(doing.do(w, act), fail('cancelled'));
+  doing.update(w, 1);
+  doing.cancel(act);
+  assert.equal(stops, 1);
+  assert.deepEqual(outcomes, [['fail', '', 'cancelled']]);
+  assert.equal(
+    doing.isRunning(() => true),
+    false,
+  );
+});
+
+test('cancelling another action during an update prevents its turn and defers newly started work to the next frame', () => {
+  const { w, doing } = world();
+  const log = [];
+  const later = new Step((_w, dt) => {
+    log.push(['later', dt]);
+    return running;
+  });
+  const cancelled = new Step((_w, dt) => {
+    log.push(['cancelled', dt]);
+    return running;
+  });
+  const first = new Step((_w, dt) => {
+    if (dt === 0) {
+      return running;
+    }
+
+    doing.cancel(cancelled);
+    doing.do(w, later);
+    return done;
+  });
+  doing.do(w, first);
+  doing.do(w, cancelled);
+  doing.update(w, 1);
+  assert.deepEqual(log, [
+    ['cancelled', 0],
+    ['later', 0],
+  ]);
+  doing.update(w, 2);
+  assert.deepEqual(log.at(-1), ['later', 2]);
+});
+
+test('cancelling the current action during update suppresses its replacement', () => {
+  const { w, doing, outcomes } = world();
+  const next = new Step(() => assert.fail('cancelled action started its replacement'));
+  let stops = 0;
+  const act = new Step(
+    (_w, dt) => {
+      if (dt === 0) {
+        return running;
+      }
+
+      doing.cancel(act);
+      return instead(next);
+    },
+    () => stops++,
+  );
+  doing.do(w, act);
+  doing.update(w, 1);
+  assert.equal(stops, 1);
+  assert.deepEqual(outcomes, [['fail', '', 'cancelled']]);
+});
+
+test('cancellation during replacement cleanup ends the execution without repeating cleanup', () => {
+  const { w, doing, outcomes } = world();
+  let stops = 0;
+  const act = new Step(
+    () => instead(new Step(() => assert.fail('replacement started'))),
+    () => {
+      stops++;
+      doing.cancel(act);
+    },
+  );
+  assert.deepEqual(doing.do(w, act), fail('cancelled'));
+  assert.equal(stops, 1);
+  assert.deepEqual(outcomes, [['fail', '', 'cancelled']]);
+});
+
+for (const ending of ['completion', 'cancellation']) {
+  test(`claims are released when cleanup throws during ${ending}`, () => {
+    const { w, claims, doing } = world();
+    const spot = {};
+    let stops = 0;
+    const act = new Wait({
+      frames: ending === 'completion' ? 0 : 10,
+      claim: { kind: 'spot', holder: {}, target: spot },
+    });
+    act.stop = () => {
+      stops++;
+      throw new Error('stop failed');
+    };
+
+    if (ending === 'completion') {
+      assert.throws(() => doing.do(w, act), /stop failed/);
+    } else {
+      doing.do(w, act);
+      assert.ok(claims.holder('spot', spot));
+      assert.throws(() => doing.cancel(act), /stop failed/);
+    }
+
+    doing.cancel(act);
+    doing.update(w, 1);
+    assert.equal(stops, 1);
+    assert.equal(claims.holder('spot', spot), null);
+    assert.equal(
+      doing.isRunning(() => true),
+      false,
+    );
+  });
+}
+
+test('a throwing action releases its claims and does not discard other scheduled actions', () => {
+  const { w, claims, doing, outcomes } = world();
+  const spot = {};
+  let stops = 0;
+  const broken = new Step(
+    (_w, dt) => {
+      claims.take('spot', broken, spot, { owner: broken });
+
+      if (dt > 0) {
+        throw new Error('perform failed');
+      }
+
+      return running;
+    },
+    () => stops++,
+  );
+  const other = new Wait({ label: 'OTHER', frames: 1 });
+  doing.do(w, broken);
+  doing.do(w, other);
+  assert.throws(() => doing.update(w, 1), /perform failed/);
+  assert.equal(claims.holder('spot', spot), null);
+  assert.equal(stops, 1);
+  assert.equal(
+    doing.isRunning((a) => a === other),
+    true,
+  );
+  doing.update(w, 1);
+  assert.deepEqual(outcomes, [
+    ['fail', '', 'ACTION FAILED'],
+    ['done', 'OTHER'],
+  ]);
+});
+
+test('errors in an action and its cleanup both remain available to the caller', () => {
+  const { w, claims, doing } = world();
+  const spot = {};
+  const act = new Step(
+    () => {
+      claims.take('spot', act, spot, { owner: act });
+      throw new Error('perform failed');
+    },
+    () => {
+      throw new Error('stop failed');
+    },
+  );
+  assert.throws(
+    () => doing.do(w, act),
+    (e) => {
+      assert.equal(e.name, 'AggregateError');
+      assert.deepEqual(
+        e.errors.map((error) => error.message),
+        ['perform failed', 'stop failed'],
+      );
+      return true;
+    },
+  );
+  assert.equal(claims.holder('spot', spot), null);
+  assert.equal(
+    doing.isRunning(() => true),
+    false,
+  );
+});
+
+test('replacement resolution sees the old action claims already released', () => {
+  const { w, claims, doing } = world();
+  const spot = {};
+  const next = new Wait({ resolveTo: () => (claims.free('spot', spot) ? next : fail('TAKEN')) });
+  const first = new Step(() => {
+    claims.take('spot', first, spot, { owner: first });
+    return instead(next);
+  });
+  assert.deepEqual(doing.do(w, first), done);
+});
+
+test('cancelling an owner stops all its actions even when one cleanup throws', () => {
+  const { w, doing } = world();
+  const owner = new Step(() => running);
+  let stopped = 0;
+  const first = new Step(
+    () => running,
+    () => {
+      throw new Error('stop failed');
+    },
+  );
+  const second = new Step(
+    () => running,
+    () => stopped++,
+  );
+  first.parent = owner;
+  second.parent = owner;
+  doing.do(w, first);
+  doing.do(w, second);
+  assert.throws(() => doing.cancel(owner), /stop failed/);
+  assert.equal(stopped, 1);
+  assert.equal(
+    doing.isRunning(() => true),
+    false,
+  );
+});

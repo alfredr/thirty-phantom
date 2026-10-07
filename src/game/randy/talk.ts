@@ -1,6 +1,7 @@
 import type { Vector3 } from 'three';
 
 import type { Npc, Npcs } from '@/actors/npcs/npcs';
+import type { Release } from '@/engine/core/disposable';
 import type { Focus } from '@/engine/input/input';
 import type { Control } from '@/game/controls';
 import { type Choice, Conversation } from '@/game/story/conversation';
@@ -46,8 +47,6 @@ export class RandyTalk extends Conversation<Npc, 'give'> {
 
   /** Hold Randy for the conversation and offer a trade when Cody has tires. */
   start(n: Npc): void {
-    n.send({ type: 'held', face: null });
-
     if (this.hooks.tires() > 0) {
       this.open(n, "THOSE WHEELS, KID? FIRE COULD USE 'EM.");
       return;
@@ -74,8 +73,7 @@ export class RandyTalk extends Conversation<Npc, 'give'> {
     this.lastLine(this.hooks.give(n) ? 'OHHH. NICE WHEELS.' : "HOLD ON, FIRE'S BUSY.");
   }
 
-  /** Release Randy to resume his ordinary pitch behavior. */
-  protected ended(n: Npc): void {
-    n.send({ type: 'released' });
+  protected attend(n: Npc): Release {
+    return n.attention.take({ face: null });
   }
 }

@@ -42,13 +42,13 @@ export function quietHoldsPopupsAndTheGapSpacesThem() {
   sim.run(2);
   const firstShown = sim.popup();
   sim.run(30);
-  g.cutscene = { focus: g.player.pos.clone(), zoom: 30 };
+  const shot = g.cameraShots.take({ focus: g.player.pos.clone(), zoom: 30 });
   let rang = 0;
   g.phone.queueCall(() => rang++);
   g.phone.text('SECOND', { brief: 1 });
   sim.run(30 * 40);
   const heldByCutscene = rang === 0 && !sim.popup();
-  g.cutscene = null;
+  shot();
   sim.run(2);
   const calling = rang === 1 && g.phone.calling;
   sim.run(30 * 5);

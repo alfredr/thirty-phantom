@@ -23,8 +23,9 @@ import { StoryClock } from './story-clock';
 import { Goals } from './story-goals';
 import { Outreach } from './story-outreach';
 import { Recovery } from './story-recovery';
-import { BEATS, type BeatId, type Cast, ERRAND, type ErrandId, type TutorialEvent } from './tutorial-beats';
-import { moltenKeys, Scenes, type Stage, stagedView, stageOn } from './tutorial-scenes';
+import { BEATS, type BeatId, ERRAND, type ErrandId } from './tutorial-beats';
+import type { RoofStage, TutorialContext, TutorialEvent } from './tutorial-context';
+import { doorOf, moltenKeys, stagedView, stageOn } from './tutorial-scenes';
 
 /** Persist completion of the whole tutorial, or of part 1 at the first escape so a reload restarts part 2. */
 const DONE_KEY = '30pc.tutorial';
@@ -66,13 +67,12 @@ export class Tutorial {
   private readonly goals: Goals;
   private readonly outreach: Outreach;
   private readonly recovery: Recovery;
-  private readonly scenes: Scenes;
   private readonly camera: StoryCamera;
-  private readonly gas: RoofScene;
+  private readonly roofScene: RoofScene;
   private access: Access | null = null;
-  private cast: Cast | null = null;
-  private main: Director<Cast, TutorialEvent, BeatId> | null = null;
-  private errand: Director<Cast, TutorialEvent, ErrandId> | null = null;
+  private context: TutorialContext | null = null;
+  private main: Director<TutorialContext, TutorialEvent, BeatId> | null = null;
+  private errand: Director<TutorialContext, TutorialEvent, ErrandId> | null = null;
   private settings: Settings | null = null;
   private t = 0;
   private readonly head = new Vector3();
@@ -118,13 +118,8 @@ export class Tutorial {
       },
     );
     this.recovery = new Recovery(game);
-    this.scenes = new Scenes(
-      game,
-      (e) => this.send(e),
-      () => this.cast,
-    );
     this.camera = new StoryCamera(game);
-    this.gas = new RoofScene(game);
+    this.roofScene = new RoofScene(game);
     this.titleLink();
     const ev = game.events;
     ev.on('start', () => this.begin());
@@ -188,7 +183,7 @@ export class Tutorial {
     this.settings = settings;
     g.randyTalk.enabled = false;
     g.skipAfterEating = false;
-    const access = new Access(g, () => this.cast?.pickup ?? null, this.barriers, settings);
+    const access = new Access(g, () => this.context?.pickup ?? null, this.barriers, settings);
     this.access = access;
     const { randy: face, cody } = g.portraits;
     this.dialogue.setPortrait('left', face);
@@ -198,7 +193,7 @@ export class Tutorial {
     const pickup = g.park(stage.truck, stage.yaw, 'pickup');
     pickup.plate = PLATE;
     g.garage.checkIn(stage.spot, pickup);
-    const cast: Cast = {
+    const context: TutorialContext = {
       game: g,
       level: this.level,
       clock: this.clock,
@@ -206,45 +201,45 @@ export class Tutorial {
       outreach: this.outreach,
       access,
       recovery: this.recovery,
-      scenes: this.scenes,
+      send: (e) => this.send(e),
       camera: this.camera,
       sign: this.sign,
-      chapter: { imprint: null, smelled: false, views: new Set() },
-      gas: this.gas,
+      progress: { firstPhantom: null, noticedSmell: false, viewsSeen: new Set() },
+      roofScene: this.roofScene,
       pickup,
       randy,
       stage,
       touch: wantsTouch(),
       startErrand: () => this.errand?.start('cooled'),
-      remember: (part) => remember(part === 1 ? PART1_KEY : DONE_KEY),
-      bam: () => {
+      rememberFirstNight: () => remember(PART1_KEY),
+      announcePhantomCody: () => {
         g.hud.toast('BAM.', 'PHANTOM CODY', '', 2.6);
         this.dialogue.setPortrait('right', g.portraits.codyNight);
       },
-      wake: () => {
+      showDayPresentation: () => {
         g.hud.showLedger(true);
         this.camera.restore();
         this.dialogue.setPortrait('right', g.portraits.cody);
       },
     };
-    this.cast = cast;
-    this.main = new Director(BEATS, cast, {
+    this.context = context;
+    this.main = new Director(BEATS, context, {
       prefix: 'beat',
       moved: (id) => this.moved(id),
     });
-    this.errand = new Director(ERRAND, cast, {
+    this.errand = new Director(ERRAND, context, {
       prefix: 'errand',
       moved: (id) => g.events.emit('step', { quest: 'tutorial-keys', step: id ?? 'over' }),
     });
 
     if (remembered(PART1_KEY)) {
-      this.morning(cast);
+      this.morning(context);
     } else {
-      this.opening(cast, stage);
+      this.opening(context, stage);
     }
   }
 
-  private opening(c: Cast, st: Stage): void {
+  private opening(c: TutorialContext, st: RoofStage): void {
     const g = this.game;
     const r = c.randy;
     g.hud.showLedger(false);
@@ -253,15 +248,22 @@ export class Tutorial {
     g.board(c.pickup, true);
     r.place(st.randy, st.randyYaw);
     r.prop('burner').visible = false;
-    this.gas.setup(r);
+    this.roofScene.setup(r);
 
     if (!g.inventory.count('badge')) {
       g.inventory.add('badge');
     }
 
     const fire = r.fire?.root.position ?? st.randy;
-    const door = this.scenes.doorOf(c.pickup).pos;
-    const action = [st.window, door, fillPoint(c.pickup), fire, st.randy, ...this.gas.cans.map((o) => o.position)];
+    const door = doorOf(c.pickup).pos;
+    const action = [
+      st.window,
+      door,
+      fillPoint(c.pickup),
+      fire,
+      st.randy,
+      ...this.roofScene.cans.map((o) => o.position),
+    ];
     const focus = this.camera.focus.set(0, 0, 0);
     for (const p of action) {
       focus.add(p);
@@ -294,7 +296,7 @@ export class Tutorial {
     this.main?.start('roof');
   }
 
-  private morning(c: Cast): void {
+  private morning(c: TutorialContext): void {
     const g = this.game;
     g.clock.day = 2;
     g.clock.hours = TUNING.clock.sunrise;
@@ -303,12 +305,12 @@ export class Tutorial {
     g.haunt(true);
     c.pickup.ignition.hotwired = true;
     c.pickup.ignition.transfer('away', c.randy.keys);
-    moltenKeys(c);
+    moltenKeys(g, c.randy, c.pickup);
     this.main?.start('morning');
   }
 
   private frame(dt: number): void {
-    if (!this.cast) {
+    if (!this.context) {
       return;
     }
 
@@ -316,7 +318,6 @@ export class Tutorial {
     this.head.copy(this.me()).setY(this.me().y + HEAD);
     this.barriers.update(dt, this.t);
     this.outreach.tick(dt);
-    this.scenes.tick(dt);
     this.camera.tick(dt);
 
     if (this.active) {
@@ -327,7 +328,7 @@ export class Tutorial {
   }
 
   private send(e: TutorialEvent): void {
-    if (!this.cast) {
+    if (!this.context) {
       return;
     }
 

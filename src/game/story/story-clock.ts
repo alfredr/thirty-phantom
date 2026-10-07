@@ -1,7 +1,8 @@
+import { Leases } from '@/engine/sim/leases';
 import type { MindEvent } from '@/engine/sim/mind';
 import type { GameClock } from '@/game/game-clock';
 
-import { Leases, type Part } from './director';
+import type { Part } from './director';
 
 export type ClockRule =
   | { readonly kind: 'pause' }

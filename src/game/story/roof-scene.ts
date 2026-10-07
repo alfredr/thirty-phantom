@@ -2,28 +2,20 @@ import { type Object3D, Vector3 } from 'three';
 
 import { buildGasCan } from '@/actors/models/gas-can';
 import { buildKeys } from '@/actors/models/keys';
-import {
-  attachProp,
-  effect,
-  face,
-  gesture,
-  type Home,
-  homeOf,
-  type NpcAction,
-  putBack,
-  releaseProp,
-  Take,
-  wait,
-  walkTo,
-} from '@/actors/npcs/npc-actions';
+import { effect, gesture, type Home, homeOf, type NpcAction, putBack, Take, wait } from '@/actors/npcs/npc-actions';
 import type { Npc } from '@/actors/npcs/npcs';
 import { driverDoor } from '@/actors/vehicles/doors';
 import type { Vehicle } from '@/actors/vehicles/vehicle';
+import { releaseOnce } from '@/engine/core/disposable';
+import { done } from '@/engine/sim/action';
+import { Sequence } from '@/engine/sim/sequence';
 import type { Game } from '@/game/game';
+
+import type { NpcSceneBindings } from './npc-scene';
+import { roof, type RoofAction, type RoofDefinition, type RoofPoint } from './roof-choreography';
 
 const KEYS_OFF = 0.6;
 const KEYS_SCALE = 1.7;
-const STAND_OFF = 0.55;
 const CAN_SPREAD = 0.8;
 const CAN_BACK = 0.3;
 const FILL_BACK = 0.3;
@@ -124,49 +116,57 @@ export class RoofScene {
     p.place(p.pos.clone(), Math.atan2(at.x - p.pos.x, at.z - p.pos.z));
   }
 
-  handBadge(randy: Npc, pickup: Vehicle): NpcAction[] {
+  play(definition: RoofDefinition, randy: Npc, pickup: Vehicle, home = randy.pos): NpcAction {
+    return roof.play(definition, this.sceneBindings(randy, pickup, home));
+  }
+
+  private takeBadge(randy: Npc, pickup: Vehicle): NpcAction {
     const g = this.game;
     const cody = g.player;
     const badge = randy.prop('badge');
     const home = this.badgeHome;
-    if (!home) {
-      return [];
-    }
+    const props = this;
+    return new Sequence(function* () {
+      if (!home) {
+        return done;
+      }
 
-    const az = g.iso.azimuth;
-    const across = new Vector3(Math.cos(az), 0, -Math.sin(az));
-    const side = Math.sign(_a.subVectors(randy.pos, cody.pos).dot(across)) || 1;
-    const stand = cody.pos.clone().addScaledVector(across, side * HAND_GAP);
-    return [
-      walkTo(randy, stand, { face: null }),
-      effect(() => {
-        this.turnToward(randy.pos);
-        g.inventory.take('badge', 1);
-        this.palm(cody.palm, badge);
-        cody.offer(1);
-        this.dropKeys(pickup);
-      }),
-      wait(OFFER_FOR),
-      new Take({ npc: randy, item: badge, home, seconds: TAKE_FOR, at: TAKE_AT, took: () => cody.offer(0) }),
-    ];
+      using _offer = releaseOnce(() => {
+        cody.offer(0);
+
+        if (badge.parent === cody.palm) {
+          putBack(badge, home);
+        }
+      });
+      props.turnToward(randy.pos);
+      g.inventory.take('badge', 1);
+      props.palm(cody.palm, badge);
+      cody.offer(1);
+      props.dropKeys(pickup);
+      yield wait(OFFER_FOR);
+      return yield new Take({
+        npc: randy,
+        item: badge,
+        home,
+        seconds: TAKE_FOR,
+        at: TAKE_AT,
+        took: () => cody.offer(0),
+      });
+    });
   }
 
-  skipBadge(randy: Npc, pickup: Vehicle): NpcAction[] {
+  private skipBadge(randy: Npc, pickup: Vehicle): void {
     const g = this.game;
-    return [
-      effect(() => {
-        g.inventory.take('badge', 1);
-        g.player.offer(0);
+    g.inventory.take('badge', 1);
+    g.player.offer(0);
 
-        if (this.badgeHome) {
-          putBack(randy.prop('badge'), this.badgeHome);
-        }
+    if (this.badgeHome) {
+      putBack(randy.prop('badge'), this.badgeHome);
+    }
 
-        if (!this.keys && pickup.ignition.heldBy(g.inventory.keys)) {
-          this.dropKeys(pickup);
-        }
-      }),
-    ];
+    if (!this.keys && pickup.ignition.heldBy(g.inventory.keys)) {
+      this.dropKeys(pickup);
+    }
   }
 
   private palm(palm: Object3D, item: Object3D): void {
@@ -178,47 +178,6 @@ export class RoofScene {
     const card = item.children[0]?.position;
     item.position.set(-(card?.x ?? 0) * item.scale.x, -(card?.y ?? 0) * item.scale.y, -(card?.z ?? 0) * item.scale.z);
     item.visible = true;
-  }
-
-  pickKeys(randy: Npc, pickup: Vehicle): NpcAction[] {
-    const keys = this.keys;
-    if (!keys) {
-      return [];
-    }
-
-    const at = keys.position.clone();
-    return [
-      walkTo(randy, at, { arrive: STAND_OFF, face: at }),
-      gesture(randy, 'bend', 0.55),
-      attachProp(randy, 'leftHand', keys),
-      effect(() => pickup.ignition.transfer('ground', randy.keys)),
-      gesture(randy, 'bend', 0.45),
-      wait(0.15),
-      releaseProp(randy, keys, null),
-      effect(() => {
-        this.keys = null;
-      }),
-      face(randy, null),
-      wait(0.2),
-    ];
-  }
-
-  pourGas(randy: Npc, pickup: Vehicle): NpcAction[] {
-    const can = this.cans[0];
-    if (!can) {
-      return [];
-    }
-
-    const fill = fillPoint(pickup);
-    const stand = beside(pickup, fill, FILL_STAND).setY(randy.pos.y);
-    return [
-      ...this.fetch(randy, can),
-      walkTo(randy, stand, { face: fill }),
-      ...this.pourOut(randy, fill, POUR),
-      effect(() => {
-        this.poured = true;
-      }),
-    ];
   }
 
   dropCan(randy: Npc, i: number): void {
@@ -233,49 +192,6 @@ export class RoofScene {
     p.y = this.game.world.collision.groundAt(p.x, p.z, randy.pos.y + 1, 0) + 0.1;
   }
 
-  baste(randy: Npc, home: Vector3): NpcAction[] {
-    const can = this.cans[1];
-    const fire = randy.fire;
-    if (!can || !fire) {
-      return [];
-    }
-
-    const drum = fire.root.position.clone();
-    return [
-      ...this.fetch(randy, can),
-      walkTo(randy, home.clone(), { face: drum }),
-      ...this.pourOut(randy, drum, SPLASH),
-      effect(() => this.flare(randy)),
-      effect(() => this.dropCan(randy, 1)),
-      wait(2.2),
-    ];
-  }
-
-  skipKeys(randy: Npc, pickup: Vehicle): NpcAction[] {
-    return [
-      effect(() => {
-        this.keys?.removeFromParent();
-        this.keys = null;
-
-        if (pickup.ignition.heldBy('ground')) {
-          pickup.ignition.transfer('ground', randy.keys);
-        }
-      }),
-    ];
-  }
-
-  skipGas(): NpcAction[] {
-    return [
-      effect(() => {
-        this.poured = true;
-      }),
-    ];
-  }
-
-  skipBaste(randy: Npc): NpcAction[] {
-    return [effect(() => this.flare(randy)), effect(() => this.dropCan(randy, 1))];
-  }
-
   private flare(randy: Npc): void {
     const fire = randy.fire;
     if (!fire) {
@@ -288,23 +204,74 @@ export class RoofScene {
     this.game.events.emit('sfx', { name: 'fire-flare', at: fire.root.position.clone() });
   }
 
-  private fetch(randy: Npc, can: Object3D): NpcAction[] {
-    const at = can.position.clone();
-    return [
-      walkTo(randy, at, { arrive: STAND_OFF, face: at }),
-      gesture(randy, 'bend', 0.5),
-      attachProp(randy, 'leftHand', can, GRIP_DROP),
-      gesture(randy, 'bend', 0.4),
-    ];
-  }
-
-  private pourOut(randy: Npc, into: Vector3, seconds: number): NpcAction[] {
-    return [
-      face(randy, into),
+  private sceneBindings(
+    randy: Npc,
+    pickup: Vehicle,
+    home: Vector3,
+  ): NpcSceneBindings<'randy', RoofPoint, never, RoofAction> {
+    const g = this.game;
+    const cody = g.player;
+    const az = g.iso.azimuth;
+    const across = new Vector3(Math.cos(az), 0, -Math.sin(az));
+    const side = Math.sign(_a.subVectors(randy.pos, cody.pos).dot(across)) || 1;
+    const fill = fillPoint(pickup);
+    const fire = randy.fire?.root.position.clone() ?? randy.pos.clone();
+    const holdCan = (i: number): NpcAction =>
+      effect(() => {
+        const can = this.cans[i];
+        if (can) {
+          randy.attach(can, 'leftHand', GRIP_DROP);
+        }
+      });
+    const pour = (into: Vector3, seconds: number): NpcAction =>
       gesture(randy, 'pour', seconds, {
         every: GLUG,
-        run: () => this.game.events.emit('sfx', { name: 'gas-glug', at: into.clone() }),
-      }),
-    ];
+        run: () => g.events.emit('sfx', { name: 'gas-glug', at: into.clone() }),
+      });
+    const pocketKeys = (): void => {
+      this.keys?.removeFromParent();
+      this.keys = null;
+
+      if (pickup.ignition.heldBy('ground')) {
+        pickup.ignition.transfer('ground', randy.keys);
+      }
+    };
+
+    return {
+      actors: { randy },
+      points: {
+        handoff: cody.pos.clone().addScaledVector(across, side * HAND_GAP),
+        keys: this.keys?.position.clone() ?? randy.pos.clone(),
+        gasCan: this.cans[0]?.position.clone() ?? randy.pos.clone(),
+        bastingCan: this.cans[1]?.position.clone() ?? randy.pos.clone(),
+        fillStand: beside(pickup, fill, FILL_STAND).setY(randy.pos.y),
+        fill,
+        home: home.clone(),
+        fire,
+      },
+      shots: {},
+      actions: {
+        takeBadge: () => this.takeBadge(randy, pickup),
+        skipBadge: () => effect(() => this.skipBadge(randy, pickup)),
+        holdKeys: () =>
+          effect(() => {
+            if (this.keys) {
+              randy.attach(this.keys, 'leftHand');
+              pickup.ignition.transfer('ground', randy.keys);
+            }
+          }),
+        pocketKeys: () => effect(pocketKeys),
+        holdGasCan: () => holdCan(0),
+        holdBastingCan: () => holdCan(1),
+        pourFuel: () => pour(fill, POUR),
+        basteFire: () => pour(fire, SPLASH),
+        markPoured: () =>
+          effect(() => {
+            this.poured = true;
+          }),
+        flare: () => effect(() => this.flare(randy)),
+        dropBastingCan: () => effect(() => this.dropCan(randy, 1)),
+      },
+    };
   }
 }

@@ -1,10 +1,13 @@
 import { Object3D, Raycaster, Vector3 } from 'three';
 
-import { effect, face, HandOver, type NpcAction, Throw, walkTo } from '@/actors/npcs/npc-actions';
-import type { NpcRun } from '@/actors/npcs/npcs';
+import { type NpcAction, Throw, wait } from '@/actors/npcs/npc-actions';
+import type { Npc } from '@/actors/npcs/npcs';
 import { driverDoor } from '@/actors/vehicles/doors';
 import type { Vehicle } from '@/actors/vehicles/vehicle';
 import { TUNING } from '@/config';
+import { Disposables, releaseOnce } from '@/engine/core/disposable';
+import { done } from '@/engine/sim/action';
+import { Sequence, WaitUntil } from '@/engine/sim/sequence';
 import type { CamView } from '@/game/camera-controller';
 import { ScriptedOffer } from '@/game/cody/cody-actions';
 import type { Garage, SpotRuntime } from '@/game/deck/garage';
@@ -14,8 +17,10 @@ import { ISO_ELEVATION } from '@/render/iso-camera';
 import { ITEM_ICONS } from '@/ui/item-icons';
 import type { GateDef, LevelData, RampDef } from '@/world/level-data';
 
-import { type Active, Leases, type Part, type Scope } from './director';
-import type { Cast, TutorialEvent } from './tutorial-beats';
+import { type Part, steps } from './director';
+import { inView, npcScenes, player, type NpcSceneBindings } from './npc-scene';
+import type { StoryCamera } from './story-camera';
+import type { RoofStage, TutorialContext, TutorialEvent } from './tutorial-context';
 
 const MIN_RUN = 9;
 const RUN_UP = 14;
@@ -24,23 +29,9 @@ const RANDY_SIDE = 1.2;
 const TOSS_PAST = 12;
 const DOOR = 2.6;
 const DOOR_GAP = 1;
-const TALK_HEIGHT = 1.2;
 const VIEW_TURNS = [0.45, -0.45, 0.2, -0.2];
-const THROW_HOLD = 1.5;
-const HAND_OVER = 0.7;
-const REACH_TIME = 1.4;
-const RUN_SPEED = 4.2;
-const OUT_OF_VIEW = 0.8;
-const RUN_MAX = 10;
-const RECOVERIES = 2;
 const EXIT_OUT = 1;
 const NOTICE = 4.5;
-const IMPRINT_LAND = 3;
-const IMPRINT_ZOOM = 16;
-const IMPRINT_SIGN = 2.4;
-const IMPRINT_HOLD = 15;
-const IMPRINT_ABOVE = 5;
-const BASEMENT_ZOOM = 10;
 const TALK_REACH = 3.6;
 const ENTER_HEIGHT = 1.8;
 const AIR_ABOVE = 0.5;
@@ -51,190 +42,84 @@ const TAILPIPE = 0.5;
 const _side = new Vector3();
 const _toCamera = new Vector3();
 
-export interface Stage {
-  readonly spot: SpotRuntime;
-  readonly truck: Vector3;
-  readonly yaw: number;
-  readonly turn: 'LEFT' | 'RIGHT';
-  readonly randy: Vector3;
-  readonly randyYaw: number;
-  readonly window: Vector3;
-  readonly toss: Vector3;
-  readonly ramp: RampDef;
-  readonly start: Pose;
-  readonly lip: Vector3;
-  readonly roof: number;
+type ScenePart = Part<TutorialContext, TutorialEvent, string>;
+
+const { hold } = steps<TutorialContext, TutorialEvent, string>();
+
+export function coat(game: Pick<Game, 'waresShown'>, npc: Npc, open: boolean): void {
+  npc.send({ type: 'flash', open });
+  game.waresShown = open ? npc : null;
 }
 
-export interface Imprint {
-  readonly at: Vector3;
-  readonly title: string;
-  readonly meta: string;
+export function doorOf(v: Vehicle): Pose {
+  return { pos: driverDoor(v, DOOR_GAP, new Vector3()), yaw: v.yaw };
 }
 
-type ScenePart = Part<Cast, TutorialEvent, string>;
-
-export interface Chapter {
-  imprint: Imprint | null;
-  smelled: boolean;
-  readonly views: Set<CamView>;
+export function gateAt(gate: GateDef): Vector3 {
+  return new Vector3((gate.min[0] + gate.max[0]) / 2, gate.min[1], (gate.min[2] + gate.max[2]) / 2);
 }
 
-export class Scenes {
-  gone = false;
-  private exit: { run: NpcRun; t: number } | null = null;
-  private readonly staging = new Leases<true>((on) => this.stage(on !== null));
-
-  constructor(
-    private readonly game: Game,
-    readonly send: (e: TutorialEvent) => void,
-    private readonly cast: () => Cast | null,
-  ) {}
-
-  tick(dt: number): void {
-    this.runOff(dt);
-  }
-
-  hold(): () => void {
-    return this.staging.take(true);
-  }
-
-  throwBadge(): void {
-    const c = this.cast();
-    if (!c) {
-      return;
-    }
-
-    const r = c.randy;
-    const flying = new Vector3();
-    c.randy.direct([
-      new Throw({
-        npc: r,
-        kind: 'badge',
-        to: c.stage.toss,
-        showPath: true,
-        thrown: (seconds) =>
-          c.camera.track(seconds + THROW_HOLD, () =>
-            r.throwing?.active ? r.prop('badge').getWorldPosition(flying) : flying.copy(c.stage.toss),
+export function tossBadge(npc: Npc, to: Vector3, camera: Pick<StoryCamera, 'track'>): NpcAction {
+  const lingerSeconds = 1.5;
+  const flying = new Vector3();
+  return new Sequence(function* () {
+    using shots = new Disposables();
+    const result = yield new Throw({
+      npc,
+      kind: 'badge',
+      to,
+      showPath: true,
+      thrown: (seconds) =>
+        shots.use(
+          camera.track(seconds + lingerSeconds, () =>
+            npc.throwing?.active ? npc.prop('badge').getWorldPosition(flying) : flying.copy(to),
           ),
-      }),
-    ]);
+        ),
+    });
+    if ('fail' in result) {
+      return result;
+    }
+
+    return yield wait(lingerSeconds);
+  });
+}
+
+export function moltenKeys(game: Pick<Game, 'hud'>, randy: Npc, pickup: Vehicle): void {
+  pickup.ignition.heat = 'molten';
+  game.hud.toast('MOLTEN KEYS', `${ITEM_ICONS.moltenKeys}RANDY ADDS MOLTEN KEYS TO INVENTORY`, 'warn', NOTICE);
+
+  if (!randy.stock?.slotOf('moltenKeys')) {
+    randy.stock?.slots.push({ id: 'molten-keys', kind: 'moltenKeys', count: 1 });
   }
 
-  coat(open: boolean): void {
-    const c = this.cast();
-    if (!c) {
-      return;
-    }
-
-    c.randy.send({ type: 'flash', open });
-    this.game.waresShown = open ? c.randy : null;
-  }
-
-  leave(): void {
-    const c = this.cast();
-    if (!c) {
-      return;
-    }
-
-    const r = c.randy;
-    this.gone = false;
-    r.send({ type: 'held', face: null });
-    this.exit = { run: r.direct([walkTo(r, roofExit(c.level, r.pos), { speed: RUN_SPEED })]), t: 0 };
-  }
-
-  doorOf(v: Vehicle): Pose {
-    return { pos: driverDoor(v, DOOR_GAP, new Vector3()), yaw: v.yaw };
-  }
-
-  gateAt(gate: GateDef): Vector3 {
-    return new Vector3((gate.min[0] + gate.max[0]) / 2, gate.min[1], (gate.min[2] + gate.max[2]) / 2);
-  }
-
-  private stage(on: boolean): void {
-    const c = this.cast();
-    if (!c) {
-      return;
-    }
-
-    if (on) {
-      c.randy.send({ type: 'held', face: c.stage.window });
-    } else {
-      c.randy.send({ type: 'released' });
-      this.game.waresShown = null;
-    }
-  }
-
-  private runOff(dt: number): void {
-    const e = this.exit;
-    const c = this.cast();
-    if (!e || !c) {
-      return;
-    }
-
-    const r = c.randy;
-    const g = this.game;
-    e.t += dt;
-    const seen = g.toScreen(r.pos);
-    const out = !seen || seen.x < 0 || seen.y < 0 || seen.x > window.innerWidth || seen.y > window.innerHeight;
-    if (e.run.running && !(out && e.t > OUT_OF_VIEW) && e.t < RUN_MAX) {
-      return;
-    }
-
-    this.exit = null;
-    this.gone = true;
-    g.puff(r.pos);
-
-    if (r.fire) {
-      g.puff(r.fire.root.position);
-    }
-
-    r.send({ type: 'released' });
-    r.place(new Vector3(...r.def.pos), r.def.yaw);
+  if (randy.fire) {
+    randy.fire.plume = 1;
   }
 }
 
-export function moltenKeys(c: Cast): void {
-  const r = c.randy;
-  c.pickup.ignition.heat = 'molten';
-  c.game.hud.toast('MOLTEN KEYS', `${ITEM_ICONS.moltenKeys}RANDY ADDS MOLTEN KEYS TO INVENTORY`, 'warn', NOTICE);
-
-  if (!r.stock?.slotOf('moltenKeys')) {
-    r.stock?.slots.push({ id: 'molten-keys', kind: 'moltenKeys', count: 1 });
-  }
-
-  if (r.fire) {
-    r.fire.plume = 1;
-  }
-}
-
-export function meltedKeys(c: Cast): void {
-  const r = c.randy;
-  const slots = r.stock?.slots;
+export function meltedKeys(game: Pick<Game, 'hud' | 'inventory'>, randy: Npc, pickup: Vehicle): void {
+  const slots = randy.stock?.slots;
   const i = slots?.findIndex((s) => s.kind === 'moltenKeys') ?? -1;
   if (slots && i >= 0) {
     slots.splice(i, 1);
   }
 
-  const keys = c.pickup.ignition;
+  const keys = pickup.ignition;
   keys.heat = 'melted';
-  keys.transfer(r.keys, c.game.inventory.keys);
-  r.reach(REACH_TIME);
-  c.game.hud.toast('+ MELTED KEYS', 'ONE USELESS CLUMP', '', 2.6);
+  keys.transfer(randy.keys, game.inventory.keys);
+  randy.reach(1.4);
+  game.hud.toast('+ MELTED KEYS', 'ONE USELESS CLUMP', '', 2.6);
 }
 
-export const roofScene = (): ScenePart => ({
-  create: (_s, c) => {
-    const shot = c.camera.hold();
-    const staged = c.scenes.hold();
-    return {
-      stop: () => {
-        staged();
-        shot();
-      },
-    };
-  },
-});
+export const roofScene = (): ScenePart =>
+  hold(
+    (c) => c.camera.hold(),
+    (c) => c.randy.attention.take({ face: c.stage.window }),
+    (c) =>
+      releaseOnce(() => {
+        c.game.waresShown = null;
+      }),
+  );
 
 export const ledgerOnJump = (): ScenePart => ({
   create: (_s, c) => ({
@@ -247,94 +132,57 @@ export const ledgerOnJump = (): ScenePart => ({
   }),
 });
 
-class ImprintSign implements Active<TutorialEvent> {
-  private shownAt: number | null = null;
-  private release: (() => void) | null = null;
-  private readonly sign = new Vector3();
-
-  constructor(
-    private readonly s: Scope<string>,
-    private readonly c: Cast,
-  ) {}
-
-  tick(): void {
-    const { s, c } = this;
-    const im = c.chapter.imprint;
+export const imprintSign = (c: TutorialContext): Sequence<TutorialContext, TutorialContext> =>
+  new Sequence(function* () {
+    const im = c.progress.firstPhantom;
     if (!im) {
-      s.done();
-      return;
+      return done;
     }
 
-    this.sign.copy(im.at).setY(im.at.y + IMPRINT_SIGN);
-
-    if (this.shownAt !== null) {
-      if (!c.sign.open) {
-        return;
-      }
-
-      c.sign.place(c.game.toScreen(this.sign));
-
-      if (s.t - this.shownAt > IMPRINT_HOLD) {
-        c.sign.dismiss();
-      }
-
-      return;
-    }
-
-    if (!c.pickup.grounded && s.t < IMPRINT_LAND) {
-      return;
-    }
-
-    const g = c.game;
-    const focus = im.at.clone().setY(im.at.y + IMPRINT_ABOVE);
+    yield new WaitUntil<TutorialContext, TutorialContext>(() => c.pickup.grounded, { timeoutSeconds: 3 });
+    const signHeight = 2.4;
+    const cameraHeight = 5;
+    const sign = im.at.clone().setY(im.at.y + signHeight);
+    const focus = im.at.clone().setY(im.at.y + cameraHeight);
     const sights = [-2, 0, 2].map((d) => im.at.clone().add(_side.set(d, 1, d * 0.3)));
+    const g = c.game;
     g.iso.azimuth = g.iso.azimuthTarget = clearView(g.world.root, sights, g.iso.azimuth);
-    this.shownAt = s.t;
-    this.release = c.camera.cut({ focus, zoom: IMPRINT_ZOOM });
+    using _shot = c.camera.cut({ focus, zoom: 16 });
+    using _sign = releaseOnce(() => c.sign.cancel());
     g.hud.clearToasts();
-    c.sign.show(im.title, im.meta, `FILL ALL ${TUNING.garage.spots} SPOTS WITH PHANTOMS.`, () =>
-      c.scenes.send({ type: 'signed' }),
-    );
+    c.sign.show(im.title, im.meta, `FILL ALL ${TUNING.garage.spots} SPOTS WITH PHANTOMS.`, () => undefined);
     c.sign.place(null);
-  }
+    yield new WaitUntil<TutorialContext, TutorialContext>(() => !c.sign.open, {
+      timeoutSeconds: 15,
+      update: () => c.sign.place(g.toScreen(sign)),
+    });
+    c.sign.dismiss();
+    return done;
+  });
 
-  stop(): void {
-    this.release?.();
-    this.c.sign.cancel();
-  }
-}
-
-export const imprintSign = (): ScenePart => ({ create: (s, c) => new ImprintSign(s, c) });
-
-export const seatAtFire = (): ScenePart => ({
-  create: (_s, c) => {
-    const r = c.randy;
-    const focus = new Vector3()
-      .addVectors(r.pos, c.game.player.pos)
-      .multiplyScalar(0.5)
-      .setY(r.pos.y + TALK_HEIGHT);
-    const shot = c.camera.cut({ focus, zoom: BASEMENT_ZOOM });
-    r.send({ type: 'held', face: null });
-    return {
-      stop: () => {
-        shot();
-        r.send({ type: 'released' });
+export const seatAtFire = (): ScenePart =>
+  hold(
+    (c) => {
+      const r = c.randy;
+      const cameraHeight = 1.2;
+      const focus = new Vector3()
+        .addVectors(r.pos, c.game.player.pos)
+        .multiplyScalar(0.5)
+        .setY(r.pos.y + cameraHeight);
+      return c.camera.cut({ focus, zoom: 10 });
+    },
+    (c) => c.randy.attention.take({ face: null }),
+    (c) =>
+      releaseOnce(() => {
         c.game.waresShown = null;
-      },
-    };
-  },
-});
+      }),
+  );
 
-export const faceCody = (): ScenePart => ({
-  create: (_s, c) => {
-    c.randy.send({ type: 'held', face: null });
-    return { stop: () => c.randy.send({ type: 'released' }) };
-  },
-});
+export const faceCody = (): ScenePart => hold((c) => c.randy.attention.take({ face: null }));
 
 export const watchViews = (): ScenePart => ({
   create: (s, c) => {
-    c.chapter.views.clear();
+    c.progress.viewsSeen.clear();
     return {
       tick: () => {
         if (c.pickup.role !== 'player') {
@@ -342,8 +190,8 @@ export const watchViews = (): ScenePart => ({
         }
 
         const view: CamView = c.game.cameraMode === 'iso' ? 'iso' : 'chase';
-        if (!c.chapter.views.has(view)) {
-          c.chapter.views.add(view);
+        if (!c.progress.viewsSeen.has(view)) {
+          c.progress.viewsSeen.add(view);
           s.progress();
         }
       },
@@ -394,63 +242,119 @@ export const talkToRandy = (): ScenePart => ({
 
         return new ScriptedOffer({
           label: 'TALK TO RANDY',
-          start: () => c.scenes.send({ type: 'talk', tires: g.inventory.count('tire') }),
+          start: () => c.send({ type: 'talk', tires: g.inventory.count('tire') }),
         });
       }),
     };
   },
 });
 
-export type Recover = (c: Cast, reason: string) => NpcAction[];
-
-export const perform = (build: (c: Cast) => NpcAction[], recover: Recover): ScenePart => ({
+export const directRandy = (build: (c: TutorialContext) => NpcAction): ScenePart => ({
   create: (s, c) => {
-    let run = c.randy.direct(build(c));
-    let recoveries = 0;
+    const run = c.randy.direct([build(c)]);
+    let finished = false;
     return {
       tick: () => {
-        switch (run.status) {
-          case 'done':
-            s.done();
-            break;
-          case 'failed':
-            if (recoveries < RECOVERIES) {
-              recoveries++;
-              run = c.randy.direct(recover(c, run.reason ?? ''));
-            }
+        if (finished || run.running) {
+          return;
+        }
 
-            break;
-          case 'cancelled':
-          case 'running':
-            break;
+        finished = true;
+
+        if (run.status === 'done') {
+          s.done();
+        } else {
+          s.struggle();
         }
       },
-      stop: () => c.randy.stopDirecting(run),
+      stop: () => {
+        finished = true;
+        c.randy.stopDirecting(run);
+      },
     };
   },
 });
 
-export function handPhone(c: Cast): NpcAction[] {
-  const r = c.randy;
-  return [
-    face(r, null),
-    new HandOver({ npc: r, kind: 'burner', seconds: REACH_TIME, at: HAND_OVER, give: () => givePhone(c) }),
-  ];
+const handoff = npcScenes<'randy', never, 'roof'>();
+const departure = npcScenes<'randy', 'roofExit', never>();
+
+export const PHONE_HANDOFF = handoff.holding(
+  [handoff.attention('randy', player), handoff.camera('roof')],
+  handoff.orElse(
+    handoff.sequence([handoff.face('randy', player), handoff.handOver('randy', 'burner', { seconds: 1.4, at: 0.7 })]),
+    handoff.give('randy', 'burner'),
+  ),
+);
+
+export const ROOF_DEPARTURE = departure.holding(
+  [departure.attention('randy', player)],
+  departure.until(
+    departure.offscreen('randy', { after: 0.8, timeout: 10 }),
+    departure.walkTo('randy', 'roofExit', { speed: 4.2 }),
+  ),
+);
+
+function sceneBindings(
+  game: Pick<Game, 'inventory' | 'handOver'>,
+  randy: Npc,
+  camera: Pick<StoryCamera, 'shot' | 'cut'>,
+): NpcSceneBindings<'randy', never, 'roof'> {
+  return {
+    actors: { randy },
+    actions: {},
+    points: {},
+    shots: { roof: camera.shot },
+    camera,
+    items: {
+      has: (item) => game.inventory.count(item) > 0,
+      give: (from, item) => void game.handOver(from, item),
+    },
+  };
 }
 
-export function skipPhone(c: Cast): NpcAction[] {
-  return [effect(() => givePhone(c))];
+export function handPhone(
+  game: Pick<Game, 'inventory' | 'handOver'>,
+  randy: Npc,
+  camera: Pick<StoryCamera, 'shot' | 'cut'>,
+): NpcAction {
+  return handoff.play(PHONE_HANDOFF, sceneBindings(game, randy, camera));
 }
 
-function givePhone(c: Cast): void {
-  if (!c.game.inventory.count('burner')) {
-    c.game.handOver(c.randy, 'burner');
-  }
-}
+export const leaveRoof = (): ScenePart => ({
+  create: (s, c) => {
+    const r = c.randy;
+    const run = r.direct([
+      departure.play(ROOF_DEPARTURE, {
+        actors: { randy: r },
+        points: { roofExit: roofExit(c.level, r.pos) },
+        shots: {},
+        actions: {},
+        visible: (actor) => inView(c.game, actor.pos),
+      }),
+    ]);
+    return {
+      tick: () => {
+        if (run.running) {
+          return;
+        }
+
+        c.game.puff(r.pos);
+
+        if (r.fire) {
+          c.game.puff(r.fire.root.position);
+        }
+
+        r.place(new Vector3(...r.def.pos), r.def.yaw);
+        s.done();
+      },
+      stop: () => r.stopDirecting(run),
+    };
+  },
+});
 
 export const facing = (): ScenePart => ({
   create: (_s, c) => {
-    c.randy.send({ type: 'held', face: null });
+    c.randy.lookAt(null);
     return {};
   },
 });
@@ -470,8 +374,8 @@ export const coughing = (after = 0): ScenePart => ({
         wait = COUGH_EVERY;
         c.game.events.emit('sfx', { name: 'engine-cough', at: tailpipe(v) });
 
-        if (!c.chapter.smelled) {
-          c.chapter.smelled = true;
+        if (!c.progress.noticedSmell) {
+          c.progress.noticedSmell = true;
           c.outreach.later([{ who: 'right', say: '...WHY DOES IT SMELL LIKE BARBECUE?', solo: true }]);
         }
       },
@@ -484,16 +388,13 @@ export function tailpipe(v: Vehicle): Vector3 {
   return new Vector3(v.pos.x - Math.sin(v.yaw) * back, v.pos.y + TAILPIPE, v.pos.z - Math.cos(v.yaw) * back);
 }
 
-export const settled = (c: Cast): boolean => {
-  const v = c.pickup;
-  return v.grounded && Math.hypot(v.vel.x, v.vel.z) < IDLE_SPEED;
-};
+export const settled = (v: Vehicle): boolean => v.grounded && Math.hypot(v.vel.x, v.vel.z) < IDLE_SPEED;
 
-export function nearestCar(c: Cast, at: Vector3, test: (v: Vehicle) => boolean): Vehicle | null {
+export function nearestCar(vehicles: readonly Vehicle[], at: Vector3, test: (v: Vehicle) => boolean): Vehicle | null {
   let best: Vehicle | null = null;
   let d = Infinity;
-  for (const v of c.game.vehicles) {
-    if (v === c.pickup || v.gone || v.form !== 'car' || !test(v)) {
+  for (const v of vehicles) {
+    if (v.gone || v.form !== 'car' || !test(v)) {
       continue;
     }
 
@@ -507,7 +408,7 @@ export function nearestCar(c: Cast, at: Vector3, test: (v: Vehicle) => boolean):
   return best;
 }
 
-export function stageOn(level: LevelData, garage: Garage, ground: (x: number, z: number) => number): Stage | null {
+export function stageOn(level: LevelData, garage: Garage, ground: (x: number, z: number) => number): RoofStage | null {
   const exit = level.gates.find((g) => g.kind === 'exit');
   const { min, max } = level.deck;
   const ex = exit ? exit.hinge[0] : max[0];

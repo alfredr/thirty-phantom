@@ -1,5 +1,6 @@
 import { Vector3 } from 'three';
 
+import { Disposables } from '@/engine/core/disposable';
 import type { Focus } from '@/engine/input/input';
 import type { Control } from '@/game/controls';
 
@@ -31,12 +32,10 @@ export interface Said {
 
 /**
  * Manage a conversation’s lifetime and input focus. Close on separation, timeout, completion, or subclass cancellation.
- * Subclasses supply dialogue, choices, and participant notifications.
+ * Subclasses supply dialogue, choices, and attention for the session.
  */
 export abstract class Conversation<Who, D> {
-  private talk: { who: Who; t: number; line: string; closing: number } | null = null;
-  /** Remove the conversation’s input focus layer. */
-  private unfocus: (() => void) | null = null;
+  private talk: { who: Who; t: number; line: string; closing: number; held: Disposables } | null = null;
   private readonly head = new Vector3();
 
   constructor(
@@ -72,7 +71,7 @@ export abstract class Conversation<Who, D> {
     return { at: this.head.copy(at).setY(at.y + SPEAKER_HEAD), who: this.name(talk.who), line: talk.line, choices };
   }
 
-  /** Close the conversation, release focus, and notify the participant. */
+  /** Close the conversation and release its focus and attention. */
   close(): void {
     const talk = this.talk;
     if (!talk) {
@@ -80,22 +79,30 @@ export abstract class Conversation<Who, D> {
     }
 
     this.talk = null;
-    this.unfocus?.();
-    this.unfocus = null;
-    this.ended(talk.who);
+    talk.held[Symbol.dispose]();
   }
 
   /** Replace any open conversation and capture controls for enabled choices. */
   protected open(who: Who, line: string): void {
     this.close();
-    this.talk = { who, t: 0, line, closing: -1 };
-    this.unfocus = this.focus.add({
-      controls: () =>
-        this.offered()
-          .filter((c) => !c.off)
-          .map((c) => c.action),
-      press: (control) => this.choose(control),
-    });
+    const held = new Disposables();
+    this.talk = { who, t: 0, line, closing: -1, held };
+
+    try {
+      held.use(this.attend(who));
+      held.use(
+        this.focus.add({
+          controls: () =>
+            this.offered()
+              .filter((c) => !c.off)
+              .map((c) => c.action),
+          press: (control) => this.choose(control),
+        }),
+      );
+    } catch (error) {
+      this.close();
+      throw error;
+    }
   }
 
   /** Display the final line and close after the configured delay. */
@@ -116,8 +123,7 @@ export abstract class Conversation<Who, D> {
   protected abstract choices(who: Who): Choice<D>[];
   /** Handle the selected action payload. */
   protected abstract chose(who: Who, does: D): void;
-  /** Notify the participant that the conversation has ended. */
-  protected abstract ended(who: Who): void;
+  protected abstract attend(who: Who): Disposable;
 
   /** Allow subclasses to end a conversation when its context becomes invalid. */
   protected goingOn(_who: Who): boolean {

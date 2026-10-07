@@ -17,6 +17,7 @@ import { Rng } from '@/engine/core/rng';
 import { urlChoice, urlFlag, urlParam } from '@/engine/core/url-flags';
 import { Input } from '@/engine/input/input';
 import { Claims } from '@/engine/sim/claims';
+import { Leases } from '@/engine/sim/leases';
 import { Space } from '@/engine/sim/space';
 import { Bats } from '@/fx/bats';
 import { PURPLE, SLIME, WHITE } from '@/fx/colors';
@@ -296,8 +297,7 @@ export class Game {
   /** Reusable list of on-foot passenger position references for elevator movement. */
   private readonly riders: readonly Vector3[];
   readonly events = new Emitter<GameEvents>();
-  /** While set, the camera is the cutscene's and the controls are muted. */
-  cutscene: Cutscene | null = null;
+  readonly cameraShots = new Leases<Cutscene>();
   private portraitSet: Portraits | null = null;
   /** Cody's form, abilities, and presence. Scripts can hold his form and grant extra abilities here. */
   readonly cody: CodyState;
@@ -884,6 +884,11 @@ export class Game {
 
   get cameraMode(): CamMode {
     return this.cameras.mode;
+  }
+
+  /** The active camera override also mutes player controls. */
+  get cutscene(): Cutscene | null {
+    return this.cameraShots.top;
   }
 
   /** Board a vehicle for a script, quietly leaving the previous ride. Set `own` to prevent glovebox rewards. */

@@ -5,8 +5,10 @@ export interface Fail {
   readonly fail: string;
 }
 
-/** The outcome of one perform() call, including continuation or replacement. */
-export type Result<A> = { readonly done: true } | Fail | { readonly instead: A } | { readonly running: true };
+export type Outcome = { readonly done: true } | Fail;
+
+/** The result of one perform() call, including continuation or replacement. */
+export type Result<A> = Outcome | { readonly instead: A } | { readonly running: true };
 
 export const done = { done: true } as const;
 export const running = { running: true } as const;
@@ -68,13 +70,18 @@ export interface DoingHooks<S, W extends S> {
   failed?(action: Action<S, W>, reason: string): void;
 }
 
+interface Execution<S, W extends S> {
+  action: Action<S, W>;
+  result: Outcome | null;
+  stopped: boolean;
+}
+
 /**
  * Execute player and AI actions through the same lifecycle. Continue running actions across frames until completion,
- * failure, cancellation, or claim loss. Release an action’s owner claims when that action ends or is replaced.
+ * failure, cancellation, or claim loss. Release an action's owner claims when that action ends or is replaced.
  */
 export class Doing<S, W extends S> {
-  private running: Action<S, W>[] = [];
-  private started: Action<S, W>[] = [];
+  private readonly executions = new Set<Execution<S, W>>();
 
   constructor(private readonly hooks: DoingHooks<S, W>) {}
 
@@ -86,83 +93,124 @@ export class Doing<S, W extends S> {
       return resolved;
     }
 
-    const { result, current } = this.step(w, resolved, 0);
-    if ('running' in result) {
-      this.started.push(current);
-    }
-
-    return result;
+    const run: Execution<S, W> = { action: resolved, result: null, stopped: false };
+    this.executions.add(run);
+    return this.step(w, run, 0);
   }
 
   /** Advances every action that is still running. */
   update(w: W, dt: number): void {
-    const carrying = [...this.running, ...this.started];
-    this.started = [];
-    this.running = [];
-
-    for (const action of carrying) {
-      const { result, current } = this.step(w, action, dt);
-      if ('running' in result) {
-        this.running.push(current);
+    for (const run of [...this.executions]) {
+      if (!run.result) {
+        this.step(w, run, dt);
       }
     }
   }
 
   /** Stops the running actions owned by `owner`. Their claims end with them. */
   cancel(owner: Owner, reason = 'cancelled'): void {
-    const keep = (a: Action<S, W>): boolean => a.owner !== owner;
-    for (const action of [...this.running, ...this.started]) {
-      if (keep(action)) {
-        continue;
+    const errors: unknown[] = [];
+    for (const run of [...this.executions]) {
+      if (run.action.owner === owner) {
+        try {
+          this.finish(run, fail(reason));
+        } catch (error) {
+          errors.push(error);
+        }
       }
-
-      this.finish(action);
-      this.hooks.failed?.(action, reason);
     }
 
-    this.running = this.running.filter(keep);
-    this.started = this.started.filter(keep);
+    if (errors.length === 1) {
+      throw errors[0];
+    }
+
+    if (errors.length) {
+      throw new AggregateError(errors, 'Action cleanup failed');
+    }
   }
 
   /** Whether any running action passes `test`. */
   isRunning(test: (action: Action<S, W>) => boolean): boolean {
-    return this.running.some(test) || this.started.some(test);
-  }
-
-  private step(w: W, action: Action<S, W>, dt: number): { result: Result<Action<S, W>>; current: Action<S, W> } {
-    let current = action;
-    let result: Result<Action<S, W>> = this.hooks.lost(current.owner) ? fail('lost') : current.perform(w, dt);
-    for (let hop = 0; 'instead' in result; hop++) {
-      // Release the current action before resolving its replacement.
-      this.finish(current);
-      const wanted = result.instead;
-      const next = hop < MAX_HOPS ? resolveFully(w, wanted) : fail('NOTHING HAPPENS');
-      if ('fail' in next) {
-        // Attribute resolution failure to the requested replacement.
-        this.hooks.failed?.(wanted, next.fail);
-        return { result: next, current: wanted };
+    for (const run of this.executions) {
+      if (test(run.action)) {
+        return true;
       }
-
-      current = next;
-      result = current.perform(w, dt);
     }
 
-    if (!('running' in result)) {
-      this.finish(current);
+    return false;
+  }
 
+  private step(w: W, run: Execution<S, W>, dt: number): Outcome | typeof running {
+    try {
+      let result = this.hooks.lost(run.action.owner) ? fail('lost') : run.action.perform(w, dt);
+      for (let hop = 0; ; hop++) {
+        if (run.result) {
+          return run.result;
+        }
+
+        if (!('instead' in result)) {
+          return 'running' in result ? running : this.finish(run, result);
+        }
+
+        this.stopAction(run);
+
+        if (run.result) {
+          return run.result;
+        }
+
+        run.action = result.instead;
+        const next = hop < MAX_HOPS ? resolveFully(w, run.action) : fail('NOTHING HAPPENS');
+        if ('fail' in next) {
+          return this.finish(run, next);
+        }
+
+        run.action = next;
+        run.stopped = false;
+        result = next.perform(w, dt);
+      }
+    } catch (error) {
+      try {
+        this.finish(run, fail('ACTION FAILED'));
+      } catch (cleanup) {
+        throw new AggregateError([error, cleanup], 'Action and cleanup failed');
+      }
+
+      throw error;
+    }
+  }
+
+  private finish(run: Execution<S, W>, result: Outcome): Outcome {
+    if (run.result) {
+      return run.result;
+    }
+
+    run.result = result;
+    this.executions.delete(run);
+
+    try {
+      this.stopAction(run);
+    } finally {
       if ('done' in result) {
-        this.hooks.performed?.(current);
-      } else if ('fail' in result) {
-        this.hooks.failed?.(current, result.fail);
+        this.hooks.performed?.(run.action);
+      } else {
+        this.hooks.failed?.(run.action, result.fail);
       }
     }
 
-    return { result, current };
+    return result;
   }
 
-  /** Release the action’s resources and its owner’s claims. */
-  private finish(action: Action<S, W>): void {
-    action.stop();
-    this.hooks.end(action.owner);
+  private stopAction(run: Execution<S, W>): void {
+    if (run.stopped) {
+      return;
+    }
+
+    run.stopped = true;
+    const owner = run.action.owner;
+    try {
+      run.action.stop();
+    } finally {
+      this.hooks.end(owner);
+    }
   }
 }

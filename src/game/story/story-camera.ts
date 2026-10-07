@@ -1,10 +1,12 @@
 import { Vector3 } from 'three';
 
+import { type Release, releaseOnce } from '@/engine/core/disposable';
+import { Leases } from '@/engine/sim/leases';
 import type { MindEvent } from '@/engine/sim/mind';
 import type { CamMode } from '@/game/camera-controller';
 import type { Cutscene, Game } from '@/game/game';
 
-import { Leases, type Part } from './director';
+import type { Part } from './director';
 
 const SCENE_ZOOM = 15;
 const TRACK_ZOOM = 24;
@@ -13,7 +15,7 @@ const EMERGE = 3;
 export class StoryCamera {
   readonly focus = new Vector3();
   zoom = SCENE_ZOOM;
-  private readonly shot: Cutscene = { focus: this.focus, zoom: SCENE_ZOOM };
+  readonly shot: Cutscene = { focus: this.focus, zoom: SCENE_ZOOM };
   private readonly scene = new Leases<true>((on) => this.frame(on !== null));
   private release: (() => void) | null = null;
   private tracking: { left: number; at: () => Vector3 } | null = null;
@@ -21,12 +23,18 @@ export class StoryCamera {
 
   constructor(private readonly game: Game) {}
 
-  hold(): () => void {
+  hold(): Release {
     return this.scene.take(true);
   }
 
-  track(seconds: number, at: () => Vector3): void {
-    this.tracking = { left: seconds, at };
+  track(seconds: number, at: () => Vector3): Release {
+    const tracking = { left: seconds, at };
+    this.tracking = tracking;
+    return releaseOnce(() => {
+      if (this.tracking === tracking) {
+        this.settle();
+      }
+    });
   }
 
   settle(): void {
@@ -58,16 +66,8 @@ export class StoryCamera {
     }
   }
 
-  cut(camera: Cutscene): () => void {
-    const g = this.game;
-    const before = g.cutscene;
-    g.cutscene = camera;
-
-    return () => {
-      if (g.cutscene === camera) {
-        g.cutscene = before;
-      }
-    };
+  cut(camera: Cutscene): Release {
+    return this.game.cameraShots.take(camera);
   }
 
   moonrise(behind: number): void {

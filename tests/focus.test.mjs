@@ -45,3 +45,15 @@ test('a removed layer takes nothing', () => {
   remove();
   assert.equal(focus.route('Digit1', press), false);
 });
+
+test('each focus acquisition has an independent, idempotent disposable release', () => {
+  const focus = new Focus(KEYS);
+  const layer = { controls: () => ['interact'], press() {} };
+  const first = focus.add(layer);
+  const second = focus.add(layer);
+  second[Symbol.dispose]();
+  second();
+  assert.equal(focus.owns('interact'), true);
+  first();
+  assert.equal(focus.owns('interact'), false);
+});

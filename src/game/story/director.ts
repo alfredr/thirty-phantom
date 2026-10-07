@@ -1,4 +1,7 @@
+import { Disposables } from '@/engine/core/disposable';
+import type { Action } from '@/engine/sim/action';
 import { type EventOf, Mind, mind, type MindEvent, type State } from '@/engine/sim/mind';
+import { Sequence } from '@/engine/sim/sequence';
 
 const MAX_MOVES = 16;
 
@@ -224,45 +227,10 @@ export class Director<C, Ev extends MindEvent<string>, Id extends string> {
   }
 }
 
-export class Leases<T> {
-  private readonly held: { value: T }[] = [];
-
-  constructor(private readonly apply: (top: T | null) => void) {}
-
-  get top(): T | null {
-    return this.held.at(-1)?.value ?? null;
-  }
-
-  take(value: T): () => void {
-    const entry = { value };
-    this.held.push(entry);
-    this.apply(value);
-
-    return () => {
-      const i = this.held.indexOf(entry);
-      if (i < 0) {
-        return;
-      }
-
-      const top = i === this.held.length - 1;
-      this.held.splice(i, 1);
-
-      if (top) {
-        this.apply(this.top);
-      }
-    };
-  }
-
-  clear(): void {
-    if (this.held.length) {
-      this.held.length = 0;
-      this.apply(null);
-    }
-  }
-}
-
 export interface Steps<C, Ev extends MindEvent<string>, Id extends string> {
   act(fn: (c: C, s: Scope<Id>) => void): Part<C, Ev, Id>;
+  run(build: (c: C) => Action<C, C>): Part<C, Ev, Id>;
+  hold(...acquire: readonly ((c: C) => Disposable)[]): Part<C, Ev, Id>;
   on<T extends Ev['type']>(type: T, when?: (c: C, e: EventOf<Ev, T>) => boolean, next?: Id | null): Part<C, Ev, Id>;
   react<T extends Ev['type']>(type: T, fn: (c: C, e: EventOf<Ev, T>, s: Scope<Id>) => void): Part<C, Ev, Id>;
   progressOn<T extends Ev['type']>(type: T, when?: (c: C, e: EventOf<Ev, T>) => boolean): Part<C, Ev, Id>;
@@ -274,6 +242,54 @@ export interface Steps<C, Ev extends MindEvent<string>, Id extends string> {
 export function steps<C, Ev extends MindEvent<string>, Id extends string>(): Steps<C, Ev, Id> {
   const is = <T extends Ev['type']>(e: Ev, type: T): e is EventOf<Ev, T> => e.type === type;
   return {
+    run: (build) => ({
+      create: (s, c) => {
+        const action = new Sequence([build(c)]);
+        let finished = false;
+        const tick = (dt: number): void => {
+          if (finished) {
+            return;
+          }
+
+          const result = action.perform(c, dt);
+          if ('running' in result) {
+            return;
+          }
+
+          finished = true;
+
+          if ('fail' in result) {
+            s.struggle();
+          } else {
+            s.done();
+          }
+        };
+
+        tick(0);
+        return {
+          tick,
+          stop: () => {
+            finished = true;
+            action.stop();
+          },
+        };
+      },
+    }),
+    hold: (...acquire) => ({
+      create: (_s, c) => {
+        const held = new Disposables();
+        try {
+          for (const take of acquire) {
+            held.use(take(c));
+          }
+        } catch (error) {
+          held[Symbol.dispose]();
+          throw error;
+        }
+
+        return { stop: () => held[Symbol.dispose]() };
+      },
+    }),
     act: (fn) => ({
       create: (s, c) => {
         fn(c, s);

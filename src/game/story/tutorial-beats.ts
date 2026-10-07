@@ -1,87 +1,44 @@
 import type { Vector3 } from 'three';
 
-import type { Npc } from '@/actors/npcs/npcs';
 import type { Vehicle } from '@/actors/vehicles/vehicle';
-import type { MindEvent } from '@/engine/sim/mind';
-import type { Crossing, SpotRuntime } from '@/game/deck/garage';
-import type { Game } from '@/game/game';
+import type { Crossing } from '@/game/deck/garage';
 import type { DialogueLine } from '@/ui/dialogue';
-import type { Signpost } from '@/ui/signpost';
-import type { LevelData } from '@/world/level-data';
 
 import { type Beats, type Part, steps } from './director';
 import type { Objective } from './objectives';
 import { rampRun } from './ramp-run';
-import type { RoofScene } from './roof-scene';
-import { type Access, barriers, dayLook, doors, entry, keepEscapes, noTrades, stall } from './story-access';
-import type { StoryCamera } from './story-camera';
-import { free, hold, pause, pauseWhen, type StoryClock, sweep } from './story-clock';
+import { BADGE_HANDOFF, KEY_PICKUP, POUR_GAS, BASTE_FIRE } from './roof-choreography';
+import { barriers, dayLook, doors, entry, keepEscapes, noTrades, stall } from './story-access';
+import { free, hold, pause, pauseWhen, sweep } from './story-clock';
 import { ghostSupply, ghostTrail, nearestGhost } from './story-ghosts';
-import { type Goals, goal, mark, pins } from './story-goals';
-import { call, nudge, type Outreach, say, text } from './story-outreach';
-import { type Recovery, region } from './story-recovery';
+import { goal, mark, pins } from './story-goals';
+import { call, nudge, say, text } from './story-outreach';
+import { region } from './story-recovery';
+import type { TutorialContext, TutorialEvent } from './tutorial-context';
 import {
-  type Chapter,
+  coat,
+  doorOf,
+  gateAt,
+  tossBadge,
   coughing,
   faceCody,
   facing,
   getIn,
   handPhone,
-  type Imprint,
   imprintSign,
   nearestCar,
-  perform,
+  directRandy,
   ledgerOnJump,
+  leaveRoof,
   meltedKeys,
   moltenKeys,
   roofScene,
-  type Scenes,
   seatAtFire,
   settled,
-  skipPhone,
-  type Stage,
   tailpipe,
   talkToRandy,
   watchViews,
 } from './tutorial-scenes';
-
-export interface Cast {
-  readonly game: Game;
-  readonly level: LevelData;
-  readonly clock: StoryClock;
-  readonly goals: Goals;
-  readonly outreach: Outreach;
-  readonly access: Access;
-  readonly recovery: Recovery;
-  readonly scenes: Scenes;
-  readonly camera: StoryCamera;
-  readonly sign: Signpost;
-  readonly chapter: Chapter;
-  readonly gas: RoofScene;
-  readonly pickup: Vehicle;
-  readonly randy: Npc;
-  readonly stage: Stage;
-  readonly touch: boolean;
-  startErrand(): void;
-  remember(part: 1 | 2): void;
-  bam(): void;
-  wake(): void;
-}
-
-export type TutorialEvent =
-  | MindEvent<'entered', { v: Vehicle; possessed: boolean }>
-  | MindEvent<'exited', { spot: SpotRuntime | null }>
-  | MindEvent<'crossing', { crossing: Crossing }>
-  | MindEvent<'swallowed'>
-  | MindEvent<'boosted'>
-  | MindEvent<'summoned'>
-  | MindEvent<'spooked'>
-  | MindEvent<'phantom', { imprint: Imprint }>
-  | MindEvent<'hotwired', { v: Vehicle }>
-  | MindEvent<'nightfall'>
-  | MindEvent<'sunrise'>
-  | MindEvent<'talk', { tires: number }>
-  | MindEvent<'signed'>;
 
 export type BeatId =
   | 'roof'
@@ -133,10 +90,10 @@ export type BeatId =
 
 export type ErrandId = 'cooled' | 'handed';
 
-type P = Part<Cast, TutorialEvent, BeatId>;
+type P = Part<TutorialContext, TutorialEvent, BeatId>;
 
-const { act, on, react, progressOn, when, after, all } = steps<Cast, TutorialEvent, BeatId>();
-const errand = steps<Cast, TutorialEvent, ErrandId>();
+const { run, act, on, react, progressOn, when, after, all } = steps<TutorialContext, TutorialEvent, BeatId>();
+const errand = steps<TutorialContext, TutorialEvent, ErrandId>();
 
 export const GHAST = '<span class="ghast-word">G<small>h</small>AS<small>t</small></span>';
 const LOCKED = "THE DOORS WON'T OPEN. THE TRUCK LIKES YOU.";
@@ -156,50 +113,58 @@ const STRAINED_START = 1.8;
 const GATE_ROOF = 'NOT THE GATE, KID. THE GATE SAW THAT. SNEAK IT BACK IN AND GO OFF A KICKER.';
 const GATE_NIGHT = 'NOT THE GATE, KID. THE GATE SEES EVERYTHING. GRAB ANOTHER ONE.';
 
-const tires = (c: Cast): number => c.game.inventory.count('tire');
-const loose = (c: Cast): readonly Vector3[] => c.game.looseItems('tire');
-const riding = (c: Cast): Vehicle | null => c.game.vehicles.find((v) => v.role === 'player') ?? null;
-const possessing = (c: Cast): boolean => riding(c)?.form === 'truck';
-const inPickup = (c: Cast): boolean => c.pickup.role === 'player';
-const outside = (c: Cast): boolean => {
+const tires = (c: TutorialContext): number => c.game.inventory.count('tire');
+const loose = (c: TutorialContext): readonly Vector3[] => c.game.looseItems('tire');
+const riding = (c: TutorialContext): Vehicle | null => c.game.vehicles.find((v) => v.role === 'player') ?? null;
+const possessing = (c: TutorialContext): boolean => riding(c)?.form === 'truck';
+const inPickup = (c: TutorialContext): boolean => c.pickup.role === 'player';
+const outside = (c: TutorialContext): boolean => {
   const p = c.game.player;
   return p.visible && !c.game.garage.inFootprint(p.pos) && p.pos.y > -1;
 };
 
-const onRoof = (c: Cast): boolean => !c.game.player.visible || c.game.player.pos.y > c.stage.roof - 1.5;
+const onRoof = (c: TutorialContext): boolean => !c.game.player.visible || c.game.player.pos.y > c.stage.roof - 1.5;
 const gated = (crossing: Crossing): boolean => crossing.kind === 'logged-out' && crossing.vehicle.form === 'truck';
 
-const markPickup = (c: Cast): Objective[] =>
+const markPickup = (c: TutorialContext): Objective[] =>
   inPickup(c) ? [] : [{ id: 'tutorial-truck', label: 'YOUR PICKUP', kind: 'primary', at: c.pickup.pos }];
-const markLip = (c: Cast): Objective[] => [
+const markLip = (c: TutorialContext): Objective[] => [
   { id: 'tutorial-ramp', label: 'THE RAMP', kind: 'primary', at: c.stage.lip },
 ];
-const markRandy = (c: Cast): Objective[] => [
+const markRandy = (c: TutorialContext): Objective[] => [
   { id: 'tutorial-randy', label: 'RANDY', kind: 'primary', at: c.randy.pos },
 ];
-const markGhost = (c: Cast): Objective[] => {
+const markGhost = (c: TutorialContext): Objective[] => {
   const at = nearestGhost(c.game, c.pickup.pos);
   return at ? [{ id: 'tutorial-ghost', label: 'GHOST', kind: 'optional', at }] : [];
 };
 
-const markCar = (c: Cast): Objective[] => {
-  const v = nearestCar(c, riding(c)?.pos ?? c.game.player.pos, (car) => car.role === 'parked');
+const markCar = (c: TutorialContext): Objective[] => {
+  const v = nearestCar(
+    c.game.vehicles,
+    riding(c)?.pos ?? c.game.player.pos,
+    (car) => car !== c.pickup && car.role === 'parked',
+  );
   return v ? [{ id: 'tutorial-car', label: 'PARKED CAR', kind: 'primary', at: v.pos }] : [];
 };
 
-const markDeckCar = (c: Cast): Objective[] => {
+const markDeckCar = (c: TutorialContext): Objective[] => {
   const v = c.game.player.visible
-    ? nearestCar(c, c.game.player.pos, (car) => car.role === 'parked' && car.insideDeck)
+    ? nearestCar(
+        c.game.vehicles,
+        c.game.player.pos,
+        (car) => car !== c.pickup && car.role === 'parked' && car.insideDeck,
+      )
     : null;
   return v ? [{ id: 'tutorial-deck-car', label: 'DECK CAR', kind: 'optional', at: v.pos }] : [];
 };
 
-const markGate = (c: Cast): Objective[] => {
+const markGate = (c: TutorialContext): Objective[] => {
   const g = c.level.gates.find((gate) => gate.kind === 'entry');
-  return g ? [{ id: 'tutorial-gate', label: 'EAST GATE', kind: 'primary', at: c.scenes.gateAt(g) }] : [];
+  return g ? [{ id: 'tutorial-gate', label: 'EAST GATE', kind: 'primary', at: gateAt(g) }] : [];
 };
 
-const markTire = (c: Cast): Objective[] => {
+const markTire = (c: TutorialContext): Objective[] => {
   const me = riding(c)?.pos ?? c.game.player.pos;
   let best: Vector3 | null = null;
   for (const at of loose(c)) {
@@ -218,16 +183,16 @@ const mapLesson: P = react('exited', (c) => {
 });
 
 const scene: readonly P[] = [dayLook('truck', 'possess'), pause(), entry('none'), roofScene()];
-const stalled: P = stall<Cast>((c) => c.pickup);
+const stalled: P = stall<TutorialContext>((c) => c.pickup);
 const truckRules: readonly P[] = [dayLook('truck', 'possess'), doors(LOCKED), keepEscapes()];
 const fedRules: readonly P[] = [dayLook('truck', 'possess', 'intake'), doors(LOCKED), keepEscapes()];
-const roofFence: P = region<Cast>({
+const roofFence: P = region<TutorialContext>({
   inside: onRoof,
-  home: (c) => c.scenes.doorOf(c.pickup),
+  home: (c) => doorOf(c.pickup),
   line: { who: 'right', say: '...THAT WAS DUMB.', solo: true },
 });
 
-const brisket = (c: Cast): DialogueLine[] => {
+const brisket = (c: TutorialContext): DialogueLine[] => {
   const g = c.game;
   const r = c.randy;
   const lines: DialogueLine[] = [];
@@ -236,8 +201,8 @@ const brisket = (c: Cast): DialogueLine[] => {
   }
 
   lines.push(
-    { who: 'left', say: 'SIT. WARM UP. BRISKET?', cue: () => c.scenes.coat(true) },
-    { who: 'right', say: '...FINE. ONE BITE.', cue: () => c.scenes.coat(false) },
+    { who: 'left', say: 'SIT. WARM UP. BRISKET?', cue: () => coat(c.game, c.randy, true) },
+    { who: 'right', say: '...FINE. ONE BITE.', cue: () => coat(c.game, c.randy, false) },
     { who: 'right', say: "WOW. THAT'S REALLY GOOD." },
     { who: 'right', say: "I'D DESCRIBE IT AS... POSITIVELY TRANSFORMATIVE." },
     { who: 'left', say: 'HEH. GO GET SOME AIR, KID. MOON LOOKS GOOD TONIGHT.' },
@@ -245,15 +210,15 @@ const brisket = (c: Cast): DialogueLine[] => {
   return lines;
 };
 
-const toldYou = (c: Cast): DialogueLine[] => [
-  { who: 'left', say: "TOLD YOU YOU COULD HAVE 'EM BACK.", cue: () => meltedKeys(c) },
+const toldYou = (c: TutorialContext): DialogueLine[] => [
+  { who: 'left', say: "TOLD YOU YOU COULD HAVE 'EM BACK.", cue: () => meltedKeys(c.game, c.randy, c.pickup) },
 ];
 
-export const BEATS: Beats<Cast, TutorialEvent, BeatId> = {
+export const BEATS: Beats<TutorialContext, TutorialEvent, BeatId> = {
   roof: {
     parts: [
       ...scene,
-      say<Cast>(
+      say<TutorialContext>(
         [
           { who: 'right', say: "COME ON... BADGE WON'T SCAN ME OUT AFTER SEVEN." },
           { who: 'right', say: "I'M GONNA BE STUCK UP HERE ALL NIGHT." },
@@ -270,35 +235,31 @@ export const BEATS: Beats<Cast, TutorialEvent, BeatId> = {
       ...scene,
       act((c) => {
         c.game.alight();
-        c.gas.turnToward(c.randy.pos);
+        c.roofScene.turnToward(c.randy.pos);
       }),
       facing(),
-      say<Cast>([{ who: 'left', say: 'I KNOW THESE SCANNERS. HAND ME YOUR BADGE.' }]),
+      say<TutorialContext>([{ who: 'left', say: 'I KNOW THESE SCANNERS. HAND ME YOUR BADGE.' }]),
     ],
     next: 'handBadge',
   },
   handBadge: {
-    parts: [
-      ...scene,
-      perform(
-        (c) => c.gas.handBadge(c.randy, c.pickup),
-        (c) => c.gas.skipBadge(c.randy, c.pickup),
-      ),
-    ],
+    parts: [...scene, directRandy((c) => c.roofScene.play(BADGE_HANDOFF, c.randy, c.pickup))],
     next: 'toss',
   },
   toss: {
     parts: [
       ...scene,
       facing(),
-      say<Cast>((c) => [
-        {
-          who: 'left',
-          say: "AH MAN. YOU DON'T NEED THIS.",
-          cue: () => c.scenes.throwBadge(),
-          until: () => !c.randy.throwing?.active,
-        },
-        { who: 'right', say: 'HUH?' },
+      all([
+        directRandy((c) => tossBadge(c.randy, c.stage.toss, c.camera)),
+        say<TutorialContext>((c) => [
+          {
+            who: 'left',
+            say: "AH MAN. YOU DON'T NEED THIS.",
+            until: () => !c.randy.throwing?.active,
+          },
+          { who: 'right', say: 'HUH?' },
+        ]),
       ]),
     ],
     next: 'keys',
@@ -307,10 +268,7 @@ export const BEATS: Beats<Cast, TutorialEvent, BeatId> = {
     parts: [
       ...scene,
       act((c) => c.camera.settle()),
-      perform(
-        (c) => c.gas.pickKeys(c.randy, c.pickup),
-        (c) => c.gas.skipKeys(c.randy, c.pickup),
-      ),
+      directRandy((c) => c.roofScene.play(KEY_PICKUP, c.randy, c.pickup)),
     ],
     next: 'phone',
   },
@@ -319,11 +277,11 @@ export const BEATS: Beats<Cast, TutorialEvent, BeatId> = {
       ...scene,
       facing(),
       all([
-        say<Cast>((c) => [
+        say<TutorialContext>((c) => [
           { who: 'left', say: "YOU'RE GONNA NEED THIS.", cue: () => c.camera.settle() },
           { who: 'right', say: "THAT'S NOT..." },
         ]),
-        perform(handPhone, (c) => skipPhone(c)),
+        directRandy((c) => handPhone(c.game, c.randy, c.camera)),
       ]),
     ],
     next: 'gas',
@@ -332,7 +290,7 @@ export const BEATS: Beats<Cast, TutorialEvent, BeatId> = {
     parts: [
       ...scene,
       facing(),
-      say<Cast>([
+      say<TutorialContext>([
         { who: 'left', say: 'DID YOU SAY YOU WERE LOW ON GAS?' },
         { who: 'right', say: 'I...' },
         { who: 'left', say: 'I GOT YOU.' },
@@ -344,35 +302,29 @@ export const BEATS: Beats<Cast, TutorialEvent, BeatId> = {
     parts: [
       ...scene,
       act((c) => c.game.hud.clearToasts()),
-      perform(
-        (c) => c.gas.pourGas(c.randy, c.pickup),
-        (c) => c.gas.skipGas(),
-      ),
+      directRandy((c) => c.roofScene.play(POUR_GAS, c.randy, c.pickup)),
     ],
     next: 'allGood',
   },
   allGood: {
-    parts: [...scene, say<Cast>((c) => [{ who: 'left', say: 'ALL GOOD!', cue: () => c.gas.dropCan(c.randy, 0) }])],
+    parts: [
+      ...scene,
+      say<TutorialContext>((c) => [{ who: 'left', say: 'ALL GOOD!', cue: () => c.roofScene.dropCan(c.randy, 0) }]),
+    ],
     next: 'basteLine',
   },
   basteLine: {
-    parts: [...scene, say<Cast>([{ who: 'left', say: 'TIME TO BASTE.' }])],
+    parts: [...scene, say<TutorialContext>([{ who: 'left', say: 'TIME TO BASTE.' }])],
     next: 'flare',
   },
   flare: {
-    parts: [
-      ...scene,
-      perform(
-        (c) => c.gas.baste(c.randy, c.stage.randy),
-        (c) => c.gas.skipBaste(c.randy),
-      ),
-    ],
+    parts: [...scene, directRandy((c) => c.roofScene.play(BASTE_FIRE, c.randy, c.pickup, c.stage.randy))],
     next: 'uhOh',
   },
   uhOh: {
     parts: [
       ...scene,
-      say<Cast>([
+      say<TutorialContext>([
         { who: 'left', say: '...WAIT. WHICH TANK WAS THAT.' },
         { who: 'left', say: 'UH OH...' },
       ]),
@@ -384,11 +336,10 @@ export const BEATS: Beats<Cast, TutorialEvent, BeatId> = {
       dayLook('truck', 'possess'),
       hold(18),
       entry('none'),
-      act((c) => c.scenes.leave()),
       roofFence,
       getIn('refuse'),
-      goal<Cast>('GET IN YOUR PICKUP', { how: GET_IN, marks: markPickup }),
-      when((c) => c.scenes.gone),
+      goal<TutorialContext>('GET IN YOUR PICKUP', { how: GET_IN, marks: markPickup }),
+      leaveRoof(),
     ],
     next: 'wonder',
   },
@@ -399,8 +350,8 @@ export const BEATS: Beats<Cast, TutorialEvent, BeatId> = {
       entry('none'),
       roofFence,
       getIn('refuse'),
-      goal<Cast>('GET IN YOUR PICKUP', { how: GET_IN, marks: markPickup }),
-      say<Cast>([
+      goal<TutorialContext>('GET IN YOUR PICKUP', { how: GET_IN, marks: markPickup }),
+      say<TutorialContext>([
         { who: 'right', say: 'WHERE DID HE GO?', solo: true },
         { who: 'right', say: '...WAIT. HE HAD MY KEYS!!', solo: true },
       ]),
@@ -414,8 +365,8 @@ export const BEATS: Beats<Cast, TutorialEvent, BeatId> = {
       entry('none'),
       roofFence,
       getIn('refuse'),
-      goal<Cast>('GET IN YOUR PICKUP', { how: GET_IN, marks: markPickup }),
-      call<Cast>((c) => [
+      goal<TutorialContext>('GET IN YOUR PICKUP', { how: GET_IN, marks: markPickup }),
+      call<TutorialContext>((c) => [
         { who: 'left', say: 'DO YOU WANT THE GOOD NEWS OR THE BAD NEWS...', look: SMOKE },
         { who: 'right', say: 'ACTUALLY... I JUST WANT MY KEYS.' },
         { who: 'left', say: 'GOOD NEWS: YOU CAN HAVE THEM BACK.', look: SMOKE },
@@ -424,7 +375,7 @@ export const BEATS: Beats<Cast, TutorialEvent, BeatId> = {
           who: 'left',
           say: 'YOUR KEYS ARE BURNING A HOLE IN MY POCKET.',
           look: MOLTEN,
-          cue: () => moltenKeys(c),
+          cue: () => moltenKeys(c.game, c.randy, c.pickup),
         },
         {
           who: 'left',
@@ -442,11 +393,11 @@ export const BEATS: Beats<Cast, TutorialEvent, BeatId> = {
       entry('pickup'),
       roofFence,
       getIn('board'),
-      goal<Cast>((c) => (inPickup(c) ? '{pay} HOTWIRE YOUR PICKUP' : 'GET IN YOUR PICKUP'), {
+      goal<TutorialContext>((c) => (inPickup(c) ? '{pay} HOTWIRE YOUR PICKUP' : 'GET IN YOUR PICKUP'), {
         how: (c) => (inPickup(c) ? 'IN THE DRIVER SEAT, PRESS {pay} TO JOIN THE WIRES.' : GET_IN),
         marks: markPickup,
       }),
-      nudge<Cast>('HOTWIRE THAT PICKUP'),
+      nudge<TutorialContext>('HOTWIRE THAT PICKUP'),
       progressOn('entered', (c, e) => e.v === c.pickup),
       on('hotwired', (c, e) => e.v === c.pickup),
     ],
@@ -459,7 +410,7 @@ export const BEATS: Beats<Cast, TutorialEvent, BeatId> = {
       barriers(),
       stalled,
       coughing(STRAINED_START),
-      text<Cast>(SORRY, { done: true, reply: true, after: STRAINED_START }),
+      text<TutorialContext>(SORRY, { done: true, reply: true, after: STRAINED_START }),
     ],
     next: 'weird',
   },
@@ -472,19 +423,22 @@ export const BEATS: Beats<Cast, TutorialEvent, BeatId> = {
       ...truckRules,
       sweep(19, SWEEP, 19.5),
       barriers(),
-      stall<Cast>((c) => c.pickup, {
+      stall<TutorialContext>((c) => c.pickup, {
         releaseOn: 'nightfall',
         released: (c) => c.game.events.emit('sfx', { name: 'engine-roar', at: tailpipe(c.pickup) }),
       }),
       coughing(),
       react('nightfall', (c) => c.camera.moonrise(c.pickup.yaw)),
-      text<Cast>((c) => `NO BADGE, NO GATE. PULL OUT, HANG A ${c.stage.turn}, FLOOR IT UP THAT RAMP.`, {
+      text<TutorialContext>((c) => `NO BADGE, NO GATE. PULL OUT, HANG A ${c.stage.turn}, FLOOR IT UP THAT RAMP.`, {
         until: (c) => c.pickup.pos.distanceTo(c.stage.truck) > DROVE || Math.abs(c.pickup.speed) > ACK_SPEED,
       }),
-      goal<Cast>('LEAVE THE DECK VIA THE RAMP', { how: "FULL SPEED UP THE RAMP. DON'T STOP.", marks: markLip }),
-      nudge<Cast>('FLY OFF THAT RAMP'),
+      goal<TutorialContext>('LEAVE THE DECK VIA THE RAMP', {
+        how: "FULL SPEED UP THE RAMP. DON'T STOP.",
+        marks: markLip,
+      }),
+      nudge<TutorialContext>('FLY OFF THAT RAMP'),
       ledgerOnJump(),
-      rampRun<Cast>({
+      rampRun<TutorialContext>({
         vehicle: (c) => c.pickup,
         ramp: (c) => c.stage.ramp,
         resetTo: (c) => c.stage.start,
@@ -502,22 +456,22 @@ export const BEATS: Beats<Cast, TutorialEvent, BeatId> = {
         }
       }),
       react('phantom', (c, e) => {
-        c.chapter.imprint = e.imprint;
+        c.progress.firstPhantom = e.imprint;
       }),
       on('phantom'),
     ],
     next: 'landing',
   },
   landing: {
-    parts: [...truckRules, hold(19.5), when(settled, { for: 2 }), after(12)],
+    parts: [...truckRules, hold(19.5), when((c) => settled(c.pickup), { for: 2 }), after(12)],
     next: 'tell',
   },
   tell: {
     parts: [
       ...truckRules,
       hold(19.75),
-      pauseWhen<Cast>((c) => c.outreach.phone.calling),
-      call<Cast>(
+      pauseWhen<TutorialContext>((c) => c.outreach.phone.calling),
+      call<TutorialContext>(
         [
           { who: 'left', say: 'OH YEAH! I NEED TO TELL YOU...' },
           { who: 'left', say: "THAT SPOT YOU PULLED OUT OF? THE GARAGE THINKS YOU'RE STILL PARKED IN IT." },
@@ -529,14 +483,14 @@ export const BEATS: Beats<Cast, TutorialEvent, BeatId> = {
     next: 'imprint',
   },
   imprint: {
-    parts: [...truckRules, pause(), imprintSign(), on('signed')],
+    parts: [...truckRules, pause(), run(imprintSign)],
     next: 'yours',
   },
   yours: {
     parts: [
       ...truckRules,
       pause(),
-      call<Cast>([
+      call<TutorialContext>([
         { who: 'left', say: "HEH. NO SWIPE OUT, NO EXIT ON THE LOG. TRUCK'S YOURS TONIGHT." },
         { who: 'right', say: "WASN'T IT MINE ALREADY?" },
         { who: 'left', say: "WE'RE SO PAST THAT." },
@@ -550,14 +504,17 @@ export const BEATS: Beats<Cast, TutorialEvent, BeatId> = {
       ...truckRules,
       hold(20.5),
       watchViews(),
-      text<Cast>('{camera} SWITCHES THE CAMERA. TOP OR BEHIND.', {
+      text<TutorialContext>('{camera} SWITCHES THE CAMERA. TOP OR BEHIND.', {
         after: 8,
-        until: (c) => c.chapter.views.size >= 2,
+        until: (c) => c.progress.viewsSeen.size >= 2,
       }),
-      goal<Cast>((c, s) => (s.t < 8 ? 'TAKE IT FOR A SPIN' : `{camera} TRY THE CAMERAS (${c.chapter.views.size}/2)`), {
-        how: 'PRESS {camera} UNTIL THE VIEW CHANGES, THEN AGAIN.',
-      }),
-      when((c) => c.chapter.views.size >= 2),
+      goal<TutorialContext>(
+        (c, s) => (s.t < 8 ? 'TAKE IT FOR A SPIN' : `{camera} TRY THE CAMERAS (${c.progress.viewsSeen.size}/2)`),
+        {
+          how: 'PRESS {camera} UNTIL THE VIEW CHANGES, THEN AGAIN.',
+        },
+      ),
+      when((c) => c.progress.viewsSeen.size >= 2),
       after(38),
     ],
     next: 'ghost',
@@ -566,13 +523,16 @@ export const BEATS: Beats<Cast, TutorialEvent, BeatId> = {
     parts: [
       ...fedRules,
       hold(21),
-      text<Cast>("TANK'S FULL OF MOP SAUCE. TURNS OUT GHOSTS LOVE IT. SEE THEM GHOSTS? DRIVE RIGHT THROUGH 'EM.", {
-        until: (c) => c.game.ghast > 0,
-      }),
-      ghostTrail<Cast>((c) => riding(c) ?? c.pickup),
-      pins<Cast>((c) => c.game.activeGhosts(), PIN_RANGE),
-      goal<Cast>('DRIVE THROUGH A GHOST', { how: 'STEER INTO A GLOWING GHOST.', marks: markGhost }),
-      nudge<Cast>('DRIVE THROUGH A GHOST', {
+      text<TutorialContext>(
+        "TANK'S FULL OF MOP SAUCE. TURNS OUT GHOSTS LOVE IT. SEE THEM GHOSTS? DRIVE RIGHT THROUGH 'EM.",
+        {
+          until: (c) => c.game.ghast > 0,
+        },
+      ),
+      ghostTrail<TutorialContext>((c) => riding(c) ?? c.pickup),
+      pins<TutorialContext>((c) => c.game.activeGhosts(), PIN_RANGE),
+      goal<TutorialContext>('DRIVE THROUGH A GHOST', { how: 'STEER INTO A GLOWING GHOST.', marks: markGhost }),
+      nudge<TutorialContext>('DRIVE THROUGH A GHOST', {
         crawling: [
           { who: 'right', say: 'WHERE CAN I FIND A GHOST?' },
           { who: 'left', say: 'UH... MAKE SOME?' },
@@ -587,32 +547,32 @@ export const BEATS: Beats<Cast, TutorialEvent, BeatId> = {
     parts: [
       ...fedRules,
       hold(21.5),
-      text<Cast>(`FEEL THAT? GHOSTS IN THE TANK. THAT'S ${GHAST}. HOLD {boost} TO BURN IT.`, {
+      text<TutorialContext>(`FEEL THAT? GHOSTS IN THE TANK. THAT'S ${GHAST}. HOLD {boost} TO BURN IT.`, {
         until: (c) => c.game.burning,
       }),
-      ghostSupply<Cast>((c) => riding(c) ?? c.pickup),
-      pins<Cast>((c) => (c.game.ghast > 0 ? [] : c.game.activeGhosts()), PIN_RANGE),
-      goal<Cast>(`{boost} BURN THE ${GHAST}`, { how: 'HOLD {boost} WHILE YOU DRIVE.' }),
-      nudge<Cast>('BURN THAT GHAST'),
+      ghostSupply<TutorialContext>((c) => riding(c) ?? c.pickup),
+      pins<TutorialContext>((c) => (c.game.ghast > 0 ? [] : c.game.activeGhosts()), PIN_RANGE),
+      goal<TutorialContext>(`{boost} BURN THE ${GHAST}`, { how: 'HOLD {boost} WHILE YOU DRIVE.' }),
+      nudge<TutorialContext>('BURN THAT GHAST'),
       on('boosted'),
     ],
     next: 'soul',
   },
   soul: {
-    parts: [...fedRules, hold(21.75), text<Cast>('HA! SOUL POWER.', { brief: 2.5, done: true })],
+    parts: [...fedRules, hold(21.75), text<TutorialContext>('HA! SOUL POWER.', { brief: 2.5, done: true })],
     next: 'basementCall',
   },
   basementCall: {
     parts: [
       ...fedRules,
       hold(22),
-      ghostSupply<Cast>((c) => riding(c) ?? c.pickup),
-      pins<Cast>((c) => (c.game.ghast < 1 ? c.game.activeGhosts() : []), PIN_RANGE),
-      goal<Cast>(
+      ghostSupply<TutorialContext>((c) => riding(c) ?? c.pickup),
+      pins<TutorialContext>((c) => (c.game.ghast < 1 ? c.game.activeGhosts() : []), PIN_RANGE),
+      goal<TutorialContext>(
         (c) => (c.game.ghast < 1 ? `TOP OFF THE TANK (${Math.floor(c.game.ghast * 100)}%)` : 'FULL TANK. LET IT RIP.'),
         { how: (c) => (c.game.ghast < 1 ? 'DRIVE THROUGH GHOSTS TO FILL UP.' : `HOLD {boost} TO BURN THE ${GHAST}.`) },
       ),
-      call<Cast>([
+      call<TutorialContext>([
         { who: 'left', say: "KID. IT'S RANDY. NICE JUMP." },
         { who: 'left', say: 'MEET ME IN THE BASEMENT. AND BRING WHEELS.' },
         { who: 'right', say: 'WHEELS?' },
@@ -630,8 +590,8 @@ export const BEATS: Beats<Cast, TutorialEvent, BeatId> = {
       noTrades(),
       talkToRandy(),
       mapLesson,
-      goal<Cast>('SMASH A CAR FOR TIRES', { how: 'RAM PARKED CARS. TIRES POP OFF.', marks: markCar }),
-      nudge<Cast>('BRING ME SOME WHEELS'),
+      goal<TutorialContext>('SMASH A CAR FOR TIRES', { how: 'RAM PARKED CARS. TIRES POP OFF.', marks: markCar }),
+      nudge<TutorialContext>('BRING ME SOME WHEELS'),
       when((c) => tires(c) > 0, { next: 'bring' }),
       when((c) => loose(c).length > 0, { next: 'grab' }),
       on('talk', (_c, e) => e.tires === 0, 'noWheels'),
@@ -645,9 +605,9 @@ export const BEATS: Beats<Cast, TutorialEvent, BeatId> = {
       noTrades(),
       talkToRandy(),
       mapLesson,
-      pins<Cast>(loose, PIN_RANGE, TIRE_PIN),
-      goal<Cast>('GRAB THE TIRES', { how: '{interact} GET OUT AND GRAB THEM.', marks: markTire }),
-      nudge<Cast>('GRAB THOSE TIRES'),
+      pins<TutorialContext>(loose, PIN_RANGE, TIRE_PIN),
+      goal<TutorialContext>('GRAB THE TIRES', { how: '{interact} GET OUT AND GRAB THEM.', marks: markTire }),
+      nudge<TutorialContext>('GRAB THOSE TIRES'),
       when((c) => tires(c) > 0, { next: 'bring' }),
       when((c) => loose(c).length === 0, { next: 'tires' }),
       on('talk', (_c, e) => e.tires === 0, 'noWheels'),
@@ -660,7 +620,7 @@ export const BEATS: Beats<Cast, TutorialEvent, BeatId> = {
       hold(22.5),
       noTrades(),
       faceCody(),
-      say<Cast>([
+      say<TutorialContext>([
         { who: 'left', say: 'NO WHEELS? GO GET ME SOME.' },
         { who: 'left', say: 'SMASH SOMETHING. THEY FALL OFF.' },
       ]),
@@ -674,23 +634,32 @@ export const BEATS: Beats<Cast, TutorialEvent, BeatId> = {
       noTrades(),
       talkToRandy(),
       mapLesson,
-      goal<Cast>('BRING THE TIRES TO RANDY', { how: 'WALK UP TO RANDY. {interact} TALK.', marks: markRandy }),
-      nudge<Cast>('BRING ME THOSE WHEELS'),
+      goal<TutorialContext>('BRING THE TIRES TO RANDY', {
+        how: 'WALK UP TO RANDY. {interact} TALK.',
+        marks: markRandy,
+      }),
+      nudge<TutorialContext>('BRING ME THOSE WHEELS'),
       on('talk', (_c, e) => e.tires > 0, 'sitDown'),
       when((c) => tires(c) === 0, { next: 'tires' }),
     ],
     next: 'sitDown',
   },
   sitDown: {
-    parts: [dayLook('truck', 'possess', 'intake'), hold(23.25), noTrades(), seatAtFire(), say<Cast>(brisket)],
+    parts: [
+      dayLook('truck', 'possess', 'intake'),
+      hold(23.25),
+      noTrades(),
+      seatAtFire(),
+      say<TutorialContext>(brisket),
+    ],
     next: 'moonlight',
   },
   moonlight: {
     parts: [
       dayLook('truck', 'possess', 'intake'),
       hold(23.5),
-      goal<Cast>('GO BACK OUT INTO THE MOONLIGHT', { how: 'TAKE THE STAIRS UP AND WALK OUT OF THE DECK.' }),
-      nudge<Cast>('GO GET SOME AIR'),
+      goal<TutorialContext>('GO BACK OUT INTO THE MOONLIGHT', { how: 'TAKE THE STAIRS UP AND WALK OUT OF THE DECK.' }),
+      nudge<TutorialContext>('GO GET SOME AIR'),
       when(outside),
     ],
     next: 'rules',
@@ -698,19 +667,21 @@ export const BEATS: Beats<Cast, TutorialEvent, BeatId> = {
   rules: {
     parts: [
       hold(23.75),
-      act((c) => c.bam()),
-      text<Cast>("AT NIGHT YOU CAN'T STEAL CARS. YOU POSSESS 'EM, AND ONLY INSIDE THE HAUNTED DECK.", { done: true }),
+      act((c) => c.announcePhantomCody()),
+      text<TutorialContext>("AT NIGHT YOU CAN'T STEAL CARS. YOU POSSESS 'EM, AND ONLY INSIDE THE HAUNTED DECK.", {
+        done: true,
+      }),
     ],
     next: 'spook',
   },
   spook: {
     parts: [
       hold(0.5),
-      text<Cast>("PEOPLE SPOOK EASY NOW. SCARE A DRIVER AND THEY'LL BOLT RIGHT INTO THE DECK.", {
+      text<TutorialContext>("PEOPLE SPOOK EASY NOW. SCARE A DRIVER AND THEY'LL BOLT RIGHT INTO THE DECK.", {
         doing: true,
       }),
-      goal<Cast>('SPOOK SOMEBODY', { how: 'WALK UP TO A CAR ON THE ROAD. THE DRIVER WILL SEE YOU.' }),
-      nudge<Cast>('SPOOK SOMEBODY'),
+      goal<TutorialContext>('SPOOK SOMEBODY', { how: 'WALK UP TO A CAR ON THE ROAD. THE DRIVER WILL SEE YOU.' }),
+      nudge<TutorialContext>('SPOOK SOMEBODY'),
       on('spooked'),
       after(45),
     ],
@@ -719,11 +690,14 @@ export const BEATS: Beats<Cast, TutorialEvent, BeatId> = {
   raise: {
     parts: [
       hold(1.5),
-      text<Cast>("LONG AS IT'S DARK, YOU CAN RAISE THE DEAD. GO ON. THEY OWE YOU. SUN COMES UP, THEY'RE DUST.", {
-        doing: true,
-      }),
-      goal<Cast>('{summon} RAISE THE DEAD', { how: 'ON FOOT, PRESS {summon}.' }),
-      nudge<Cast>('RAISE THE DEAD'),
+      text<TutorialContext>(
+        "LONG AS IT'S DARK, YOU CAN RAISE THE DEAD. GO ON. THEY OWE YOU. SUN COMES UP, THEY'RE DUST.",
+        {
+          doing: true,
+        },
+      ),
+      goal<TutorialContext>('{summon} RAISE THE DEAD', { how: 'ON FOOT, PRESS {summon}.' }),
+      nudge<TutorialContext>('RAISE THE DEAD'),
       on('summoned'),
     ],
     next: 'possess',
@@ -731,12 +705,12 @@ export const BEATS: Beats<Cast, TutorialEvent, BeatId> = {
   possess: {
     parts: [
       hold(2.5),
-      text<Cast>('POSSESS ONE IN THE DECK. GET IT OUT. NOT THROUGH THE GATE.', { until: possessing }),
-      goal<Cast>('{interact} POSSESS A CAR IN THE DECK', {
+      text<TutorialContext>('POSSESS ONE IN THE DECK. GET IT OUT. NOT THROUGH THE GATE.', { until: possessing }),
+      goal<TutorialContext>('{interact} POSSESS A CAR IN THE DECK', {
         how: 'WALK UP TO A CAR PARKED IN THE DECK. {interact} POSSESS.',
         marks: markDeckCar,
       }),
-      nudge<Cast>('POSSESS A CAR IN THE DECK'),
+      nudge<TutorialContext>('POSSESS A CAR IN THE DECK'),
       on('entered', (_c, e) => e.possessed),
     ],
     next: 'escape',
@@ -744,9 +718,9 @@ export const BEATS: Beats<Cast, TutorialEvent, BeatId> = {
   escape: {
     parts: [
       hold(4.5),
-      text<Cast>('WALLS BREAK. KICKERS JUMP.', { doing: true }),
-      goal<Cast>('GET IT OUT. NOT THE GATE.', { how: 'SMASH THROUGH A WALL OR JUMP A KICKER.' }),
-      nudge<Cast>('GET IT OUT'),
+      text<TutorialContext>('WALLS BREAK. KICKERS JUMP.', { doing: true }),
+      goal<TutorialContext>('GET IT OUT. NOT THE GATE.', { how: 'SMASH THROUGH A WALL OR JUMP A KICKER.' }),
+      nudge<TutorialContext>('GET IT OUT'),
       react('crossing', (c, e) => {
         if (gated(e.crossing)) {
           c.outreach.text('night1:gate', GATE_NIGHT);
@@ -761,21 +735,23 @@ export const BEATS: Beats<Cast, TutorialEvent, BeatId> = {
   rest: {
     parts: [
       free(),
-      act((c) => c.remember(1)),
-      text<Cast>("THAT'S ANOTHER ONE. KEEP 'EM COMING TILL SUNRISE."),
+      act((c) => c.rememberFirstNight()),
+      text<TutorialContext>("THAT'S ANOTHER ONE. KEEP 'EM COMING TILL SUNRISE."),
       on('sunrise'),
     ],
     next: 'morning',
   },
   morning: {
     parts: [
-      act((c) => c.wake()),
+      act((c) => c.showDayPresentation()),
       hold(10),
-      text<Cast>("MORNING. DAY JOB NOW: THE DECK NEEDS CARS TO PHANTOM. STREET'S FULL OF 'EM. TAKE ONE.", {
+      text<TutorialContext>("MORNING. DAY JOB NOW: THE DECK NEEDS CARS TO PHANTOM. STREET'S FULL OF 'EM. TAKE ONE.", {
         until: (c) => !!riding(c) && riding(c) !== c.pickup,
       }),
-      goal<Cast>('{interact} STEAL A CAR', { how: 'WALK UP TO ANY CAR. {interact} STEAL. PARKED ONES NEED {pay}.' }),
-      nudge<Cast>('STEAL A CAR'),
+      goal<TutorialContext>('{interact} STEAL A CAR', {
+        how: 'WALK UP TO ANY CAR. {interact} STEAL. PARKED ONES NEED {pay}.',
+      }),
+      nudge<TutorialContext>('STEAL A CAR'),
       on('entered', (c, e) => !e.possessed && e.v !== c.pickup),
     ],
     next: 'gate',
@@ -783,14 +759,14 @@ export const BEATS: Beats<Cast, TutorialEvent, BeatId> = {
   gate: {
     parts: [
       hold(12),
-      text<Cast>('BRING IT IN THE EAST GATE. GATE LOGS IT IN. NO BADGE NEEDED FOR THAT PART, HA.', {
+      text<TutorialContext>('BRING IT IN THE EAST GATE. GATE LOGS IT IN. NO BADGE NEEDED FOR THAT PART, HA.', {
         doing: true,
       }),
-      goal<Cast>('DRIVE IN THROUGH THE EAST GATE', {
+      goal<TutorialContext>('DRIVE IN THROUGH THE EAST GATE', {
         how: 'DRIVE UP TO THE EAST GATE AND THROUGH IT.',
         marks: markGate,
       }),
-      nudge<Cast>('BRING IT IN THE EAST GATE'),
+      nudge<TutorialContext>('BRING IT IN THE EAST GATE'),
       react('crossing', (c, e, s) => {
         if (e.crossing.kind === 'snuck-in') {
           c.outreach.text(
@@ -806,33 +782,40 @@ export const BEATS: Beats<Cast, TutorialEvent, BeatId> = {
   park: {
     parts: [
       hold(14),
-      text<Cast>('PARK IT UPSTAIRS AND GET OUT. WHAT YOU LOG IN BY DAY, YOU PHANTOM OUT BY NIGHT.', {
+      text<TutorialContext>('PARK IT UPSTAIRS AND GET OUT. WHAT YOU LOG IN BY DAY, YOU PHANTOM OUT BY NIGHT.', {
         doing: true,
       }),
-      goal<Cast>('PARK IN A FREE SPOT, {interact} GET OUT', {
+      goal<TutorialContext>('PARK IN A FREE SPOT, {interact} GET OUT', {
         how: 'STOP INSIDE A FREE SPOT, THEN {interact} GET OUT.',
       }),
-      nudge<Cast>('PARK IT AND GET OUT'),
+      nudge<TutorialContext>('PARK IT AND GET OUT'),
       on('exited', (_c, e) => e.spot !== null),
     ],
     next: 'tonight',
   },
   tonight: {
-    parts: [hold(16), act((c) => c.startErrand()), text<Cast>('GOOD. COME 7, PHANTOM IT OUT.', { done: true })],
+    parts: [
+      hold(16),
+      act((c) => c.startErrand()),
+      text<TutorialContext>('GOOD. COME 7, PHANTOM IT OUT.', { done: true }),
+    ],
     next: 'night2',
   },
   night2: {
     parts: [
       sweep(19, SWEEP, 22),
-      text<Cast>('POSSESS ONE. GET IT OUT.', { doing: true }),
-      goal<Cast>((c) => (possessing(c) ? 'GET IT OUT. NOT THE GATE.' : '{interact} POSSESS A CAR IN THE DECK'), {
-        how: (c) =>
-          possessing(c)
-            ? 'SMASH THROUGH A WALL OR JUMP A KICKER.'
-            : 'WALK UP TO A CAR PARKED IN THE DECK. {interact} POSSESS.',
-        marks: markDeckCar,
-      }),
-      nudge<Cast>('POSSESS ONE AND GET IT OUT'),
+      text<TutorialContext>('POSSESS ONE. GET IT OUT.', { doing: true }),
+      goal<TutorialContext>(
+        (c) => (possessing(c) ? 'GET IT OUT. NOT THE GATE.' : '{interact} POSSESS A CAR IN THE DECK'),
+        {
+          how: (c) =>
+            possessing(c)
+              ? 'SMASH THROUGH A WALL OR JUMP A KICKER.'
+              : 'WALK UP TO A CAR PARKED IN THE DECK. {interact} POSSESS.',
+          marks: markDeckCar,
+        },
+      ),
+      nudge<TutorialContext>('POSSESS ONE AND GET IT OUT'),
       react('crossing', (c, e, s) => {
         if (gated(e.crossing)) {
           c.outreach.text(`${s.key}:gate`, GATE_NIGHT);
@@ -845,7 +828,7 @@ export const BEATS: Beats<Cast, TutorialEvent, BeatId> = {
   racket: {
     parts: [
       hold(22.5),
-      text<Cast>("THAT'S THE WHOLE RACKET. THIRTY PHANTOMS AND THE DECK'S OURS. BRISKET OFFER STANDS.", {
+      text<TutorialContext>("THAT'S THE WHOLE RACKET. THIRTY PHANTOMS AND THE DECK'S OURS. BRISKET OFFER STANDS.", {
         done: true,
       }),
     ],
@@ -853,18 +836,18 @@ export const BEATS: Beats<Cast, TutorialEvent, BeatId> = {
   },
 };
 
-export const ERRAND: Beats<Cast, TutorialEvent, ErrandId> = {
+export const ERRAND: Beats<TutorialContext, TutorialEvent, ErrandId> = {
   cooled: {
     parts: [
-      text<Cast>('KEYS COOLED OFF. SWING BY.'),
-      mark<Cast>((c) => [{ id: 'tutorial-keys', label: 'RANDY', kind: 'optional', at: c.randy.pos }]),
+      text<TutorialContext>('KEYS COOLED OFF. SWING BY.'),
+      mark<TutorialContext>((c) => [{ id: 'tutorial-keys', label: 'RANDY', kind: 'optional', at: c.randy.pos }]),
       talkToRandy(),
       errand.on('talk'),
     ],
     next: 'handed',
   },
   handed: {
-    parts: [faceCody(), say<Cast>(toldYou)],
+    parts: [faceCody(), say<TutorialContext>(toldYou)],
     next: null,
   },
 };

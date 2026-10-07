@@ -1,9 +1,11 @@
 import type { DriveInput, Vehicle } from '@/actors/vehicles/vehicle';
+import { type Release, releaseOnce } from '@/engine/core/disposable';
+import { Leases } from '@/engine/sim/leases';
 import type { MindEvent } from '@/engine/sim/mind';
 import type { Pose } from '@/game/driving/reset';
 import type { Cutscene, Game } from '@/game/game';
 
-import { Leases, type Part } from './director';
+import type { Part } from './director';
 import type { Line, Outreach } from './story-outreach';
 
 type Pilot = (v: Vehicle, dt: number) => DriveInput;
@@ -30,18 +32,16 @@ export class Recovery {
     });
   }
 
-  force(pilot: Pilot, camera: Cutscene): () => void {
-    const g = this.game;
-    const before = g.cutscene;
-    g.cutscene = camera;
+  force(pilot: Pilot, camera: Cutscene): Release {
+    const shot = this.game.cameraShots.take(camera);
     const release = this.pilots.take(pilot);
-    return () => {
-      release();
-
-      if (g.cutscene === camera) {
-        g.cutscene = before;
+    return releaseOnce(() => {
+      try {
+        release();
+      } finally {
+        shot();
       }
-    };
+    });
   }
 
   clear(): void {

@@ -4,6 +4,7 @@ import { Keyring } from '@/actors/vehicles/ignition';
 import { Walker } from '@/actors/walker';
 import type { Polyline } from '@/engine/nav/polyline';
 import { Doing } from '@/engine/sim/action';
+import { Leases } from '@/engine/sim/leases';
 import type { Mind } from '@/engine/sim/mind';
 import { Sequence } from '@/engine/sim/sequence';
 import { Smoke } from '@/fx/smoke';
@@ -78,6 +79,9 @@ export class Npc {
   readonly stock: Stock | null;
   readonly pitch: Mind<Npc, Pitch, NpcEvent> | null;
   readonly work: Mind<Npc, Work, NpcEvent> | null;
+  readonly attention = new Leases<{ face: Facing }>((held) => {
+    this.send(held ? { type: 'held', face: held.face } : { type: 'released' });
+  });
   private readonly smoke: Smoke | null;
   /** Resting and current yaw in radians. Use place() to move the NPC and fire together. */
   homeYaw: number;
@@ -216,6 +220,11 @@ export class Npc {
   }
 
   lookAt(face: Facing): void {
+    const held = this.attention.top;
+    if (held) {
+      held.face = face;
+    }
+
     this.send({ type: 'held', face });
   }
 

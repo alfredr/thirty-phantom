@@ -1,3 +1,4 @@
+import { type Release, releaseOnce } from '@/engine/core/disposable';
 import { clamp } from '@/engine/core/math';
 
 /** KeyboardEvent codes for each control. The first code supplies its HUD label. */
@@ -30,31 +31,32 @@ export interface FocusLayer<C extends string> {
 
 /** The stack of focus layers, newest on top. Input offers every key press to it first. */
 export class Focus<C extends string> {
-  private readonly layers: FocusLayer<C>[] = [];
+  private readonly layers: { layer: FocusLayer<C> }[] = [];
 
   constructor(private readonly keys: KeyTable<C>) {}
 
   /** Adds a layer above the others. The returned function removes it. */
-  add(layer: FocusLayer<C>): () => void {
-    this.layers.push(layer);
+  add(layer: FocusLayer<C>): Release {
+    const entry = { layer };
+    this.layers.push(entry);
 
-    return () => {
-      const i = this.layers.indexOf(layer);
+    return releaseOnce(() => {
+      const i = this.layers.indexOf(entry);
       if (i >= 0) {
         this.layers.splice(i, 1);
       }
-    };
+    });
   }
 
   /** Return whether a focus layer currently reserves this control. */
   owns(control: C): boolean {
-    return this.layers.some((layer) => layer.controls().includes(control));
+    return this.layers.some(({ layer }) => layer.controls().includes(control));
   }
 
   /** Dispatch to the topmost layer accepting this key. Return whether the press was handled. */
   route(code: string, key: KeyPress): boolean {
     for (let i = this.layers.length - 1; i >= 0; i--) {
-      const layer = this.layers[i];
+      const layer = this.layers[i]?.layer;
       const control = layer?.controls().find((c) => this.keys[c].some((k) => k === code));
       if (layer && control) {
         layer.press(control, key);

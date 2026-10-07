@@ -3,22 +3,33 @@ import { test } from 'node:test';
 
 import { Group, Vector3 } from 'three';
 
+import { planner, randyAt } from './fixtures/npc.mjs';
 import { loadModules } from './modules.mjs';
 
-const [steering, { Sequence, Wait, Do }, action, actions, { Npc }, { proximityPitch }, { Polyline }, { NAV }] =
-  await loadModules(
-    '/src/actors/npcs/steering.ts',
-    '/src/engine/sim/sequence.ts',
-    '/src/engine/sim/action.ts',
-    '/src/actors/npcs/npc-actions.ts',
-    '/src/actors/npcs/npcs.ts',
-    '/src/actors/npcs/behaviors.ts',
-    '/src/engine/nav/polyline.ts',
-    '/src/world/nav-grid.ts',
-  );
+const [
+  steering,
+  { Sequence, Wait, Do },
+  action,
+  actions,
+  { Polyline },
+  { NAV },
+  { npcScenes, player },
+  { PHONE_HANDOFF, ROOF_DEPARTURE, handPhone, leaveRoof },
+] = await loadModules(
+  '/src/actors/npcs/steering.ts',
+  '/src/engine/sim/sequence.ts',
+  '/src/engine/sim/action.ts',
+  '/src/actors/npcs/npc-actions.ts',
+  '/src/engine/nav/polyline.ts',
+  '/src/world/nav-grid.ts',
+  '/src/game/story/npc-scene.ts',
+  '/src/game/story/tutorial-scenes.ts',
+);
 const { heading, turnToward, clampAround, offBy, trimPath } = steering;
 const { Action, done, running, fail, instead } = action;
 const { WalkTo, Face, Gesture, HandOver, Take, homeOf, Throw, attachProp, releaseProp, effect, wait } = actions;
+
+const scene = npcScenes();
 
 const DT = 1 / 30;
 const TURN = { rate: 7, speed: 4.5 };
@@ -121,29 +132,6 @@ test('wait and do are leaves a sequence can use', () => {
   assert.deepEqual(seq.perform({}, 0.1), done);
   assert.equal(ran, 1);
 });
-
-function planner() {
-  const jobs = [];
-  return {
-    jobs,
-    request(from, to, profile, query) {
-      const job = {
-        from: from.clone(),
-        to: to.clone(),
-        profile,
-        query,
-        settled: false,
-        path: null,
-        hops: [],
-        cancel() {
-          this.cancelled = true;
-        },
-      };
-      jobs.push(job);
-      return job;
-    },
-  };
-}
 
 function fakeNpc() {
   return {
@@ -378,35 +366,6 @@ test('a throw happens with or without someone waiting on its duration', () => {
   assert.deepEqual(new Throw({ npc: fakeNpc(), kind: 'badge', to }).perform(), { fail: 'NOTHING TO THROW WITH' });
 });
 
-const flat = { standable: () => 0, heightAt: () => 0 };
-
-function randyAt(pos, yaw, fire) {
-  const root = new Group();
-  const leftHand = new Group();
-  root.add(leftHand);
-  leftHand.position.set(0.3, 1, 0);
-  const breed = {
-    name: 'TEST',
-    model: () => ({ root, rig: { root }, fireTurn: 0.6, hands: { leftHand } }),
-    fire: fire ? { model: () => ({ root: new Group(), flames: [] }), rim: 1 } : undefined,
-    pitch: proximityPitch({ rest: 4, hold: 3.5 }),
-    trades: [],
-  };
-  const world = {
-    scene: { add: () => undefined },
-    sprites: { emit: () => undefined },
-    nav: flat,
-    planner: planner(),
-    walkBlocks: () => [],
-    burned: () => undefined,
-    ground: () => 0,
-    landed: () => undefined,
-    fed: () => undefined,
-  };
-  const def = { id: 'randy', pos: pos.toArray(), yaw, ...(fire ? { fire: fire.toArray() } : {}) };
-  return new Npc(def, breed, world);
-}
-
 test('an NPC turns in place before setting off on a route behind him', () => {
   const n = randyAt(new Vector3(), 0);
   n.walk(new Polyline([new Vector3(), new Vector3(0, 0, -5)]), 1.5);
@@ -531,4 +490,239 @@ test('a prop attached to a hand moves with it until released into the world', ()
   n.direct([releaseProp(n, can, null)]);
   assert.equal(can.parent, null, 'pocketed');
   assert.throws(() => n.attach(can, 'rightHand'), /no rightHand/);
+});
+
+test('NPC attention releases only its own request and restores the remaining target', () => {
+  const n = randyAt(new Vector3(), 0);
+  const older = n.attention.take({ face: 1 });
+  const newer = n.attention.take({ face: 2 });
+  older();
+  assert.equal(n.held, true);
+  assert.equal(n.face, 2);
+  newer();
+  assert.equal(n.held, false);
+
+  const base = n.attention.take({ face: 1 });
+  const scene = n.attention.take({ face: 2 });
+  n.lookAt(3);
+  assert.equal(n.face, 3);
+  scene();
+  assert.equal(n.face, 1);
+  base();
+  assert.equal(n.held, false);
+});
+
+function sceneBindings(npc) {
+  const items = [];
+  let shot = false;
+  const bindings = {
+    actors: { randy: npc },
+    actions: {},
+    points: { roofExit: new Vector3(3, 0, 0) },
+    visible: () => true,
+    shots: { roof: { focus: new Vector3(), zoom: 15 } },
+    camera: {
+      cut: () => {
+        shot = true;
+        return {
+          [Symbol.dispose]: () => {
+            shot = false;
+          },
+        };
+      },
+    },
+    items: {
+      has: (item) => items.includes(item),
+      give: (from, item) => {
+        assert.equal(from, npc);
+        items.push(item);
+      },
+    },
+  };
+  return { bindings, items, hasShot: () => shot };
+}
+
+test('the phone scene can be saved as data and executes through the NPC runner', () => {
+  const n = randyAt(new Vector3(), 0);
+  const s = sceneBindings(n);
+  const definition = JSON.parse(JSON.stringify(PHONE_HANDOFF));
+  const run = n.direct([scene.play(definition, s.bindings)]);
+  assert.equal(n.held, true);
+  assert.equal(s.hasShot(), true);
+
+  for (let i = 0; i < 100 && run.running; i++) {
+    n.update(DT, null);
+  }
+
+  assert.equal(run.status, 'done');
+  assert.deepEqual(s.items, ['burner']);
+  assert.equal(n.held, false);
+  assert.equal(s.hasShot(), false);
+  assert.equal(n.reaching, 0);
+  assert.equal(n.inHand('burner').visible, false);
+});
+
+test('the phone handoff needs no roof layout or tutorial state and gives the phone only once', () => {
+  const n = randyAt(new Vector3(), 0);
+  const s = sceneBindings(n);
+  const game = {
+    inventory: { count: (item) => s.items.filter((kind) => kind === item).length },
+    handOver: s.bindings.items.give,
+  };
+  const camera = { ...s.bindings.camera, shot: s.bindings.shots.roof };
+  for (let i = 0; i < 2; i++) {
+    const run = n.direct([handPhone(game, n, camera)]);
+    for (let frame = 0; frame < 100 && run.running; frame++) {
+      n.update(DT, null);
+    }
+
+    assert.equal(run.status, 'done');
+    assert.deepEqual(s.items, ['burner']);
+    assert.equal(n.held, false);
+    assert.equal(s.hasShot(), false);
+  }
+});
+
+for (const capability of ['camera', 'items', 'visible']) {
+  test(`an unbound ${capability} capability fails explicitly and releases scene attention`, () => {
+    const n = randyAt(new Vector3(), 0);
+    const s = sceneBindings(n);
+    delete s.bindings[capability];
+    const body =
+      capability === 'camera'
+        ? scene.holding([scene.camera('roof')], scene.wait(1))
+        : capability === 'items'
+          ? scene.give('randy', 'burner')
+          : scene.until(scene.offscreen('randy', { after: 0, timeout: 1 }), scene.wait(2));
+    const definition = scene.holding([scene.attention('randy', player)], body);
+    assert.throws(() => n.direct([scene.play(definition, s.bindings)]), /Scene .* is not bound/);
+    assert.equal(n.held, false);
+    assert.equal(s.hasShot(), false);
+    assert.deepEqual(s.items, []);
+  });
+}
+
+test('interrupting a phone scene cleans up without undoing a completed handoff', () => {
+  for (const afterHandoff of [false, true]) {
+    const n = randyAt(new Vector3(), 0);
+    const s = sceneBindings(n);
+    const run = n.direct([scene.play(PHONE_HANDOFF, s.bindings)]);
+    if (afterHandoff) {
+      for (let i = 0; i < 100 && !s.items.length; i++) {
+        n.update(DT, null);
+      }
+    }
+
+    n.stopDirecting(run);
+    assert.equal(run.status, 'cancelled');
+    assert.deepEqual(s.items, afterHandoff ? ['burner'] : []);
+    assert.equal(n.held, false);
+    assert.equal(s.hasShot(), false);
+    assert.equal(n.inHand('burner').visible, false);
+  }
+});
+
+test('a scene cancels its pending navigation request before releasing attention', () => {
+  const n = randyAt(new Vector3(), 0);
+  const s = sceneBindings(n);
+  const definition = scene.holding([scene.attention('randy', player)], scene.walkTo('randy', 'roofExit'));
+  const run = n.direct([scene.play(definition, s.bindings)]);
+  const job = n.world.planner.jobs.at(-1);
+  assert.equal(run.status, 'running');
+  n.stopDirecting(run);
+  assert.equal(job.cancelled, true);
+  assert.equal(n.held, false);
+});
+
+for (const reason of ['arrival', 'no route', 'offscreen', 'timeout', 'cancelled']) {
+  test(`departure releases attention and navigation on ${reason}`, () => {
+    const n = randyAt(new Vector3(), 0);
+    const s = sceneBindings(n);
+    s.bindings.visible = () => reason !== 'offscreen';
+    const run = n.direct([scene.play(JSON.parse(JSON.stringify(ROOF_DEPARTURE)), s.bindings)]);
+    const job = n.world.planner.jobs.at(-1);
+    assert.equal(n.held, true);
+
+    if (reason === 'arrival' || reason === 'no route') {
+      job.settled = true;
+      job.path = reason === 'arrival' ? new Polyline([n.pos.clone(), new Vector3(0, 0, 1)]) : null;
+    } else if (reason === 'timeout') {
+      job.settled = true;
+      job.path = new Polyline([n.pos.clone(), new Vector3(0, 0, 100)]);
+    } else if (reason === 'cancelled') {
+      n.stopDirecting(run);
+    }
+
+    let elapsed = 0;
+    while (run.running && elapsed < 12) {
+      n.update(DT, null);
+      elapsed += DT;
+
+      if (reason === 'offscreen' && elapsed < 0.8) {
+        assert.equal(run.running, true, 'the offscreen grace period still applies');
+      }
+    }
+
+    assert.equal(run.status, reason === 'no route' ? 'failed' : reason === 'cancelled' ? 'cancelled' : 'done');
+    assert.equal(n.held, false);
+    assert.equal(n.walking, false);
+
+    if (reason === 'timeout') {
+      assert.ok(elapsed >= 10 && elapsed < 10.1);
+    }
+
+    if (reason === 'offscreen' || reason === 'cancelled') {
+      assert.equal(job.cancelled, true);
+    }
+  });
+}
+
+test('leaving the roof relocates Randy and his fire after the action settles', () => {
+  const home = new Vector3(2, 0, 3);
+  const n = randyAt(home, 0.3, new Vector3(1, 0, 0));
+  n.place(new Vector3(0, 8, 0), 0);
+  let finished = 0;
+  const puffs = [];
+  const active = leaveRoof().create(
+    { done: () => finished++ },
+    {
+      randy: n,
+      level: { elevators: [] },
+      game: { puff: (at) => puffs.push(at.clone()), toScreen: () => null },
+    },
+  );
+  const job = n.world.planner.jobs.at(-1);
+  job.settled = true;
+  job.path = null;
+  n.update(DT, null);
+  assert.equal(n.pos.y, 8, 'relocation waits for the host to observe the outcome');
+  active.tick(DT);
+  active.stop();
+  assert.equal(finished, 1);
+  assert.ok(n.pos.equals(home));
+  assert.equal(n.yaw, 0.3);
+  assert.equal(n.held, false);
+  assert.equal(puffs.length, 2);
+  assert.equal(puffs[0].y, 8);
+  assert.equal(n.fire.root.position.y, home.y);
+});
+
+test('leaving the tutorial cancels departure without a later relocation', () => {
+  const n = randyAt(new Vector3(), 0);
+  const roof = new Vector3(0, 8, 0);
+  n.place(roof, 0);
+  const active = leaveRoof().create(
+    { done: () => assert.fail('cancelled beat completed') },
+    {
+      randy: n,
+      level: { elevators: [] },
+      game: { puff: () => assert.fail('cancelled beat relocated'), toScreen: () => null },
+    },
+  );
+  const job = n.world.planner.jobs.at(-1);
+  active.stop();
+  n.update(12, null);
+  assert.equal(job.cancelled, true);
+  assert.equal(n.held, false);
+  assert.ok(n.pos.equals(roof));
 });

@@ -2,6 +2,7 @@ import type { Vector3 } from 'three';
 
 import type { Vehicle } from '@/actors/vehicles/vehicle';
 import { TUNING } from '@/config';
+import { type Release, releaseOnce } from '@/engine/core/disposable';
 import type { Rng } from '@/engine/core/rng';
 import type { Focus } from '@/engine/input/input';
 import type { Control } from '@/game/controls';
@@ -66,7 +67,6 @@ export class ValetTalk extends Conversation<Valet, Deal> {
   /** Start a conversation and choose or reuse the handover terms. */
   start(valet: Valet): void {
     const V = TUNING.valet;
-    valet.send({ type: 'talk', who: () => this.hooks.me() });
     this.bribe = valet.state === 'returning';
 
     if (!this.bribe && this.tip === null) {
@@ -122,9 +122,9 @@ export class ValetTalk extends Conversation<Valet, Deal> {
     return [{ action: 'interact', label: 'PARK IT', off: false, does: 'top' }];
   }
 
-  /** Release the valet’s conversation attention. */
-  protected ended(valet: Valet): void {
-    valet.send({ type: 'talkEnded' });
+  protected attend(valet: Valet): Release {
+    valet.send({ type: 'talk', who: () => this.hooks.me() });
+    return releaseOnce(() => valet.send({ type: 'talkEnded' }));
   }
 
   protected chose(valet: Valet, deal: Deal): void {

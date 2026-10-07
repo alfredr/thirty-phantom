@@ -1,9 +1,10 @@
 import type { Vehicle } from '@/actors/vehicles/vehicle';
+import { Leases } from '@/engine/sim/leases';
 import type { MindEvent } from '@/engine/sim/mind';
 import type { CodyAbility } from '@/game/cody/cody-state';
 import type { Game } from '@/game/game';
 
-import { Leases, type Part } from './director';
+import type { Part } from './director';
 
 export type Entry = 'none' | 'pickup' | 'any';
 
